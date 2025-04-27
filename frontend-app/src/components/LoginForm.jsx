@@ -1,3 +1,4 @@
+// src/components/LoginForm.jsx
 import React, { useState } from 'react';
 
 export default function LoginForm({ onLogin }) {
@@ -8,7 +9,9 @@ export default function LoginForm({ onLogin }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    try {'/api/login', {http://localhost:3001/api/login', {
+    try {
+      // <-- Aquí és on fem la crida correcta a la nostra API serverless
+      const res = await fetch('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
@@ -22,14 +25,16 @@ export default function LoginForm({ onLogin }) {
 
       const data = await res.json();
       onLogin(data);
-    } catch {
+    } catch (e) {
       setError('Error del servidor');
     }
   };
 
   return (
-    <form onSubmit={handleSubmit}
-          className="max-w-sm mx-auto p-4 space-y-4 bg-white shadow rounded-xl">
+    <form
+      onSubmit={handleSubmit}
+      className="max-w-sm mx-auto p-4 space-y-4 bg-white shadow rounded-xl"
+    >
       <h2 className="text-2xl font-bold text-center">Login</h2>
 
       <div>
@@ -37,7 +42,7 @@ export default function LoginForm({ onLogin }) {
         <input
           type="text"
           value={username}
-          onChange={e => setUsername(e.target.value)}
+          onChange={(e) => setUsername(e.target.value)}
           className="w-full border p-2 rounded"
         />
       </div>
@@ -47,15 +52,17 @@ export default function LoginForm({ onLogin }) {
         <input
           type="password"
           value={password}
-          onChange={e => setPassword(e.target.value)}
+          onChange={(e) => setPassword(e.target.value)}
           className="w-full border p-2 rounded"
         />
       </div>
 
       {error && <p className="text-red-600">{error}</p>}
 
-      <button type="submit"
-              className="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700">
+      <button
+        type="submit"
+        className="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700"
+      >
         Entrar
       </button>
     </form>
