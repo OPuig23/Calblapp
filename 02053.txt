@@ -1,0 +1,94 @@
+Pensó durante un par de segundos
+
+
+Aquí tens un resum de l’estat actual del flux **“Crear Quadrants”** i els propers passos recomanats per avançar:
+
+---
+
+## 📍 On som ara
+
+1. **WeekSelector**
+
+   * Component client‑side que mostra el rang de setmana (dilluns–diumenge) amb fletxes per navegar.
+   * `useMemo` + `useEffect` optimitzat per no caure en bucles infinits.
+
+2. **XlsxTemplate**
+
+   * Botó que genera i descarrega un **.xlsx** amb columnes:
+
+     * `Data` (format “dd/MM/yyyy”),
+     * `NOM_ESDEVENIMENT` (amplada 45 caràcters),
+     * `UBICACIO`, `SERVEI`, `Personal`, `Conductors`, `Responsables`, `Convocatoria`, `Lloc`, `Sortida`.
+   * Utilitza **SheetJS** per definir l’amplada de cada columna.
+
+3. **Pujar Plantilla Omplerta**
+
+   * Input ocult que carrega l’arxiu `.xlsx` omplert pel Cap de Departament en estat `uploadedFile`.
+
+4. **Crear Quadrant**
+
+   * Botó que processa el fitxer carregat:
+
+     * Llegeix la fulla amb **SheetJS**, converteix a JSON.
+     * Crida `generateQuadrant(rows, premisesLogistica)` per obtenir assignacions.
+   * S’ha refactoritzat amb `useCallback` per evitar loops d’actualització.
+
+5. **generateQuadrant (stub)**
+
+   * Ara retorna un array d’objectes que inclou:
+
+     * `eventId`, `convocatoria`, `ubicacio`, `lloc`.
+     * `assignedStaff`: llistat d’assignacions de prova amb rols (`driver`, `manager`, `soldier`).
+
+6. **QuadrantPreview**
+
+   * Component que rep aquest array i el renderitza en “cards”:
+
+     * Títol de l’esdeveniment, convocatòria, ubicació i lloc.
+     * Icones i colors per cada treballador segons rol.
+
+---
+
+## 🔜 Propers passos
+
+1. **Implementar lògica real d’assignació**
+
+   * Substituir el stub de `generateQuadrant` amb l’algorisme definit:
+
+     * Llegir el nombre de `Personal`, `Conductors`, `Responsables`, hores de `Convocatoria` i `Sortida`.
+     * Respectar `restHours`, `noTwoEventsSameDay` i `priorities` de `premises-logistica.json`.
+     * Assignar primer conductors, després responsables i finalment staff.
+
+2. **Gestió d’errors i validacions**
+
+   * Validar que el fitxer XLSX tingui totes les columnes esperades.
+   * Mostrar missatges d’error més descriptius si falten dades o són invàlides.
+
+3. **Polir la UI de QuadrantPreview**
+
+   * Afegir seccions per mostrar també la `Sortida`.
+   * Possibilitat d’“editar” manualment una assignació arrossegant ítems (drag‑and‑drop) amb **Framer Motion**.
+
+4. **Filtrat i personalització per departament**
+
+   * Ajustar `getEventsByWeek` per filtrar automàticament només els esdeveniments de “Logistica” (o el teu departament) basant‑te en la columna `UBICACIO`.
+   * O bé mantenir tots els events i deixar que el Cap Departament filtrí manualment a l’Excel.
+
+5. **Emmagatzematge i persistència**
+
+   * Desar els quadrants generats a **Firestore** perquè estiguin disponibles des de qualsevol dispositiu.
+   * Afegir un endpoint API per guardar i recuperar quadrants.
+
+6. **Testing i QA**
+
+   * Proves end‑to‑end: selecció de setmana → descàrrega → pujada → generació.
+   * Casos límit: cap esdeveniment, esdeveniments recurrents, falta de dades manuals.
+
+7. **Millores gamificació**
+
+   * Afegir animacions suau en la generació i aparició de quadrants.
+   * Badges o punts per usuaris que compleixin certs objectius (per exemple, no deixar esdeveniments sense assignar).
+
+---
+
+Amb aquest full de ruta en ment, podràs prioritzar la següent iteració: **fer funcionar completament la lògica de `generateQuadrant`** i validar que, un cop carregat el fitxer, es mostri de forma coherent i atractiva el resultat dins **QuadrantPreview**. Després podrem passar a la persistència i polir l’experiència d’usuari.

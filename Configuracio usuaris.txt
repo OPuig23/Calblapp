@@ -1,0 +1,178 @@
+Perfecte 👌, et deixo el README complet amb la **taula de permisos** afegida al final.
+
+---
+
+# 📒 README – Control d’Accés per Rols a la WebApp Cal Blay
+
+## 🎯 Objectiu
+
+Centralitzar el sistema de permisos per rols, de manera que:
+
+* **El menú** només mostri els mòduls accessibles per a cada rol.
+* **Cada pàgina (`page.tsx`)** estigui protegida encara que un usuari intenti accedir-hi directament escrivint la URL.
+* **Els permisos siguin escalables i fàcils de modificar** des d’un únic lloc.
+
+---
+
+## 1. Definició de Rols (`roles.ts`)
+
+```ts
+export type Role =
+  | 'admin'
+  | 'direccio'
+  | 'cap'
+  | 'treballador'
+  | 'comercial'
+  | 'usuari'
+```
+
+La funció `normalizeRole()` converteix qualsevol entrada (CSV, Firestore, etc.) a un rol vàlid i conegut.
+
+---
+
+## 2. Centralització de permisos (`accessControl.ts`)
+
+Nou fitxer: `src/lib/accessControl.ts`
+
+```ts
+import { type Role } from '@/lib/roles'
+
+export const NAV_ITEMS: { label: string; path: string; roles: Role[]; department?: string }[] = [
+  { label: 'Torns', path: '/menu/torns', roles: ['admin', 'direccio', 'cap', 'treballador'] },
+  { label: 'Esdeveniments', path: '/menu/events', roles: ['admin', 'direccio', 'cap', 'treballador', 'comercial', 'usuari'] },
+  { label: 'Personal', path: '/menu/personnel', roles: ['admin', 'direccio', 'cap'] },
+  { label: 'Quadrants', path: '/menu/quadrants', roles: ['admin', 'direccio', 'cap'] },
+  { label: 'Incidències', path: '/menu/incidents', roles: ['admin', 'direccio', 'cap'] },
+  { label: 'Informes', path: '/menu/reports', roles: ['admin', 'direccio'] },
+  { label: 'Usuaris', path: '/menu/users', roles: ['admin'] },
+  { label: 'Transports', path: '/menu/transports', roles: ['admin', 'direccio', 'cap'], department: 'Transports' },
+  { label: 'Calendar', path: '/menu/calendar', roles: ['admin', 'direccio', 'comercial'] },
+]
+
+export const ROLE_LABEL: Record<Role, string> = {
+  admin: 'Admin',
+  direccio: 'Direcció',
+  cap: 'Cap departament',
+  treballador: 'Treballador',
+  comercial: 'Comercial',
+  usuari: 'Usuari',
+}
+
+export const ROLE_BADGE_CLASS: Record<Role, string> = {
+  admin: 'bg-blue-50 text-blue-700 ring-blue-200',
+  direccio: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+  cap: 'bg-amber-50 text-amber-700 ring-amber-200',
+  treballador: 'bg-slate-100 text-slate-700 ring-slate-200',
+  comercial: 'bg-indigo-50 text-indigo-700 ring-indigo-200',
+  usuari: 'bg-gray-100 text-gray-700 ring-gray-200',
+}
+```
+
+---
+
+## 3. Control de Navegació (`layout.tsx`)
+
+El `layout.tsx` importa aquestes constants i filtra el menú segons rol i departament.
+Això garanteix que un usuari només vegi les opcions que li pertoquen.
+
+---
+
+## 4. Protegir pàgines (`withRoleGuard.tsx`)
+
+Nou HOC: `src/lib/withRoleGuard.tsx`
+
+```tsx
+'use client'
+
+import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
+import { useEffect } from 'react'
+import { type Role, normalizeRole } from '@/lib/roles'
+
+export function withRoleGuard<P>(
+  Component: React.ComponentType<P>,
+  allowedRoles: Role[]
+) {
+  return function GuardedComponent(props: P) {
+    const { data: session, status } = useSession()
+    const router = useRouter()
+
+    useEffect(() => {
+      if (status !== 'loading') {
+        const role = normalizeRole((session?.user as any)?.role)
+        if (!allowedRoles.includes(role)) {
+          router.replace('/menu') // o /login
+        }
+      }
+    }, [status, session, router])
+
+    if (status === 'loading') return <p>Carregant…</p>
+    return <Component {...props} />
+  }
+}
+```
+
+---
+
+## 5. Aplicar-ho als mòduls
+
+Exemples:
+
+* **Usuaris** (`/menu/users/page.tsx`)
+
+  ```tsx
+  import { withRoleGuard } from '@/lib/withRoleGuard'
+
+  function UsersPage() {
+    return <div>Gestió d’usuaris</div>
+  }
+
+  export default withRoleGuard(UsersPage, ['admin'])
+  ```
+
+* **Informes** (`/menu/reports/page.tsx`)
+
+  ```tsx
+  export default withRoleGuard(ReportsPage, ['admin', 'direccio'])
+  ```
+
+* **Esdeveniments** (`/menu/events/page.tsx`)
+
+  ```tsx
+  export default withRoleGuard(EventsPage, [
+    'admin',
+    'direccio',
+    'cap',
+    'treballador',
+    'comercial',
+    'usuari',
+  ])
+  ```
+
+---
+
+## 6. Taula de permisos per mòdul
+
+| Mòdul             | Admin | Direcció |           Cap Dep.          | Treballador | Comercial | Usuari |
+| ----------------- | :---: | :------: | :-------------------------: | :---------: | :-------: | :----: |
+| **Torns**         |   ✅   |     ✅    |              ✅              |      ✅      |     ❌     |    ❌   |
+| **Esdeveniments** |   ✅   |     ✅    |              ✅              |      ✅      |     ✅     |    ✅   |
+| **Personal**      |   ✅   |     ✅    |              ✅              |      ❌      |     ❌     |    ❌   |
+| **Quadrants**     |   ✅   |     ✅    |              ✅              |      ❌      |     ❌     |    ❌   |
+| **Incidències**   |   ✅   |     ✅    |              ✅              |      ❌      |     ❌     |    ❌   |
+| **Informes**      |   ✅   |     ✅    |              ❌              |      ❌      |     ❌     |    ❌   |
+| **Usuaris**       |   ✅   |     ❌    |              ❌              |      ❌      |     ❌     |    ❌   |
+| **Transports**    |   ✅   |     ✅    | ✅ (només departament propi) |      ❌      |     ❌     |    ❌   |
+| **Calendar**      |   ✅   |     ✅    |              ❌              |      ❌      |     ✅     |    ❌   |
+
+---
+
+## ✅ Proper pas
+
+1. Crear `accessControl.ts` i `withRoleGuard.tsx`.
+2. Actualitzar `layout.tsx` per usar les constants noves.
+3. Aplicar `withRoleGuard` a cada `page.tsx` segons la taula de permisos.
+
+---
+
+Vols que et generi aquest README directament en **format `.md` descarregable** per tenir-lo a la carpeta `/docs` del projecte?

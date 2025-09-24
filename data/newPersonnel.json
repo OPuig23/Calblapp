@@ -1,0 +1,64 @@
+[
+  {
+    "id": "29320a52-a775-4340-bd7f-6c14e5332902",
+    "name": "29320a52-a775-4340-bd7f-6c14e5332902",
+    "role": "Soldat",
+    "department": "Sala",
+    "available": true,
+    "email": "dfdf@ji.es",
+    "phone": "fdfdf645",
+    "isDriver": true
+  },
+  {
+    "id": "Luis",
+    "name": "LUIS 3",
+    "role": "Responsable",
+    "department": "Sala",
+    "available": true,
+    "email": "oriol@calblay.com",
+    "phone": "605633225"
+  },
+  {
+    "id": "Carata",
+    "name": "Carata 2",
+    "role": "Soldat",
+    "department": "Logistica",
+    "available": true,
+    "email": "jose@calblay.com",
+    "phone": "605633226",
+    "isDriver": true,
+    "conductor": true
+  },
+  {
+    "id": "Jose",
+    "name": "Luis",
+    "role": "Responsable",
+    "department": "Logistica",
+    "available": true,
+    "email": "Jose@calblay.com",
+    "phone": "412633225",
+    "isDriver": false,
+    "conductor": false
+  },
+  {
+    "id": "088710f3-2dd8-4983-bd4b-c4c4283cd005",
+    "name": "Xavi F",
+    "role": "Soldat",
+    "department": "logistica",
+    "available": true,
+    "email": "xav@m.es",
+    "phone": "457878",
+    "isDriver": true,
+    "conductor": true
+  },
+  {
+    "id": "b74a5bf5-9c9d-4d24-88c0-b80f4da445da",
+    "name": "Ouafi",
+    "role": "Responsable",
+    "department": "logistica",
+    "available": true,
+    "email": "ou@ma.es",
+    "phone": "45468468",
+    "conductor": false
+  }
+]

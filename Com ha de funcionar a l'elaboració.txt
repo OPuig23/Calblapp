@@ -1,0 +1,18 @@
+Com ha de funcionar a l'elaboració automatica del quadrant.
+
+Primer ha de detectar de quin departament es.
+Buscar l'arixu premises del departament.
+1 Pas:
+
+Mirar la ubicació/lloc i comaprovar si hi ha un treballador asignat si es aixi primer de tot ha de porgramar aquet treballador.
+
+2 Pas
+Per omplir la resta de camps de treballadors, priemr haura de buscar si necesita un conductor, si es aixi haura de buscar un treballador amb la caracterisitca conductor que compleixi amb les premises, es a dir qu eno estigui ja asigna en un altre servei, que existeix el marge d'hores de descans des de l'ultim esdeveniment.
+
+3Pas 
+Buscarem un responsable per l'esdeveniment, haura de buscar un treballador amb la caracterisitca conductor que compleixi amb les premises, es a dir qu eno estigui ja asigna en un altre servei, que existeix el marge d'hores de descans des de l'ultim esdeveniment.
+
+4Pas
+Mirar si es necesita més treballadors si es si, que compleixi amb les premises, es a dir qu eno estigui ja asigna en un altre servei, que existeix el marge d'hores de descans des de l'ultim esdeveniment, sino troba cap trebalaldor disponible haura de retornar "extern".
+
+
