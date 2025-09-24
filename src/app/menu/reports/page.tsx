@@ -23,17 +23,18 @@ export default function ReportsPage() {
   })
   const [applied, setApplied] = useState<ReportFilters>(draft)
 
-  // 2) Carreguem opcions de Departament
-  const { options, loading: optsLoading } = useReportOptions()
-  const { departments } = options
+   // 2) Carreguem opcions de Departament (desactivat temporalment)
+  const departments: string[] = []
+  const optsLoading = false
 
-  // 3) Inicialitzem el departament per defecte un cop carregades les opcions
-  useEffect(() => {
-    if (!optsLoading && draft.department === '' && departments.length) {
-      setDraft((f) => ({ ...f, department: departments[0] }))
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [optsLoading])
+  // 3) Inicialitzem el departament per defecte (no fem res perquè no tenim dades)
+  // useEffect(() => {
+  //   if (!optsLoading && draft.department === '' && departments.length) {
+  //     setDraft((f) => ({ ...f, department: departments[0] }))
+  //   }
+  //   // eslint-disable-next-line react-hooks/exhaustive-deps
+  // }, [optsLoading])
+
 
   // 4) Obtenim dades segons filtres aplicats
   const { data, loading, error } = useReportPersonnel({
