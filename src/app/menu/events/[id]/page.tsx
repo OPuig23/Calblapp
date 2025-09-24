@@ -1,7 +1,8 @@
+// file: src/app/menu/events/[id]/page.tsx
 import React from 'react'
 import Link from 'next/link'
 import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { authOptions } from '@/app/api/auth/[...nextauth]/route'
 import { firestore } from '@/lib/firebaseAdmin'
 import { fetchGoogleEventById, GoogleEvent } from '@/services/googleCalendar'
 import EventMenuModal from '@/components/events/EventMenuModal'
