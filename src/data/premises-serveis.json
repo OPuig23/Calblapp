@@ -1,0 +1,19 @@
+{
+    "department": "Sala",
+    "defaultCharacteristics": ["Treballador", "Responsable", "Conductor"],
+    "restHours": 8,
+    "allowMultipleEventsSameDay": true,
+    "maxFirstEventDurationHours": 6,
+    "requireResponsible": true,
+    "conditions": [
+      {
+        "locations": ["Clos la Plana", "Masia Clos la Plana"],
+        "worker": "Agus"
+      },
+      {
+        "locations": ["Font de la Canya"],
+        "worker": "Marc"
+      }
+    ]
+  }
+  

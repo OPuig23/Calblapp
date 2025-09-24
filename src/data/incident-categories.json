@@ -1,0 +1,14 @@
+[
+  { "id": "201", "label": "MATERIAL TRENCAT" },
+  { "id": "202", "label": "MATERIAL NO FUNCIONA" },
+  { "id": "303", "label": "ACCIDENT" },
+  { "id": "401", "label": "MATERIAL EN MALES CONDICIONS" },
+  { "id": "501", "label": "NO ESTAVA EN  LA FITXA" },
+  { "id": "502", "label": "NO ESTA EN L'ALBARA" },
+  { "id": "503", "label": "NO EXPEDIT" },
+  { "id": "601", "label": "QUEIXA DEL CLIENT" },
+  { "id": "701", "label": "FALTA PERSONAL" },
+  { "id": "702", "label": "RETARD PERSONAL" },
+  { "id": "801", "label": "ALTRES" }
+  
+]

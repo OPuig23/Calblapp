@@ -1,0 +1,20 @@
+
+{
+    "department": "Logistica",
+    "defaultCharacteristics": ["Treballador", "Responsable", "Conductor"],
+    "restHours": 8,
+    "allowMultipleEventsSameDay": false,   
+    "maxFirstEventDurationHours": 24,      
+    "requireResponsible": true,
+    "conditions": [
+      {
+        "locations": ["Clos la Plana", "Masia Clos la Plana"],
+        "responsible": "Melvin"
+      },
+      {
+        "locations": ["Font de la Canya"],
+        "responsible": "Julian"
+      }
+    ]
+  }
+  

@@ -1,0 +1,9 @@
+{
+  "department": "Cuina",
+  "defaultCharacteristics": ["Treballador", "Responsable", "Conductor"],
+  "restHours": 8,
+  "allowMultipleEventsSameDay": true,
+  "maxFirstEventDurationHours": 6,
+  "requireResponsible": true,
+  "conditions": []
+}
