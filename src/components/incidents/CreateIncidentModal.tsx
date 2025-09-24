@@ -4,7 +4,8 @@
 import React, { useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
-import categories from '@/data/incident-categories.json'
+import categories from '../../data/incident-categories.json'
+
 
 interface CreateIncidentModalProps {
   event: {
