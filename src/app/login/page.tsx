@@ -3,12 +3,12 @@
 
 import { signIn } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import React, { useState } from 'react'
+import React, { useState, Suspense } from 'react'
 
-export default function LoginPage() {
+function LoginInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const callbackUrl = searchParams.get('callbackUrl') ?? '/menu'
+  const callbackUrl: string = searchParams?.get('callbackUrl') ?? '/menu'
   const [user, setUser] = useState('')
   const [pass, setPass] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -29,7 +29,10 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-      <form onSubmit={handleSubmit} className="bg-white p-6 rounded shadow-md w-full max-w-sm">
+      <form
+        onSubmit={handleSubmit}
+        className="bg-white p-6 rounded shadow-md w-full max-w-sm"
+      >
         <h1 className="text-2xl font-bold mb-4 text-center">Inicia sessió</h1>
         {error && <p className="text-red-600 mb-2">{error}</p>}
         <div className="mb-4">
@@ -60,5 +63,13 @@ export default function LoginPage() {
         </button>
       </form>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="p-4 text-center">Carregant...</div>}>
+      <LoginInner />
+    </Suspense>
   )
 }
