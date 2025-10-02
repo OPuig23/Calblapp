@@ -1,14 +1,12 @@
-// src/services/autoAssign.ts
+// file: src/services/autoAssign.ts
 import { firestore } from '@/lib/firebaseAdmin'
 import { loadPremises } from './premises'
 import { buildLedger } from './workloadLedger'
 import { isEligibleByName } from './eligibility'
 import { calculatePersonalNeeded } from '@/utils/calculatePersonalNeeded'
-import { normalizeVehicleType } from '@/utils/normalizeVehicleType'
 import { assignVehiclesAndDrivers } from './vehicleAssign'
 
-
-type Personnel = {
+export interface Personnel {
   id: string
   name: string
   role: string
@@ -16,6 +14,48 @@ type Personnel = {
   isDriver?: boolean
   available?: boolean
   maxHoursWeek?: number
+  lastAssignedAt?: string | null
+  weekAssigns?: number
+  weekHrs?: number
+  monthHrs?: number
+}
+
+interface RankedPersonnel {
+  p: Personnel
+  weekAssigns: number
+  weekHrs: number
+  monthHrs: number
+  lastAssignedAt: string | null
+}
+
+type VehicleType = 'camioPetit' | 'camioGran' | 'furgoneta' | string
+
+interface VehicleRequest {
+  id?: string
+  plate?: string
+  vehicleType?: VehicleType
+  type?: VehicleType
+  conductorId?: string | null
+}
+
+interface PremiseCondition {
+  locations: string[]
+  responsible: string
+}
+
+interface PremisesConfig {
+  conditions?: PremiseCondition[]
+  restHours: number
+  allowMultipleEventsSameDay?: boolean
+  requireResponsible?: boolean
+}
+
+interface Ledger {
+  assignmentsCountByUser: Map<string, number>
+  weeklyHoursByUser: Map<string, number>
+  monthlyHoursByUser: Map<string, number>
+  lastAssignedAtByUser: Map<string, string | null>
+  busyAssignments: Array<{ startISO: string; endISO: string; name: string }>
 }
 
 const RESPONSABLE_ROLES = new Set(['responsable', 'cap departament', 'supervisor'])
@@ -24,7 +64,10 @@ const SOLDAT_ROLES = new Set(['soldat', 'treballador', 'operari'])
 const unaccent = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 const norm = (s?: string | null) => unaccent((s || '').toLowerCase().trim())
 
-function tieBreakOrder(a: any, b: any) {
+/**
+ * Comparador per ordenar candidats segons càrrega de feina.
+ */
+function tieBreakOrder(a: RankedPersonnel, b: RankedPersonnel) {
   if (a.weekAssigns !== b.weekAssigns) return a.weekAssigns - b.weekAssigns
   if (a.weekHrs !== b.weekHrs) return a.weekHrs - b.weekHrs
   if (a.monthHrs !== b.monthHrs) return a.monthHrs - b.monthHrs
@@ -36,27 +79,20 @@ function tieBreakOrder(a: any, b: any) {
 export async function autoAssign(payload: {
   department: string
   eventId: string
-  eventName: string
+  // eventName: string  // ← si el vols usar, descomenta i fes-lo servir (ara no s’usa)
   location?: string
   meetingPoint?: string
   startDate: string
   startTime?: string
   endDate: string
   endTime?: string
-  /** TOTAL demanat (resp + conductors + treballadors) */
   totalWorkers: number
   numDrivers: number
   manualResponsibleId?: string | null
-  vehicles?: Array<{
-    id?: string
-    plate?: string
-    vehicleType?: string
-    type?: string
-    conductorId?: string | null
-  }>
+  vehicles?: VehicleRequest[]
 }) {
   const {
-    department, eventId, eventName, location,
+    department, eventId, location,
     meetingPoint = '',
     startDate, startTime = '00:00',
     endDate, endTime = '00:00',
@@ -69,15 +105,21 @@ export async function autoAssign(payload: {
   const endISO = `${endDate}T${endTime}:00`
   const dept = norm(department)
 
-  // 🔎 Log d'entrada
   console.log('[autoAssign] ▶️ inici', {
     dept, eventId, dates: { startISO, endISO },
     totalWorkers, numDrivers,
-    vehiclesRequested: vehicles.map(v => ({ vehicleType: v.vehicleType ?? v.type, plate: v.plate, conductorId: v.conductorId }))
+    vehiclesRequested: vehicles.map(v => ({
+      vehicleType: v.vehicleType ?? v.type,
+      plate: v.plate,
+      conductorId: v.conductorId
+    }))
   })
 
   // 1) Premisses
-  const { premises, warnings } = await loadPremises(dept)
+  const { premises, warnings } = (await loadPremises(dept)) as {
+    premises: PremisesConfig
+    warnings?: string[]
+  }
 
   // 2) Rang setmana / mes
   const d = new Date(startISO)
@@ -89,13 +131,13 @@ export async function autoAssign(payload: {
   const [ws, we, ms, me] = [weekStart, weekEnd, monthStart, monthEnd].map(x => x.toISOString().slice(0, 10))
 
   // 3) Ledger
-  const ledger = await buildLedger(dept, ws, we, ms, me)
+  const ledger = (await buildLedger(dept, ws, we, ms, me)) as Ledger
 
   // 4) Personal del departament
   const ps = await firestore.collection('personnel').get()
   const all: Personnel[] = ps.docs
-    .map(dref => ({ id: dref.id, ...(dref.data() as any) }))
-    .filter(p => norm(p.department) === dept)
+    .map(dref => ({ id: dref.id, ...(dref.data() as Record<string, unknown>) }))
+    .filter(p => norm((p as Personnel).department) === dept) as Personnel[]
 
   // 5) Responsable
   let forcedByPremise = false
@@ -105,8 +147,8 @@ export async function autoAssign(payload: {
     chosenResp = all.find(p => p.id === manualResponsibleId) || null
   }
   if (!chosenResp && premises.conditions?.length && location) {
-    const hit = premises.conditions.find(c =>
-      c.locations.some(loc => norm(location).includes(norm(loc)))
+    const hit = premises.conditions.find((c: PremiseCondition) =>
+      c.locations.some((loc: string) => norm(location).includes(norm(loc)))
     )
     if (hit) {
       const candidate = all.find(p => norm(p.name) === norm(hit.responsible))
@@ -152,7 +194,7 @@ export async function autoAssign(payload: {
 
   const exclude = new Set<string>(chosenResp ? [norm(chosenResp.name)] : [])
 
-  const rank = (p: Personnel) => ({
+  const rank = (p: Personnel): RankedPersonnel => ({
     p,
     weekAssigns: ledger.assignmentsCountByUser.get(p.name) || 0,
     weekHrs: ledger.weeklyHoursByUser.get(p.name) || 0,
@@ -172,16 +214,16 @@ export async function autoAssign(payload: {
     .map(rank)
     .sort(tieBreakOrder)
 
-// 6.1) Assignació de conductors + vehicles
-const drivers = await assignVehiclesAndDrivers({
-  dept,
-  meetingPoint,
-  startISO,
-  endISO,
-  baseCtx,
-  driverPool,
-  vehiclesRequested: vehicles,
-})
+  // 6.1) Assignació de conductors + vehicles
+  const drivers = await assignVehiclesAndDrivers({
+    dept,
+    meetingPoint,
+    startISO,
+    endISO,
+    baseCtx,
+    driverPool,
+    vehiclesRequested: vehicles,
+  })
 
   // 6.2) Càlcul de treballadors reals
   const driversForCalc = drivers.filter(d => d.name !== 'Extra').map(d => ({ name: d.name }))
@@ -208,7 +250,6 @@ const drivers = await assignVehiclesAndDrivers({
 
   const needsReview = violations.length > 0
 
-  // 🔎 Log de sortida resumit
   console.log('[autoAssign] ✅ resultat', {
     responsible: chosenResp?.name || null,
     drivers: drivers.map(d => ({ name: d.name, plate: d.plate, vehicleType: d.vehicleType })),

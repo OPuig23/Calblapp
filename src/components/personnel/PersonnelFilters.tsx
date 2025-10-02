@@ -1,14 +1,18 @@
-//file: src/components/personnel/PersonnelFilters.tsx
+// file: src/components/personnel/PersonnelFilters.tsx
 'use client'
 
 import React, { useState, useEffect } from 'react'
 
+export type RoleType = 'SOLDAT' | 'RESPONSABLE' | 'TREBALLADOR' | ''
+export type DriverFilter = 'all' | 'yes' | 'no'
+export type DriverType = 'camioGran' | 'camioPetit' | 'all'
+
 export interface PersonnelFiltersValues {
   department?: string
   search?: string
-  role?: 'SOLDAT' | 'RESPONSABLE' | 'TREBALLADOR'
+  role?: Exclude<RoleType, ''> // només els vàlids, sense ''
   isDriver?: boolean
-  driverType?: 'camioGran' | 'camioPetit' | 'all'
+  driverType?: DriverType
 }
 
 interface PersonnelFiltersProps {
@@ -19,9 +23,9 @@ interface PersonnelFiltersProps {
 export function PersonnelFilters({ departments, onFilter }: PersonnelFiltersProps) {
   const [dept, setDept] = useState('')
   const [search, setSearch] = useState('')
-  const [role, setRole] = useState<'SOLDAT' | 'RESPONSABLE' | 'TREBALLADOR' | ''>('')
-  const [isDriver, setIsDriver] = useState<'all' | 'yes' | 'no'>('all')
-  const [driverType, setDriverType] = useState<'camioGran' | 'camioPetit' | 'all'>('all')
+  const [role, setRole] = useState<RoleType>('') 
+  const [isDriver, setIsDriver] = useState<DriverFilter>('all')
+  const [driverType, setDriverType] = useState<DriverType>('all')
 
   // 🔄 Cada canvi notifica tots els valors junts
   useEffect(() => {
@@ -40,7 +44,7 @@ export function PersonnelFilters({ departments, onFilter }: PersonnelFiltersProp
       <select
         className="border rounded px-2 py-1"
         value={dept}
-        onChange={(e) => setDept(e.target.value)}
+        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setDept(e.target.value)}
       >
         <option value="">🌐 Tots departaments</option>
         {departments.map((d) => (
@@ -54,7 +58,7 @@ export function PersonnelFilters({ departments, onFilter }: PersonnelFiltersProp
       <select
         className="border rounded px-2 py-1"
         value={role}
-        onChange={(e) => setRole(e.target.value as any)}
+        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setRole(e.target.value as RoleType)}
       >
         <option value="">🌐 Tots rols</option>
         <option value="SOLDAT">SOLDAT</option>
@@ -66,7 +70,7 @@ export function PersonnelFilters({ departments, onFilter }: PersonnelFiltersProp
       <select
         className="border rounded px-2 py-1"
         value={isDriver}
-        onChange={(e) => setIsDriver(e.target.value as any)}
+        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setIsDriver(e.target.value as DriverFilter)}
       >
         <option value="all">🌐 Tots</option>
         <option value="yes">✅ Conductor</option>
@@ -78,7 +82,7 @@ export function PersonnelFilters({ departments, onFilter }: PersonnelFiltersProp
         <select
           className="border rounded px-2 py-1"
           value={driverType}
-          onChange={(e) => setDriverType(e.target.value as any)}
+          onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setDriverType(e.target.value as DriverType)}
         >
           <option value="all">🌐 Tots</option>
           <option value="camioGran">🚛 Camió gran</option>
@@ -92,7 +96,7 @@ export function PersonnelFilters({ departments, onFilter }: PersonnelFiltersProp
         className="border rounded px-2 py-1 flex-1"
         placeholder="Cerca per nom..."
         value={search}
-        onChange={(e) => setSearch(e.target.value)}
+        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
       />
     </div>
   )

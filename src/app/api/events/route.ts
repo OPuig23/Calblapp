@@ -1,12 +1,48 @@
-// File: src/app/api/events/route.ts
+// src/app/api/events/route.ts
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { google } from 'googleapis'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
 import { normalizeRole } from '@/lib/roles'
-import { db } from '@/services/db'
+import { firestore as db } from '@/services/db'
 
-// 🔑 Mapeig de departaments → col·leccions Firestore
+interface SessionUser {
+  id?: string
+  role?: string
+  department?: string
+  name?: string
+  email?: string
+}
+
+/**
+ * Representa un event construït a partir del Google Calendar.
+ * És la base que farem servir a la UI.
+ */
+type BuiltEvent = {
+  id: string
+  summary: string
+  start: string
+  end: string
+  location: string
+  locationShort: string
+  mapsUrl: string
+  pax: number
+  state: 'pending'
+  name: string
+  eventCode: string
+  commercial: string
+  isResponsible: boolean
+}
+
+// 🔹 Tipus mínim per documents de Firestore en quadrants
+interface QuadrantEventDoc {
+  eventName?: string
+  responsable?: {
+    name?: string
+    responsableName?: string
+  }
+}
+
 const deptMap: Record<string, string> = {
   logistica: 'quadrantsLogistica',
   cuina: 'quadrantsCuina',
@@ -63,7 +99,6 @@ function extractNameAndCode(summary: string): { name: string; code: string } | n
   return null
 }
 
-// Normalitzar strings
 const norm = (s?: string) =>
   (s || '')
     .normalize('NFD')
@@ -77,10 +112,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ events: [], responsables: {} }, { status: 401 })
   }
 
-  const role = normalizeRole((session.user as any).role)
-  const userName = (session.user.name || session.user.email || '').toString().trim()
-  const userId = (session.user as any).id || null
-  const userDept = (session.user as any).department || ''
+  const user = session.user as SessionUser
+
+  const role = normalizeRole(user.role)
+  const userName = (user.name || user.email || '').toString().trim()
+  const userId = user.id || null
+  const userDept = user.department || ''
 
   const { searchParams } = new URL(request.url)
   const fromStr = searchParams.get('from')
@@ -99,31 +136,33 @@ export async function GET(request: Request) {
   const rawEvents = calRes.data.items || []
 
   // 2. Construïm estructura base
-  const built = rawEvents
-    .map(ev => {
+  const built: BuiltEvent[] = rawEvents
+    .map((ev): BuiltEvent | null => {
       const summary = ev.summary || ''
       const parsed = extractNameAndCode(summary)
       if (!parsed) return null
+
       const commercial = parseCommercial(ev.description || '')
       const pax = Number((summary.match(/(\d+)\s*pax/i) || [])[1] || 0)
       const location = ev.location || ''
+
       return {
-        id:        ev.id!,
+        id: ev.id || '',
         summary,
-        start:     ev.start?.dateTime || ev.start?.date || '',
-        end:       ev.end?.dateTime   || ev.end?.date   || '',
+        start: ev.start?.dateTime || ev.start?.date || '',
+        end: ev.end?.dateTime || ev.end?.date || '',
         location,
         locationShort: shortLocation(location),
-        mapsUrl:   toMapsUrl(location),
+        mapsUrl: toMapsUrl(location),
         pax,
-        state:     'pending' as const,
-        name:      parsed.name,
+        state: 'pending',
+        name: parsed.name,
         eventCode: parsed.code,
         commercial,
-        isResponsible: false, // per defecte
+        isResponsible: false,
       }
     })
-    .filter(Boolean) as Record<string, any>[]
+    .filter((e): e is BuiltEvent => e !== null)
 
   // 3. Filtre per Treballador
   let events = built
@@ -140,11 +179,14 @@ export async function GET(request: Request) {
       if (collName) {
         const snap = await db.collection(collName).get()
         snap.forEach(doc => {
-          const data = doc.data()
+          const data = doc.data() as unknown as QuadrantEventDoc
           const evIdx = events.findIndex(e => {
             const evNorm = norm(e.summary)
             const nameNorm = norm(data.eventName)
-            return nameNorm.includes(e.eventCode.toLowerCase()) || nameNorm === evNorm
+            return (
+              (data.eventName && nameNorm.includes(e.eventCode.toLowerCase())) ||
+              nameNorm === evNorm
+            )
           })
           if (evIdx !== -1) {
             const resp = data.responsable

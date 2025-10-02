@@ -31,24 +31,27 @@ export default async function EventIncidentsPage({ params }: PageProps) {
     .orderBy('createdAt', 'desc')
     .get()
 
-  const incidents: Incident[] = snap.docs.map(doc => {
-    const d = doc.data() as any
-    const ts = d.createdAt
-    const createdAt = ts && typeof ts.toDate === 'function'
+  const incidents: Incident[] = snap.docs.map((doc) => {
+  const d = doc.data() as Partial<Incident> & { createdAt?: any }
+  const ts = d.createdAt
+  const createdAt =
+    ts && typeof ts.toDate === "function"
       ? ts.toDate().toISOString()
-      : typeof ts === 'string'
+      : typeof ts === "string"
       ? ts
-      : ''
-    return {
-      id: doc.id,
-      department: d.department || '',
-      importance: d.importance || '',
-      description: d.description || '',
-      createdBy: d.createdBy || '',
-      createdAt,
-      status: d.status || ''
-    }
-  })
+      : ""
+
+  return {
+    id: doc.id,
+    department: d.department || "",
+    importance: d.importance || "",
+    description: d.description || "",
+    createdBy: d.createdBy || "",
+    createdAt,
+    status: d.status || "",
+  }
+})
+
 
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">

@@ -31,26 +31,28 @@ export default function PersonnelList({ personnel, mutate, onEdit }: Props) {
 
   async function handleRequest(p: Personnel) {
     try {
-      setLoadingMap(m => ({ ...m, [p.id]: true }))
+      setLoadingMap((m: Record<string, boolean>) => ({ ...m, [p.id]: true }))
       await requestUser(p.id)
       mutate()
-    } catch (e: any) {
-      alert(e?.message || 'No s’ha pogut enviar la sol·licitud')
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'No s’ha pogut enviar la sol·licitud'
+      alert(msg)
     } finally {
-      setLoadingMap(m => ({ ...m, [p.id]: false }))
+      setLoadingMap((m: Record<string, boolean>) => ({ ...m, [p.id]: false }))
     }
   }
 
   async function handleDelete(p: Personnel) {
     if (!confirm(`Segur que vols eliminar ${p.name || p.id}?`)) return
     try {
-      setLoadingMap(m => ({ ...m, [p.id]: true }))
+      setLoadingMap((m: Record<string, boolean>) => ({ ...m, [p.id]: true }))
       await deletePersonnel(p.id)
       mutate()
-    } catch (e: any) {
-      alert(e?.message || 'No s’ha pogut eliminar el registre')
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'No s’ha pogut eliminar el registre'
+      alert(msg)
     } finally {
-      setLoadingMap(m => ({ ...m, [p.id]: false }))
+      setLoadingMap((m: Record<string, boolean>) => ({ ...m, [p.id]: false }))
     }
   }
 
@@ -68,7 +70,7 @@ export default function PersonnelList({ personnel, mutate, onEdit }: Props) {
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-      {personnel.map(p => {
+      {personnel.map((p) => {
         const isLoading = !!loadingMap[p.id]
         const deptStyle =
           deptColors[p.department?.toUpperCase()] || 'bg-gray-50 text-gray-700 border'

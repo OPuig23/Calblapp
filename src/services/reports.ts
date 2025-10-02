@@ -1,6 +1,6 @@
-// File: src/services/reports.ts
+// src/services/reports.ts
 import { firestore } from './db'
-import { Timestamp }  from 'firebase-admin/firestore'
+import { Timestamp } from 'firebase-admin/firestore'
 
 export interface ReportFilters {
   department:   string
@@ -10,6 +10,30 @@ export interface ReportFilters {
   event:        string
   responsible:  string
   businessLine: string
+}
+
+interface StaffMember {
+  id: string
+  name: string
+  role?: string
+  startTime?: string | { toDate: () => Date }
+  endTime?: string | { toDate: () => Date }
+  isResponsible?: boolean
+}
+
+interface AssignmentDoc {
+  code?: string
+  name?: string
+  businessLine?: string
+  startTime?: string | { toDate: () => Date }
+  endTime?: string | { toDate: () => Date }
+  isResponsible?: boolean
+  assignedStaff?: StaffMember[]
+}
+
+interface QuadrantDoc {
+  department: string
+  assignments?: AssignmentDoc[]
 }
 
 export async function getPersonnelReport(filters: ReportFilters) {
@@ -35,8 +59,8 @@ export async function getPersonnelReport(filters: ReportFilters) {
 
   const allAsgs: Asg[] = []
   quadSnap.forEach(doc => {
-    const data = doc.data() as any
-    const dept = data.department as string
+    const data = doc.data() as QuadrantDoc
+    const dept = data.department
 
     for (const asg of data.assignments || []) {
       const {
@@ -54,8 +78,8 @@ export async function getPersonnelReport(filters: ReportFilters) {
           personName:    staff.name,
           personRole:    staff.role || '',
           department:    dept,
-          startTime:     staff.startTime ?? aStart,
-          endTime:       staff.endTime   ?? aEnd,
+          startTime:     staff.startTime ?? aStart ?? '',
+          endTime:       staff.endTime   ?? aEnd   ?? '',
           isResponsible: staff.isResponsible ?? isResponsible ?? false,
           code,
           name,

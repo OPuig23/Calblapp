@@ -11,8 +11,6 @@ export type User = {
   departmentLower?: string
   email?: string
   phone?: string
-
-  // Camps de Treballador
   available?: boolean
   isDriver?: boolean
   workerRank?: 'soldat' | 'responsable'
@@ -31,8 +29,9 @@ export function useUsers() {
         console.error(`❌ fetchUsers failed ${res.status}:`, text)
         throw new Error(`Error fetching users: ${res.status}`)
       }
-      const data = JSON.parse(text) as User[] | any
-      const arr: User[] = Array.isArray(data) ? data : []
+
+      const data: unknown = JSON.parse(text)
+      const arr: User[] = Array.isArray(data) ? (data as User[]) : []
       arr.sort((a, b) => (a.name || '').localeCompare(b.name || ''))
       setUsers(arr)
     } catch (err) {
@@ -52,7 +51,6 @@ export function useUsers() {
       department: data.department,
       email:      data.email,
       phone:      data.phone,
-      // si és Treballador, enviem extres
       available:  data.available,
       isDriver:   data.isDriver,
       workerRank: data.workerRank,
@@ -97,6 +95,5 @@ export function useUsers() {
     }
   }
 
-  // 👇 exposem fetchUsers com a funció pública
   return { users, loading, saveUser, deleteUser, fetchUsers }
 }

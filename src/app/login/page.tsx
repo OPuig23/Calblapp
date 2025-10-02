@@ -7,8 +7,8 @@ import React, { useState } from 'react'
 
 export default function LoginPage() {
   const router = useRouter()
-  const params = useSearchParams()
-  const callbackUrl = params.get('callbackUrl') || '/menu'
+  const searchParams = useSearchParams()
+  const callbackUrl = searchParams.get('callbackUrl') ?? '/menu'
   const [user, setUser] = useState('')
   const [pass, setPass] = useState('')
   const [error, setError] = useState<string | null>(null)

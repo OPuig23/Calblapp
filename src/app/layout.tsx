@@ -13,6 +13,14 @@ import { normalizeRole, type Role } from '@/lib/roles'
 import { NotificationsProvider } from '@/context/NotificationsContext'
 import './globals.css'
 
+type SessionUser = {
+  role?: string
+  department?: string
+  name?: string
+  email?: string
+}
+
+
 const NAV_ITEMS: { label: string; path: string; roles: Role[]; department?: string }[] = [
   { label: 'Torns', path: '/menu/torns', roles: ['admin', 'direccio', 'cap', 'treballador'] },
   { label: 'Esdeveniments', path: '/menu/events', roles: ['admin', 'direccio', 'cap', 'treballador', 'comercial', 'usuari'] },
@@ -65,10 +73,10 @@ function InnerLayout({ children }: PropsWithChildren) {
 
   const username = session?.user?.name || session?.user?.email || 'Usuari'
   const avatarLetter = username[0]?.toUpperCase() || 'U'
-  const role = normalizeRole((session?.user as any)?.role)
+ const role = normalizeRole(((session?.user as SessionUser)?.role) || '')
   const roleLabel = ROLE_LABEL[role]
   const roleBadgeClass = ROLE_BADGE_CLASS[role]
-  const userDept = (session?.user as any)?.department || ''
+  const userDept = ((session?.user as SessionUser)?.department) || ''
 
   const navItemsByRole = NAV_ITEMS.filter((item) => {
     if (role === 'admin' || role === 'direccio') return true

@@ -19,8 +19,8 @@ export async function PUT(
     const body = await req.json()
     await firestore.collection(COLLECTION).doc(id).update(body)
     return NextResponse.json({ success: true })
-  } catch (err) {
-    console.error('Error actualitzant transport:', err)
+  } catch (error: unknown) {
+    console.error('Error actualitzant transport:', error)
     return NextResponse.json({ error: 'Error actualitzant' }, { status: 500 })
   }
 }
@@ -37,8 +37,8 @@ export async function DELETE(
     const { id } = await context.params // 👈 també aquí
     await firestore.collection(COLLECTION).doc(id).delete()
     return NextResponse.json({ success: true })
-  } catch (err) {
-    console.error('Error eliminant transport:', err)
+  } catch (error: unknown) {
+    console.error('Error eliminant transport:', error)
     return NextResponse.json({ error: 'Error eliminant' }, { status: 500 })
   }
 }

@@ -1,12 +1,25 @@
-// src/services/workloadLedger.ts
+// filename: src/services/workloadLedger.ts
 import { firestore } from '@/lib/firebaseAdmin'
+
+export interface BusyAssignment {
+  id: string
+  status?: string
+  department?: string
+  startDate: string
+  endDate: string
+  startTime?: string
+  endTime?: string
+  treballadors?: Array<{ name: string }>
+  conductors?: Array<{ name: string }>
+  responsable?: { name?: string }
+}
 
 export type Ledger = {
   weeklyHoursByUser: Map<string, number>
   monthlyHoursByUser: Map<string, number>
   assignmentsCountByUser: Map<string, number>
   lastAssignedAtByUser: Map<string, string | null>
-  busyAssignments: any[]
+  busyAssignments: BusyAssignment[]
 }
 
 const unaccent = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -34,12 +47,19 @@ export async function buildLedger(
   const assignmentsCountByUser = new Map<string, number>()
   const lastAssignedAtByUser = new Map<string, string | null>()
 
+  // 🔹 Carreguem docs de Firestore
   const snap = await firestore.collection(collForDept(department)).get()
-  const busy: any[] = []
-  snap.forEach(d => busy.push({ id: d.id, ...d.data() }))
+  const busy: BusyAssignment[] = snap.docs.map(d => ({
+    id: d.id,
+    ...(d.data() as Omit<BusyAssignment, 'id'>),
+  }))
 
-  const add = (m: Map<string, number>, key: string, v: number) => m.set(key, (m.get(key) || 0) + v)
-  const addCount = (m: Map<string, number>, key: string) => m.set(key, (m.get(key) || 0) + 1)
+  const add = (m: Map<string, number>, key: string, v: number) =>
+    m.set(key, (m.get(key) || 0) + v)
+
+  const addCount = (m: Map<string, number>, key: string) =>
+    m.set(key, (m.get(key) || 0) + 1)
+
   const setLast = (m: Map<string, string | null>, key: string, dt: string) => {
     const prev = m.get(key)
     if (!prev || new Date(prev) < new Date(dt)) m.set(key, dt)
@@ -50,22 +70,21 @@ export async function buildLedger(
     if (norm(q.department) !== norm(department)) continue
 
     const startISO = `${q.startDate}T${(q.startTime || '00:00')}:00`
-    const endISO   = `${q.endDate}T${(q.endTime || '00:00')}:00`
     const hrs = toHrs(q.startDate, q.startTime, q.endDate, q.endTime)
 
     const persons: string[] = [
-      ...(Array.isArray(q.treballadors) ? q.treballadors.map((x: any) => x?.name).filter(Boolean) : []),
-      ...(Array.isArray(q.conductors) ? q.conductors.map((x: any) => x?.name).filter(Boolean) : []),
+      ...(Array.isArray(q.treballadors) ? q.treballadors.map(x => x?.name).filter(Boolean) : []),
+      ...(Array.isArray(q.conductors) ? q.conductors.map(x => x?.name).filter(Boolean) : []),
       ...(q.responsable?.name ? [q.responsable.name] : []),
     ]
 
     for (const name of persons) {
-      // setmanal
+      // Setmanal
       if (startISO >= `${weekStartISO}T00:00:00` && startISO < `${weekEndISO}T23:59:59`) {
         add(weeklyHoursByUser, name, hrs)
         addCount(assignmentsCountByUser, name)
       }
-      // mensual
+      // Mensual
       if (startISO >= `${monthStartISO}T00:00:00` && startISO < `${monthEndISO}T23:59:59`) {
         add(monthlyHoursByUser, name, hrs)
       }
@@ -73,5 +92,11 @@ export async function buildLedger(
     }
   }
 
-  return { weeklyHoursByUser, monthlyHoursByUser, assignmentsCountByUser, lastAssignedAtByUser, busyAssignments: busy }
+  return {
+    weeklyHoursByUser,
+    monthlyHoursByUser,
+    assignmentsCountByUser,
+    lastAssignedAtByUser,
+    busyAssignments: busy,
+  }
 }

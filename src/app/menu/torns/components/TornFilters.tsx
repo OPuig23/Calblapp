@@ -7,7 +7,6 @@ import { RotateCcw } from 'lucide-react'
 import { startOfWeek, endOfWeek, format } from 'date-fns'
 
 type Props = {
-  filters: SmartFiltersChange
   setFilters: (f: Partial<SmartFiltersChange>) => void
   deptOptions?: string[]
   workerOptions?: { id: string; name: string }[]
@@ -19,7 +18,6 @@ type Props = {
 }
 
 export default function TornFilters({
-  filters,
   setFilters,
   deptOptions = [],
   workerOptions = [],

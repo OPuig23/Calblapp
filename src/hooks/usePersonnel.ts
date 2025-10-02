@@ -17,7 +17,7 @@ export interface Personnel {
   department: string
   email?:     string | null
   phone?:     string | null
-  available?: boolean              // ✅ estat de disponibilitat
+  available?: boolean
   hasUser: boolean
   requestStatus: 'none' | 'pending' | 'approved' | 'rejected'
 }
@@ -46,7 +46,6 @@ export function usePersonnel(department?: string) {
       const body = await res.json()
       if (!res.ok) throw new Error(body?.error || 'fetch_error')
 
-      // 🔑 sempre assegurem que hi ha camp available
       const arr: Personnel[] = Array.isArray(body?.data)
         ? body.data.map((p: Personnel) => ({
             ...p,
@@ -55,8 +54,12 @@ export function usePersonnel(department?: string) {
         : []
 
       setData(arr)
-    } catch (err: any) {
-      setError(err.message || 'unknown_error')
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message || 'unknown_error')
+      } else {
+        setError('unknown_error')
+      }
       setData([])
     } finally {
       setLoading(false)
@@ -69,10 +72,8 @@ export function usePersonnel(department?: string) {
 
   /**
    * 🔹 Canvia l’estat disponible/no disponible d’una persona
-   * Amb optimistic update (es veu el canvi a la UI immediatament).
    */
   const toggleAvailability = useCallback(async (personId: string, available: boolean) => {
-    // Optimistic update
     setData(prev =>
       prev.map(p => (p.id === personId ? { ...p, available } : p))
     )
@@ -88,7 +89,6 @@ export function usePersonnel(department?: string) {
 
       return body
     } catch (err) {
-      // Si falla → revertim l’estat
       setData(prev =>
         prev.map(p => (p.id === personId ? { ...p, available: !available } : p))
       )
@@ -97,7 +97,7 @@ export function usePersonnel(department?: string) {
   }, [])
 
   /**
-   * 🔹 Sol·licita la creació d’un usuari vinculat a aquesta persona
+   * 🔹 Sol·licita la creació d’un usuari vinculat
    */
   const requestUser = useCallback(async (personId: string) => {
     const res = await fetch(`/api/personnel/${personId}/request-user`, { method: 'POST' })
@@ -129,6 +129,6 @@ export function usePersonnel(department?: string) {
     refetch:   fetchData,
     requestUser,
     deletePersonnel,
-    toggleAvailability,   // ✅ ara sí funcional i estable
+    toggleAvailability,
   }
 }

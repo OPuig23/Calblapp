@@ -41,32 +41,40 @@ function mergeGroup(arr: TornCardItem[]): TornCardItem {
     { id?: string; name?: string; role?: string; startTime?: string; endTime?: string; meetingPoint?: string }
   >()
 
-  const push = (w?: any) => {
-    if (!w) return
-    const key = w.id ? String(w.id) : norm(w.name)
-    if (!key) return
-    const existing = byKey.get(key)
+  const push = (w?: {
+  id?: string
+  name?: string
+  role?: string
+  startTime?: string
+  endTime?: string
+  meetingPoint?: string
+}) => {
+  if (!w) return
+  const key = w.id ? String(w.id) : norm(w.name)
+  if (!key) return
+  const existing = byKey.get(key)
 
-    if (!existing) {
-      byKey.set(key, {
-        id: w.id,
-        name: w.name,
-        role: w.role,
-        startTime: w.startTime,
-        endTime: w.endTime,
-        meetingPoint: w.meetingPoint,
-      })
-    } else {
-      // ✅ respectem la prioritat: responsable > conductor > treballador
-      const priority = { responsable: 3, conductor: 2, treballador: 1, null: 0 }
-      const newPriority = priority[w.role as keyof typeof priority] || 0
-      const oldPriority = priority[existing.role as keyof typeof priority] || 0
+  if (!existing) {
+    byKey.set(key, {
+      id: w.id,
+      name: w.name,
+      role: w.role,
+      startTime: w.startTime,
+      endTime: w.endTime,
+      meetingPoint: w.meetingPoint,
+    })
+  } else {
+    // ✅ respectem la prioritat: responsable > conductor > treballador
+    const priority = { responsable: 3, conductor: 2, treballador: 1, null: 0 }
+    const newPriority = priority[w.role as keyof typeof priority] || 0
+    const oldPriority = priority[existing.role as keyof typeof priority] || 0
 
-      if (newPriority > oldPriority) {
-        byKey.set(key, { ...existing, role: w.role })
-      }
+    if (newPriority > oldPriority) {
+      byKey.set(key, { ...existing, role: w.role })
     }
   }
+}
+
 
   for (const t of arr) {
     t.__rawWorkers?.forEach(push)
@@ -118,7 +126,8 @@ export default function TornsList({
         const byEvent = new Map<string, TornCardItem[]>()
         for (const t of arr) {
           const key =
-            (t as any).eventId || `${t.code || ''}|${t.eventName || ''}|${t.location || ''}`
+  t.eventId || `${t.code || ''}|${t.eventName || ''}|${t.location || ''}`
+
           if (!byEvent.has(key)) byEvent.set(key, [])
           byEvent.get(key)!.push(t)
         }

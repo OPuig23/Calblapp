@@ -1,14 +1,13 @@
-// src/components/ui/tabs.tsx
+// file: src/components/ui/tabs.tsx
 import * as React from "react"
 import { cn } from "@/lib/utils"
 
 interface TabsProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode
   value: string
-  onValueChange: (value: string) => void
 }
 
-export function Tabs({ children, value, onValueChange, className, ...props }: TabsProps) {
+export function Tabs({ children, value, className, ...props }: TabsProps) {
   return (
     <div
       data-state={value}
@@ -20,9 +19,7 @@ export function Tabs({ children, value, onValueChange, className, ...props }: Ta
   )
 }
 
-interface TabsListProps extends React.HTMLAttributes<HTMLDivElement> {}
-
-export function TabsList({ className, ...props }: TabsListProps) {
+export function TabsList({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       role="tablist"

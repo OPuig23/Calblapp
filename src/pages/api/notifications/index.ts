@@ -1,4 +1,4 @@
-//file: src/pages/api/notifications/index.ts
+// file: src/pages/api/notifications/index.ts
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { firestore } from '@/lib/firebaseAdmin'
 
@@ -71,8 +71,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     return res.status(405).json({ ok: false, error: 'Method not allowed' })
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Error /api/notifications:', err)
-    return res.status(500).json({ ok: false, error: err.message })
+    const message = err instanceof Error ? err.message : 'Error desconegut'
+    return res.status(500).json({ ok: false, error: message })
   }
 }

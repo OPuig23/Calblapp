@@ -18,7 +18,16 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 
-type Mode = 'week' | 'day' | 'range'
+type ApiWorker = {
+  id?: string
+  name?: string
+  role?: string
+  startTime?: string
+  endTime?: string
+  meetingPoint?: string
+  department?: string
+  finalDept?: string
+}
 
 type ApiTorn = {
   id: string
@@ -30,6 +39,7 @@ type ApiTorn = {
   workerRole?: 'responsable' | 'conductor' | 'treballador' | null
   meetingPoint?: string
   location?: string
+  __rawWorkers?: ApiWorker[]
 }
 
 type ApiResp = { 
@@ -68,17 +78,17 @@ export default function TornsPage() {
 
   // Estat modal
   const [selectedTorn, setSelectedTorn] = useState<ApiTorn | null>(null)
-  const [detail, setDetail] = useState<any | null>(null)
+  const [detail, setDetail] = useState<ApiTorn | null>(null)
 
-  const userName = (session as any)?.user?.name || ''
-  const rawRole = norm((session as any)?.user?.role)
+  const userName = session?.user?.name || ''
+  const rawRole = norm(session?.user?.role)
   const role: 'Admin' | 'Direcció' | 'Cap Departament' | 'Treballador' =
     rawRole?.startsWith('admin') ? 'Admin'
     : rawRole?.includes('dire') ? 'Direcció'
     : rawRole?.includes('cap') ? 'Cap Departament'
     : 'Treballador'
 
-  const sessionDept = norm((session as any)?.user?.department)
+  const sessionDept = norm(session?.user?.department)
   const isAdminOrDireccio = role === 'Admin' || role === 'Direcció'
   const isWorker = role === 'Treballador'
 
@@ -131,8 +141,8 @@ export default function TornsPage() {
         const depts = json.meta?.departments || []
         setDeptOptions(isAdminOrDireccio ? ['tots', ...depts] : depts)
         setWorkerOptions(json.meta?.workers || [])
-      } catch (err: any) {
-        if (err.name === 'AbortError') {
+      } catch (err) {
+        if ((err as Error).name === 'AbortError') {
           console.log('[TornsPage] Fetch abortat (canvi de filtres o desmontatge)')
           return
         }
@@ -144,25 +154,22 @@ export default function TornsPage() {
 
     run()
     return () => controller.abort()
-  }, [filters, status])
+  }, [filters, status, isAdminOrDireccio])
 
-  // ✅ Solució 1: no cridem a /getTorn
- const openTornDetail = (t: any) => {
-  setSelectedTorn(t)
+  // ✅ Obre detall torn
+  const openTornDetail = (t: ApiTorn) => {
+    setSelectedTorn(t)
 
-  const enrichedWorkers = (t.__rawWorkers || []).map((w: any) => ({
-    ...w,
-    // 👈 fem servir el camp finalDept si existeix, sinó el que tingui el worker
-    department: w.finalDept || w.department || 'Sense departament',
-  }))
+    const enrichedWorkers: ApiWorker[] = (t.__rawWorkers || []).map((w) => ({
+      ...w,
+      department: w.finalDept || w.department || 'Sense departament',
+    }))
 
-  setDetail({
-    ...t,
-    __rawWorkers: enrichedWorkers,
-  })
-}
-
-
+    setDetail({
+      ...t,
+      __rawWorkers: enrichedWorkers,
+    })
+  }
 
   const closeDetail = () => {
     setSelectedTorn(null)
@@ -185,7 +192,6 @@ export default function TornsPage() {
       <div className="w-full px-3 py-2 sm:px-4 sm:py-3 mb-6">
         <div className="w-full">
           <div className="rounded-2xl border border-gray-200 bg-white p-3 shadow-sm flex flex-wrap items-center gap-3">
-            
             <SmartFilters
               modeDefault="week"
               role={role}
@@ -236,7 +242,7 @@ export default function TornsPage() {
                   <select
                     className="h-10 rounded-xl border bg-white text-gray-900 px-2"
                     value={filters.roleType || 'all'}
-                    onChange={(e) => setFilters({ roleType: e.target.value as any })}
+                    onChange={(e) => setFilters({ roleType: e.target.value })}
                   >
                     <option value="all">🌐 Tots</option>
                     <option value="treballador">Treballador</option>
@@ -246,7 +252,6 @@ export default function TornsPage() {
                 </div>
               </DialogContent>
             </Dialog>
-
           </div>
         </div>
       </div>
@@ -258,7 +263,7 @@ export default function TornsPage() {
         <p className="text-center py-10 text-red-500">{error}</p>
       ) : (
         <TornsList
-          items={items as any}
+          items={items}
           onTornClick={openTornDetail}
           groupByEvent={!isWorker && !filters.workerId && !filters.workerName}
           role={role}

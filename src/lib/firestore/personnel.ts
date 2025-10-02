@@ -1,18 +1,17 @@
-// src/lib/firestore/personnel.ts
-
-import { initializeApp, cert, getApps } from 'firebase-admin/app'
+// file: src/lib/firestore/personnel.ts
+import { initializeApp, cert, getApps, ServiceAccount } from 'firebase-admin/app'
 import { getFirestore } from 'firebase-admin/firestore'
 
-const serviceAccount = {
-  project_id: process.env.FIREBASE_PROJECT_ID,
-  client_email: process.env.FIREBASE_CLIENT_EMAIL,
-  private_key: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+const serviceAccount: ServiceAccount = {
+  projectId: process.env.FIREBASE_PROJECT_ID,
+  clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+  privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
 }
 
 // Inicialització de Firebase Admin (només si no hi ha apps creades)
 if (!getApps().length) {
   initializeApp({
-    credential: cert(serviceAccount as any),
+    credential: cert(serviceAccount),
   })
 }
 
@@ -25,8 +24,22 @@ export interface Personnel {
   driver?: {
     camioGran: boolean
     camioPetit: boolean
+    isDriver?: boolean
   }
   available: boolean
+  department?: string
+}
+
+interface PersonnelDoc {
+  name?: string
+  role?: string
+  available?: boolean
+  department?: string
+  driver?: {
+    isDriver?: boolean
+    camioGran?: boolean
+    camioPetit?: boolean
+  }
 }
 
 /**
@@ -43,9 +56,9 @@ export async function getPersonnelByDepartment(
     .get()
 
   return snap.docs.map(doc => {
-    const data = doc.data() as any
-    // Normalitza el rol segons el camp Firestore
-    let role: Personnel['role'] =
+    const data = doc.data() as PersonnelDoc
+
+    const role: Personnel['role'] =
       data.role?.toLowerCase().startsWith('resp')
         ? 'responsible'
         : data.driver?.isDriver
@@ -56,12 +69,9 @@ export async function getPersonnelByDepartment(
       id: doc.id,
       name: data.name || doc.id,
       role,
-      driver: data.driver || {
-        isDriver: false,
-        camioGran: false,
-        camioPetit: false,
-      },
+      driver: data.driver || { isDriver: false, camioGran: false, camioPetit: false },
       available: !!data.available,
+      department: data.department,
     }
   })
 }

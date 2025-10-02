@@ -6,7 +6,7 @@ import { db } from '@/lib/firebaseAdmin'
 export const runtime = 'nodejs'
 
 // Normalitza: "logística" -> "logistica" 
-const norm = (s: any) =>
+const norm = (s?: string | null) =>
   String(s ?? '')
     .normalize('NFD').replace(/\p{Diacritic}/gu, '')
     .toLowerCase().trim()
@@ -38,6 +38,31 @@ async function resolveDeptCollection(dept: string): Promise<string> {
 
 type Role = 'responsable' | 'conductor' | 'treballador'
 
+interface RowInput {
+  role: Role
+  id: string
+  name: string
+  meetingPoint?: string
+  startDate?: string
+  startTime?: string
+  endDate?: string
+  endTime?: string
+  vehicleType?: string
+  plate?: string
+}
+
+type Line = {
+  id: string
+  name: string
+  meetingPoint: string
+  startDate: string
+  startTime: string
+  endDate: string
+  endTime: string
+  vehicleType: string
+  plate: string
+}
+
 export async function POST(req: NextRequest) {
   try {
     const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET })
@@ -46,16 +71,7 @@ export async function POST(req: NextRequest) {
     const { department, eventId, rows } = await req.json() as {
       department: string
       eventId: string
-      rows: Array<{
-        role: Role
-        id: string
-        name: string
-        meetingPoint?: string
-        startDate?: string
-        startTime?: string
-        endDate?: string
-        endTime?: string
-      }>
+      rows: RowInput[]
     }
 
     if (!department || !eventId || !Array.isArray(rows)) {
@@ -71,7 +87,8 @@ export async function POST(req: NextRequest) {
     const treballadors = rows.filter(r => r.role === 'treballador')
 
     const R = responsables[0]
-    const toLine = (p: any) => ({
+
+    const toLine = (p: RowInput): Line => ({
       id: p?.id || '',
       name: p?.name || '',
       meetingPoint: p?.meetingPoint || '',
@@ -79,11 +96,24 @@ export async function POST(req: NextRequest) {
       startTime: p?.startTime || '',
       endDate:   p?.endDate   || '',
       endTime:   p?.endTime   || '',
-      vehicleType: p?.vehicleType || '',  // 👈 afegit
+      vehicleType: p?.vehicleType || '',
       plate: p?.plate || '',
     })
 
-    const updateData: Record<string, any> = {
+    const updateData: {
+      department: string
+      eventId: string
+      responsable: Line | null
+      responsableId: string
+      responsableName: string
+      conductors: Line[]
+      treballadors: Line[]
+      numDrivers: number
+      totalWorkers: number
+      createdAt: Date
+      updatedAt: Date
+      status: string
+    } = {
       department: norm(department),
       eventId,
       responsable: R ? toLine(R) : null,
@@ -96,7 +126,7 @@ export async function POST(req: NextRequest) {
       totalWorkers: treballadors.length,
 
       // crea metadades si no existeixen
-      createdAt: new Date(), // si ja hi és no passa res, merge no l’esborrarà
+      createdAt: new Date(),
       updatedAt: new Date(),
       status: 'draft',
     }

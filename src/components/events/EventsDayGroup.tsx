@@ -1,11 +1,11 @@
-//filename: src/components/events/EventsDayGroup.tsx
+// filename: src/components/events/EventsDayGroup.tsx
 'use client'
 
 import React from 'react'
 import EventCard from './EventCard'
 import { Users, Calendar } from 'lucide-react'
 
-interface EventData {
+export interface EventData {
   id: string
   summary: string
   pax?: number | string
@@ -77,7 +77,7 @@ export default function EventsDayGroup({ date, events, onEventClick }: Props) {
               </span>
             )}
 
-            <EventCard event={event as any} />
+            <EventCard event={event} />
           </div>
         ))}
       </div>

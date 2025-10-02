@@ -1,4 +1,4 @@
-// src/hooks/useCreatePersonnel.ts
+// file: src/hooks/useCreatePersonnel.ts
 'use client'
 
 import { useState } from 'react'
@@ -9,8 +9,8 @@ export interface NewPerson {
   role: string
   department: string
   driver?: {
-  type: 'none' | 'camioGran' | 'camioPetit'
-}
+    type: 'none' | 'camioGran' | 'camioPetit'
+  }
   email: string
   phone: string
   available: boolean
@@ -30,8 +30,9 @@ export function useCreatePersonnel() {
         body: JSON.stringify(newPerson)
       })
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        throw new Error((body as any).error || res.statusText)
+        type ErrorBody = { error?: string }
+        const body: ErrorBody = await res.json().catch(() => ({} as ErrorBody))
+        throw new Error(body.error || res.statusText)
       }
       return res.json() as Promise<NewPerson>
     } finally {

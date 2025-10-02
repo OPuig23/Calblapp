@@ -19,7 +19,6 @@ import { Loader2, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAvailablePersonnel } from '../hooks/useAvailablePersonnel'
 
-// 👇 Imports dels subcomponents
 import QuadrantFieldsServeis from './QuadrantFieldsServeis'
 import QuadrantFieldsLogistica from './QuadrantFieldsLogistica'
 import QuadrantFieldsCuina from './QuadrantFieldsCuina'
@@ -42,51 +41,34 @@ interface QuadrantModalProps {
   }
 }
 
+type AvailableVehicle = {
+  id: string
+  plate?: string
+  type?: string
+  available: boolean
+  conductorId?: string | null
+}
+
 // Helpers
 const extractDate = (iso = '') => iso.split('T')[0] || ''
 
-/** Extreu el codi (C/E/F/P/S + dígits) del títol, tant si ve amb # com si ve al final amb guió. */
 const parseEventCode = (title = ''): string => {
   const t = String(title || '')
-  // intenta "#CODE"
   const mHash = t.match(/#\s*([A-Z]{1,2}\d{5,})\b/i)
   if (mHash) return mHash[1].toUpperCase()
-  // intenta l'últim token tipus C1234567 al final del text
   const all = [...t.matchAll(/\b([A-Z]{1,2}\d{5,})\b/gi)]
   if (all.length) return all[all.length - 1][1].toUpperCase()
   return ''
 }
 
-/** Retorna { name, code } netejant el codi si venia al final. */
 const splitTitle = (title = '') => {
   const code = parseEventCode(title)
   let name = title
   if (code) {
-    // treu " - CODE" o "#CODE" del final
     name = name.replace(new RegExp(`([\\-–—#]\\s*)?${code}\\s*$`, 'i'), '').trim()
   }
   return { name: name.trim(), code }
 }
-
-const getLN = (code = '', dept = '') => {
-  const k = code ? code[0]?.toUpperCase() : ''
-  switch (k) {
-    case 'C': return 'Casaments'
-    case 'E': return 'Empreses'
-    case 'F': return 'Foodlovers'
-    case 'P': return 'Producció'
-    case 'S': return 'Serveis'
-    default:
-      // fallback per si no hem trobat codi
-      switch ((dept || '').toLowerCase()) {
-        case 'serveis': return 'Serveis'
-        case 'logistica': return 'Logística'
-        case 'cuina': return 'Cuina'
-        default: return 'Altres'
-      }
-  }
-}
-
 
 export default function QuadrantModal({ open, onOpenChange, event }: QuadrantModalProps) {
   const { data: session } = useSession()
@@ -95,7 +77,6 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
 
   const { name: eventName, code: eventCode } = splitTitle(event.summary || event.title || '')
 
-  // 🔑 Estat comú
   const [startDate, setStartDate]       = useState(extractDate(event.start))
   const [endDate, setEndDate]           = useState(extractDate(event.start))
   const [startTime, setStartTime]       = useState(event.startTime || '')
@@ -107,22 +88,19 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
   const [error, setError]               = useState<string | null>(null)
   const [success, setSuccess]           = useState(false)
 
-  // 🔑 Estat específic Logística / Cuina
   const [totalWorkers, setTotalWorkers] = useState(event.totalWorkers?.toString() || '')
   const [numDrivers, setNumDrivers]     = useState(event.numDrivers?.toString() || '')
-  const [available, setAvailable]       = useState<{ vehicles: any[] }>({ vehicles: [] })
+  const [available, setAvailable]       = useState<{ vehicles: AvailableVehicle[] }>({ vehicles: [] })
   const [vehicleAssignments, setVehicleAssignments] = useState<
     { vehicleType: string; vehicleId: string; plate: string }[]
   >([])
 
-  // 🔑 Estat específic Serveis
   const [serveisData, setServeisData] = useState({
     workers: Number(event.totalWorkers || 0),
     drivers: Number(event.numDrivers || 0),
     brigades: [] as { id: string; name: string; workers: number; startTime: string; endTime: string }[],
   })
 
-  // Reset quan canvia event
   useEffect(() => {
     setStartDate(extractDate(event.start))
     setEndDate(extractDate(event.start))
@@ -144,7 +122,6 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
     })
   }, [event, open])
 
-  // Responsables
   const { responsables, loading: availLoading } = useAvailablePersonnel({
     departament: department,
     startDate,
@@ -152,13 +129,7 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
     startTime,
     endTime,
   })
-  const getRespStatus = (id: string) => {
-    const r = responsables.find(x => x.id === id)
-    if (!r) return 'notfound'
-    return r.status === 'available' ? 'ok' : 'conflict'
-  }
 
-  // Carregar vehicles disponibles (només logística/cuini)
   useEffect(() => {
     if (
       (department.toLowerCase() === 'logistica' || department.toLowerCase() === 'cuina') &&
@@ -175,7 +146,7 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
           try {
             const parsed = JSON.parse(text)
             return { vehicles: parsed.vehicles || [] }
-          } catch (e) {
+          } catch {
             return { vehicles: [] }
           }
         })
@@ -184,7 +155,6 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
     }
   }, [department, startDate, startTime, endDate, endTime, totalWorkers])
 
-  // Inicialitzar vehicles segons numDrivers
   useEffect(() => {
     setVehicleAssignments(
       Array.from({ length: Number(numDrivers || 0) }).map(() => ({
@@ -197,13 +167,12 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
 
   const canAutoGen = Boolean(startDate) && Boolean(endDate) && Boolean(startTime) && Boolean(endTime)
 
-  // Save
   const handleAutoGenAndSave = async () => {
     if (!canAutoGen) return
     setLoading(true); setError(null); setSuccess(false)
 
     try {
-      const payload: any = {
+      const payload: Record<string, unknown> = {
         eventId: event.id,
         code: eventCode,
         eventName,
@@ -222,7 +191,6 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
         payload.numDrivers   = serveisData.drivers
         payload.brigades     = serveisData.brigades
       } else {
-        // Construcció de vehicles
         const canonicalType = (t?: string) => {
           const x = (t || '').trim()
           if (!x) return ''
@@ -258,16 +226,17 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
       const text = await res.text()
       const data = JSON.parse(text)
 
-      if (!res.ok || data?.ok === false) {
-        throw new Error(data?.error || 'Error desant el quadrant')
+      if (!res.ok || (data as any)?.ok === false) {
+        throw new Error((data as any)?.error || 'Error desant el quadrant')
       }
 
       setSuccess(true)
       toast.success('Borrador creat correctament!')
       setTimeout(() => { onOpenChange(false); router.refresh() }, 700)
-    } catch (err: any) {
-      setError(err.message)
-      toast.error(err.message)
+    } catch (err: unknown) {
+      const error = err as Error
+      setError(error.message)
+      toast.error(error.message)
     } finally { setLoading(false) }
   }
 
@@ -286,19 +255,19 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Data Inici</Label>
-              <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
+              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
             </div>
             <div>
               <Label>Data Final</Label>
-              <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
+              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
             </div>
             <div>
               <Label>Hora Inici</Label>
-              <Input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} />
+              <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
             </div>
             <div>
               <Label>Hora Fi</Label>
-              <Input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} />
+              <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
             </div>
           </div>
 
@@ -336,7 +305,7 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
               type="text"
               placeholder="Ex: Pàrquing camions"
               value={meetingPoint}
-              onChange={e => setMeetingPoint(e.target.value)}
+              onChange={(e) => setMeetingPoint(e.target.value)}
             />
           </div>
 

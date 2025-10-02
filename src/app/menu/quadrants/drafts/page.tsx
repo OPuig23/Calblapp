@@ -1,7 +1,7 @@
 // file: src/app/menu/quadrants/drafts/page.tsx
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import useSWR from 'swr'
 import { useSession } from 'next-auth/react'
 import ModuleHeader from '@/components/layout/ModuleHeader'
@@ -9,8 +9,6 @@ import DraftsFilters from './components/DraftsFilters'
 import QuadrantsDayGroup from './components/QuadrantsDayGroup'
 import { ArrowLeft } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-
-type Mode = 'week' | 'day' | 'range'
 
 export interface Draft {
   id: string
@@ -21,13 +19,13 @@ export interface Draft {
   startTime?: string
   endDate?: string
   endTime?: string
-  location?: any
+  location?: string | { [key: string]: unknown }
   totalWorkers?: number
   numDrivers?: number
   responsableId?: string
-  responsableName?: any
-  conductors?: any[]
-  treballadors?: any[]
+  responsableName?: string | { [key: string]: unknown }
+  conductors?: Array<string | { [key: string]: unknown }>
+  treballadors?: Array<string | { [key: string]: unknown }>
   updatedAt?: string
   status?: 'draft' | 'confirmed'
 }
@@ -36,27 +34,40 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json())
 const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s)
 
 // --- helpers
-const normalizeName = (v: any): string => {
+const normalizeName = (v: unknown): string => {
   if (typeof v === 'string') return v
   if (v && typeof v === 'object') {
-    const candidate = v.name ?? v.fullName ?? v.displayName ?? v.label ?? v.text
+    const candidate =
+      (v as Record<string, unknown>).name ??
+      (v as Record<string, unknown>).fullName ??
+      (v as Record<string, unknown>).displayName ??
+      (v as Record<string, unknown>).label ??
+      (v as Record<string, unknown>).text
     if (typeof candidate === 'string') return candidate
   }
   return ''
 }
-const sameName = (a: any, bLC: string) => {
+
+const sameName = (a: unknown, bLC: string) => {
   const n = normalizeName(a).trim().toLowerCase()
   return !!n && n === bLC
 }
-const normalizeLocation = (v: any): string => {
+
+const normalizeLocation = (v: unknown): string => {
   if (typeof v === 'string') return v
   if (v && typeof v === 'object') {
-    const c = v.address ?? v.location ?? v.text ?? v.label ?? v.name
+    const c =
+      (v as Record<string, unknown>).address ??
+      (v as Record<string, unknown>).location ??
+      (v as Record<string, unknown>).text ??
+      (v as Record<string, unknown>).label ??
+      (v as Record<string, unknown>).name
     if (typeof c === 'string') return c
   }
   return ''
 }
-const locationTag = (v: any): string => {
+
+const locationTag = (v: unknown): string => {
   const raw = normalizeLocation(v).trim()
   if (!raw) return ''
   const comma = raw.indexOf(',')
@@ -69,7 +80,7 @@ export default function DraftsPage() {
   const router = useRouter()
   const { data: session } = useSession()
 
-  const norm = (s: any) =>
+  const norm = (s: unknown) =>
     (s ?? '')
       .toString()
       .toLowerCase()
@@ -81,7 +92,6 @@ export default function DraftsPage() {
   const userDept = norm(session?.user?.department)
   const canSelectDepartment = ['admin', 'direccio', 'direccion'].includes(role)
 
-  const [mode, setMode] = useState<Mode>('week')
   const [dateRange, setDateRange] = useState<[string, string] | null>(null)
   const [department, setDepartment] = useState<string>(
     canSelectDepartment ? '' : userDept || ''
@@ -103,15 +113,17 @@ export default function DraftsPage() {
   }, [dateRange, department, status])
 
   const { data, isLoading, error } = useSWR(apiUrl || null, fetcher)
-  const drafts: Draft[] = data?.drafts || []
+  const drafts: Draft[] = useMemo(() => data?.drafts || [], [data])
 
   const statusOptions = useMemo(() => {
     const s = new Set<'draft' | 'confirmed'>()
     drafts.forEach((d) => {
       const v = String(d.status || '').toLowerCase()
-      if (v === 'draft' || v === 'confirmed') s.add(v as any)
+      if (v === 'draft' || v === 'confirmed') s.add(v as 'draft' | 'confirmed')
     })
-    return s.size ? Array.from(s) as Array<'draft' | 'confirmed'> : (['draft', 'confirmed'] as const)
+    return s.size
+      ? Array.from(s)
+      : (['draft', 'confirmed'] as Array<'draft' | 'confirmed'>)
   }, [drafts])
 
   const personnelOptions = useMemo(() => {
@@ -120,29 +132,29 @@ export default function DraftsPage() {
       const resp = normalizeName(d.responsableName).trim()
       if (resp) names.push(resp)
       if (Array.isArray(d.conductors))
-        for (const x of d.conductors) {
+        d.conductors.forEach((x) => {
           const n = normalizeName(x).trim()
           if (n) names.push(n)
-        }
+        })
       if (Array.isArray(d.treballadors))
-        for (const x of d.treballadors) {
+        d.treballadors.forEach((x) => {
           const n = normalizeName(x).trim()
           if (n) names.push(n)
-        }
+        })
     }
-    return Array.from(new Set(names.map(n => n.toLowerCase())))
-      .map(n => names.find(orig => orig.toLowerCase() === n)!)
+    return Array.from(new Set(names.map((n) => n.toLowerCase())))
+      .map((n) => names.find((orig) => orig.toLowerCase() === n)!)
       .sort((a, b) => a.localeCompare(b, 'ca', { sensitivity: 'base' }))
   }, [drafts])
 
   const locationOptions = useMemo(() => {
     const tags: string[] = []
-    for (const d of drafts) {
+    drafts.forEach((d) => {
       const t = locationTag(d.location)
       if (t) tags.push(t)
-    }
-    return Array.from(new Set(tags.map(t => t.toLowerCase())))
-      .map(n => tags.find(orig => orig.toLowerCase() === n)!)
+    })
+    return Array.from(new Set(tags.map((t) => t.toLowerCase())))
+      .map((n) => tags.find((orig) => orig.toLowerCase() === n)!)
       .sort((a, b) => a.localeCompare(b, 'ca', { sensitivity: 'base' }))
   }, [drafts])
 
@@ -154,6 +166,7 @@ export default function DraftsPage() {
     if (Array.isArray(d.treballadors) && d.treballadors.some((x) => sameName(x, qLC))) return true
     return false
   }
+
   const draftHasLocation = (d: Draft, tag: string) => {
     const q = tag.trim().toLowerCase()
     if (!q) return true
@@ -161,21 +174,23 @@ export default function DraftsPage() {
     return t === q
   }
 
-  // ✅ agrupació per data (com abans)
+  // ✅ agrupació per data
   const groupedByDate: { date: string; items: Draft[] }[] = useMemo(() => {
     const uniq = Array.from(
-      new Map(drafts.map((d) => [`${(d.department || '').toLowerCase()}::${d.id}`, d])).values()
+      new Map(
+        drafts.map((d) => [`${(d.department || '').toLowerCase()}::${d.id}`, d])
+      ).values()
     )
     const filtered = uniq
       .filter((d) => status === 'all' || (d.status || 'draft') === status)
       .filter((d) => draftHasPerson(d, person) && draftHasLocation(d, location))
 
     const map = new Map<string, Draft[]>()
-    for (const d of filtered) {
+    filtered.forEach((d) => {
       const key = d.startDate || ''
       if (!map.has(key)) map.set(key, [])
       map.get(key)!.push(d)
-    }
+    })
     return Array.from(map.entries())
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([date, items]) => ({
@@ -189,26 +204,30 @@ export default function DraftsPage() {
   }, [drafts, status, person, location])
 
   const onFilter = (f: {
-    mode?: Mode
     dateRange?: [string, string]
     department?: string | null
     person?: string | null
     location?: string | null
     status?: 'all' | 'draft' | 'confirmed'
   }) => {
-    if (f.mode) setMode(f.mode)
     if (f.dateRange) setDateRange(f.dateRange)
-    if (typeof f.department !== 'undefined') setDepartment((f.department || '').trim().toLowerCase())
+    if (typeof f.department !== 'undefined')
+      setDepartment((f.department || '').trim().toLowerCase())
     if (typeof f.person !== 'undefined') setPerson(f.person || '')
     if (typeof f.location !== 'undefined') setLocation(f.location || '')
     if (typeof f.status !== 'undefined') setStatus(f.status)
   }
 
-  const headerDept = canSelectDepartment ? (department ? cap(department) : 'Tots') : userDept ? cap(userDept) : 'Tots'
+  const headerDept = canSelectDepartment
+    ? department
+      ? cap(department)
+      : 'Tots'
+    : userDept
+    ? cap(userDept)
+    : 'Tots'
 
   return (
     <div className="p-4 space-y-6">
-      {/* ✅ Header amb botó tornar */}
       <div className="flex items-center gap-3">
         <button
           onClick={() => router.push('/menu/quadrants')}
@@ -240,19 +259,13 @@ export default function DraftsPage() {
         <p>No hi ha quadrants per mostrar.</p>
       )}
 
-
-{!isLoading && !error && groupedByDate.length > 0 && (
-  <div className="space-y-6">
-    {groupedByDate.map(({ date, items }) => (
-      <QuadrantsDayGroup
-        key={date}
-        date={date}
-        quadrants={items}
-      />
-    ))}
-  </div>
-)}
-
+      {!isLoading && !error && groupedByDate.length > 0 && (
+        <div className="space-y-6">
+          {groupedByDate.map(({ date, items }) => (
+            <QuadrantsDayGroup key={date} date={date} quadrants={items} />
+          ))}
+        </div>
+      )}
     </div>
   )
 }

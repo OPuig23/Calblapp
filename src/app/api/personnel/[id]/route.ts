@@ -1,9 +1,22 @@
 // src/app/api/personnel/[id]/route.ts
-
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
 import { firestore } from '@/lib/firebaseAdmin'
+
+/** Estructura mínima d’un document de personnel */
+interface PersonnelDoc {
+  available?: boolean
+  name?: string
+  role?: string
+  department?: string
+  [key: string]: unknown
+}
+
+/** Body del PUT */
+interface UpdatePersonnelBody {
+  available: boolean
+}
 
 /**
  * GET: Consulta una persona pel seu ID
@@ -22,17 +35,32 @@ export async function GET(
     if (!doc.exists) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
-    return NextResponse.json({ id: doc.id, ...(doc.data() as any) })
-  } catch (err: any) {
+
+    const data = doc.data() as unknown as PersonnelDoc
+
+    return NextResponse.json({
+      id: doc.id,
+      ...data,
+    })
+  } catch (err: unknown) {
     console.error(`[api/personnel/${personnelId} GET] Error:`, err)
-    return NextResponse.json({ error: 'Internal error reading personnel' }, { status: 500 })
+    if (err instanceof Error) {
+      return NextResponse.json({ error: err.message }, { status: 500 })
+    }
+    return NextResponse.json(
+      { error: 'Internal error reading personnel' },
+      { status: 500 }
+    )
   }
 }
 
 /**
  * PUT: Modifica una persona pel seu ID
  */
-export async function PUT(request: Request, context: { params: { id: string } }) {
+export async function PUT(
+  request: Request,
+  context: { params: { id: string } }
+) {
   const session = await getServerSession(authOptions)
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -40,9 +68,13 @@ export async function PUT(request: Request, context: { params: { id: string } })
 
   const personnelId = context.params.id
   try {
-    const body = await request.json()
+    const body = (await request.json()) as UpdatePersonnelBody
+
     if (typeof body.available !== 'boolean') {
-      return NextResponse.json({ error: "Camp 'available' incorrecte" }, { status: 400 })
+      return NextResponse.json(
+        { error: "Camp 'available' incorrecte" },
+        { status: 400 }
+      )
     }
 
     await firestore.collection('personnel').doc(personnelId).update({
@@ -50,13 +82,17 @@ export async function PUT(request: Request, context: { params: { id: string } })
     })
 
     return NextResponse.json({ id: personnelId, available: body.available })
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error(`[api/personnel/${personnelId} PUT] Error:`, err)
-    return NextResponse.json({ error: 'Internal error updating personnel' }, { status: 500 })
+    if (err instanceof Error) {
+      return NextResponse.json({ error: err.message }, { status: 500 })
+    }
+    return NextResponse.json(
+      { error: 'Internal error updating personnel' },
+      { status: 500 }
+    )
   }
 }
-
-
 
 /**
  * DELETE: Esborra una persona pel seu ID
@@ -73,9 +109,15 @@ export async function DELETE(
   const personnelId = context.params.id
   try {
     await firestore.collection('personnel').doc(personnelId).delete()
-    return NextResponse.json({ success: true }, { status: 200 }) // 👈 200 en lloc de 204
-  } catch (err: any) {
+    return NextResponse.json({ success: true }, { status: 200 }) // ✅ millor 200
+  } catch (err: unknown) {
     console.error(`[api/personnel/${personnelId} DELETE] Error:`, err)
-    return NextResponse.json({ error: 'Internal error deleting personnel' }, { status: 500 })
+    if (err instanceof Error) {
+      return NextResponse.json({ error: err.message }, { status: 500 })
+    }
+    return NextResponse.json(
+      { error: 'Internal error deleting personnel' },
+      { status: 500 }
+    )
   }
 }

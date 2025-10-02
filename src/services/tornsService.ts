@@ -1,4 +1,5 @@
-//filename: src/services/tornsService.ts
+// filename: src/services/tornsService.ts
+
 export type Torn = {
   id: string
   code?: string
@@ -12,17 +13,39 @@ export type Torn = {
   meetingPoint?: string
   location?: string
   department: string
-  __rawWorkers?: Array<{ 
+  __rawWorkers?: Array<{
     id?: string
     name?: string
     role?: string
     startTime?: string
     endTime?: string
     meetingPoint?: string
+    department?: string
   }>
+  // Camps que omplim quan filtrem per treballador
+  workerName?: string
+  workerRole?: string
 }
 
-// Helpers
+// Tipus genèric per documents de Firestore
+export type FirestoreData = Record<string, unknown>
+
+// Per tipar els treballadors que arriben dins dels documents
+export interface RawWorker {
+  id?: string
+  workerId?: string
+  uid?: string
+  email?: string
+  name?: string
+  nom?: string
+  displayName?: string
+  startTime?: string
+  endTime?: string
+  meetingPoint?: string
+}
+
+// ────────────────────────────────────────────────
+// Helpers bàsics
 
 function toISODate(d: Date): string {
   const y = d.getFullYear()
@@ -31,9 +54,13 @@ function toISODate(d: Date): string {
   return `${y}-${m}-${day}`
 }
 
-function parseAnyDateToISO(v: any): string {
+function parseAnyDateToISO(
+  v: string | Date | { toDate: () => Date } | null | undefined
+): string {
   if (!v) return ''
-  if (typeof v === 'object' && typeof v.toDate === 'function') return toISODate(v.toDate())
+  if (typeof v === 'object' && v !== null && 'toDate' in v && typeof (v as { toDate: () => Date }).toDate === 'function') {
+    return toISODate((v as { toDate: () => Date }).toDate())
+  }
   const s = String(v).trim()
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s
   const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
@@ -42,7 +69,7 @@ function parseAnyDateToISO(v: any): string {
   return isNaN(d.getTime()) ? '' : toISODate(d)
 }
 
-function norm(s: any): string {
+function norm(s?: string | null): string {
   return String(s ?? '')
     .normalize('NFD')
     .replace(/\p{Diacritic}/gu, '')
@@ -50,113 +77,160 @@ function norm(s: any): string {
     .trim()
 }
 
-function pad2(n: number | string): string { return String(n).padStart(2, '0') }
+function pad2(n: number | string): string {
+  return String(n).padStart(2, '0')
+}
 
-function toTimeHHmm(v: any): string {
+function toTimeHHmm(
+  v: string | number | Date | { toDate: () => Date } | null | undefined
+): string {
   if (!v) return ''
   const str = String(v)
   if (/^\d{2}:\d{2}$/.test(str)) return str
-  if (/^\d{4}$/.test(str)) return `${str.slice(0,2)}:${str.slice(2)}`
-  if (typeof v === 'number') return `${pad2(Math.floor(v/60))}:${pad2(Number(v)%60)}`
-  if (typeof v === 'object' && typeof v.toDate === 'function') {
-    const d = v.toDate() as Date
+  if (/^\d{4}$/.test(str)) return `${str.slice(0, 2)}:${str.slice(2)}`
+  if (typeof v === 'number') {
+    return `${pad2(Math.floor(v / 60))}:${pad2(Number(v) % 60)}`
+  }
+  if (typeof v === 'object' && v !== null && 'toDate' in v && typeof (v as { toDate: () => Date }).toDate === 'function') {
+    const d = (v as { toDate: () => Date }).toDate()
     return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`
   }
   const d = new Date(str)
-  return isNaN(d.getTime()) ? str : `${pad2(d.getHours())}:${pad2(d.getMinutes())}`
+  return isNaN(d.getTime())
+    ? str
+    : `${pad2(d.getHours())}:${pad2(d.getMinutes())}`
 }
 
-function isISODate(s: any): s is string {
+function isISODate(s: unknown): s is string {
   return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s)
 }
 
-function rangesOverlap(aStartISO: string, aEndISO: string, bStartISO: string, bEndISO: string): boolean {
-  if (!isISODate(aStartISO) || !isISODate(aEndISO) || !isISODate(bStartISO) || !isISODate(bEndISO)) return false
+function rangesOverlap(
+  aStartISO: string,
+  aEndISO: string,
+  bStartISO: string,
+  bEndISO: string
+): boolean {
+  if (!isISODate(aStartISO) || !isISODate(aEndISO) || !isISODate(bStartISO) || !isISODate(bEndISO))
+    return false
   let aStart = new Date(`${aStartISO}T00:00:00`)
-  let aEnd   = new Date(`${aEndISO}T23:59:59`)
+  let aEnd = new Date(`${aEndISO}T23:59:59`)
   let bStart = new Date(`${bStartISO}T00:00:00`)
-  let bEnd   = new Date(`${bEndISO}T23:59:59`)
+  let bEnd = new Date(`${bEndISO}T23:59:59`)
   if (aStart > aEnd) [aStart, aEnd] = [aEnd, aStart]
   if (bStart > bEnd) [bStart, bEnd] = [bEnd, bStart]
   return aStart <= bEnd && bStart <= aEnd
 }
 
-function coerceWorker(val: any, role?: 'treballador' | 'conductor' | 'responsable') {
+function coerceWorker(
+  val: string | RawWorker | null | undefined,
+  role?: 'treballador' | 'conductor' | 'responsable'
+) {
   if (!val) return role ? { role } : {}
   if (typeof val === 'object') {
     const id = val.id ?? val.workerId ?? val.uid ?? val.email ?? undefined
     const name = val.name ?? val.nom ?? val.displayName ?? undefined
-    return { id: id ? String(id) : undefined, name: name ? String(name) : undefined, ...(role ? { role } : {}) }
+    return {
+      id: id ? String(id) : undefined,
+      name: name ? String(name) : undefined,
+      ...(role ? { role } : {}),
+    }
   }
   return { name: String(val), ...(role ? { role } : {}) }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ────────────────────────────────────────────────
 // Mapping Firestore → Torn
 
-function mapDocToTorn(id: string, d: any, fallbackDept: string | null): Torn {
-  const eventId     = String(d?.eventId ?? d?.code ?? '')
-  const eventName   = String(d?.eventName ?? d?.summary ?? '')
-  const startDate   = parseAnyDateToISO(d?.startDate ?? d?.date)
-  const endDate     = d?.endDate ? parseAnyDateToISO(d?.endDate) : ''
-  const startTime   = toTimeHHmm(d?.startTime)
-  const endTime     = toTimeHHmm(d?.endTime)
-  const meetingPoint= d?.meetingPoint ?? ''
-  const department = d?.department 
-  ? norm(d.department) 
-  : fallbackDept 
-    ? norm(fallbackDept) 
-    : 'sense departament'
-
-  const location    = d?.location ? String(d.location) : undefined
-
-  const arrTreballadors = Array.isArray(d?.treballadors) ? d.treballadors : []
-  const arrConductors   = Array.isArray(d?.conductors)   ? d.conductors   : []
-  const responsableObj  = d?.responsable ?? ((d?.responsableName || d?.responsableId) ? { id: d.responsableId, name: d.responsableName } : null)
-
-  const unified: Torn["__rawWorkers"] = []
-
-  for (const w of arrTreballadors) {
-    unified.push({
-      ...coerceWorker(w, 'treballador'),
-      startTime: toTimeHHmm(w?.startTime ?? d?.startTime),
-      endTime: toTimeHHmm(w?.endTime ?? d?.endTime),
-      meetingPoint: w?.meetingPoint ?? meetingPoint,
-      department,
-    })
-  }
-  for (const w of arrConductors) {
-    unified.push({
-      ...coerceWorker(w, 'conductor'),
-      startTime: toTimeHHmm(w?.startTime ?? d?.startTime),
-      endTime: toTimeHHmm(w?.endTime ?? d?.endTime),
-      meetingPoint: w?.meetingPoint ?? meetingPoint,
-      department,
-    })
-
-  }
-  if (responsableObj) {
-  const coerced = coerceWorker(responsableObj, 'responsable')
-
-  console.log('[mapDocToTorn responsable]', {
-    eventName,
-    responsableObj,
-    coerced,
-  })
-
-  unified.push({
-    ...coerced,
-    startTime: toTimeHHmm(responsableObj?.startTime ?? d?.startTime),
-    endTime: toTimeHHmm(responsableObj?.endTime ?? d?.endTime),
-    meetingPoint: responsableObj?.meetingPoint ?? meetingPoint,
-    department,
-  })
+type TornDoc = {
+  eventId?: string
+  code?: string
+  eventName?: string
+  summary?: string
+  date?: string
+  startDate?: string | { toDate: () => Date }
+  endDate?: string | { toDate: () => Date }
+  startTime?: string | number | Date | { toDate: () => Date }
+  endTime?: string | number | Date | { toDate: () => Date }
+  meetingPoint?: string
+  department?: string
+  location?: string
+  treballadors?: RawWorker[]
+  conductors?: RawWorker[]
+  responsable?: RawWorker
+  responsableId?: string
+  responsableName?: string
 }
 
+function mapDocToTorn(
+  id: string,
+  d: FirestoreData,
+  fallbackDept: string | null
+): Torn {
+  // Fem un cast controlat a un tipus amb els camps que esperem
+  const doc = d as TornDoc
+
+  const eventId = String(doc?.eventId ?? doc?.code ?? '')
+  const eventName = String(doc?.eventName ?? doc?.summary ?? '')
+  const startDate = parseAnyDateToISO(doc?.startDate ?? doc?.date)
+  const endDate = doc?.endDate ? parseAnyDateToISO(doc.endDate) : ''
+  const startTime = toTimeHHmm(doc?.startTime)
+  const endTime = toTimeHHmm(doc?.endTime)
+  const meetingPoint = doc?.meetingPoint ?? ''
+  const department = doc?.department
+    ? norm(doc.department)
+    : fallbackDept
+    ? norm(fallbackDept)
+    : 'sense departament'
+
+  const location = doc?.location ? String(doc.location) : undefined
+
+  const arrTreballadors = Array.isArray(doc?.treballadors) ? doc.treballadors : []
+  const arrConductors = Array.isArray(doc?.conductors) ? doc.conductors : []
+  const responsableObj =
+    doc?.responsable ??
+    ((doc?.responsableName || doc?.responsableId)
+      ? { id: doc.responsableId as string, name: doc.responsableName as string }
+      : undefined)
+
+  const unified: Torn['__rawWorkers'] = []
+
+  for (const w of arrTreballadors) {
+    const worker = w // RawWorker
+    unified.push({
+      ...coerceWorker(worker, 'treballador'),
+      startTime: toTimeHHmm(worker.startTime ?? doc?.startTime),
+      endTime: toTimeHHmm(worker.endTime ?? doc?.endTime),
+      meetingPoint: worker.meetingPoint ?? meetingPoint,
+      department,
+    })
+  }
+
+  for (const w of arrConductors) {
+    const worker = w // RawWorker
+    unified.push({
+      ...coerceWorker(worker, 'conductor'),
+      startTime: toTimeHHmm(worker.startTime ?? doc?.startTime),
+      endTime: toTimeHHmm(worker.endTime ?? doc?.endTime),
+      meetingPoint: worker.meetingPoint ?? meetingPoint,
+      department,
+    })
+  }
+
+  if (responsableObj) {
+    const coerced = coerceWorker(responsableObj, 'responsable')
+    unified.push({
+      ...coerced,
+      startTime: toTimeHHmm(responsableObj.startTime ?? doc?.startTime),
+      endTime: toTimeHHmm(responsableObj.endTime ?? doc?.endTime),
+      meetingPoint: responsableObj.meetingPoint ?? meetingPoint,
+      department,
+    })
+  }
 
   return {
     id: String(id || ''),
-    code: d?.code ? String(d.code) : undefined,
+    code: doc?.code ? String(doc.code) : undefined,
     eventId,
     eventName,
     date: startDate || endDate || '',
@@ -171,16 +245,30 @@ function mapDocToTorn(id: string, d: any, fallbackDept: string | null): Torn {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Fetch principal amb lògica de rol
+// ────────────────────────────────────────────────
+// Helpers de confirmació i departaments
 
-const KNOWN_DEPARTMENTS = ['logistica','serveis','cuina']
+const KNOWN_DEPARTMENTS = ['logistica', 'serveis', 'cuina']
 
-function isConfirmed(data: any): boolean {
-  const st = String(data?.status ?? data?.estat ?? '').toLowerCase().trim()
-  const hasMark = !!data?.confirmedAt || !!data?.confirmada || !!data?.confirmed
-  return st === 'confirmed' || st === 'confirmada' || st === 'confirmat' || st === 'ok' || hasMark
+function isConfirmed(data: FirestoreData): boolean {
+  const st = String((data as Record<string, unknown>)?.status ?? (data as Record<string, unknown>)?.estat ?? '')
+    .toLowerCase()
+    .trim()
+  const hasMark =
+    !!(data as Record<string, unknown>)?.['confirmedAt'] ||
+    !!(data as Record<string, unknown>)?.['confirmada'] ||
+    !!(data as Record<string, unknown>)?.['confirmed']
+  return (
+    st === 'confirmed' ||
+    st === 'confirmada' ||
+    st === 'confirmat' ||
+    st === 'ok' ||
+    hasMark
+  )
 }
+
+// ────────────────────────────────────────────────
+// Fetchs
 
 async function fetchDeptCollectionRange(
   db: FirebaseFirestore.Firestore,
@@ -194,7 +282,8 @@ async function fetchDeptCollectionRange(
 
   let snap: FirebaseFirestore.QuerySnapshot
   try {
-    snap = await db.collection(collName)
+    snap = await db
+      .collection(collName)
       .where('status', '==', 'confirmed')
       .where('startDate', '>=', startISO)
       .where('startDate', '<=', endISO)
@@ -203,15 +292,15 @@ async function fetchDeptCollectionRange(
     snap = await db.collection(collName).get()
   }
 
-  snap.forEach(doc => {
-    const data = doc.data()
+  snap.forEach((doc) => {
+    const data = doc.data() as FirestoreData
     if (!isConfirmed(data)) return
 
     const t = mapDocToTorn(doc.id, data, dep)
     if (!t.startDate && !t.endDate) return
 
     if (rangesOverlap(t.startDate || t.endDate, t.endDate || t.startDate, startISO, endISO)) {
-      let cur = new Date(t.startDate)
+      const cur = new Date(t.startDate) // const (no reassignem la referència)
       const realEnd = new Date(t.endDate)
       while (cur <= realEnd) {
         const iso = toISODate(cur)
@@ -240,28 +329,27 @@ export async function fetchAllTorns(
 
     const out: Torn[] = []
 
-    // ── 1. Treballador → només els seus torns confirmats del seu departament
-if (role === 'Treballador') {
-  if (dep) {
-    await fetchDeptCollectionRange(db, dep, startISO, endISO, out)
-
-    // 🔑 Afegim workerName i workerRole al torn principal
-    return out.filter((t) => {
-      if (!Array.isArray(t.__rawWorkers)) return false
-      const matchWorker = t.__rawWorkers.find((w) => norm(w.name) === norm(workerName))
-      if (matchWorker) {
-        ;(t as any).workerName = matchWorker.name
-        ;(t as any).workerRole = matchWorker.role
-        return true
+    // ── 1. Treballador
+    if (role === 'Treballador') {
+      if (dep) {
+        await fetchDeptCollectionRange(db, dep, startISO, endISO, out)
+        return out.filter((t) => {
+          if (!Array.isArray(t.__rawWorkers)) return false
+          const matchWorker = t.__rawWorkers.find(
+            (w) => norm(w.name) === norm(workerName)
+          )
+          if (matchWorker) {
+            t.workerName = matchWorker.name
+            t.workerRole = matchWorker.role
+            return true
+          }
+          return false
+        })
       }
-      return false
-    })
-  }
-  return []
-}
+      return []
+    }
 
-
-    // ── 2. Cap Departament → tots els torns del seu departament
+    // ── 2. Cap Departament
     if (role === 'Cap Departament') {
       if (dep) {
         await fetchDeptCollectionRange(db, dep, startISO, endISO, out)
@@ -270,19 +358,16 @@ if (role === 'Treballador') {
       return []
     }
 
-    // ── 3. Admin / Direcció → tots els departaments
+    // ── 3. Admin / Direcció
     if (role === 'Admin' || role === 'Direcció') {
       if (dep) {
-        // 🔎 només un departament concret si s'ha filtrat
         await fetchDeptCollectionRange(db, dep, startISO, endISO, out)
       } else {
-        // 🔎 tots els departaments coneguts
         for (const d of KNOWN_DEPARTMENTS) {
           await fetchDeptCollectionRange(db, d, startISO, endISO, out)
         }
       }
 
-      // També col·lecció genèrica "quadrants"
       const collRef = db.collection('quadrants')
       const snap2 = await collRef
         .where('status', '==', 'confirmed')
@@ -291,20 +376,13 @@ if (role === 'Treballador') {
         .get()
 
       snap2.forEach((doc) => {
-        const data = doc.data()
+        const data = doc.data() as FirestoreData
         if (!isConfirmed(data)) return
         const t = mapDocToTorn(doc.id, data, dep)
         if (!t.startDate && !t.endDate) return
 
-        if (
-          rangesOverlap(
-            t.startDate || t.endDate,
-            t.endDate || t.startDate,
-            startISO,
-            endISO
-          )
-        ) {
-          let cur = new Date(t.startDate)
+        if (rangesOverlap(t.startDate || t.endDate, t.endDate || t.startDate, startISO, endISO)) {
+          const cur = new Date(t.startDate) // const
           const realEnd = new Date(t.endDate)
           while (cur <= realEnd) {
             const iso = toISODate(cur)

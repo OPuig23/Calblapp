@@ -1,4 +1,4 @@
-//filename: src/app/api/personnel/[id]/request-user/route.ts
+// src/app/api/personnel/[id]/request-user/route.ts
 export const runtime = 'nodejs'
 
 import { NextResponse } from 'next/server'
@@ -8,6 +8,49 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route'
 import { firestore } from '@/lib/firebaseAdmin'
 import { normalizeRole } from '@/lib/roles'
 
+interface SessionUser {
+  id?: string
+  userId?: string
+  name?: string
+  role?: string
+  deptLower?: string
+  department?: string
+  [key: string]: unknown
+}
+
+interface PersonnelDoc {
+  name?: string
+  role?: string
+  department?: string
+  departmentLower?: string
+  driver?: {
+    isDriver: boolean
+    camioGran: boolean
+    camioPetit: boolean
+  }
+  available?: boolean
+  [key: string]: unknown
+}
+
+interface UserDoc {
+  role?: string
+  notificationsUnread?: number
+}
+
+interface UserRequestDoc {
+  personId: string
+  departmentLower: string
+  requestedByUserId: string | null
+  requestedByName: string | null
+  createdAt: number
+  updatedAt: number
+  status: 'pending' | 'approved' | 'rejected'
+  name: string
+  role: string
+  driver: PersonnelDoc['driver']
+  available: boolean
+}
+
 const unaccent = (s: string) =>
   s.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 const normLower = (s?: string) =>
@@ -15,14 +58,16 @@ const normLower = (s?: string) =>
 
 async function notifyAdmins(title: string, body: string, personId: string) {
   const snap = await firestore.collection('users').get()
-  const admins = snap.docs.filter(
-    d => normalizeRole(String(d.data()?.role || '')) === 'admin'
-  )
+  const admins = snap.docs.filter(d => {
+    const data = d.data() as unknown as UserDoc
+    return normalizeRole(String(data.role || '')) === 'admin'
+  })
   const now = Date.now()
   for (const d of admins) {
     try {
+      const data = d.data() as unknown as UserDoc
       await d.ref.set(
-        { notificationsUnread: (d.data()?.notificationsUnread || 0) + 1 },
+        { notificationsUnread: (data.notificationsUnread || 0) + 1 },
         { merge: true }
       )
       await d.ref.collection('notifications').add({
@@ -31,7 +76,7 @@ async function notifyAdmins(title: string, body: string, personId: string) {
         createdAt: now,
         read: false,
         type: 'user_request',
-        personId, // 👈 guardem el personId per després poder obrir el modal
+        personId,
       })
     } catch (e) {
       console.error('notifyAdmins error:', e)
@@ -54,13 +99,11 @@ export async function POST(
   const { id } = await ctx.params
   const personId = id
 
-  const requesterId =
-    (session.user as any)?.id || (session.user as any)?.userId || ''
-  const requesterName = (session.user as any)?.name || '—'
-  const requesterRole = normalizeRole((session.user as any)?.role)
-  const requesterDeptLower =
-    (session.user as any)?.deptLower ||
-    normLower((session.user as any)?.department)
+  const su = session.user as SessionUser
+  const requesterId = su.id || su.userId || ''
+  const requesterName = su.name || '—'
+  const requesterRole = normalizeRole(su.role)
+  const requesterDeptLower = su.deptLower || normLower(su.department)
 
   const isPrivileged =
     requesterRole === 'admin' || requesterRole === 'direccio'
@@ -76,10 +119,7 @@ export async function POST(
     console.log('📩 Nova sol·licitud → personId:', personId)
 
     // Carreguem el personal
-    const personSnap = await firestore
-      .collection('personnel')
-      .doc(personId)
-      .get()
+    const personSnap = await firestore.collection('personnel').doc(personId).get()
     if (!personSnap.exists) {
       console.error('❌ No existeix el personal:', personId)
       return NextResponse.json(
@@ -87,7 +127,8 @@ export async function POST(
         { status: 404 }
       )
     }
-    const p = personSnap.data() as any
+    const p = personSnap.data() as unknown as PersonnelDoc
+
     const personDeptLower = normLower(p.departmentLower || p.department)
 
     // Comprovació permisos
@@ -119,7 +160,8 @@ export async function POST(
     // Si ja hi ha sol·licitud pendent → idempotent
     const reqRef = firestore.collection('userRequests').doc(personId)
     const reqSnap = await reqRef.get()
-    if (reqSnap.exists && reqSnap.data()?.status === 'pending') {
+    const existing = reqSnap.data() as unknown as UserRequestDoc | undefined
+    if (reqSnap.exists && existing?.status === 'pending') {
       console.log('ℹ️ Ja hi ha una sol·licitud pendent per:', personId)
       return NextResponse.json({
         success: true,
@@ -128,9 +170,9 @@ export async function POST(
       })
     }
 
-    // Crear/actualitzar sol·licitud amb tots els camps
+    // Crear/actualitzar sol·licitud
     const now = Date.now()
-    const payload = {
+    const payload: UserRequestDoc = {
       personId,
       departmentLower: personDeptLower,
       requestedByUserId: requesterId || null,
@@ -138,7 +180,6 @@ export async function POST(
       createdAt: now,
       updatedAt: now,
       status: 'pending',
-      // Camps extra per preomplir el formulari
       name: p.name || '',
       role: p.role || 'soldat',
       driver: p.driver || {
@@ -161,10 +202,16 @@ export async function POST(
 
     console.log('✅ Sol·licitud guardada correctament per:', personId)
     return NextResponse.json({ success: true, status: 'pending' })
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error('[request-user] error:', e)
+    if (e instanceof Error) {
+      return NextResponse.json(
+        { success: false, error: e.message },
+        { status: 500 }
+      )
+    }
     return NextResponse.json(
-      { success: false, error: e?.message || 'Error intern' },
+      { success: false, error: 'Error intern' },
       { status: 500 }
     )
   }

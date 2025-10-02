@@ -1,8 +1,24 @@
-// File: src/app/api/notifications/route.ts
+// src/app/api/notifications/route.ts
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
 import { firestore } from '@/lib/firebaseAdmin'
+
+/** Sessió tipada */
+interface SessionUser {
+  id: string
+  name?: string
+  email?: string
+  [key: string]: unknown
+}
+
+/** Document de notificació */
+interface NotificationDoc {
+  id: string
+  read?: boolean
+  quadrantId?: string
+  [key: string]: unknown
+}
 
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions)
@@ -10,7 +26,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const userId = (session.user as any)?.id
+  const userId = (session.user as SessionUser)?.id
   if (!userId) {
     return NextResponse.json({ error: 'Invalid user' }, { status: 400 })
   }
@@ -27,10 +43,13 @@ export async function GET(req: Request) {
       .orderBy('createdAt', 'desc')
 
     const snap = await ref.get()
-    const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    const docs: NotificationDoc[] = snap.docs.map(d => ({
+      id: d.id,
+      ...(d.data() as unknown as Omit<NotificationDoc, 'id'>)
+    }))
 
     if (mode === 'count') {
-      const count = docs.filter((d: any) => !d.read).length
+      const count = docs.filter(d => !d.read).length
       return NextResponse.json({ count })
     }
 
@@ -39,8 +58,11 @@ export async function GET(req: Request) {
     }
 
     return NextResponse.json({ notifications: docs })
-  } catch (err) {
+  } catch (err: unknown) {
     console.error('[notifications GET] Error:', err)
+    if (err instanceof Error) {
+      return NextResponse.json({ error: err.message }, { status: 500 })
+    }
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }
@@ -51,14 +73,14 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const userId = (session.user as any)?.id
+  const userId = (session.user as SessionUser)?.id
   if (!userId) {
     return NextResponse.json({ error: 'Invalid user' }, { status: 400 })
   }
 
   try {
-    const body = await req.json()
-    const action = body.action
+    const body = (await req.json()) as Record<string, unknown>
+    const action = body.action as string | undefined
 
     const baseRef = firestore
       .collection('users')
@@ -76,7 +98,7 @@ export async function PATCH(req: Request) {
 
     // 👉 Marca notificacions relacionades amb un quadrant
     if (action === 'markQuadrantRead') {
-      const { quadrantId } = body
+      const quadrantId = body.quadrantId as string | undefined
       if (!quadrantId) {
         return NextResponse.json({ error: 'quadrantId required' }, { status: 400 })
       }
@@ -89,7 +111,7 @@ export async function PATCH(req: Request) {
 
     // 👉 Marca UNA notificació concreta com llegida
     if (action === 'markRead') {
-      const { notificationId } = body
+      const notificationId = body.notificationId as string | undefined
       if (!notificationId) {
         return NextResponse.json({ error: 'notificationId required' }, { status: 400 })
       }
@@ -98,8 +120,11 @@ export async function PATCH(req: Request) {
     }
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
-  } catch (err) {
+  } catch (err: unknown) {
     console.error('[notifications PATCH] Error:', err)
+    if (err instanceof Error) {
+      return NextResponse.json({ error: err.message }, { status: 500 })
+    }
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }

@@ -3,14 +3,25 @@ import { NextResponse } from 'next/server'
 import { fetchGoogleEventById } from '@/services/googleCalendar'
 
 // Tipus retornats a la UI
-type EventDoc = {
+export type EventDoc = {
   id: string
   title: string
   mimeType?: string
   source: 'calendar-attachment' | 'description-link'
-  url: string        // enllaç per obrir
-  previewUrl?: string // enllaç per iframe
-  icon: 'pdf'|'doc'|'sheet'|'slide'|'img'|'link'
+  url: string
+  previewUrl?: string
+  icon: 'pdf' | 'doc' | 'sheet' | 'slide' | 'img' | 'link'
+}
+
+// Google Calendar Event mínim tipat
+interface GoogleCalendarAttachment {
+  fileUrl: string
+  title?: string
+  mimeType?: string
+}
+interface GoogleCalendarEvent {
+  attachments?: GoogleCalendarAttachment[]
+  description?: string
 }
 
 const DRIVE_FILE_RE = /\/file\/d\/([^/]+)\//
@@ -29,21 +40,17 @@ function detectIcon(mime?: string, url?: string): EventDoc['icon'] {
 
 function toPreviewUrl(url: string, mime?: string): string | undefined {
   const u = url.toLowerCase()
-  // Drive file preview
   const byFile = DRIVE_FILE_RE.exec(url)
   const byOpen = DRIVE_OPEN_ID_RE.exec(url)
   const fileId = byFile?.[1] || byOpen?.[1]
   if (fileId) return `https://drive.google.com/file/d/${fileId}/preview`
 
-  // Google Docs/Sheets/Slides → preview
   if (u.includes('docs.google.com/document')) return url.replace(/\/edit.*$/, '/preview')
   if (u.includes('docs.google.com/spreadsheets')) return url.replace(/\/edit.*$/, '/preview')
   if (u.includes('docs.google.com/presentation')) return url.replace(/\/edit.*$/, '/preview')
 
-  // PDF extern
   if ((mime || '').includes('pdf') || u.endsWith('.pdf')) return url
 
-  // Altres: no tenim preview amable
   return undefined
 }
 
@@ -52,11 +59,12 @@ function extractLinksFromText(text?: string): string[] {
   const urls = new Set<string>()
   const re = /(https?:\/\/[^\s)\]]+)/g
   let m: RegExpExecArray | null
-  while ((m = re.exec(text)) !== null) urls.add(m[1])
+  while ((m = re.exec(text)) !== null) {
+    urls.add(m[1])
+  }
   return Array.from(urls)
 }
 
-// ⚠️ A Next.js recent, `params` és una Promise: s'ha d'await-ar
 export async function GET(
   _req: Request,
   ctx: { params: Promise<{ id: string }> }
@@ -65,7 +73,7 @@ export async function GET(
     const { id } = await ctx.params
     const eventId = id
 
-    const ev = await fetchGoogleEventById(eventId)
+    const ev = (await fetchGoogleEventById(eventId)) as unknown as GoogleCalendarEvent | null
     if (!ev) {
       return NextResponse.json({ docs: [] }, { status: 404 })
     }
@@ -73,9 +81,7 @@ export async function GET(
     const docs: EventDoc[] = []
 
     // 1) Adjunts del Calendar
-    const atts = (ev as any).attachments as Array<{
-      fileUrl: string; title?: string; mimeType?: string
-    }> | undefined
+    const atts: GoogleCalendarAttachment[] | undefined = ev.attachments
     if (atts?.length) {
       for (const a of atts) {
         const icon = detectIcon(a.mimeType, a.fileUrl)
@@ -92,7 +98,7 @@ export async function GET(
     }
 
     // 2) Enllaços dins la descripció
-    const links = extractLinksFromText((ev as any).description)
+    const links: string[] = extractLinksFromText(ev.description)
     for (const url of links) {
       const title = url
         .replace(/^https?:\/\//, '')
@@ -110,7 +116,7 @@ export async function GET(
     }
 
     // Únics
-    const unique = Object.values(
+    const unique: EventDoc[] = Object.values(
       docs.reduce<Record<string, EventDoc>>((acc, d) => {
         acc[d.id] = d
         return acc
@@ -118,7 +124,10 @@ export async function GET(
     )
 
     return NextResponse.json({ docs: unique })
-  } catch (err: any) {
-    return NextResponse.json({ error: String(err?.message || err) }, { status: 500 })
+  } catch (err: unknown) {
+    if (err instanceof Error) {
+      return NextResponse.json({ error: err.message }, { status: 500 })
+    }
+    return NextResponse.json({ error: String(err) }, { status: 500 })
   }
 }

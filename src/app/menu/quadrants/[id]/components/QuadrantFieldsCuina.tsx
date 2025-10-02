@@ -1,4 +1,4 @@
-//file:src\app\menu\quadrants\[id]\components\QuadrantFieldsCuina.tsx
+//file: src/app/menu/quadrants/[id]/components/QuadrantFieldsCuina.tsx
 'use client'
 
 import { Label } from '@/components/ui/label'
@@ -13,6 +13,13 @@ type VehicleAssignment = {
   plate: string
 }
 
+type AvailableVehicle = {
+  id: string
+  plate?: string
+  type?: string
+  available: boolean
+}
+
 type Props = {
   totalWorkers: string
   numDrivers: string
@@ -20,7 +27,7 @@ type Props = {
   setNumDrivers: (v: string) => void
   vehicleAssignments: VehicleAssignment[]
   setVehicleAssignments: (v: VehicleAssignment[]) => void
-  available: { vehicles: any[] }
+  available: { vehicles: AvailableVehicle[] }
 }
 
 export default function QuadrantFieldsCuina({
@@ -29,7 +36,6 @@ export default function QuadrantFieldsCuina({
   vehicleAssignments, setVehicleAssignments,
   available,
 }: Props) {
-
   return (
     <div className="grid grid-cols-2 gap-4">
       {/* # Treballadors */}
@@ -62,7 +68,7 @@ export default function QuadrantFieldsCuina({
           <div key={idx} className="mt-3 border p-3 rounded-md space-y-2">
             <p className="text-sm font-semibold">Vehicle #{idx + 1}</p>
 
-            {/* 1. Selecció TIPUS (només furgoneta o camió petit) */}
+            {/* 1. Selecció TIPUS */}
             <Select
               value={assign.vehicleType}
               onValueChange={val => {
@@ -102,7 +108,6 @@ export default function QuadrantFieldsCuina({
                   {(available.vehicles || [])
                     .filter(v =>
                       v.available &&
-                      // 👇 només mostrar matrícules si són d'un vehicle petit o furgoneta
                       (v.type?.toLowerCase() === 'camiopetit' || v.type?.toLowerCase() === 'furgoneta') &&
                       v.type?.toLowerCase() === assign.vehicleType.toLowerCase() &&
                       !vehicleAssignments.some((a, i) => i !== idx && a.vehicleId === v.id)

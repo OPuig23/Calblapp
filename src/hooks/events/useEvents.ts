@@ -1,4 +1,4 @@
-// src/hooks/events/useEvents.ts
+// file: src/hooks/events/useEvents.ts
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
@@ -27,6 +27,33 @@ export interface EventData {
   treballadors?: string[]
 }
 
+interface EventPayload {
+  id: string
+  summary: string
+  start: string
+  end?: string
+  location?: string
+  pax?: number
+  state?: string
+  status?: string
+  eventCode?: string
+  code?: string
+  responsableName?: string
+  responsable?: { name?: string }
+  [key: string]: unknown
+}
+
+interface QuadrantDraft {
+  id: string
+  code?: string
+  eventId?: string | number
+  responsableName?: string
+  responsable?: { name?: string }
+  conductors?: { name?: string }[]
+  treballadors?: { name?: string }[]
+  [key: string]: unknown
+}
+
 type GroupedEvents = Record<string, EventData[]>
 type TotalPerDay = Record<string, number>
 
@@ -50,8 +77,7 @@ export default function useEvents(
   department: string,
   fromISO: string,
   toISO: string,
-  scope?: 'all' | 'mine',
-  includeQuadrants: boolean = false
+  scope?: 'all' | 'mine'
 ) {
   const [events, setEvents] = useState<EventData[]>([])
   const [groupedEvents, setGroupedEvents] = useState<GroupedEvents>({})
@@ -68,7 +94,7 @@ export default function useEvents(
       setError(null)
 
       try {
-        // 🔹 1. Carreguem esdeveniments (Google Calendar / API)
+        // 🔹 1. Carreguem esdeveniments
         const qs = new URLSearchParams({
           start: fromISO.slice(0, 10),
           end: toISO.slice(0, 10),
@@ -81,9 +107,9 @@ export default function useEvents(
           signal,
         })
         const payload = await res.json()
-        const eventsFromPayload = (payload?.events || []) as any[]
+        const eventsFromPayload = (payload?.events || []) as EventPayload[]
 
-        // 🔹 2. Carreguem quadrants (Firestore)
+        // 🔹 2. Carreguem quadrants
         const qsQ = new URLSearchParams({
           start: fromISO.slice(0, 10),
           end: toISO.slice(0, 10),
@@ -94,27 +120,20 @@ export default function useEvents(
           signal,
         })
         const payloadQ = await resQ.json()
-        const drafts = payloadQ?.drafts || []
+        const drafts: QuadrantDraft[] = payloadQ?.drafts || []
 
-        // 🔹 Helper: normalitzar codi
         const normalizeCode = (raw: string) =>
           (raw || '').replace(/^#/, '').trim().toUpperCase()
 
-        // 🔹 Construïm mapa de quadrants (per code i per eventId)
-        const quadrantMap = new Map<string, any>()
-        drafts.forEach((d: any) => {
+        const quadrantMap = new Map<string, QuadrantDraft>()
+        drafts.forEach((d) => {
           const key = normalizeCode(d.code || d.id)
           if (key) quadrantMap.set(key, d)
-          if (d.eventId) {
-            quadrantMap.set(String(d.eventId), d)
-          }
+          if (d.eventId) quadrantMap.set(String(d.eventId), d)
         })
 
-        console.log('[useEvents] QuadrantMap keys:', Array.from(quadrantMap.keys()))
-
-        // 🔹 3. Fem merge Calendar + Firestore
-        const flat: EventData[] = eventsFromPayload.map((ev: any) => {
-          // Pax
+        // 🔹 3. Merge Calendar + Firestore
+        const flat: EventData[] = eventsFromPayload.map((ev) => {
           let pax = Number(ev.pax ?? 0)
           if (!pax && ev.summary) {
             const match = ev.summary.match(/(\d{1,3}(?:[\.\s]\d{3})*|\d+)\s*pax/i)
@@ -123,48 +142,38 @@ export default function useEvents(
 
           const location = ev.location || ''
           const state: 'pending' | 'draft' | 'confirmed' =
-            ev.state ?? ev.status ?? 'pending'
+            (ev.state as 'pending' | 'draft' | 'confirmed') ??
+            (ev.status as any) ??
+            'pending'
 
-          // 🔹 Obtenim codi de l’event (fallback)
           let eventCode = ev.eventCode || ev.code || null
-
           if (!eventCode && ev.summary) {
             const cleaned = ev.summary.replace(/[#\-]/g, ' ').trim()
             const match = cleaned.match(/([A-Z]{1,3}\d{5,7})/i)
-            if (match) {
-              eventCode = match[1].toUpperCase()
-            }
+            if (match) eventCode = match[1].toUpperCase()
           }
 
-          // 🔹 Fem match amb quadrant → prioritat eventId
           let q = quadrantMap.get(ev.id)
           if (!q) {
             const key = normalizeCode(eventCode || ev.id)
             q = quadrantMap.get(key)
           }
 
-          console.log('[useEvents merge]', {
-            evId: ev.id,
-            summary: ev.summary,
-            eventCode,
-            matchedQuadrant: q?.code,
-            qResponsable: q?.responsableName,
-          })
-
           return {
             ...ev,
             pax,
             location,
+            day: ev.start.slice(0, 10), // 🔑 camp de agrupació
             locationShort: computeLocationShort(location),
             mapsUrl: computeMapsUrl(location),
             state,
             eventCode: eventCode || q?.code || null,
             responsable: q?.responsableName || q?.responsable?.name || undefined,
             conductors: Array.isArray(q?.conductors)
-              ? q.conductors.map((c: any) => c?.name).filter(Boolean)
+              ? q.conductors.map((c) => c?.name).filter(Boolean) as string[]
               : [],
             treballadors: Array.isArray(q?.treballadors)
-              ? q.treballadors.map((t: any) => t?.name).filter(Boolean)
+              ? q.treballadors.map((t) => t?.name).filter(Boolean) as string[]
               : [],
           }
         })
@@ -176,13 +185,21 @@ export default function useEvents(
           totals[day] = (totals[day] || 0) + (ev.pax || 0)
         })
 
-        // 🔹 5. Set state
+        // 🔹 5. Agrupem per dia
+        const grouped: GroupedEvents = {}
+        flat.forEach(ev => {
+          if (!grouped[ev.day]) grouped[ev.day] = []
+          grouped[ev.day].push(ev)
+        })
+
+        // 🔹 6. Set state
         setEvents(flat)
         setTotalPerDay(totals)
+        setGroupedEvents(grouped)
         setResponsables(payload?.responsables || [])
         setResponsablesDetailed(payload?.responsablesDetailed || [])
-      } catch (err: any) {
-        if (err.name !== 'AbortError') {
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name !== 'AbortError') {
           setError(err.message || 'Error carregant esdeveniments')
         }
       } finally {
@@ -198,7 +215,6 @@ export default function useEvents(
     return () => controller.abort()
   }, [load])
 
-  // Opcions LN (labels) derivades dels events carregats
   const lnOptions = useMemo(() => {
     const set = new Set<string>()
     events.forEach(e => {

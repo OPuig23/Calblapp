@@ -1,5 +1,6 @@
-//file:src\app\menu\quadrants\drafts\components\types.ts
-export type Role = 'responsable' | 'conductor' | 'treballador'
+// file: src/app/menu/quadrants/drafts/components/types.ts
+
+export type Role = 'responsable' | 'conductor' | 'treballador' | 'brigada'
 
 export type Row = {
   role: Role
@@ -12,8 +13,10 @@ export type Row = {
   meetingPoint?: string
   vehicleType?: string
   plate?: string
+  workers?: number // només per brigades
 }
 
+// 🔹 Input que arriba del backend per construir Drafts
 export type DraftInput = {
   id: string
   code?: string
@@ -31,6 +34,7 @@ export type DraftInput = {
   responsableId?: string
   responsableName?: string
   responsable?: Partial<Row>
-  conductors?: Array<any>
-  treballadors?: Array<any>
+  conductors?: Array<Partial<Row>>
+  treballadors?: Array<Partial<Row>>
+  brigades?: Array<Partial<Row>>   // afegit per coherència amb DraftsTable
 }

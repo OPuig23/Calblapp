@@ -1,4 +1,4 @@
-//file:src\app\menu\events\page.tsx
+// src/app/menu/events/page.tsx
 'use client'
 
 import { useSession } from 'next-auth/react'
@@ -18,11 +18,24 @@ const normalize = (s?: string | null) =>
     .toLowerCase()
     .trim()
 
+/* ================= Tipus auxiliars ================= */
+interface ExtendedEventData extends EventData {
+  lnKey?: string
+  isResponsible?: boolean
+}
+
+type SessionUser = {
+  id?: string
+  role?: string
+  department?: string
+  name?: string
+}
+
 /* ================= Page ================= */
 export default function EventsPage() {
   const { data: session } = useSession()
   const role = String(session?.user?.role || '').toLowerCase()
-  const userDept = String((session?.user as any)?.department || '').toLowerCase()
+  const userDept = String((session?.user as SessionUser)?.department || '').toLowerCase()
   const scope: 'all' | 'mine' = role === 'treballador' ? 'mine' : 'all'
   const includeQuadrants = role === 'treballador'
 
@@ -106,25 +119,25 @@ export default function EventsPage() {
 
   /* ================= Modal ================= */
   const [isMenuOpen, setMenuOpen] = useState(false)
-  const [selectedEvent, setSelectedEvent] = useState<Partial<EventData> | null>(null)
+  const [selectedEvent, setSelectedEvent] = useState<Partial<ExtendedEventData> | null>(null)
 
-  const openMenu = (ev: EventData) => {
+  const openMenu = (ev: ExtendedEventData) => {
     setSelectedEvent({
       id: ev.id,
       summary: ev.summary,
       start: ev.start,
       responsableName: ev.responsableName,
-      lnKey: (ev as any).lnKey,
+      lnKey: ev.lnKey,
       isResponsible: ev.isResponsible,
-    } as any)
+    })
     setMenuOpen(true)
   }
 
   const userForModal = {
-    id: (session?.user as any)?.id,
-    role: (session?.user as any)?.role,
-    department: (session?.user as any)?.department,
-    name: (session?.user as any)?.name,
+    id: (session?.user as SessionUser)?.id,
+    role: (session?.user as SessionUser)?.role,
+    department: (session?.user as SessionUser)?.department,
+    name: (session?.user as SessionUser)?.name,
   }
 
   /* ================= Render ================= */
@@ -170,12 +183,12 @@ export default function EventsPage() {
       {isMenuOpen && selectedEvent && (
         <EventMenuModal
           event={{
-            id: selectedEvent.id as any,
+            id: selectedEvent.id || '',
             summary: selectedEvent.summary || '',
             start: selectedEvent.start!,
             responsableName: selectedEvent.responsableName,
             lnKey: selectedEvent.lnKey,
-            isResponsible: (selectedEvent as any).isResponsible,
+            isResponsible: selectedEvent.isResponsible,
           }}
           user={userForModal}
           onClose={() => setMenuOpen(false)}

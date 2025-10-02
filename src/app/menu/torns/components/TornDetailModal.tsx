@@ -29,7 +29,8 @@ export interface TornDetailModalProps {
   role?: 'Admin' | 'Direcció' | 'Cap Departament' | 'Treballador'
 }
 /** ───────────────────────── Helpers ───────────────────────── */
-const log = (...args: any[]) => console.log('[TornDetailModal]', ...args)
+const log = (...args: unknown[]) => console.log('[TornDetailModal]', ...args)
+
 function cleanEventName(s?: string) {
   if (!s) return ''
   return s.replace(/^[A-Z]\s*-\s*/i, '').trim()
@@ -70,7 +71,7 @@ function groupByDepartment(workers: Worker[]) {
   return Array.from(map.entries())
 }
 /** ───────────────────────── Component ───────────────────────── */
-export default function TornDetailModal({ open, onClose, torn, role }: TornDetailModalProps) {
+export default function TornDetailModal({ open, onClose, torn, role: _role, }: TornDetailModalProps) {
   if (!torn) return null
 
   const workers: Worker[] = Array.isArray(torn.__rawWorkers) ? torn.__rawWorkers : []

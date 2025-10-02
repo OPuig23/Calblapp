@@ -8,7 +8,7 @@ export type GCalEvent = {
   location?: string
   start?: { dateTime?: string; date?: string }
   end?: { dateTime?: string; date?: string }
-  [k: string]: any
+  [k: string]: unknown
 }
 
 const stripCodeFromTitle = (summary = '') =>
@@ -59,5 +59,15 @@ export function normalizeGCalEvent(ev: GCalEvent): NormalizedEvent {
   const location = (ev.location || '').trim()
   const locationShort = shortLocation(location)
   const commercial = parseCommercial(ev.description || '')
-  return { id: ev.id, title, code, lnKey, lnLabel, location, locationShort, commercial }
+
+  return {
+    id: ev.id,
+    title,
+    code,
+    lnKey,
+    lnLabel,
+    location,
+    locationShort,
+    commercial,
+  }
 }

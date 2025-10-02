@@ -1,4 +1,4 @@
-//file: src/app/menu/personnel/list/page.tsx
+// file: src/app/menu/personnel/list/page.tsx
 'use client'
 
 import React, { useState, useMemo, useCallback } from 'react'
@@ -9,15 +9,17 @@ import EditPersonnelModal from '@/components/personnel/EditPersonnelModal'
 import PersonnelList from '@/components/personnel/PersonnelList'
 import { usePersonnel, Personnel } from '@/hooks/usePersonnel'
 import { Plus } from 'lucide-react'
-import { normalizeRole } from '@/lib/roles'
 import { PersonnelFilters, PersonnelFiltersValues } from '@/components/personnel/PersonnelFilters'
+
+type SessionUser = {
+  role?: string
+  department?: string
+}
 
 export default function PersonnelListPage() {
   const { data: session, status } = useSession()
   const [modalOpen, setModalOpen] = useState(false)
   const [editingPerson, setEditingPerson] = useState<Personnel | null>(null)
-
-  const roleNorm = normalizeRole((session?.user as any)?.role)
 
   const {
     data: allPersonnel = [],
@@ -102,7 +104,7 @@ export default function PersonnelListPage() {
         isOpen={modalOpen}
         onOpenChange={setModalOpen}
         onCreated={handleCreated}
-        defaultDepartment={(session?.user as any)?.department}
+        defaultDepartment={(session?.user as SessionUser)?.department}
       />
 
       {editingPerson && (

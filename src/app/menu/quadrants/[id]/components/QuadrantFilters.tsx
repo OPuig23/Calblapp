@@ -14,11 +14,13 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 
+export type Status = 'all' | 'confirmed' | 'draft'
+
 export interface FiltersProps {
   onChange: (filters: {
     start?: string
     end?: string
-    status?: 'all' | 'confirmed' | 'draft'
+    status?: Status
   }) => void
 }
 
@@ -27,7 +29,7 @@ export default function QuadrantFilters({ onChange }: FiltersProps) {
     start: '',
     end: '',
   })
-  const [status, setStatus] = useState<'all' | 'confirmed' | 'draft'>('all')
+  const [status, setStatus] = useState<Status>('all')
 
   function handleApply() {
     onChange({ start: range.start, end: range.end, status })
@@ -37,22 +39,22 @@ export default function QuadrantFilters({ onChange }: FiltersProps) {
     <div className="flex flex-wrap gap-2 p-2">
       {/* 🔽 Filtre per estat */}
       <Select
-  value={status}
-  onValueChange={(v) => {
-    setStatus(v as any)
-    onChange({ start: range.start, end: range.end, status: v as any })
-  }}
->
-  <SelectTrigger className="w-[140px]">
-    <SelectValue placeholder="Estat" />
-  </SelectTrigger>
-  <SelectContent>
-    <SelectItem value="all">Tots</SelectItem>
-    <SelectItem value="confirmed">✅ Confirmats</SelectItem>
-    <SelectItem value="draft">📝 Borrador</SelectItem>
-  </SelectContent>
-</Select>
-
+        value={status}
+        onValueChange={(v) => {
+          const newStatus = v as Status
+          setStatus(newStatus)
+          onChange({ start: range.start, end: range.end, status: newStatus })
+        }}
+      >
+        <SelectTrigger className="w-[140px]">
+          <SelectValue placeholder="Estat" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Tots</SelectItem>
+          <SelectItem value="confirmed">✅ Confirmats</SelectItem>
+          <SelectItem value="draft">📝 Borrador</SelectItem>
+        </SelectContent>
+      </Select>
 
       {/* 📅 Filtre per dates */}
       <Popover>

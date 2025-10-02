@@ -38,6 +38,7 @@ type FilterKey =
   | 'location'
   | 'status'
   | 'importance'
+  | 'role'
 
 export type FiltersBarProps = {
   filters: FiltersState
@@ -53,7 +54,6 @@ export type FiltersBarProps = {
   workerOptions?: { id: string; name: string; roles?: string[]; department?: string; ln?: string; location?: string }[]
 }
 
-
 /* ================= Component ================= */
 export default function FiltersBar({
   filters,
@@ -68,7 +68,6 @@ export default function FiltersBar({
   departmentOptions = [],
   workerOptions = [],
 }: FiltersBarProps) {
-
   const [resetCounter, setResetCounter] = useState(0)
 
   /* Reset global */
@@ -87,7 +86,7 @@ export default function FiltersBar({
       status: undefined,
       importance: undefined,
     })
-    setResetCounter(c => c + 1)
+    setResetCounter((c) => c + 1)
     if (onReset) onReset()
   }
 
@@ -101,7 +100,7 @@ export default function FiltersBar({
         return (
           <Select
             value={filters.ln || '__all__'}
-            onValueChange={val => setFilters({ ln: val })}
+            onValueChange={(val) => setFilters({ ln: val })}
           >
             <SelectTrigger className={baseClass}>
               <span className="text-gray-500 text-sm">🌐 LN:</span>
@@ -109,17 +108,23 @@ export default function FiltersBar({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="__all__">🌐 Totes les LN</SelectItem>
-              {(lnOptions.length ? lnOptions : ['Empresa','Casaments','Foodlovers','Agenda','Altres']).map(ln => (
-                <SelectItem key={ln} value={ln}>{ln}</SelectItem>
+              {(lnOptions.length
+                ? lnOptions
+                : ['Empresa', 'Casaments', 'Foodlovers', 'Agenda', 'Altres']
+              ).map((ln) => (
+                <SelectItem key={ln} value={ln}>
+                  {ln}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
         )
-            case 'department':
+
+      case 'department':
         return (
           <Select
             value={filters.department || '__all__'}
-            onValueChange={val =>
+            onValueChange={(val) =>
               setFilters({ department: val === '__all__' ? undefined : val })
             }
           >
@@ -128,7 +133,7 @@ export default function FiltersBar({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="__all__">🌐 Tots els departaments</SelectItem>
-              {departmentOptions.map(dep => (
+              {departmentOptions.map((dep) => (
                 <SelectItem key={dep} value={dep}>
                   {dep}
                 </SelectItem>
@@ -138,44 +143,44 @@ export default function FiltersBar({
         )
 
       case 'worker':
-  return (
-    <Select
-      value={filters.workerId || '__all__'}
-      onValueChange={val => {
-        if (val === '__all__') {
-          setFilters({ workerId: undefined, workerName: undefined })
-        } else {
-          const sel = workerOptions.find(w => w.id === val)
-          setFilters({
-            workerId: sel?.id,
-            workerName: sel?.name,
-          })
-        }
-      }}
-    >
-      <SelectTrigger className="w-full rounded-xl border bg-white text-gray-900">
-        <SelectValue placeholder="Treballador">
-          {filters.workerId
-            ? workerOptions.find(w => w.id === filters.workerId)?.name
-            : '🌐 Tots'}
-        </SelectValue>
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="__all__">🌐 Tots</SelectItem>
-        {workerOptions.map(w => (
-          <SelectItem key={w.id} value={w.id}>
-            {w.name}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  )
-  
+        return (
+          <Select
+            value={filters.workerId || '__all__'}
+            onValueChange={(val) => {
+              if (val === '__all__') {
+                setFilters({ workerId: undefined, workerName: undefined })
+              } else {
+                const sel = workerOptions.find((w) => w.id === val)
+                setFilters({
+                  workerId: sel?.id,
+                  workerName: sel?.name,
+                })
+              }
+            }}
+          >
+            <SelectTrigger className="w-full rounded-xl border bg-white text-gray-900">
+              <SelectValue placeholder="Treballador">
+                {filters.workerId
+                  ? workerOptions.find((w) => w.id === filters.workerId)?.name
+                  : '🌐 Tots'}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">🌐 Tots</SelectItem>
+              {workerOptions.map((w) => (
+                <SelectItem key={w.id} value={w.id}>
+                  {w.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )
+
       case 'responsable':
         return (
           <Select
             value={filters.responsable || '__all__'}
-            onValueChange={val => setFilters({ responsable: val })}
+            onValueChange={(val) => setFilters({ responsable: val })}
           >
             <SelectTrigger className={baseClass}>
               <span className="text-gray-500 text-sm">👤 Resp:</span>
@@ -183,17 +188,20 @@ export default function FiltersBar({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="__all__">🌐 Tots</SelectItem>
-              {responsables.map(r => (
-                <SelectItem key={r} value={r}>{r}</SelectItem>
+              {responsables.map((r) => (
+                <SelectItem key={r} value={r}>
+                  {r}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
         )
+
       case 'location':
         return (
           <Select
             value={filters.location || '__all__'}
-            onValueChange={val => setFilters({ location: val })}
+            onValueChange={(val) => setFilters({ location: val })}
           >
             <SelectTrigger className={baseClass}>
               <span className="text-gray-500 text-sm">📍 Ubic:</span>
@@ -201,19 +209,26 @@ export default function FiltersBar({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="__all__">🌐 Totes</SelectItem>
-              {locations.map(loc => {
+              {locations.map((loc) => {
                 const short = loc.split(/[,\|\.]/)[0]?.trim() || loc.trim()
                 const display = short.length > 30 ? short.slice(0, 30) + '…' : short
-                return <SelectItem key={loc} value={short}>{display}</SelectItem>
+                return (
+                  <SelectItem key={loc} value={short}>
+                    {display}
+                  </SelectItem>
+                )
               })}
             </SelectContent>
           </Select>
         )
+
       case 'status':
         return (
           <Select
             value={filters.status || 'all'}
-            onValueChange={val => setFilters({ status: val as any })}
+            onValueChange={(val) =>
+              setFilters({ status: val as FiltersState['status'] })
+            }
           >
             <SelectTrigger className={baseClass}>
               <span className="text-gray-500 text-sm">📊 Estat:</span>
@@ -221,17 +236,22 @@ export default function FiltersBar({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">🌐 Tots</SelectItem>
-              {statusOptions.map(st => (
-                <SelectItem key={st} value={st}>{st}</SelectItem>
+              {statusOptions.map((st) => (
+                <SelectItem key={st} value={st}>
+                  {st}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
         )
+
       case 'importance':
         return (
           <Select
             value={filters.importance || 'all'}
-            onValueChange={val => setFilters({ importance: val as any })}
+            onValueChange={(val) =>
+              setFilters({ importance: val as FiltersState['importance'] })
+            }
           >
             <SelectTrigger className={baseClass}>
               <span className="text-gray-500 text-sm">⚡ Import.:</span>
@@ -245,24 +265,27 @@ export default function FiltersBar({
             </SelectContent>
           </Select>
         )
-        case 'role':
-  return (
-    <Select
-      value={filters.roleType || 'all'}
-      onValueChange={val => setFilters({ roleType: val as any })}
-    >
-      <SelectTrigger className={baseClass}>
-        <span className="text-gray-500 text-sm">🧑 Rol:</span>
-        <SelectValue placeholder="Tots" />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="all">🌐 Tots</SelectItem>
-        <SelectItem value="treballador">Treballador</SelectItem>
-        <SelectItem value="conductor">Conductor</SelectItem>
-        <SelectItem value="responsable">Responsable</SelectItem>
-      </SelectContent>
-    </Select>
-  )
+
+      case 'role':
+        return (
+          <Select
+            value={filters.roleType || 'all'}
+            onValueChange={(val) =>
+              setFilters({ roleType: val as FiltersState['roleType'] })
+            }
+          >
+            <SelectTrigger className={baseClass}>
+              <span className="text-gray-500 text-sm">🧑 Rol:</span>
+              <SelectValue placeholder="Tots" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">🌐 Tots</SelectItem>
+              <SelectItem value="treballador">Treballador</SelectItem>
+              <SelectItem value="conductor">Conductor</SelectItem>
+              <SelectItem value="responsable">Responsable</SelectItem>
+            </SelectContent>
+          </Select>
+        )
 
       default:
         return null
@@ -272,10 +295,8 @@ export default function FiltersBar({
   /* ================= Render ================= */
   return (
     <div className="w-full px-3 py-2 sm:px-4 sm:py-3">
-      {/* Traiem max-w-5xl → aprofita tota l'amplada */}
       <div className="w-full">
         <div className="rounded-2xl border border-gray-200 bg-white p-3 shadow-sm flex flex-wrap items-center gap-3">
-          
           {/* 📅 Dates */}
           <SmartFilters
             modeDefault="week"
@@ -293,49 +314,44 @@ export default function FiltersBar({
           />
 
           {/* 🔘 Filtres visibles */}
-          {visibleFilters.map(key => (
-            <div key={key}>
-              {renderSelect(key)}
-            </div>
+          {visibleFilters.map((key) => (
+            <div key={key}>{renderSelect(key)}</div>
           ))}
 
           {/* 🔘 Reset compacte */}
-<div className="flex-1 sm:flex-none min-w-[50px]">
-  <button
-    onClick={clearAll}
-    className="w-full sm:w-auto p-2 rounded-xl border text-sm text-gray-600 hover:bg-gray-50 transition flex items-center justify-center"
-    title="Reset"
-  >
-    <RotateCcw className="h-5 w-5" />
-  </button>
-</div>
-
+          <div className="flex-1 sm:flex-none min-w-[50px]">
+            <button
+              onClick={clearAll}
+              className="w-full sm:w-auto p-2 rounded-xl border text-sm text-gray-600 hover:bg-gray-50 transition flex items-center justify-center"
+              title="Reset"
+            >
+              <RotateCcw className="h-5 w-5" />
+            </button>
+          </div>
 
           {/* 🔘 Botó més filtres compacte */}
-{hiddenFilters.length > 0 && (
-  <Dialog>
-    <DialogTrigger asChild>
-      <button
-        className="px-2 py-2 rounded-xl border text-sm text-gray-700 hover:bg-gray-50 flex items-center justify-center"
-        title="Filtres addicionals"
-      >
-        <SlidersHorizontal className="h-5 w-5" />
-      </button>
-    </DialogTrigger>
-    <DialogContent className="sm:max-w-md">
-      <DialogHeader>
-        <DialogTitle>Filtres addicionals</DialogTitle>
-      </DialogHeader>
-      <div className="flex flex-col gap-3 mt-3">
-        {hiddenFilters.map(key => (
-          <div key={key}>{renderSelect(key)}</div>
-        ))}
-      </div>
-    </DialogContent>
-  </Dialog>
-)}
-
-
+          {hiddenFilters.length > 0 && (
+            <Dialog>
+              <DialogTrigger asChild>
+                <button
+                  className="px-2 py-2 rounded-xl border text-sm text-gray-700 hover:bg-gray-50 flex items-center justify-center"
+                  title="Filtres addicionals"
+                >
+                  <SlidersHorizontal className="h-5 w-5" />
+                </button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Filtres addicionals</DialogTitle>
+                </DialogHeader>
+                <div className="flex flex-col gap-3 mt-3">
+                  {hiddenFilters.map((key) => (
+                    <div key={key}>{renderSelect(key)}</div>
+                  ))}
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
       </div>
     </div>

@@ -70,18 +70,20 @@ export function useUnreadCountsByType() {
     refreshInterval: 15000,
   })
 
+  const notis = (data?.notifications as Notification[]) ?? []
+
   // Accepta tant "torn_assigned" com "NEW_SHIFTS"
   const tornsCount =
-    data?.notifications?.filter(
-      (n: any) =>
+    notis.filter(
+      (n: Notification) =>
         !n.read &&
         (n.type === 'torn_assigned' || n.type === 'NEW_SHIFTS')
-    ).length ?? 0
+    ).length
 
   const usuarisCount =
-    data?.notifications?.filter(
-      (n: any) => !n.read && n.type === 'user_request'
-    ).length ?? 0
+    notis.filter(
+      (n: Notification) => !n.read && n.type === 'user_request'
+    ).length
 
   return {
     tornsCount,

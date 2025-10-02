@@ -1,9 +1,11 @@
+// file: src/app/menu/quadrants/drafts/components/DraftsFilters.tsx
 'use client'
 
 import { useSession } from 'next-auth/react'
 import SmartFilters, { SmartFiltersChange } from '@/components/filters/SmartFilters'
 
 type Mode = 'week' | 'day' | 'range'
+type Status = 'all' | 'confirmed' | 'draft'
 
 export default function DraftsFilters({
   onFilter,
@@ -12,7 +14,7 @@ export default function DraftsFilters({
     mode?: Mode
     dateRange?: [string, string]
     department?: string | null
-    status?: 'all' | 'confirmed' | 'draft'
+    status?: Status
   }) => void
 }) {
   const { data: session } = useSession()
@@ -20,8 +22,7 @@ export default function DraftsFilters({
 
   return (
     <SmartFilters
-      role={role as any}
-
+      role={role}
       /* 🔹 Ara també mostrem el departament */
       showDepartment={true}
       showWorker={false}
@@ -29,15 +30,14 @@ export default function DraftsFilters({
       showStatus={true}
       modeDefault="week"
       departmentOptions={['logistica', 'serveis', 'cuina', 'transports']}
-
       onChange={(f: SmartFiltersChange) => {
         const start = f.start
-        const end   = f.end
+        const end = f.end
         onFilter({
           mode: f.mode as Mode,
           dateRange: start && end ? [start, end] : undefined,
-          department: f.department || null,   // <-- Afegit
-          status: (f.status as any) || 'all',
+          department: f.department || null,
+          status: (f.status as Status) || 'all',
         })
       }}
     />

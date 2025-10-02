@@ -60,9 +60,11 @@ export default function CreateIncidentModal({
       }
       onCreated()
       onClose()
-    } catch (err: any) {
-      setError(err.message || 'No s’ha pogut crear la incidència')
-    } finally {
+    } catch (err: unknown) {
+  const message = err instanceof Error ? err.message : 'No s’ha pogut crear la incidència'
+  setError(message)
+}
+ finally {
       setLoading(false)
     }
   }

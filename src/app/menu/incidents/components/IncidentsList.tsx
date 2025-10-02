@@ -1,10 +1,10 @@
-//filename: src/app/menu/incidents/components/IncidentsList.tsx
+// filename: src/app/menu/incidents/components/IncidentsList.tsx
 'use client'
 
 import React from 'react'
 import { Incident } from '@/hooks/useIncidents'
 import IncidentCardGrouped from './IncidentCardGrouped'
-import { Badge } from '../../../../../_unused_/badge'
+import { Badge } from '@/components/ui/badge'
 import { Calendar } from 'lucide-react'
 
 export default function IncidentsList({ incidents }: { incidents: Incident[] }) {
@@ -31,7 +31,7 @@ export default function IncidentsList({ incidents }: { incidents: Incident[] }) 
         const grouped = incs.reduce((acc, inc) => {
           const key = inc.eventCode || inc.eventId
           if (!acc[key]) acc[key] = []
-          acc[key].push(inc) 
+          acc[key].push(inc)
           return acc
         }, {} as Record<string, Incident[]>)
 
@@ -41,11 +41,14 @@ export default function IncidentsList({ incidents }: { incidents: Incident[] }) 
             <header className="flex items-center justify-between mb-3 bg-blue-50 p-3 rounded-xl shadow-sm">
               <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
                 {new Date(dateKey).toLocaleDateString()}
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
+                <Badge
+                  variant="secondary"
+                  className="flex items-center gap-1 text-purple-700 bg-purple-100"
+                >
                   <Calendar className="w-3 h-3" />
                   {totalIncidencies} incidència
                   {totalIncidencies > 1 ? 's' : ''}
-                </span>
+                </Badge>
               </h2>
             </header>
 

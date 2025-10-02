@@ -1,5 +1,4 @@
-//file:src\app\menu\quadrants\[id]\components\QuadrantFieldsLogistica.tsx
-
+//file: src/app/menu/quadrants/[id]/components/QuadrantFieldsLogistica.tsx
 'use client'
 
 import { Label } from '@/components/ui/label'
@@ -14,6 +13,13 @@ type VehicleAssignment = {
   plate: string
 }
 
+type AvailableVehicle = {
+  id: string
+  plate?: string
+  type?: string
+  available: boolean
+}
+
 type Props = {
   totalWorkers: string
   numDrivers: string
@@ -21,7 +27,7 @@ type Props = {
   setNumDrivers: (v: string) => void
   vehicleAssignments: VehicleAssignment[]
   setVehicleAssignments: (v: VehicleAssignment[]) => void
-  available: { vehicles: any[] }
+  available: { vehicles: AvailableVehicle[] }
 }
 
 // Diccionari per normalitzar tipus
@@ -75,7 +81,7 @@ export default function QuadrantFieldsLogistica({
           // vehicles disponibles per aquest tipus
           const filtered = (available.vehicles || []).filter(v =>
             v.available &&
-            normalizeType(v.type) === normalizeType(assign.vehicleType) &&
+            normalizeType(v.type || '') === normalizeType(assign.vehicleType) &&
             !vehicleAssignments.some((a, i) => i !== idx && a.vehicleId === v.id)
           )
 
@@ -110,49 +116,48 @@ export default function QuadrantFieldsLogistica({
               </Select>
 
               {/* 2. Selecció MATRÍCULA */}
-{assign.vehicleType && (
-  <>
-    <div className="text-xs text-gray-500">
-      Matrícules disponibles: {filtered.length}
-    </div>
-    <Select
-      value={assign.vehicleId}
-      onValueChange={val => {
-        if (val === '__any__') {
-          console.log(`[Logistica] 🚚 Conductor ${idx + 1} -> Només tipus, sense matrícula`)
-          const upd = [...vehicleAssignments]
-          upd[idx].vehicleId = ''
-          upd[idx].plate = ''
-          setVehicleAssignments(upd)
-          return
-        }
+              {assign.vehicleType && (
+                <>
+                  <div className="text-xs text-gray-500">
+                    Matrícules disponibles: {filtered.length}
+                  </div>
+                  <Select
+                    value={assign.vehicleId}
+                    onValueChange={val => {
+                      if (val === '__any__') {
+                        console.log(`[Logistica] 🚚 Conductor ${idx + 1} -> Només tipus, sense matrícula`)
+                        const upd = [...vehicleAssignments]
+                        upd[idx].vehicleId = ''
+                        upd[idx].plate = ''
+                        setVehicleAssignments(upd)
+                        return
+                      }
 
-        const chosen = available.vehicles.find(v => v.id === val)
-        console.log(`[Logistica] 🚚 Conductor ${idx + 1} ha triat matrícula:`, chosen)
-        const upd = [...vehicleAssignments]
-        upd[idx].vehicleId = val
-        upd[idx].plate = chosen?.plate || ''
-        upd[idx].vehicleType = normalizeType(chosen?.type || upd[idx].vehicleType)
-        setVehicleAssignments(upd)
-      }}
-    >
-      <SelectTrigger>
-        <SelectValue placeholder="Tipus només o matrícula" />
-      </SelectTrigger>
-      <SelectContent>
-        {/* Opció extra per no assignar matrícula */}
-        <SelectItem value="__any__">(Només tipus, sense matrícula)</SelectItem>
+                      const chosen = available.vehicles.find(v => v.id === val)
+                      console.log(`[Logistica] 🚚 Conductor ${idx + 1} ha triat matrícula:`, chosen)
+                      const upd = [...vehicleAssignments]
+                      upd[idx].vehicleId = val
+                      upd[idx].plate = chosen?.plate || ''
+                      upd[idx].vehicleType = normalizeType(chosen?.type || upd[idx].vehicleType)
+                      setVehicleAssignments(upd)
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Tipus només o matrícula" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {/* Opció extra per no assignar matrícula */}
+                      <SelectItem value="__any__">(Només tipus, sense matrícula)</SelectItem>
 
-        {filtered.map(v => (
-          <SelectItem key={v.id} value={v.id}>
-            {v.plate || '(sense matrícula)'}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  </>
-)}
-
+                      {filtered.map(v => (
+                        <SelectItem key={v.id} value={v.id}>
+                          {v.plate || '(sense matrícula)'}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </>
+              )}
             </div>
           )
         })}

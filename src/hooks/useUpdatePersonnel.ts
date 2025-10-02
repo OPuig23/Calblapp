@@ -1,6 +1,5 @@
-// File: src/hooks/useUpdatePersonnel.ts
+// file: src/hooks/useUpdatePersonnel.ts
 import { useState } from 'react'
-import { useSession } from 'next-auth/react'
 
 export interface UpdatePerson {
   id: string
@@ -14,7 +13,6 @@ export interface UpdatePerson {
 }
 
 export function useUpdatePersonnel() {
-  const { data: session } = useSession()
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState<string | null>(null)
 
@@ -26,18 +24,20 @@ export function useUpdatePersonnel() {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          // si necessites autorització:
-          // Authorization: `Bearer ${session?.accessToken}`
         },
         body: JSON.stringify(updateData),
       })
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        throw new Error(body?.message || `Error ${res.status}`)
+        const body = await res.json().catch(() => ({} as { message?: string }))
+        throw new Error(body.message || `Error ${res.status}`)
       }
       return await res.json()
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message)
+      } else {
+        setError('Error desconegut actualitzant personal')
+      }
       throw err
     } finally {
       setLoading(false)

@@ -17,8 +17,6 @@ import EventPersonnelModal from './EventPersonnelModal'
 import { useEventPersonnel } from '@/hooks/useEventPersonnel'
 import EventIncidentsModal from './EventIncidentsModal'
 
-
-
 /** ───────────────────────── Helpers ───────────────────────── */
 const norm = (s?: string | number | null) =>
   String(s ?? '')
@@ -29,6 +27,14 @@ const norm = (s?: string | number | null) =>
 
 type LnKey = 'empresa' | 'casaments' | 'foodlovers' | 'agenda' | 'altres'
 
+// 🔹 Tipus simple per personal assignat
+interface WorkerLite {
+  id?: string | number
+  name?: string
+  role?: string
+  department?: string
+}
+
 interface EventMenuModalProps {
   event: {
     id?: string | number
@@ -36,9 +42,9 @@ interface EventMenuModalProps {
     start: string
     lnKey?: LnKey
     isResponsible?: boolean
-    responsable?: any
-    conductors?: any[]
-    treballadors?: any[]
+    responsable?: WorkerLite | null
+    conductors?: WorkerLite[]
+    treballadors?: WorkerLite[]
   }
   user: {
     id?: string | number
@@ -66,9 +72,6 @@ export default function EventMenuModal({ event, user, onClose }: EventMenuModalP
   const [showPersonnel, setShowPersonnel] = useState(false)
   const { data: personnelData, loading: personnelLoading } = useEventPersonnel(event.id)
   const [showIncidents, setShowIncidents] = useState(false)
-
-
-
 
   if (!event || !event.id) return null
 
@@ -108,7 +111,6 @@ export default function EventMenuModal({ event, user, onClose }: EventMenuModalP
     onClose()
     router.push(path)
   }
-  
 
   return (
     <div
@@ -146,16 +148,14 @@ export default function EventMenuModal({ event, user, onClose }: EventMenuModalP
           )}
 
           {canSeeIncidents && (
-  <button
-    className="w-full py-2 rounded bg-orange-200 hover:bg-orange-300 text-orange-900 font-semibold flex items-center justify-center gap-2 transition"
-    onClick={() => setShowIncidents(true)}
-  >
-    <Eye className="w-5 h-5" /> Veure incidències
-  </button>
-)}
+            <button
+              className="w-full py-2 rounded bg-orange-200 hover:bg-orange-300 text-orange-900 font-semibold flex items-center justify-center gap-2 transition"
+              onClick={() => setShowIncidents(true)}
+            >
+              <Eye className="w-5 h-5" /> Veure incidències
+            </button>
+          )}
 
-
-          {/* 🔵 Ara obre modal en lloc de navegar */}
           <button
             className="w-full py-2 rounded bg-blue-400 hover:bg-blue-500 text-white font-semibold flex items-center justify-center gap-2 transition"
             onClick={() => setShowPersonnel(true)}
@@ -190,32 +190,30 @@ export default function EventMenuModal({ event, user, onClose }: EventMenuModalP
 
         {showCreateIncident && (
           <CreateIncidentModal
-            event={event as any}
-            user={user as any}
+            event={event}
+            user={user}
             onClose={() => setShowCreateIncident(false)}
             onCreated={() => setShowCreateIncident(false)}
           />
         )}
 
-        {/* Modal de personal assignat */}
         <EventPersonnelModal
-  open={showPersonnel}
-  onClose={() => setShowPersonnel(false)}
-  eventName={event.summary}
-  code={String(event.id)}
-  responsable={personnelData?.responsables?.[0]}
-  conductors={personnelData?.conductors}
-  treballadors={personnelData?.treballadors}
-  loading={personnelLoading}
-/>
-<EventIncidentsModal
-  open={showIncidents}
-  onClose={() => setShowIncidents(false)}
-  eventId={String(event.id)}
-  eventSummary={event.summary}   // 👈 passem el nom de l’esdeveniment
-/>
+          open={showPersonnel}
+          onClose={() => setShowPersonnel(false)}
+          eventName={event.summary}
+          code={String(event.id)}
+          responsable={personnelData?.responsables?.[0]}
+          conductors={personnelData?.conductors}
+          treballadors={personnelData?.treballadors}
+          loading={personnelLoading}
+        />
 
-
+        <EventIncidentsModal
+          open={showIncidents}
+          onClose={() => setShowIncidents(false)}
+          eventId={String(event.id)}
+          eventSummary={event.summary}
+        />
       </div>
 
       <EventDocumentsSheet

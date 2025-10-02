@@ -1,3 +1,4 @@
+// src/app/api/events/personnel/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/firebaseAdmin'
 import { fetchGoogleEventById } from '@/services/googleCalendar'
@@ -18,6 +19,7 @@ const chunk = <T>(arr: T[], size = 10) => {
   return out
 }
 
+// Tipos
 type QRow = {
   department?: string
   code?: string
@@ -42,6 +44,20 @@ type PersonDTO = {
   time?: string
   phone?: string
 }
+
+type PersonnelDoc = {
+  name?: string
+  phone?: string
+  mobile?: string
+  tel?: string
+  telephone?: string
+}
+
+// ⚡️ Tipo auxiliar para snapshots seguros
+type SafeSnap<T> =
+  | FirebaseFirestore.QuerySnapshot<T>
+  | { empty: true; forEach: (cb: (d: { data: () => T }) => void) => void }
+  | null
 
 export async function GET(req: NextRequest) {
   try {
@@ -69,18 +85,38 @@ export async function GET(req: NextRequest) {
 
     for (const coll of colls) {
       const ref = db.collection(coll)
+
+      const emptySnap: SafeSnap<Record<string, unknown>> = {
+        empty: true,
+        forEach: () => {}
+      }
+
       const [byId, byCode, byDate] = await Promise.all([
-        ref.where('eventId', '==', eventId).get().catch(() => ({ empty: true, forEach: () => {} } as any)),
-        code ? ref.where('code', '==', code).get().catch(() => ({ empty: true, forEach: () => {} } as any)) : Promise.resolve({ empty: true, forEach: () => {} } as any),
-        dateKey ? ref.where('startDate', '==', dateKey).get().catch(() => ({ empty: true, forEach: () => {} } as any)) : Promise.resolve({ empty: true, forEach: () => {} } as any),
+        ref.where('eventId', '==', eventId).get().catch(() => emptySnap),
+        code
+          ? ref.where('code', '==', code).get().catch(() => emptySnap)
+          : Promise.resolve(emptySnap),
+        dateKey
+          ? ref.where('startDate', '==', dateKey).get().catch(() => emptySnap)
+          : Promise.resolve(emptySnap),
       ])
-      const push = (snap: any) => { if (!snap || snap.empty) return; snap.forEach((d: any) => rows.push(d.data() as QRow)) }
-      push(byId); push(byCode); push(byDate)
+
+      const push = (snap: SafeSnap<Record<string, unknown>>) => {
+        if (!snap || snap.empty) return
+        snap.forEach((d) => rows.push(d.data() as unknown as QRow))
+      }
+
+      push(byId as SafeSnap<Record<string, unknown>>)
+      push(byCode as SafeSnap<Record<string, unknown>>)
+      push(byDate as SafeSnap<Record<string, unknown>>)
     }
+
+    const normCode = (s?: string | null) =>
+      (s ? unaccent(String(s)).toLowerCase().trim().replace(/\s+/g, '') : '')
 
     const filtered = rows.filter((r) => {
       if (r.eventId && r.eventId === eventId) return true
-      if (code && r.code && r.code === code) return true
+      if (code && r.code && normCode(r.code) === normCode(code)) return true
       if (r.eventName && norm(r.eventName) === eventNameNorm) return true
       return false
     })
@@ -92,9 +128,19 @@ export async function GET(req: NextRequest) {
       const qTime = q.startTime || q.hour || q.convocatoria
 
       if (q.responsableName) {
-        people.push({ name: q.responsableName, role: 'responsable', department: dept, meetingPoint: qMeeting, time: qTime })
+        people.push({
+          name: q.responsableName,
+          role: 'responsable',
+          department: dept,
+          meetingPoint: qMeeting,
+          time: qTime
+        })
       }
-      const each = (arr: any[] | undefined, role: PersonDTO['role']) => {
+
+      const each = (
+        arr: Array<{ name?: string; meetingPoint?: string; time?: string; hour?: string }> | undefined,
+        role: PersonDTO['role']
+      ) => {
         if (!Array.isArray(arr)) return
         for (const p of arr) {
           const name = (p?.name || '').trim()
@@ -108,6 +154,7 @@ export async function GET(req: NextRequest) {
           })
         }
       }
+
       each(q.conductors, 'conductor')
       each(q.treballadors, 'treballador')
       each(q.workers, 'treballador')
@@ -123,19 +170,20 @@ export async function GET(req: NextRequest) {
       const snap = await db.collection('personnel').where('name', 'in', c).get().catch(() => null)
       if (snap && !snap.empty) {
         snap.forEach((doc) => {
-          const d = doc.data() as any
+          const d = doc.data() as unknown as PersonnelDoc
           const phone = d.phone || d.mobile || d.tel || d.telephone
           if (d.name && phone) phoneMap.set(String(d.name), String(phone))
         })
       }
     }
+
     for (const c of nameChunks) {
       const missing = c.filter((n) => !phoneMap.has(n))
       if (missing.length === 0) continue
       const snap = await db.collection('users').where('name', 'in', missing).get().catch(() => null)
       if (snap && !snap.empty) {
         snap.forEach((doc) => {
-          const d = doc.data() as any
+          const d = doc.data() as unknown as PersonnelDoc
           const phone = d.phone || d.mobile || d.tel || d.telephone
           if (d.name && phone) phoneMap.set(String(d.name), String(phone))
         })
@@ -151,8 +199,11 @@ export async function GET(req: NextRequest) {
       event: { id: eventId, code, name: beforeHash.trim(), date: dateKey, location: ev.location || '' },
       responsables, conductors, treballadors,
     })
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('[api/events/personnel] error', err)
-    return NextResponse.json({ error: err?.message || 'Internal Error' }, { status: 500 })
+    if (err instanceof Error) {
+      return NextResponse.json({ error: err.message }, { status: 500 })
+    }
+    return NextResponse.json({ error: 'Internal Error' }, { status: 500 })
   }
 }

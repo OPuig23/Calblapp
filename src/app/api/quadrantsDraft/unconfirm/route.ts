@@ -1,4 +1,4 @@
-// file: src/app/api/quadrantsDraft/unconfirm/route.ts
+// src/app/api/quadrantsDraft/unconfirm/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 import { db } from '@/lib/firebaseAdmin'
@@ -6,7 +6,7 @@ import { db } from '@/lib/firebaseAdmin'
 export const runtime = 'nodejs'
 
 // ── Utils locals
-const norm = (s: any) =>
+const norm = (s?: string | null) =>
   String(s ?? '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim()
 
 const canonicalCollectionFor = (dept: string) => {
@@ -28,7 +28,18 @@ async function resolveDeptCollection(dept: string) {
   return canonicalCollectionFor(dept)
 }
 
-async function getRoleAndDept(token: any) {
+type TokenLike = {
+  email?: string
+  role?: string
+  department?: string
+  user?: {
+    email?: string
+    role?: string
+    department?: string
+  }
+}
+
+async function getRoleAndDept(token: TokenLike) {
   const email: string | undefined = token?.email || token?.user?.email
   let role = String(token?.role || token?.user?.role || '').toLowerCase()
   let dept = norm(token?.department || token?.user?.department || '')
@@ -37,9 +48,9 @@ async function getRoleAndDept(token: any) {
   if ((!role || !dept) && email) {
     const snap = await db.collection('users').doc(email).get()
     if (snap.exists) {
-      const u = snap.data() || {}
-      role = role || String(u.role || '').toLowerCase()
-      dept = dept || norm(u.department || u.dept || '')
+      const u = snap.data() as { role?: string; department?: string; dept?: string } | undefined
+      role = role || String(u?.role || '').toLowerCase()
+      dept = dept || norm(u?.department || u?.dept || '')
     }
   }
   return { role, dept, email }
@@ -58,7 +69,7 @@ export async function POST(req: NextRequest) {
     }
 
     const reqDept = norm(department)
-    const { role, dept } = await getRoleAndDept(token)
+    const { role, dept } = await getRoleAndDept(token as TokenLike)
 
     // ✅ Mateixa política que a confirm:
     //  - Admin/Direcció → tot
@@ -66,9 +77,9 @@ export async function POST(req: NextRequest) {
     //  - Rol desconegut → PERMESSIU si tenim dept i coincideix amb el de la petició
     const isAdminLike = ['admin', 'direccio', 'direcció'].includes(role)
     const isCapDept =
-  role === 'cap departament' ||
-  role === 'capdepartament' ||
-  role === 'cap'
+      role === 'cap departament' ||
+      role === 'capdepartament' ||
+      role === 'cap'
 
     const permissiveWhenUnknown =
       (!role || role === 'unknown' || role === '') && !!dept && dept === reqDept

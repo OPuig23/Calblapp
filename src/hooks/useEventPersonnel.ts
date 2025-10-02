@@ -1,4 +1,4 @@
-// src/hooks/useEventPersonnel.ts
+// file: src/hooks/useEventPersonnel.ts
 'use client'
 
 import { useEffect, useState } from 'react'
@@ -55,11 +55,15 @@ export function useEventPersonnel(eventId?: string | number) {
         })
         if (!res.ok) throw new Error(`Error HTTP ${res.status}`)
 
-        const json = await res.json()
+        const json: EventPersonnel = await res.json()
         personnelCache[key] = json // 👈 guardem al cache
         setData(json)
-      } catch (err: any) {
-        setError(err.message || 'Error carregant personal')
+      } catch (err: unknown) {
+        if (err instanceof Error) {
+          setError(err.message)
+        } else {
+          setError('Error desconegut carregant personal')
+        }
       } finally {
         setLoading(false)
       }

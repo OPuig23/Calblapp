@@ -1,4 +1,4 @@
-// File: src/app/menu/quadrants/page.tsx
+// src/app/menu/quadrants/page.tsx
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -13,9 +13,8 @@ import useEvents, { EventData } from '@/hooks/events/useEvents'
 import SmartFilters from '@/components/filters/SmartFilters'
 import ModuleHeader from '@/components/layout/ModuleHeader'
 
-// Helpers
+// Helper per accents
 const unaccent = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-const normalizeDept = (s?: string) => unaccent(String(s || '').toLowerCase().trim())
 
 export default function QuadrantsPage() {
   const router = useRouter()

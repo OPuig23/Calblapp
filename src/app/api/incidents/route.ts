@@ -1,4 +1,4 @@
-// file: src/app/api/incidents/route.ts
+// src/app/api/incidents/route.ts
 import { NextResponse } from "next/server";
 import { firestore } from "@/lib/firebaseAdmin";
 import { google } from "googleapis";
@@ -7,6 +7,27 @@ import fs from "fs";
 import { getISOWeek, parseISO } from "date-fns";
 import { fetchGoogleEventById } from "@/services/googleCalendar";
 import admin from "firebase-admin";
+
+interface IncidentDoc {
+  id?: string
+  eventId?: string
+  eventCode?: string
+  department?: string
+  importance?: string
+  description?: string
+  createdBy?: string
+  status?: string
+  createdAt?: FirebaseFirestore.Timestamp | string
+  eventTitle?: string
+  eventDate?: string
+  eventLocation?: string
+  category?: { id?: string; label?: string }
+  [key: string]: unknown
+}
+
+function isTimestamp(val: unknown): val is FirebaseFirestore.Timestamp {
+  return typeof val === "object" && val !== null && "toDate" in val
+}
 
 /** Google Sheets client */
 async function getSheetsClient() {
@@ -27,9 +48,10 @@ async function getSheetsClient() {
 export async function POST(req: Request) {
   try {
     const rawBody = await req.text();
-    let payload: any;
+    let payload: Record<string, unknown>;
+
     try {
-      payload = JSON.parse(rawBody);
+      payload = JSON.parse(rawBody) as Record<string, unknown>;
     } catch {
       return NextResponse.json(
         { error: "JSON mal formatejat" },
@@ -44,7 +66,14 @@ export async function POST(req: Request) {
       description,
       respSala,
       category,
-    } = payload;
+    } = payload as {
+      eventId?: string
+      department?: string
+      importance?: string
+      description?: string
+      respSala?: string
+      category?: { id?: string; label?: string }
+    };
 
     if (
       !eventId ||
@@ -73,7 +102,7 @@ export async function POST(req: Request) {
     const evDate = ev.start?.dateTime || ev.start?.date || "";
     const evLocation = ev.location || "";
 
-    // 2) Codi d’esdeveniment robust (#C..., C..., E...)
+    // 2) Codi d’esdeveniment robust
     let eventCode = "";
     const hashMatch = (ev.summary || "").match(/#([A-Z]\d{5,})/);
     if (hashMatch) {
@@ -88,7 +117,7 @@ export async function POST(req: Request) {
       eventId: String(eventId),
       eventCode,
       department,
-      importance: importance.trim().toLowerCase(), // importància en minúscules
+      importance: importance.trim().toLowerCase(),
       description,
       createdBy: respSala,
       status: "obert",
@@ -98,7 +127,7 @@ export async function POST(req: Request) {
       eventLocation: evLocation,
       category: {
         id: category?.id || "",
-        label: category?.label || "", // 👈 guardem el label tal qual
+        label: category?.label || "",
       },
     });
 
@@ -130,7 +159,7 @@ export async function POST(req: Request) {
     const sheetName = process.env.INCIDENTS_SHEET_NAME || "Taula";
 
     if (spreadsheetId) {
-      const row = [
+      const row: string[] = [
         eventCode,
         rawDate,
         String(weekNum),
@@ -155,9 +184,12 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ id: docRef.id }, { status: 201 });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("[incidents] POST error:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    if (err instanceof Error) {
+      return NextResponse.json({ error: err.message }, { status: 500 });
+    }
+    return NextResponse.json({ error: "Internal Error" }, { status: 500 });
   }
 }
 
@@ -172,9 +204,8 @@ export async function GET(req: Request) {
   try {
     console.log("[incidents] GET query", { from, to, importance, eventId, categoryId });
 
-    let ref: FirebaseFirestore.Query = firestore
-      .collection("incidents")
-      .orderBy("createdAt", "desc");
+    let ref: FirebaseFirestore.Query<FirebaseFirestore.DocumentData> =
+      firestore.collection("incidents").orderBy("createdAt", "desc");
 
     if (from && to) {
       ref = ref
@@ -210,26 +241,31 @@ export async function GET(req: Request) {
     console.log("[incidents] Docs fetched:", snap.size);
 
     const incidents = snap.docs.map((doc) => {
-      const data = doc.data() as any;
-      let createdAtVal = null;
+      const data = doc.data() as unknown as IncidentDoc
+      let createdAtVal: string | null = null
+
       if (data.createdAt) {
-        if (typeof (data.createdAt as any).toDate === "function") {
-          createdAtVal = (data.createdAt as any).toDate().toISOString();
+        if (isTimestamp(data.createdAt)) {
+          createdAtVal = data.createdAt.toDate().toISOString()
         } else if (typeof data.createdAt === "string") {
-          createdAtVal = data.createdAt;
+          createdAtVal = data.createdAt
         }
       }
+
       return {
         id: doc.id,
         ...data,
         createdAt: createdAtVal,
-      };
+      }
     });
 
     console.log("[incidents] GET result", { count: incidents.length });
     return NextResponse.json({ incidents }, { status: 200 });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("[incidents] GET error:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    if (err instanceof Error) {
+      return NextResponse.json({ error: err.message }, { status: 500 });
+    }
+    return NextResponse.json({ error: "Internal Error" }, { status: 500 });
   }
 }

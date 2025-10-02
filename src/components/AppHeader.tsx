@@ -3,6 +3,7 @@
 import { useSession } from 'next-auth/react'
 import { Menu } from 'lucide-react'
 import Link from 'next/link'
+import Image from 'next/image'
 
 export default function AppHeader({ title }: { title?: string }) {
   const { data: session } = useSession()
@@ -12,7 +13,14 @@ export default function AppHeader({ title }: { title?: string }) {
     <header className="sticky top-0 z-30 w-full bg-white/80 border-b border-gray-100 backdrop-blur flex items-center h-16 px-4 md:px-8 shadow-sm">
       {/* Logo */}
       <Link href="/" className="flex items-center gap-2 mr-4">
-        <img src="/logo-calblay.png" alt="Cal Blay" className="h-8 w-auto" />
+        <Image
+          src="/logo-calblay.png"
+          alt="Cal Blay"
+          width={120}
+          height={32}
+          className="h-8 w-auto"
+          priority
+        />
       </Link>
 
       {/* Títol contextual (opcional) */}

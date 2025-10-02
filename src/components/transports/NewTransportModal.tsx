@@ -14,10 +14,17 @@ import { Label } from '@/components/ui/label'
 import { useCreateTransport } from '@/hooks/useCreateTransport'
 import { usePersonnel } from '@/hooks/usePersonnel'
 
-const TYPE_OPTIONS = [
+// 🔒 Tipus fort per al select de tipus
+type TransportType = 'camioPetit' | 'camioGran' | 'furgoneta'
+
+// Type guard per validar valors del select
+const isTransportType = (v: string): v is TransportType =>
+  v === 'camioPetit' || v === 'camioGran' || v === 'furgoneta'
+
+const TYPE_OPTIONS: Array<{ value: TransportType; label: string }> = [
   { value: 'camioPetit', label: 'Camió petit' },
   { value: 'camioGran', label: 'Camió gran' },
-  { value: 'furgoneta', label: 'Furgoneta' }, // ➕ Nova opció
+  { value: 'furgoneta', label: 'Furgoneta' },
 ]
 
 interface NewTransportModalProps {
@@ -35,10 +42,8 @@ export default function NewTransportModal({
   const { data: personnel } = usePersonnel()
 
   const [plate, setPlate] = useState('')
-  const [type, setType] = useState<'camioPetit' | 'camioGran' | 'furgoneta'>(
-    'camioPetit'
-  )
-  const [conductorId, setConductorId] = useState<string>('') // 🔄 canviat a conductorId
+  const [type, setType] = useState<TransportType>('camioPetit')
+  const [conductorId, setConductorId] = useState<string>('')
 
   // 🔎 Filtra conductors segons tipus
   const availableDrivers = useMemo(() => {
@@ -57,9 +62,9 @@ export default function NewTransportModal({
     const payload = {
       plate: plate.trim(),
       type,
-      conductorId: conductorId || null, // 🔄 ara és conductorId
+      conductorId: conductorId || null,
     }
-    
+
     await mutateAsync(payload)
     onCreated()
     onOpenChange(false)
@@ -78,7 +83,7 @@ export default function NewTransportModal({
             <Input
               id="plate"
               value={plate}
-              onChange={(e) => setPlate(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPlate(e.target.value)}
               placeholder="Ex: 1234-ABC"
               required
             />
@@ -89,7 +94,10 @@ export default function NewTransportModal({
             <select
               id="type"
               value={type}
-              onChange={(e) => setType(e.target.value as any)}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                const v = e.target.value
+                if (isTransportType(v)) setType(v) // ✅ sense any
+              }}
               className="border rounded px-2 py-1 w-full"
             >
               {TYPE_OPTIONS.map((opt) => (
@@ -100,21 +108,22 @@ export default function NewTransportModal({
             </select>
           </div>
 
-          {/* ➕ Nou camp conductor opcional */}
+          {/* ➕ Conductor opcional */}
           <div>
             <Label htmlFor="conductorId">Conductor (opcional)</Label>
             <select
               id="conductorId"
               value={conductorId}
-              onChange={(e) => setConductorId(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setConductorId(e.target.value)}
               className="border rounded px-2 py-1 w-full"
             >
               <option value="">— Sense conductor assignat —</option>
-              {availableDrivers.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
+              {availableDrivers.map((p: Personnel) => (
+  <option key={p.id} value={p.id}>
+    {p.name}
+  </option>
+))}
+
             </select>
           </div>
 

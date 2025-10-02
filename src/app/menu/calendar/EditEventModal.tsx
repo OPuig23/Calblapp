@@ -15,6 +15,17 @@ import {
   Paperclip,
 } from "lucide-react"
 
+interface EventData {
+  id: string
+  code?: string
+  title?: string
+  location?: string
+  pax?: string
+  commercial?: string
+  service?: string
+  documents?: string[]
+}
+
 export default function EditEventModal({
   isOpen,
   onClose,
@@ -23,9 +34,10 @@ export default function EditEventModal({
 }: {
   isOpen: boolean
   onClose: () => void
-  event: any
+  event: EventData | null
   onSaved: () => void
 }) {
+
   const [form, setForm] = useState({
     code: "",
     title: "",

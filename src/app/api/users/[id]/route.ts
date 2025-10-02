@@ -8,9 +8,26 @@ const unaccent = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '
 const normLower = (s?: string) => unaccent((s || '').toString().trim()).toLowerCase()
 const isTreballador = (role?: string) => normLower(role) === 'treballador'
 
-function pruneUndefined<T extends Record<string, any>>(obj: T): T {
-  Object.keys(obj).forEach(k => { if (obj[k] === undefined) delete obj[k] })
+function pruneUndefined<T extends Record<string, unknown>>(obj: T): T {
+  Object.keys(obj).forEach((k) => {
+    if (obj[k] === undefined) delete obj[k]
+  })
   return obj
+}
+
+interface UserUpdate {
+  name?: string
+  role?: string
+  department?: string
+  departmentLower?: string
+  available?: boolean
+  isDriver?: boolean
+  workerRank?: string
+  email?: string | null
+  phone?: string | null
+  updatedAt?: number
+  createdAt?: number
+  userId?: string
 }
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
@@ -18,18 +35,19 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     const snap = await db.collection('users').doc(params.id).get()
     if (!snap.exists) return NextResponse.json({ error: 'Not Found' }, { status: 404 })
     return NextResponse.json({ id: snap.id, ...snap.data() })
-  } catch (e: any) {
-    console.error(`🛑 GET /api/users/${params.id} failed:`, e)
-    return NextResponse.json({ error: e?.message || String(e) }, { status: 500 })
+  } catch (error: unknown) {
+    console.error(`🛑 GET /api/users/${params.id} failed:`, error)
+    const message = error instanceof Error ? error.message : String(error)
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }
 
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
   try {
     const id = params.id
-    const data = await req.json()
+    const data = (await req.json()) as Partial<UserUpdate>
 
-    const update: any = {
+    const update: UserUpdate = {
       ...data,
       userId: undefined, // no permetre canviar
       updatedAt: Date.now(),
@@ -40,7 +58,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       update.departmentLower = normLower(update.department)
     }
 
-    // si el rol NO és Treballador, ignorem extres per no omplir amb undefined
+    // si el rol NO és Treballador, ignorem extres
     if (!isTreballador(update.role)) {
       update.available = undefined
       update.isDriver = undefined
@@ -73,19 +91,20 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
 
     const final = await db.collection('users').doc(id).get()
     return NextResponse.json({ id, ...final.data() })
-  } catch (e: any) {
-    console.error(`🛑 PUT /api/users/${params.id} failed:`, e)
-    return NextResponse.json({ error: e?.message || String(e) }, { status: 500 })
+  } catch (error: unknown) {
+    console.error(`🛑 PUT /api/users/${params.id} failed:`, error)
+    const message = error instanceof Error ? error.message : String(error)
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }
 
 export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
   try {
     await db.collection('users').doc(params.id).delete()
-    // ✅ CORRECTE: retornem resposta sense cos amb NextResponse
     return new NextResponse(null, { status: 204 })
-  } catch (e: any) {
-    console.error(`🛑 DELETE /api/users/${params.id} failed:`, e)
-    return NextResponse.json({ error: e?.message || String(e) }, { status: 500 })
+  } catch (error: unknown) {
+    console.error(`🛑 DELETE /api/users/${params.id} failed:`, error)
+    const message = error instanceof Error ? error.message : String(error)
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

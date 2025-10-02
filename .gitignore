@@ -43,6 +43,6 @@ next-env.d.ts
 # 🔒 Secrets i fitxers locals
 .env.local
 serviceAccountKey.json
+
 # ⚠️ Ignora només els secrets, no les dades necessàries
 src/data/service-account*.json
-

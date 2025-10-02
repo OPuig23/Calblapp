@@ -1,4 +1,4 @@
-// filename: src/components/users/UserFormModal.tsx
+// file: src/components/users/UserFormModal.tsx
 'use client'
 
 import * as React from 'react'
@@ -8,9 +8,31 @@ import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 
+// 🔒 Tipos
+export interface User {
+  id?: string
+  personId?: string
+  name?: string
+  role?: string
+  department?: string
+  available?: boolean
+  driver?: { isDriver?: boolean }
+  workerRank?: string
+}
+
+export interface NewUserPayload {
+  name: string
+  password: string
+  role: string
+  department: string
+  available?: boolean
+  isDriver?: boolean
+  workerRank?: string
+}
+
 type Props = {
-  user: any
-  onSubmit: (data: any) => void
+  user: User | null
+  onSubmit: (data: User | NewUserPayload) => void
   onClose: () => void
 }
 
@@ -85,7 +107,7 @@ export function UserFormModal({ user, onSubmit, onClose }: Props) {
     }
 
     // 🔹 Cas 2: Creació manual
-    const payload: any = { name, password, role, department }
+    const payload: NewUserPayload = { name, password, role, department }
     if (isWorker) {
       payload.available = !!available
       payload.isDriver = !!isDriver

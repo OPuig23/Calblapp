@@ -20,12 +20,14 @@ const DEFAULTS: Premises = {
 
 const norm = (s?: string | null) => (s || '').toLowerCase().trim()
 
-export async function loadPremises(department: string): Promise<{ premises: Premises; warnings: string[] }> {
+export async function loadPremises(
+  department: string
+): Promise<{ premises: Premises; warnings: string[] }> {
   const dept = norm(department)
   const warnings: string[] = []
   try {
     const mod = await import(`@/data/premises-${dept}.json`)
-    const merged: Premises = { ...DEFAULTS, ...(mod.default as any), department }
+    const merged: Premises = { ...DEFAULTS, ...(mod.default as Partial<Premises>), department }
     return { premises: merged, warnings }
   } catch {
     warnings.push('no_premises')

@@ -1,7 +1,7 @@
-// filename: src/hooks/useIncidents.ts
+// file: src/hooks/useIncidents.ts
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 
 export interface Incident {
   id: string
@@ -30,9 +30,10 @@ export function useIncidents(filters: {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<null | string>(null)
 
-  useEffect(() => {
-    const fetchKey = JSON.stringify(filters)
+  // ✅ clau estable
+  const fetchKey = useMemo(() => JSON.stringify(filters), [filters])
 
+  useEffect(() => {
     // 1) Si ja tenim cache
     if (incidentsCache[fetchKey]) {
       const raw = incidentsCache[fetchKey]
@@ -102,7 +103,7 @@ export function useIncidents(filters: {
     }
 
     fetchIncidents()
-  }, [JSON.stringify(filters)])
+  }, [fetchKey, filters])
 
   return { incidents, loading, error }
 }

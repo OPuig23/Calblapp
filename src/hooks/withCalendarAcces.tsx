@@ -1,8 +1,9 @@
-// src/hooks/withCalendarAccess.tsx
+// file: src/hooks/withCalendarAccess.tsx
 'use client'
+
+import { useEffect } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
-import { ReactNode, useEffect } from "react"
 
 const ALLOWED_ROLES = ["Admin", "Direccio", "Comercial"]
 

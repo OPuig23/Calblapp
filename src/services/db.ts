@@ -1,15 +1,36 @@
 // src/services/db.ts
 import { firestore as fb } from '@/lib/firebaseAdmin'
-import { FieldValue } from 'firebase-admin/firestore'
-import type { DocumentData } from 'firebase-admin/firestore'
+import { FieldValue, type DocumentData } from 'firebase-admin/firestore'
 
-// Re-exportem amb el nom que voleu usar a la resta del codi
+// Export dual: compatibilidad total
 export const firestore = fb
+export const db = fb
 
+// Personal asignado dentro de un assignment
+export interface AssignedStaff {
+  role?: string
+  name?: string
+  isResponsible?: boolean
+  isResponsable?: boolean // compatibilidad
+}
+
+// Tipus d’una assignació dins un quadrant (ampliado para reports)
+export interface Assignment {
+  workerId?: string
+  name?: string
+  role?: 'responsable' | 'conductor' | 'treballador' | string
+  meetingPoint?: string
+  vehicleId?: string
+  code?: string
+  businessLine?: string
+  assignedStaff?: AssignedStaff[]
+}
+
+// Estructura principal del document “quadrants”
 export interface QuadrantRecord {
   department: string
-  weekStart: string
-  weekEnd: string
+  weekStart: string | Date
+  weekEnd: string | Date
   rows: Array<{
     id: string
     date: string
@@ -21,13 +42,15 @@ export interface QuadrantRecord {
     driversCount: number
     responsableManual: string
   }>
-  assignments: any[]
+  assignments: Assignment[]
   codes: string[]
 }
 
+// Guardar quadrant (ejemplo ya existente)
 export async function saveQuadrant(record: QuadrantRecord): Promise<string> {
-  const docRef = firestore.collection('quadrants').doc()
-  await docRef.set({
+  const docRef = db.collection('quadrants').doc()
+
+  const data: DocumentData = {
     department: record.department,
     weekStart: record.weekStart,
     weekEnd: record.weekEnd,
@@ -35,6 +58,8 @@ export async function saveQuadrant(record: QuadrantRecord): Promise<string> {
     assignments: record.assignments,
     codes: Array.isArray(record.codes) ? record.codes : [],
     createdAt: FieldValue.serverTimestamp(),
-  } as DocumentData)
+  }
+
+  await docRef.set(data)
   return docRef.id
 }

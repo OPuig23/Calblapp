@@ -1,16 +1,16 @@
-// src/services/vehicleAssign.ts
+// filename: src/services/vehicleAssign.ts
 import { firestore } from '@/lib/firebaseAdmin'
 import { isEligibleByName } from './eligibility'
 import { normalizeVehicleType } from '@/utils/normalizeVehicleType'
 
-type VehicleRequest = {
+export type VehicleRequest = {
   vehicleType?: string
   plate?: string
   id?: string
   conductorId?: string | null
 }
 
-type DriverPoolItem = {
+export type DriverPoolItem = {
   p: { id: string; name: string; department?: string; maxHoursWeek?: number }
   weekAssigns: number
   weekHrs: number
@@ -18,33 +18,61 @@ type DriverPoolItem = {
   lastAssignedAt: string | null
 }
 
-type AssignDriverParams = {
-  dept: string
+export type BaseCtx = {
+  busyAssignments: Map<string, string[]>
+  restHours: number
+  allowMultipleEventsSameDay: boolean
+}
+
+export interface Transport {
+  id: string
+  plate?: string
+  type?: string
+  available?: boolean
+  conductorId?: string | null
+}
+
+export interface DriverAssignment {
+  name: string
+  plate: string
+  vehicleType: string
+  meetingPoint: string
+}
+
+export type AssignDriverParams = {
   meetingPoint: string
   startISO: string
   endISO: string
-  baseCtx: any
+  baseCtx: BaseCtx
   driverPool: DriverPoolItem[]
   vehiclesRequested: VehicleRequest[]
 }
 
 export async function assignVehiclesAndDrivers({
-  dept,
   meetingPoint,
   startISO,
   endISO,
   baseCtx,
   driverPool,
   vehiclesRequested,
-}: AssignDriverParams) {
-  const drivers: Array<{ name: string; plate: string; vehicleType: string; meetingPoint: string }> = []
+}: AssignDriverParams): Promise<DriverAssignment[]> {
+  const drivers: DriverAssignment[] = []
 
   // Consulta tots els transports un cop
   const transportsSnap = await firestore.collection('transports').get()
-  const allTransports = transportsSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))
+  const allTransports: Transport[] = transportsSnap.docs.map(d => {
+    const data = d.data() as Partial<Transport>
+    return {
+      id: d.id,
+      plate: data.plate,
+      type: data.type,
+      available: data.available,
+      conductorId: data.conductorId,
+    }
+  })
 
   for (const requested of vehiclesRequested) {
-    let chosenVehicle: any = null
+    let chosenVehicle: Transport | null = null
 
     // --- Cas 3: vehicleId o matrícula explícita ---
     if (requested.id || requested.plate) {
@@ -52,13 +80,15 @@ export async function assignVehiclesAndDrivers({
         v =>
           (requested.id && v.id === requested.id) ||
           (requested.plate && v.plate === requested.plate)
-      )
+      ) || null
     }
 
     // --- Cas 2: només tipus ---
     if (!chosenVehicle && requested.vehicleType) {
       const pool = allTransports.filter(
-        v => normalizeVehicleType(v.type) === normalizeVehicleType(requested.vehicleType) && v.available !== false
+        v =>
+          normalizeVehicleType(v.type || '') === normalizeVehicleType(requested.vehicleType || '') &&
+          v.available !== false
       )
       chosenVehicle = pool.shift() || null
     }
@@ -80,7 +110,7 @@ export async function assignVehiclesAndDrivers({
     let assigned: string | null = null
 
     if (chosenVehicle?.conductorId) {
-      const fixed = driverPool.find(d => d.p.id === chosenVehicle.conductorId)
+      const fixed = driverPool.find(d => d.p.id === chosenVehicle!.conductorId)
       if (fixed) {
         const elig = isEligibleByName(fixed.p.name, startISO, endISO, baseCtx)
         if (elig.eligible) {

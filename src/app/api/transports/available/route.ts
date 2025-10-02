@@ -8,9 +8,35 @@ const toDateTime = (date: string, time: string) =>
 const overlaps = (startA: Date, endA: Date, startB: Date, endB: Date) =>
   startA < endB && startB < endA
 
+interface Vehicle {
+  id: string
+  plate?: string
+  matricula?: string
+  type?: string
+  conductorId?: string | null
+}
+
+interface QuadrantVehicle {
+  vehicleId: string
+}
+
+interface Quadrant {
+  id: string
+  vehicles?: QuadrantVehicle[]
+  startDate?: string
+  startTime?: string
+  endDate?: string
+  endTime?: string
+}
+
 export async function POST(req: Request) {
   try {
-    const { startDate, startTime, endDate, endTime } = await req.json()
+    const { startDate, startTime, endDate, endTime } = (await req.json()) as {
+      startDate: string
+      startTime: string
+      endDate: string
+      endTime: string
+    }
 
     console.log('[API /transports/available] 📩 Body rebut:', {
       startDate, startTime, endDate, endTime,
@@ -26,21 +52,28 @@ export async function POST(req: Request) {
 
     // 1) Vehicles de Firestore
     const vehSnap = await db.collection('transports').get()
-    const vehicles = vehSnap.docs.map(d => ({ id: d.id, ...d.data() })) as any[]
+    const vehicles: Vehicle[] = vehSnap.docs.map(d => ({
+      id: d.id,
+      ...(d.data() as Omit<Vehicle, 'id'>),
+    }))
     console.log('[API /transports/available] 🚚 Vehicles trobats a Firestore:', vehicles)
 
     // 2) Quadrants de tots els departaments
     const quadSnap = await db.collectionGroup('quadrants').get()
-    const quadrants = quadSnap.docs.map(d => ({ id: d.id, ...d.data() })) as any[]
+    const quadrants: Quadrant[] = quadSnap.docs.map(d => ({
+      id: d.id,
+      ...(d.data() as Omit<Quadrant, 'id'>),
+    }))
     console.log('[API /transports/available] 📑 Quadrants trobats:', quadrants.length)
 
     // 3) Helper per comprovar si un vehicle està ocupat
     const isVehicleBusy = (vehId: string) =>
-      quadrants.some(q =>
-        q.vehicles?.some((v: any) =>
+      quadrants.some((q) =>
+        q.vehicles?.some((v: QuadrantVehicle) =>
           v.vehicleId === vehId &&
           overlaps(
-            start, end,
+            start,
+            end,
             new Date(`${q.startDate}T${q.startTime}`),
             new Date(`${q.endDate}T${q.endTime}`)
           )
@@ -66,8 +99,9 @@ export async function POST(req: Request) {
     )
 
     return NextResponse.json({ vehicles: result })
-  } catch (err: any) {
-    console.error('[API /transports/available] 💥 Error:', err)
-    return NextResponse.json({ error: err.message }, { status: 500 })
+  } catch (error: unknown) {
+    console.error('[API /transports/available] 💥 Error:', error)
+    const message = error instanceof Error ? error.message : 'Internal error'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

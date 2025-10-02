@@ -1,9 +1,23 @@
-//file: src/app/api/events/list/route.ts
+// file: src/app/api/events/list/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 import { db } from '@/lib/firebaseAdmin'
 
 export const runtime = 'nodejs'
+
+interface TokenLike {
+  role?: string
+  userRole?: string
+  user?: {
+    role?: string
+    name?: string
+    department?: string
+  }
+  department?: string
+  userDepartment?: string
+  dept?: string
+  departmentName?: string
+}
 
 /* ================== Config ================== */
 const CALENDAR_ID =
@@ -55,6 +69,30 @@ const lnFromCodeOrSummary = (code?: string | null, summary?: string | null) => {
   }
 }
 
+/* ================== Tipus ================== */
+interface GoogleCalendarEvent {
+  id: string
+  summary?: string
+  location?: string
+  start?: { date?: string; dateTime?: string }
+  end?: { date?: string; dateTime?: string }
+  extendedProperties?: {
+    private?: Record<string, unknown>
+    shared?: Record<string, unknown>
+  }
+  htmlLink?: string
+}
+
+interface QuadrantDoc {
+  id: string
+  code?: string
+  eventId?: string
+  status?: string
+  responsable?: { name?: string }
+  conductors?: Array<{ name?: string }>
+  treballadors?: Array<{ name?: string }>
+}
+
 /* ================== Collections map ================== */
 const COLS_MAP: Record<string, string> = {}
 let COLS_LOADED = false
@@ -88,12 +126,24 @@ async function resolveColForDept(dept: string): Promise<string | undefined> {
 }
 
 /* ================== Quadrants query ================== */
-async function fetchQuadrantsRange(coll: string, start: string, end: string) {
+async function fetchQuadrantsRange(
+  coll: string,
+  start: string,
+  end: string
+): Promise<QuadrantDoc[]> {
   const col = db.collection(coll)
   const s = start.slice(0, 10)
   const e = end.slice(0, 10)
-  const safeGet = (p: any) =>
-    p.catch(() => ({ empty: true, forEach: () => {} } as any))
+
+  const safeGet = async (
+    p: Promise<FirebaseFirestore.QuerySnapshot>
+  ): Promise<FirebaseFirestore.QuerySnapshot | null> => {
+    try {
+      return await p
+    } catch {
+      return null
+    }
+  }
 
   const [q1, q2, q3] = await Promise.all([
     safeGet(col.where('startDate', '>=', s).where('startDate', '<=', e).get()),
@@ -101,10 +151,13 @@ async function fetchQuadrantsRange(coll: string, start: string, end: string) {
     safeGet(col.where('date', '>=', s).where('date', '<=', e).get())
   ])
 
-  const out: any[] = []
+  const out: QuadrantDoc[] = []
   for (const snap of [q1, q2, q3]) {
     if (!snap || snap.empty) continue
-    snap.forEach((doc: any) => out.push({ id: doc.id, ...doc.data() }))
+    snap.forEach((doc) => {
+      const data = doc.data() as unknown as Omit<QuadrantDoc, 'id'>
+      out.push({ id: doc.id, ...data })
+    })
   }
   console.log(`[events/list] 📂 ${coll} → ${out.length} docs`)
   return out
@@ -112,14 +165,20 @@ async function fetchQuadrantsRange(coll: string, start: string, end: string) {
 
 /* ================== Roles ================== */
 type Role = 'admin' | 'direccio' | 'cap' | 'treballador'
-function roleFrom(token: any): Role {
-  const raw = token?.role ?? token?.userRole ?? token?.user?.role ?? ''
+
+function roleFrom(token: TokenLike | null): Role {
+  const raw =
+    token?.role ??
+    token?.userRole ??
+    token?.user?.role ??
+    ''
   const r = normalize(raw)
   if (r === 'admin') return 'admin'
   if (r === 'direccio' || r.includes('dir')) return 'direccio'
   if (r === 'cap' || r.includes('head')) return 'cap'
   return 'treballador'
 }
+
 
 /* ================== Handler ================== */
 export async function GET(req: NextRequest) {
@@ -151,13 +210,15 @@ export async function GET(req: NextRequest) {
 
     const role: Role = roleFrom(token)
     const userName: string = String(
-      (token as any).name || (token as any).user?.name || ''
+      (token as { name?: string; user?: { name?: string } })?.name ||
+      (token as { user?: { name?: string } })?.user?.name ||
+      ''
     )
     const sessDept = normalize(
-      (token as any).department ??
-      (token as any).userDepartment ??
-      (token as any).dept ??
-      (token as any).departmentName ??
+      (token as { department?: string; userDepartment?: string; dept?: string; departmentName?: string }).department ??
+      (token as { userDepartment?: string }).userDepartment ??
+      (token as { dept?: string }).dept ??
+      (token as { departmentName?: string }).departmentName ??
       ''
     )
 
@@ -204,21 +265,21 @@ export async function GET(req: NextRequest) {
     const resp = await fetch(gUrl, { cache: 'no-store' })
     if (!resp.ok)
       throw new Error(`Google Calendar ${resp.status}: ${await resp.text()}`)
-    const data = await resp.json()
+    const data = (await resp.json()) as { items?: GoogleCalendarEvent[] }
 
-    const base = (data.items || []).map((ev: any) => {
+    const base = (data.items || []).map((ev) => {
       const startISO =
         ev.start?.dateTime ||
         (ev.start?.date ? `${ev.start.date}T00:00:00.000Z` : null)
       const endISO =
         ev.end?.dateTime ||
         (ev.end?.date ? `${ev.end.date}T00:00:00.000Z` : null)
-      const priv = ev.extendedProperties?.private || {}
-      const shared = ev.extendedProperties?.shared || {}
+      const priv = ev.extendedProperties?.private as Record<string, unknown> || {}
+      const shared = ev.extendedProperties?.shared as Record<string, unknown> || {}
       const pax = Number(priv.pax ?? shared.pax ?? 0) || 0
       const codeFromSummary =
         (ev.summary || '').match(/#\s*([A-Za-z0-9-]+)/)?.[1] || null
-      const eventCode = priv.code || codeFromSummary
+      const eventCode = (priv.code as string) || codeFromSummary
       const { lnKey, lnLabel } = lnFromCodeOrSummary(eventCode, ev.summary)
 
       return {
@@ -255,84 +316,64 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    /* ==== Responsables i estats ==== */
-    const responsablesSet = new Set<string>()
-    const responsablesMap = new Map<string, Set<string>>() // codi → responsables
-    const stateMap = new Map<string, 'pending' | 'draft' | 'confirmed'>()
-    const responsablesDetailedSet = new Set<string>()
-    const myEvents = new Set<string>() // 🔹 Conjunt d'esdeveniments propis (treballador)
+   /* ==== Responsables i estats ==== */
+const responsablesSet: Set<string> = new Set()
+const responsablesMap: Map<string, Set<string>> = new Map()
+const stateMap: Map<string, 'pending' | 'draft' | 'confirmed'> = new Map()
+const responsablesDetailedSet: Set<string> = new Set()
+const myEvents: Set<string> = new Set()
 
-    for (const coll of collNames) {
-      const rows = await fetchQuadrantsRange(coll, start, end)
-      const dept = normalizeColId(coll)
-      let foundInColl: string[] = []
+for (const coll of collNames) {
+  const rows = await fetchQuadrantsRange(coll, start, end)
+  const dept = normalizeColId(coll)
+  const foundInColl: string[] = [] // ahora const
 
-      for (const q of rows) {
-        if (q?.responsable?.name && q?.code) {
-          const name = String(q.responsable.name).trim()
-          const c = normCode(String(q.code))
+  for (const q of rows) {
+    if (q?.responsable?.name && q?.code) {
+      const name = String(q.responsable.name).trim()
+      const c = normCode(String(q.code))
 
-          if (!responsablesMap.has(c)) responsablesMap.set(c, new Set<string>())
-          responsablesMap.get(c)!.add(name)
+      if (!responsablesMap.has(c)) responsablesMap.set(c, new Set())
+      responsablesMap.get(c)!.add(name)
 
-          responsablesSet.add(name)
-          responsablesDetailedSet.add(JSON.stringify({ name, department: dept }))
-          foundInColl.push(name)
+      responsablesSet.add(name)
+      responsablesDetailedSet.add(JSON.stringify({ name, department: dept }))
+      foundInColl.push(name)
 
-          // 🔹 Si usuari és treballador, marca si surt en aquest quadrant
-          const allNames = [
-            q?.responsable?.name,
-            ...(q?.conductors || []).map((c: any) => c.name),
-            ...(q?.treballadors || []).map((t: any) => t.name),
-          ].filter(Boolean)
+      const allNames: string[] = [
+        q?.responsable?.name,
+        ...(q?.conductors || []).map((c) => c.name),
+        ...(q?.treballadors || []).map((t) => t.name)
+      ].filter(Boolean) as string[]
 
-          if (role === 'treballador' && allNames.some(n => normalize(n) === normalize(userName))) {
-            if (q?.code) myEvents.add(normCode(String(q.code)))
-            if (q?.eventId) myEvents.add(String(q.eventId))
+      if (role === 'treballador' &&
+          allNames.some(n => normalize(n) === normalize(userName))) {
+        if (q?.code) myEvents.add(normCode(String(q.code)))
+        if (q?.eventId) myEvents.add(String(q.eventId))
 
-            // 🔹 Afegim també marca si és responsable
-            const isResp = normalize(q?.responsable?.name) === normalize(userName)
-            console.log('[isResponsible debug]', {
-              userName,
-              qCode: q?.code,
-              qEventId: q?.eventId,
-              qResponsable: q?.responsable?.name,
-              matched: isResp
-            })
-            if (isResp) {
-              if (q?.code) myEvents.add(`RESP:${normCode(String(q.code))}`)
-              if (q?.eventId) myEvents.add(`RESP:${String(q.eventId)}`)
-            }
-          }
-
-          stateMap.set(c, q?.status === 'confirmed' ? 'confirmed' : 'draft')
+        const isResp = normalize(q?.responsable?.name) === normalize(userName)
+        if (isResp) {
+          if (q?.code) myEvents.add(`RESP:${normCode(String(q.code))}`)
+          if (q?.eventId) myEvents.add(`RESP:${String(q.eventId)}`)
         }
       }
 
-      console.log(
-        `[events/list] 📌 Responsables trobats a ${coll} (${dept}):`,
-        foundInColl
-      )
+      stateMap.set(c, q?.status === 'confirmed' ? 'confirmed' : 'draft')
     }
+  }
 
-    /* ==== Enriquiment ==== */
-    const enriched = filteredByRange.map(ev => {
-      const keyByCode = normCode(ev.eventCode || '')
-      const responsablesForCode = Array.from(responsablesMap.get(keyByCode) || [])
-      const responsableName = responsablesForCode.join(', ')
-      const state = stateMap.get(keyByCode) || 'pending'
+  console.log(`[events/list] 📌 Responsables trobats a ${coll} (${dept}):`, foundInColl)
+}
 
-      console.log('[enriched] Match event', {
-        evId: ev.id,
-        evCode: ev.eventCode,
-        evSummary: ev.summary,
-        keyByCode,
-        responsablesForCode,
-        finalResp: responsableName
-      })
+   /* ==== Enriquiment ==== */
+const enriched = filteredByRange.map(ev => {
+  const keyByCode = normCode(ev.eventCode || '')
+  const responsablesForCode = Array.from(responsablesMap.get(keyByCode) || [])
+  const responsableName = responsablesForCode.join(', ')
+  const state = stateMap.get(keyByCode) || 'pending'
+  return { ...ev, responsableName, state }
+})
 
-      return { ...ev, responsableName, state }
-    })
 
     /* ==== Filtrat final ==== */
     let finalEvents = enriched
@@ -345,13 +386,6 @@ export async function GET(req: NextRequest) {
           const isResp =
             myEvents.has(`RESP:${normCode(ev.eventCode || '')}`) ||
             myEvents.has(`RESP:${ev.id}`)
-
-          console.log('[finalEvents check]', {
-            evCode: ev.eventCode,
-            evId: ev.id,
-            isResp
-          })
-
           return { ...ev, isResponsible: isResp }
         })
     } else {
@@ -369,12 +403,11 @@ export async function GET(req: NextRequest) {
       },
       { status: 200 }
     )
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('[api/events/list] ❌ error', err)
-    return NextResponse.json(
-      { error: err?.message || 'Internal Error' },
-      { status: 500 }
-    )
+    if (err instanceof Error) {
+      return NextResponse.json({ error: err.message }, { status: 500 })
+    }
+    return NextResponse.json({ error: 'Internal Error' }, { status: 500 })
   }
 }
- 

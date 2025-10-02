@@ -1,4 +1,4 @@
-// src/components/reports/DetailTable.tsx
+// file: src/components/reports/DetailTable.tsx
 'use client'
 
 interface Row {

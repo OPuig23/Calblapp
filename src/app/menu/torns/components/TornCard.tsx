@@ -46,7 +46,7 @@ function detectLN(code?: string): string {
 
 function cleanEventName(s?: string) {
   if (!s) return ''
-  let t = s.replace(/^\s*[A-Z]\s*-\s*/i, '').trim()
+  const t = s.replace(/^\s*[A-Z]\s*-\s*/i, '').trim()
   const STOP = [
     'FC','SOPAR','DINAR','BRUNCH','CERIMONIA','CERIMÒNIA',
     'BANQUET','COCTEL','CÒCTEL','PAX'

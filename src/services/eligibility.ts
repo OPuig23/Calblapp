@@ -1,6 +1,20 @@
 // src/services/eligibility.ts
+export interface AssignmentPerson {
+  name: string
+}
+
+export interface BusyAssignment {
+  startDate: string
+  endDate: string
+  startTime?: string
+  endTime?: string
+  responsable?: AssignmentPerson
+  conductors?: AssignmentPerson[]
+  treballadors?: AssignmentPerson[]
+}
+
 export type EligibilityCtx = {
-  busyAssignments: any[]
+  busyAssignments: BusyAssignment[]
   restHours: number
   allowMultipleEventsSameDay: boolean
 }
@@ -8,16 +22,21 @@ export type EligibilityCtx = {
 const toISO = (d: string, t?: string) => `${d}T${(t || '00:00')}:00`
 const hoursBetween = (a: Date, b: Date) => (b.getTime() - a.getTime()) / 36e5
 
-export function isEligibleByName(personName: string, startISO: string, endISO: string, ctx: EligibilityCtx) {
+export function isEligibleByName(
+  personName: string,
+  startISO: string,
+  endISO: string,
+  ctx: EligibilityCtx
+) {
   const start = new Date(startISO)
   const end   = new Date(endISO)
 
   for (const q of ctx.busyAssignments) {
     const their = new Set<string>([
-      ...(q.treballadors || []).map((x: any) => x?.name),
-      ...(q.conductors || []).map((x: any) => x?.name),
+      ...(q.treballadors || []).map((x: AssignmentPerson) => x.name),
+      ...(q.conductors || []).map((x: AssignmentPerson) => x.name),
       q.responsable?.name,
-    ].filter(Boolean))
+    ].filter(Boolean) as string[])
 
     if (!their.has(personName)) continue
 
@@ -26,18 +45,19 @@ export function isEligibleByName(personName: string, startISO: string, endISO: s
 
     // Solapament
     const overlap = start < e2 && end > s2
-    if (overlap) return { eligible: false, reason: 'overlap' }
+    if (overlap) return { eligible: false, reason: 'overlap' as const }
 
-    // Descans mínim: distància entre e2 → start (o end → s2)
+    // Descans mínim
     const restGap = Math.max(hoursBetween(e2, start), hoursBetween(end, s2))
-    if (restGap < ctx.restHours) return { eligible: false, reason: 'rest_violation' }
+    if (restGap < ctx.restHours) return { eligible: false, reason: 'rest_violation' as const }
 
     // Mateix dia
     if (!ctx.allowMultipleEventsSameDay) {
       const d1 = startISO.slice(0, 10)
       const d2 = toISO(q.startDate, q.startTime).slice(0, 10)
-      if (d1 === d2) return { eligible: false, reason: 'same_day_not_allowed' }
+      if (d1 === d2) return { eligible: false, reason: 'same_day_not_allowed' as const }
     }
   }
-  return { eligible: true }
+
+  return { eligible: true as const }
 }

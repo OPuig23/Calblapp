@@ -8,17 +8,37 @@ import { extractCode } from '@/utils/extractCode';
 const stripCodeFromTitle = (summary = '') =>
   summary.replace(/\s*-\s*#\w+\s*$/i, '').trim();
 
-const getCommercial = (ev: any) => {
+// Tipus parcial de l’event cru del Google Calendar
+interface RawGoogleEvent {
+  id: string;
+  summary?: string;
+  description?: string;
+  location?: string;
+  start: { dateTime?: string; date?: string };
+  end: { dateTime?: string; date?: string };
+  extendedProperties?: {
+    private?: Record<string, string>;
+    shared?: Record<string, string>;
+  };
+  [key: string]: unknown;
+}
+
+const getCommercial = (ev: RawGoogleEvent): string => {
   // 1) extendedProperties (private o shared)
-  const ext = ev?.extendedProperties;
+  const ext = ev.extendedProperties;
   const fromExt =
-    ext?.private?.comercial ?? ext?.shared?.comercial ??
-    ext?.private?.commercial ?? ext?.shared?.commercial ??
-    ext?.private?.com ?? ext?.shared?.com ?? null;
+    ext?.private?.comercial ??
+    ext?.shared?.comercial ??
+    ext?.private?.commercial ??
+    ext?.shared?.commercial ??
+    ext?.private?.com ??
+    ext?.shared?.com ??
+    null;
+
   if (fromExt && String(fromExt).trim()) return String(fromExt).trim();
 
   // 2) description tolerant a accents/majuscules
-  const desc = String(ev?.description || '')
+  const desc = String(ev.description || '')
     .normalize('NFD')
     .replace(/\p{Diacritic}/gu, '')
     .trim();
@@ -30,30 +50,19 @@ const getCommercial = (ev: any) => {
   return (m?.[1] || '').trim();
 };
 
-const shortLocation = (s = '') => {
+const shortLocation = (s = ''): string => {
   const first = (s.split(',')[0] ?? s).trim();
   return first.length > 30 ? first.slice(0, 30) + '…' : first;
 };
 
 // --- Tipatge bàsic + camps enriquits
-export interface GoogleEvent {
-  id: string;
-  summary?: string;
-  description?: string;
-  start: { dateTime?: string; date?: string };
-  end:   { dateTime?: string; date?: string };
-  location?: string;
-
-  // ✨ camps enriquits (opc.)
+export interface GoogleEvent extends RawGoogleEvent {
   eventCode?: string;
   commercial?: string;
   locationShort?: string;
   titleClean?: string;
-
-  // comoditats
   startIso?: string;
   endIso?: string;
-  [key: string]: any;
 }
 
 export function useGoogleEvents(from: string, to: string) {
@@ -64,37 +73,37 @@ export function useGoogleEvents(from: string, to: string) {
     if (!from || !to) return;
     setLoading(true);
 
-    fetch(`/api/googleCalendar/events?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`)
-      .then(res => res.json())
-      .then(data => {
+    fetch(
+      `/api/googleCalendar/events?from=${encodeURIComponent(
+        from
+      )}&to=${encodeURIComponent(to)}`
+    )
+      .then((res) => res.json())
+      .then((data) => {
         console.log('[debug:gcal] client received', data?.events?.[0]);
-        const raw: GoogleEvent[] = data?.events || [];
+        const raw: RawGoogleEvent[] = data?.events || [];
 
-
-        const mapped: GoogleEvent[] = raw.map(ev => {
+        const mapped: GoogleEvent[] = raw.map((ev) => {
           const code = extractCode(ev.summary || '') || '';
           return {
             ...ev,
             startIso: ev.start?.dateTime || ev.start?.date || '',
-            endIso:   ev.end?.dateTime   || ev.end?.date   || '',
-            eventCode: code,                               // ← codi #XXXX
+            endIso: ev.end?.dateTime || ev.end?.date || '',
+            eventCode: code, // ← codi #XXXX
             titleClean: stripCodeFromTitle(ev.summary || ''), // ← nom sense #codi
             locationShort: shortLocation(ev.location || ''),
-            commercial: getCommercial(ev),                // ← comercial (ext.Props o description)
+            commercial: getCommercial(ev), // ← comercial (ext.Props o description)
           };
         });
 
         setEvents(mapped);
       })
-      .catch(err => {
+      .catch((err) => {
         console.error('[useGoogleEvents] Error:', err);
         setEvents([]);
       })
       .finally(() => setLoading(false));
   }, [from, to]);
-
- 
-
 
   return { events, loading };
 }

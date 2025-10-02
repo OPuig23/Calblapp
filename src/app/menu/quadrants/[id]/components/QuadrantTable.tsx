@@ -23,13 +23,15 @@ const roleIcon = {
 }
 
 // Format (DD/MM)
-const formatDate = d => {
+const formatDate = (d: string) => {
   if (!d) return '--/--'
-  const [yyyy, mm, dd] = d.split('-')
+  const [, mm, dd] = d.split('-')
   return `${dd}/${mm}`
 }
+
 // Format (HH:MM)
-const formatTime = t => t ? t.substring(0,5) : '--:--'
+const formatTime = (t: string) => t ? t.substring(0, 5) : '--:--'
+
 
 export default function QuadrantTable({ draft }) {
   const [rows, setRows] = useState([

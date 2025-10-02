@@ -39,10 +39,14 @@ export function useAvailablePersonnel(opts: UseAvailablePersonnelOptions) {
       !opts.startTime ||
       !opts.endTime
     ) {
-      setResponsables([]); setConductors([]); setTreballadors([])
+      setResponsables([])
+      setConductors([])
+      setTreballadors([])
       return
     }
-    setLoading(true); setError(null)
+
+    setLoading(true)
+    setError(null)
 
     try {
       const excl = new Set(
@@ -71,12 +75,18 @@ export function useAvailablePersonnel(opts: UseAvailablePersonnelOptions) {
         },
       })
 
-      const cleanList = (arr: any[], label: string) => {
+      const cleanList = (
+        arr: Array<Omit<PersonnelOption, 'status'> & { status: string }>,
+        label: string
+      ): PersonnelOption[] => {
         const excluded = arr.filter((p) =>
           excl.has(p.id.toLowerCase().trim())
         )
         if (excluded.length) {
-          console.log(`[useAvailablePersonnel] LOCAL EXCLUDE ${label}:`, excluded.map(e => e.name))
+          console.log(
+            `[useAvailablePersonnel] LOCAL EXCLUDE ${label}:`,
+            excluded.map((e) => e.name)
+          )
         }
 
         const out = arr
@@ -100,21 +110,37 @@ export function useAvailablePersonnel(opts: UseAvailablePersonnelOptions) {
       setResponsables(cleanList(res.data.responsables || [], 'responsables'))
       setConductors(cleanList(res.data.conductors || [], 'conductors'))
       setTreballadors(cleanList(res.data.treballadors || [], 'treballadors'))
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[useAvailablePersonnel] ERROR', err)
-      setError(err.message || 'Error carregant personal')
-      setResponsables([]); setConductors([]); setTreballadors([])
+      const message =
+        err instanceof Error ? err.message : 'Error carregant personal'
+      setError(message)
+      setResponsables([])
+      setConductors([])
+      setTreballadors([])
     } finally {
       setLoading(false)
     }
   }, [
-    opts.departament, opts.startDate, opts.endDate,
-    opts.startTime, opts.endTime,
-    JSON.stringify(opts.excludeIds),
+    opts.departament,
+    opts.startDate,
+    opts.endDate,
+    opts.startTime,
+    opts.endTime,
+    opts.excludeIds, // ✅ directe, sense JSON.stringify
     session?.accessToken,
   ])
 
-  useEffect(() => { fetchPersonnel() }, [fetchPersonnel])
+  useEffect(() => {
+    fetchPersonnel()
+  }, [fetchPersonnel])
 
-  return { responsables, conductors, treballadors, loading, error, refetchPersonnel: fetchPersonnel }
+  return {
+    responsables,
+    conductors,
+    treballadors,
+    loading,
+    error,
+    refetchPersonnel: fetchPersonnel,
+  }
 }

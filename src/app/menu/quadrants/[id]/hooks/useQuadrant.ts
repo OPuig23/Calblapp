@@ -1,4 +1,4 @@
-// File: src/app/menu/quadrants/[id]/hooks/useQuadrant.ts
+// file: src/app/menu/quadrants/[id]/hooks/useQuadrant.ts
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -32,7 +32,8 @@ export interface QuadrantDraft {
 
 type DraftResponse = { quadrant?: QuadrantDraft };
 
-function safeStringify(obj: any) {
+// 👇 Evitem `any`
+function safeStringify(obj: unknown) {
   try {
     return JSON.stringify(obj);
   } catch {
@@ -69,17 +70,16 @@ export function useQuadrant(eventId: string, initialData: Partial<QuadrantDraft>
         // No existeix al backend → mantenim el que tinguem en memòria
         savedSnapshotRef.current = safeStringify({ ...quadrant, id: eventId });
       }
-    } catch (e: any) {
+    } catch {
       setError('No s’ha pogut carregar el borrador');
     } finally {
       setLoading(false);
     }
-  }, [eventId]); // (quadrant no és necessari aquí)
+  }, [eventId, quadrant]);
 
   useEffect(() => {
     refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [eventId]);
+  }, [eventId, refresh]);
 
   /** Setter de camp únic, útil per inputs */
   const setField = useCallback(<K extends keyof QuadrantDraft>(key: K, value: QuadrantDraft[K]) => {
@@ -95,14 +95,19 @@ export function useQuadrant(eventId: string, initialData: Partial<QuadrantDraft>
 
       // optimistic
       const prev = quadrant;
-      const next = { ...prev, ...patch, id: eventId, status: (patch.status as QuadrantStatus) || (prev.status as QuadrantStatus) || 'draft' };
+      const next = {
+        ...prev,
+        ...patch,
+        id: eventId,
+        status: (patch.status as QuadrantStatus) || (prev.status as QuadrantStatus) || 'draft',
+      };
       setQuadrant(next);
 
       try {
         await axios.post('/api/quadrantsDraft/save', { id: eventId, ...next });
         savedSnapshotRef.current = safeStringify(next);
         setLastSavedAt(new Date().toISOString());
-      } catch (e: any) {
+      } catch {
         // revert
         setQuadrant(prev);
         setError('Error en desar el borrador');
@@ -128,7 +133,7 @@ export function useQuadrant(eventId: string, initialData: Partial<QuadrantDraft>
         await axios.post('/api/quadrantsDraft/confirm', { id: eventId, ...next });
         savedSnapshotRef.current = safeStringify(next);
         setLastSavedAt(new Date().toISOString());
-      } catch (e: any) {
+      } catch {
         setQuadrant(prev);
         setError('Error en confirmar el quadrant');
       } finally {
@@ -150,7 +155,7 @@ export function useQuadrant(eventId: string, initialData: Partial<QuadrantDraft>
       setQuadrant({});
       savedSnapshotRef.current = safeStringify({});
       setLastSavedAt(new Date().toISOString());
-    } catch (e: any) {
+    } catch {
       setQuadrant(prev);
       setError('Error en esborrar el borrador');
     } finally {

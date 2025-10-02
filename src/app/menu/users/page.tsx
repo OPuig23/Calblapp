@@ -1,4 +1,4 @@
-//file:src\app\menu\users\page.tsx
+// file: src/app/menu/users/page.tsx
 'use client'
 
 import React from 'react'
@@ -13,9 +13,18 @@ import { Plus, UserCog } from 'lucide-react'
 import ModuleHeader from '@/components/layout/ModuleHeader'
 import UserFilters, { UserFiltersState } from '@/components/users/UserFilters'
 
+// 🔹 Tipus per a l’usuari
+export interface AppUser {
+  id: string | null
+  name: string
+  password: string
+  role: string
+  department: string
+}
+
 function UsersPage() {
   const { users, loading, saveUser, deleteUser, fetchUsers } = useUsers()
-  const [modalUser, setModalUser] = React.useState<any | null>(null)
+  const [modalUser, setModalUser] = React.useState<AppUser | null>(null)
   const [filters, setFilters] = React.useState<UserFiltersState>({})
 
   // 🔽 Opcions derivades dels usuaris carregats
@@ -77,7 +86,7 @@ function UsersPage() {
       ) : (
         <UserTable
           users={filteredUsers}
-          onEdit={(u) => setModalUser(u)}
+          onEdit={(u) => setModalUser(u as AppUser)}
           onDelete={deleteUser}
         />
       )}

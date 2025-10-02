@@ -9,6 +9,25 @@ const toDateTime = (date: string, time: string) =>
 const overlaps = (startA: Date, endA: Date, startB: Date, endB: Date): boolean =>
   startA < endB && startB < endA
 
+interface Vehicle {
+  id: string
+  plate?: string
+  type?: string
+}
+
+interface QuadrantVehicle {
+  vehicleId: string
+}
+
+interface Quadrant {
+  id: string
+  vehicles?: QuadrantVehicle[]
+  startDate?: string
+  startTime?: string
+  endDate?: string
+  endTime?: string
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   console.log('[API /transports/available] 🔔 Method:', req.method)
 
@@ -30,18 +49,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // 1) Vehicles de Firestore
     const vehSnap = await db.collection('transports').get()
-    const vehicles = vehSnap.docs.map(d => ({ id: d.id, ...d.data() })) as any[]
+    const vehicles: Vehicle[] = vehSnap.docs.map(d => ({
+      id: d.id,
+      ...(d.data() as Omit<Vehicle, 'id'>),
+    }))
     console.log('[API /transports/available] 🚚 Vehicles trobats:', vehicles.length)
 
     // 2) Quadrants de TOTS els departaments
     const quadSnap = await db.collectionGroup('quadrants').get()
-    const quadrants = quadSnap.docs.map(d => ({ id: d.id, ...d.data() })) as any[]
+    const quadrants: Quadrant[] = quadSnap.docs.map(d => ({
+      id: d.id,
+      ...(d.data() as Omit<Quadrant, 'id'>),
+    }))
     console.log('[API /transports/available] 📑 Quadrants trobats:', quadrants.length)
 
     // 3) Helper: comprovar si vehicle està ocupat dins del rang seleccionat
     const isVehicleBusy = (vehId: string) =>
-      quadrants.some(q =>
-        q.vehicles?.some((v: any) =>
+      quadrants.some((q) =>
+        q.vehicles?.some((v: QuadrantVehicle) =>
           v.vehicleId === vehId &&
           overlaps(
             start,
@@ -55,16 +80,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // 4) Resultat final
     const result = vehicles.map(v => ({
       id: v.id,
-      plate: v.plate,
-      type: v.type,
+      plate: v.plate || '(sense matrícula)',
+      type: v.type || '(sense tipus)',
       available: !isVehicleBusy(v.id),
     }))
 
     console.log('[API /transports/available] ✅ Retorn:', JSON.stringify(result, null, 2))
     return res.status(200).json({ vehicles: result })
 
-  } catch (err: any) {
-    console.error('[API /transports/available] 💥 Error general:', err)
-    return res.status(500).json({ error: err.message || 'Internal server error' })
+  } catch (error: unknown) {
+    console.error('[API /transports/available] 💥 Error general:', error)
+    const message = error instanceof Error ? error.message : 'Internal server error'
+    return res.status(500).json({ error: message })
   }
 }

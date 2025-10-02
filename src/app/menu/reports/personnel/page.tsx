@@ -2,15 +2,13 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { Calendar }   from 'lucide-react'
-import { motion }     from 'framer-motion'
+import { motion } from 'framer-motion'
 import FilterSidebar, { ReportFilters } from '@/components/reports/FilterSidebar'
-import { useReportOptions }   from '@/hooks/useReportOptions'
 import { useReportPersonnel } from '@/hooks/useReportPersonnel'
-import { KPIGrid }    from '@/components/reports/KPIGrid'
-import { LineChart }  from '@/components/reports/LineChart'
+import { KPIGrid } from '@/components/reports/KPIGrid'
+import { LineChart } from '@/components/reports/LineChart'
 import { DonutChart } from '@/components/reports/DonutChart'
-import { DetailTable }from '@/components/reports/DetailTable'
+import { DetailTable } from '@/components/reports/DetailTable'
 
 export default function PersonnelReportPage() {
   // --- 1) ESTAT PER A FILTRES (draft i aplicats) ---
@@ -22,10 +20,7 @@ export default function PersonnelReportPage() {
   })
   const [applied, setApplied] = useState<ReportFilters>(draft)
 
-  // --- 2) OPCIONS DINÀMIQUES PER A SELECTS, SI CAL (departaments, rols, etc) ---
-  // (ja ho teníem implementat amb useReportOptions, pots afegir més camps)
-
-  // --- 3) DADES DEL REPORT SEGONS FILTRES APLICATS ---
+  // --- 2) DADES DEL REPORT SEGONS FILTRES APLICATS ---
   const { data, loading, error } = useReportPersonnel({
     type:   'personnel',
     from:   applied.fromDate,
@@ -34,7 +29,7 @@ export default function PersonnelReportPage() {
     responsible: applied.responsible
   })
 
-  // --- 4) HANDLERS DE FILTRES ---
+  // --- 3) HANDLERS DE FILTRES ---
   const onChange = useCallback((upd: Partial<ReportFilters>) => {
     setDraft(f => ({ ...f, ...upd }))
   }, [])
@@ -51,12 +46,12 @@ export default function PersonnelReportPage() {
     setApplied(reset)
   }
 
-  // --- 5) LOADING / ERROR STATES ---
+  // --- 4) LOADING / ERROR STATES ---
   if (loading) return <div className="p-6">Carregant dades…</div>
   if (error)   return <div className="p-6 text-red-600">Error: {error}</div>
-  if (!data)  return <div className="p-6">Sense dades</div>
+  if (!data)   return <div className="p-6">Sense dades</div>
 
-  // --- 6) PREPAREM ELS KPI TILES ---
+  // --- 5) PREPAREM ELS KPI TILES ---
   const kpis = [
     { label:'Total Personal',     value:String(data.stats.totalPersonnel), icon:'👥', bg:'bg-blue-600' },
     { label:'Hores Treballades',  value:String(data.stats.totalHours),      icon:'⏳', bg:'bg-green-600' },

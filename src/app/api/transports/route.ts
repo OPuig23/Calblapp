@@ -1,27 +1,23 @@
-// file: src/app/api/transports/route.ts
+// src/app/api/transports/route.ts
 import { NextResponse } from 'next/server'
 import { firestore } from '@/lib/firebaseAdmin'
 
 // Afegir transport
 export async function POST(req: Request) {
   try {
-   
-
     // 1) Dades d’entrada
     const body = await req.json()
-   
-
-    const { plate, type, conductorId } = body
+    const { plate, type, conductorId } = body as {
+      plate: string
+      type: string
+      conductorId?: string
+    }
 
     if (!plate || !type) {
-     
       return NextResponse.json({ error: 'Falten camps obligatoris' }, { status: 400 })
     }
 
-    // 2) Validació connexió Firestore
-    
-
-    // 3) Intent de creació
+    // 2) Creació a Firestore
     const ref = await firestore.collection('transports').add({
       plate,
       type,
@@ -30,28 +26,27 @@ export async function POST(req: Request) {
       updatedAt: Date.now(),
     })
 
-    // 4) Confirmació
-    
-
+    // 3) Confirmació
     return NextResponse.json({ success: true, id: ref.id })
-  } catch (err: any) {
-    
-    return NextResponse.json({ error: 'Error intern' }, { status: 500 })
+  } catch (error: unknown) {
+    console.error('[API /transports] Error POST:', error)
+    const message = error instanceof Error ? error.message : 'Error intern'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }
 
 // Llegir transports
 export async function GET() {
   try {
-    
-
     const snap = await firestore.collection('transports').get()
-    
-
-    const data = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    const data = snap.docs.map(d => ({
+      id: d.id,
+      ...(d.data() as { plate?: string; type?: string; conductorId?: string }),
+    }))
     return NextResponse.json(data)
-  } catch (err: any) {
-    
-    return NextResponse.json({ error: 'Error intern' }, { status: 500 })
+  } catch (error: unknown) {
+    console.error('[API /transports] Error GET:', error)
+    const message = error instanceof Error ? error.message : 'Error intern'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

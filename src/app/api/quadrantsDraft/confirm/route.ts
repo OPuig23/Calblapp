@@ -6,14 +6,42 @@ import { createNotificationsForQuadrant } from '@/services/notifications'
 
 export const runtime = 'nodejs'
 
-// Normalitza noms: sense accents, minúscules
+/* ------------------ Tipus ------------------ */
+interface QuadrantDoc {
+  status?: string
+  responsable?: { name?: string }
+  responsableName?: string
+  conductors?: Array<{ name?: string }>
+  treballadors?: Array<{ name?: string }>
+  numDrivers?: number
+  totalWorkers?: number
+  responsableId?: string
+  startDate?: string
+  meetingPoint?: string
+}
+
+interface QuadrantNotification {
+  userId: string
+  quadrantId: string
+  payload: {
+    weekStartISO: string | null
+    weekLabel: string
+    dept: string
+    countAssignments: number
+  }
+}
+
+type TokenLike = {
+  user?: { email?: string }
+  email?: string
+}
+
+/* ------------------ Utils ------------------ */
 const norm = (v?: string) =>
   (v || '').toString().normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim()
 
-// Capitalitza per formar el nom de la col·lecció
 const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 
-// Resol un UID d'usuari a partir del name
 async function lookupUidByName(name: string): Promise<string | null> {
   const folded = norm(name)
   // Primer intent: camp nameFold
@@ -25,6 +53,7 @@ async function lookupUidByName(name: string): Promise<string | null> {
   return null
 }
 
+/* ------------------ Handler ------------------ */
 export async function POST(req: NextRequest) {
   try {
     const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET })
@@ -45,7 +74,7 @@ export async function POST(req: NextRequest) {
 
     // ── 1) llegir estat actual
     const snap = await ref.get()
-    const prev = snap.exists ? (snap.data() as any) : null
+    const prev = snap.exists ? (snap.data() as QuadrantDoc) : null
     const already = prev?.status === 'confirmed'
 
     // ── 2) confirmar (idempotent)
@@ -54,31 +83,36 @@ export async function POST(req: NextRequest) {
       {
         status: 'confirmed',
         confirmedAt: now,
-        confirmedBy: (token as any)?.user?.email || (token as any)?.email || 'system',
+        confirmedBy:
+          (token as TokenLike)?.user?.email ||
+          (token as TokenLike)?.email ||
+          'system',
       },
       { merge: true }
     )
 
     // ── 3) AVISOS: només si no estava confirmat abans
     if (!already) {
-      const doc = (await ref.get()).data() as any
+      const doc = (await ref.get()).data() as QuadrantDoc | undefined
       if (doc) {
-        // Recollim tots els noms dels assignats
         const names = new Set<string>()
         if (doc?.responsable?.name || doc?.responsableName) {
-          names.add(doc.responsable?.name || doc.responsableName)
+          names.add(doc.responsable?.name || doc.responsableName || '')
         }
-        ;(Array.isArray(doc?.conductors) ? doc.conductors : []).forEach((c: any) => c?.name && names.add(c.name))
-        ;(Array.isArray(doc?.treballadors) ? doc.treballadors : []).forEach((t: any) => t?.name && names.add(t.name))
+        ;(Array.isArray(doc?.conductors) ? doc.conductors : []).forEach((c: { name?: string }) => {
+          if (c?.name) names.add(c.name)
+        })
+        ;(Array.isArray(doc?.treballadors) ? doc.treballadors : []).forEach((t: { name?: string }) => {
+          if (t?.name) names.add(t.name)
+        })
 
-        // Mapar noms → UIDs
         const uids = (await Promise.all(Array.from(names).map(lookupUidByName)))
           .filter(Boolean) as string[]
 
         if (uids.length) {
           const weekStartISO = doc?.startDate || null
           const weekLabel = weekStartISO || ''
-          const notifs = uids.map(uid => ({
+          const notifs: QuadrantNotification[] = uids.map(uid => ({
             userId: uid,
             quadrantId: String(eventId),
             payload: {
@@ -91,7 +125,7 @@ export async function POST(req: NextRequest) {
                 (doc?.responsableId ? 1 : 0),
             },
           }))
-          await createNotificationsForQuadrant(notifs as any)
+          await createNotificationsForQuadrant(notifs)
         } else {
           console.warn('[confirm] No destinatary UIDs resolved for event', eventId, Array.from(names))
         }

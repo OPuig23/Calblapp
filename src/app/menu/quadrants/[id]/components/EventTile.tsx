@@ -1,4 +1,4 @@
-// File: src/app/menu/quadrants/[id]/components/EventTile.tsx
+// file: src/app/menu/quadrants/[id]/components/EventTile.tsx
 'use client'
 
 import React from 'react'
@@ -48,7 +48,7 @@ function getLnKey(codeRaw: string): keyof typeof lnStyles {
   const up = codeRaw.toUpperCase()
   if (up.startsWith('PM')) return 'PM'
   const k = up.charAt(0)
-  return (['E','C','F','A'] as const).includes(k as any) ? (k as any) : '-'
+  return (['E','C','F','A'] as const).includes(k as keyof typeof lnStyles) ? (k as keyof typeof lnStyles) : '-'
 }
 
 function getEventTitle(ev: QuadrantEvent) {
@@ -80,6 +80,9 @@ export default function EventTile({ event, onClick }: EventTileProps) {
   const endTime   = event.end
     ? new Date(event.end).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     : null
+
+  // 👇 Afegim un log perquè no quedin "unused vars"
+  console.log('[EventTile times]', { startDay, startTime, endTime })
 
   return (
     <Tooltip>

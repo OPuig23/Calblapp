@@ -1,5 +1,5 @@
 // /src/components/reports/PersonnelDetailTable.tsx
-import { Card } from "@/components/ui/card"
+
 
 export function PersonnelDetailTable({ rows }) {
   return (

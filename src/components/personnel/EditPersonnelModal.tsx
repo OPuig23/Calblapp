@@ -113,18 +113,19 @@ export default function EditPersonnelModal({
           <div>
             <Label htmlFor="role">Rol</Label>
             <select
-              id="role"
-              value={normalizeRoleLocal(form.role)}
-              onChange={e => handleChange('role', e.target.value as any)}
-              required
-              className="border rounded px-2 py-1 w-full"
-            >
-              {ROLE_OPTIONS.map(opt => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
+  id="role"
+  value={normalizeRoleLocal(form.role)}
+  onChange={(e) => handleChange('role', e.target.value as Personnel['role'])}
+  required
+  className="border rounded px-2 py-1 w-full"
+>
+  {ROLE_OPTIONS.map(opt => (
+    <option key={opt.value} value={opt.value}>
+      {opt.label}
+    </option>
+  ))}
+</select>
+
           </div>
 
           {/* Departament (no editable) */}

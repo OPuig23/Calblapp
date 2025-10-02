@@ -1,11 +1,13 @@
-// File: src/app/api/personnel/available/route.ts
+// src/app/api/personnel/available/route.ts
 import { NextResponse } from 'next/server'
 import { getToken } from 'next-auth/jwt'
+import type { NextRequest } from 'next/server'
 import { firestore } from '@/lib/firebaseAdmin'
 import {
   loadMinRestHours,
   hasMinRestByName,
   getBusyPersonnelIds,
+  QuadrantDoc, // ✅ importem el tipus directament
 } from '@/utils/personnelRest'
 
 type AvailEntry = {
@@ -14,6 +16,14 @@ type AvailEntry = {
   role: string
   status: 'available' | 'conflict'
   reason: string
+}
+
+interface PersonnelDoc {
+  name?: string
+  role?: string
+  department?: string
+  isDriver?: boolean
+  [key: string]: unknown
 }
 
 const RESPONSABLE_ROLES = new Set([
@@ -40,7 +50,7 @@ function uniqueById<T extends { id: string }>(arr: T[]): T[] {
   return out
 }
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET })
   if (!token) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -81,13 +91,13 @@ export async function GET(request: Request) {
     })
 
     const colId = `quadrants${deptParam.charAt(0).toUpperCase()}${deptParam.slice(1)}`
-    const allBusy: any[] = []
+    const allBusy: QuadrantDoc[] = []
     const snap = await firestore.collection(colId).where('startDate', '<=', ed).get()
-    snap.docs.forEach((d) => allBusy.push(d.data()))
+    snap.docs.forEach((d) => allBusy.push(d.data() as QuadrantDoc))
 
     const personnelSnap = await firestore.collection('personnel').get()
     const deptPersonnel = personnelSnap.docs.filter((doc) => {
-      const d = doc.data() as any
+      const d = doc.data() as PersonnelDoc
       return norm(d.department) === deptNorm
     })
 
@@ -98,7 +108,7 @@ export async function GET(request: Request) {
     const conductors: AvailEntry[] = []
 
     for (const doc of deptPersonnel) {
-      const data = doc.data() as any
+      const data = doc.data() as PersonnelDoc
       const roleNorm = norm(data.role)
       const pid = norm(doc.id)
       const pname = norm(data.name)
@@ -110,7 +120,11 @@ export async function GET(request: Request) {
       }
 
       const availableByRest = hasMinRestByName(
-        data.name || '', allBusy, newStart, newEnd, minRest
+        data.name || '',
+        allBusy, // ✅ ahora coincide perfectamente con la firma
+        newStart,
+        newEnd,
+        minRest
       )
       if (!availableByRest) {
         console.log(`[available] SKIP rest: ${data.name}`)
@@ -162,19 +176,19 @@ export async function GET(request: Request) {
     })
 
     console.log('[available] FINAL', {
-  responsables: responsablesClean.map(p => `${p.name} (${p.status})`),
-  conductors: conductorsClean.map(p => `${p.name} (${p.status})`),
-  treballadors: treballadors.map(p => `${p.name} (${p.status})`),
-})
+      responsables: responsablesClean.map(p => `${p.name} (${p.status})`),
+      conductors: conductorsClean.map(p => `${p.name} (${p.status})`),
+      treballadors: treballadors.map(p => `${p.name} (${p.status})`),
+    })
 
-// 🚫 Excloem els que estan en conflict
-return NextResponse.json({
-  responsables: responsablesClean.filter(p => p.status === 'available'),
-  conductors: conductorsClean.filter(p => p.status === 'available'),
-  treballadors: treballadors.filter(p => p.status === 'available'),
-})
+    // 🚫 Excloem els que estan en conflict
+    return NextResponse.json({
+      responsables: responsablesClean.filter(p => p.status === 'available'),
+      conductors: conductorsClean.filter(p => p.status === 'available'),
+      treballadors: treballadors.filter(p => p.status === 'available'),
+    })
 
-  } catch (err) {
+  } catch (err: unknown) {
     console.error('Error GET /api/personnel/available:', err)
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
   }

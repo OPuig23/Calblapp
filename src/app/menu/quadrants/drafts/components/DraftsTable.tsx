@@ -15,27 +15,31 @@ import type { DraftInput, Row } from './types'
 
 export default function DraftsTable({ draft }: { draft: DraftInput }) {
   const { data: session } = useSession()
-  const department = (
-    draft.department || (session as any)?.user?.department || ''
-  ).toLowerCase()
+  const department =
+    (draft.department ||
+      (session?.user && 'department' in session.user ? session.user.department : '') ||
+      ''
+    ).toLowerCase()
 
   // --- Construcció inicial de files a partir del draft (incloent brigades)
   const initialRows: Row[] = [
     ...(draft.responsableName
-      ? [{
-          id: draft.responsable?.id || '',
-          name: draft.responsableName,
-          role: 'responsable' as Role,
-          startDate: draft.startDate,
-          endDate: draft.endDate,
-          startTime: draft.startTime,
-          endTime: draft.endTime,
-          meetingPoint: draft.responsable?.meetingPoint || '',
-          plate: draft.responsable?.plate || '',
-          vehicleType: draft.responsable?.vehicleType || '',
-        }]
+      ? [
+          {
+            id: draft.responsable?.id || '',
+            name: draft.responsableName,
+            role: 'responsable' as Role,
+            startDate: draft.startDate,
+            endDate: draft.endDate,
+            startTime: draft.startTime,
+            endTime: draft.endTime,
+            meetingPoint: draft.responsable?.meetingPoint || '',
+            plate: draft.responsable?.plate || '',
+            vehicleType: draft.responsable?.vehicleType || '',
+          },
+        ]
       : []),
-    ...(draft.conductors || []).map(c => ({
+    ...(draft.conductors || []).map((c) => ({
       id: c.id || '',
       name: c.name,
       role: 'conductor' as Role,
@@ -47,7 +51,7 @@ export default function DraftsTable({ draft }: { draft: DraftInput }) {
       plate: c.plate || '',
       vehicleType: c.vehicleType || '',
     })),
-    ...(draft.treballadors || []).map(t => ({
+    ...(draft.treballadors || []).map((t) => ({
       id: t.id || '',
       name: t.name,
       role: 'treballador' as Role,
@@ -59,7 +63,7 @@ export default function DraftsTable({ draft }: { draft: DraftInput }) {
       plate: '',
       vehicleType: '',
     })),
-    ...(draft.brigades || []).map(b => ({
+    ...(draft.brigades || []).map((b) => ({
       id: b.id || '',
       name: b.name || '',
       role: 'brigada' as Role,
@@ -79,8 +83,10 @@ export default function DraftsTable({ draft }: { draft: DraftInput }) {
   const dirty = JSON.stringify(rows) !== initialRef.current
 
   // --- Estat de confirmació
-  const [confirmed, setConfirmed] = useState<boolean>(draft.status === 'confirmed')
-  const [confirming, setConfirming] = useState(false)
+  const [confirmed, setConfirmed] = useState<boolean>(
+    draft.status === 'confirmed'
+  )
+  const [confirming] = useState(false) // 👈 eliminat setConfirming no usat
   const isLocked = confirmed || confirming
 
   // --- Personal disponible
@@ -90,23 +96,29 @@ export default function DraftsTable({ draft }: { draft: DraftInput }) {
     endDate: draft.endDate,
     startTime: draft.startTime,
     endTime: draft.endTime,
-    excludeIds: rows.map(r => r.id).filter(Boolean),
+    excludeIds: rows.map((r) => r.id).filter(Boolean),
   })
 
-  // --- Comptadors
-  const assigned = useMemo(() => ({
-    responsables: rows.filter(r => r.role === 'responsable').length,
-    conductors:   rows.filter(r => r.role === 'conductor').length,
-    treballadors: rows.filter(r => r.role === 'treballador').length,
-    brigades:     rows.filter(r => r.role === 'brigada').length,
-  }), [rows])
+  // --- Comptadors (ara eliminats del render, però útils si es necessiten més tard)
+  useMemo(
+    () => ({
+      responsables: rows.filter((r) => r.role === 'responsable').length,
+      conductors: rows.filter((r) => r.role === 'conductor').length,
+      treballadors: rows.filter((r) => r.role === 'treballador').length,
+      brigades: rows.filter((r) => r.role === 'brigada').length,
+    }),
+    [rows]
+  )
 
-  const requested = useMemo(() => ({
-    responsables: draft.responsablesNeeded || 1,
-    conductors:   draft.numDrivers || 0,
-    treballadors: draft.totalWorkers || 0,
-    brigades:     (draft.brigades || []).length,
-  }), [draft])
+  useMemo(
+    () => ({
+      responsables: draft.responsablesNeeded || 1,
+      conductors: draft.numDrivers || 0,
+      treballadors: draft.totalWorkers || 0,
+      brigades: (draft.brigades || []).length,
+    }),
+    [draft]
+  )
 
   // --- Callbacks (API routes)
   const handleSaveAll = async () => {
@@ -117,7 +129,7 @@ export default function DraftsTable({ draft }: { draft: DraftInput }) {
         body: JSON.stringify({
           department: draft.department,
           eventId: draft.id,
-          rows, // 👈 totes les files juntes
+          rows,
         }),
       })
 
@@ -196,11 +208,13 @@ export default function DraftsTable({ draft }: { draft: DraftInput }) {
   const startEdit = (i: number) => setEditIdx(i)
   const endEdit = () => setEditIdx(null)
   const patchRow = (patch: Partial<Row>) =>
-    setRows(rs => rs.map((r, idx) => idx === editIdx ? { ...r, ...patch } as Row : r))
+    setRows((rs) =>
+      rs.map((r, idx) => (idx === editIdx ? { ...r, ...patch } as Row : r))
+    )
 
   const revertRow = () => {
     if (editIdx === null) return
-    setRows(rs => {
+    setRows((rs) => {
       const copy = [...rs]
       copy[editIdx] = initialRows[editIdx] // torna a l’estat inicial
       return copy
@@ -213,9 +227,12 @@ export default function DraftsTable({ draft }: { draft: DraftInput }) {
       {/* Capçalera de columnes */}
       <div
         className="grid border-b bg-gray-50 text-xs font-semibold text-gray-600 px-1 py-2 items-center"
-        style={{ gridTemplateColumns: '32px 1fr 5.5rem 5.5rem minmax(10rem,1fr) minmax(10rem,1fr) auto' }}
+        style={{
+          gridTemplateColumns:
+            '32px 1fr 5.5rem 5.5rem minmax(10rem,1fr) minmax(10rem,1fr) auto',
+        }}
       >
-        <div></div> {/* Icona */}
+        <div></div>
         <div>Nom / Brigada</div>
         <div>Data</div>
         <div>Hora</div>
@@ -242,7 +259,9 @@ export default function DraftsTable({ draft }: { draft: DraftInput }) {
               row={r}
               isLocked={isLocked}
               onEdit={() => startEdit(i)}
-              onDelete={() => setRows(rs => rs.filter((_, idx) => idx !== i))}
+              onDelete={() =>
+                setRows((rs) => rs.filter((_, idx) => idx !== i))
+              }
             />
             {editIdx === i && (
               <RowEditor
@@ -257,7 +276,7 @@ export default function DraftsTable({ draft }: { draft: DraftInput }) {
           </React.Fragment>
         ))}
 
-        {/* Fila inferior: missatge i botons */}
+        {/* Fila inferior */}
         <div
           className="grid items-center border-b px-1 py-3 bg-gray-50"
           style={{
@@ -279,20 +298,24 @@ export default function DraftsTable({ draft }: { draft: DraftInput }) {
           </div>
 
           <div className="flex gap-2 col-span-2 justify-end">
+            {/* Botons afegir línies */}
             <button
               onClick={() =>
-                setRows([...rows, {
-                  id: '',
-                  name: '',
-                  role: 'responsable',
-                  startDate: draft.startDate,
-                  endDate: draft.endDate,
-                  startTime: draft.startTime,
-                  endTime: draft.endTime,
-                  meetingPoint: '',
-                  plate: '',
-                  vehicleType: '',
-                }])
+                setRows([
+                  ...rows,
+                  {
+                    id: '',
+                    name: '',
+                    role: 'responsable',
+                    startDate: draft.startDate,
+                    endDate: draft.endDate,
+                    startTime: draft.startTime,
+                    endTime: draft.endTime,
+                    meetingPoint: '',
+                    plate: '',
+                    vehicleType: '',
+                  },
+                ])
               }
               className="rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700 hover:bg-blue-200"
             >
@@ -300,18 +323,21 @@ export default function DraftsTable({ draft }: { draft: DraftInput }) {
             </button>
             <button
               onClick={() =>
-                setRows([...rows, {
-                  id: '',
-                  name: '',
-                  role: 'conductor',
-                  startDate: draft.startDate,
-                  endDate: draft.endDate,
-                  startTime: draft.startTime,
-                  endTime: draft.endTime,
-                  meetingPoint: '',
-                  plate: '',
-                  vehicleType: '',
-                }])
+                setRows([
+                  ...rows,
+                  {
+                    id: '',
+                    name: '',
+                    role: 'conductor',
+                    startDate: draft.startDate,
+                    endDate: draft.endDate,
+                    startTime: draft.startTime,
+                    endTime: draft.endTime,
+                    meetingPoint: '',
+                    plate: '',
+                    vehicleType: '',
+                  },
+                ])
               }
               className="rounded-full bg-orange-100 px-3 py-1 text-xs font-medium text-orange-700 hover:bg-orange-200"
             >
@@ -319,18 +345,21 @@ export default function DraftsTable({ draft }: { draft: DraftInput }) {
             </button>
             <button
               onClick={() =>
-                setRows([...rows, {
-                  id: '',
-                  name: '',
-                  role: 'treballador',
-                  startDate: draft.startDate,
-                  endDate: draft.endDate,
-                  startTime: draft.startTime,
-                  endTime: draft.endTime,
-                  meetingPoint: '',
-                  plate: '',
-                  vehicleType: '',
-                }])
+                setRows([
+                  ...rows,
+                  {
+                    id: '',
+                    name: '',
+                    role: 'treballador',
+                    startDate: draft.startDate,
+                    endDate: draft.endDate,
+                    startTime: draft.startTime,
+                    endTime: draft.endTime,
+                    meetingPoint: '',
+                    plate: '',
+                    vehicleType: '',
+                  },
+                ])
               }
               className="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700 hover:bg-green-200"
             >
@@ -338,19 +367,22 @@ export default function DraftsTable({ draft }: { draft: DraftInput }) {
             </button>
             <button
               onClick={() =>
-                setRows([...rows, {
-                  id: '',
-                  name: '',
-                  role: 'brigada',
-                  startDate: draft.startDate,
-                  endDate: draft.endDate,
-                  startTime: draft.startTime,
-                  endTime: draft.endTime,
-                  meetingPoint: draft.meetingPoint || '',
-                  workers: 0,
-                  plate: '',
-                  vehicleType: '',
-                }])
+                setRows([
+                  ...rows,
+                  {
+                    id: '',
+                    name: '',
+                    role: 'brigada',
+                    startDate: draft.startDate,
+                    endDate: draft.endDate,
+                    startTime: draft.startTime,
+                    endTime: draft.endTime,
+                    meetingPoint: draft.meetingPoint || '',
+                    workers: 0,
+                    plate: '',
+                    vehicleType: '',
+                  },
+                ])
               }
               className="rounded-full bg-purple-100 px-3 py-1 text-xs font-medium text-purple-700 hover:bg-purple-200"
             >

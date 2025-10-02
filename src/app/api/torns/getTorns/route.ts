@@ -1,14 +1,13 @@
 // filename: src/app/api/torns/getTorns/route.ts
 import { getToken } from 'next-auth/jwt'
 import { NextRequest } from 'next/server'
-import { fetchAllTorns } from '@/services/tornsService'
+import { fetchAllTorns, type Torn } from '@/services/tornsService'
 import { resolveWorkerAlias } from '@/services/userService.server'
-import { getPersonnelByDepartment } from '@/services/personnel'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-function norm(s: any): string {
+function norm(s?: string | null): string {
   return String(s ?? '')
     .normalize('NFD')
     .replace(/\p{Diacritic}/gu, '')
@@ -29,12 +28,29 @@ function ensureOrdered(a: string, b: string): [string, string] {
   return a <= b ? [a, b] : [b, a]
 }
 
+type TokenLike = {
+  role?: string
+  department?: string
+  name?: string
+  user?: {
+    role?: string
+    department?: string
+    name?: string
+  }
+}
+
+type WorkerExpanded = Torn & {
+  workerId?: string
+  workerName?: string
+  workerRole?: string
+}
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
-    const token = await getToken({ req })
+    const token = (await getToken({ req })) as TokenLike | null
 
-    const roleRaw = norm((token as any)?.role)
+    const roleRaw = norm(token?.role || token?.user?.role || '')
     const role: 'Admin' | 'Direcció' | 'Cap Departament' | 'Treballador' =
       roleRaw?.startsWith('admin')
         ? 'Admin'
@@ -44,8 +60,8 @@ export async function GET(req: NextRequest) {
         ? 'Cap Departament'
         : 'Treballador'
 
-    const sessionDept = norm((token as any)?.department)
-    const userName = String((token as any)?.name || '')
+    const sessionDept = norm(token?.department || token?.user?.department || '')
+    const userName = String(token?.name || token?.user?.name || '')
 
     // Dates
     const rawStart = clampISO(searchParams.get('start') || '')
@@ -100,63 +116,51 @@ export async function GET(req: NextRequest) {
     }
 
     // ── DATA
-    let data: any[] = torns
+    let data: WorkerExpanded[] = torns
 
     // Explosió per treballador només si NO és Treballador
-if (role !== 'Treballador') {
-  console.log('[getTorns] abans flatMap → torns:', torns.length)
+    if (role !== 'Treballador') {
+      console.log('[getTorns] abans flatMap → torns:', torns.length)
 
-  data = data.flatMap((t: any) => {
-    if (!Array.isArray(t.__rawWorkers) || !t.__rawWorkers.length) return [t]
+      data = data.flatMap((t: Torn) => {
+        if (!Array.isArray(t.__rawWorkers) || !t.__rawWorkers.length) return [t]
 
-    const expanded = t.__rawWorkers.map((w: any) => {
- const obj = {
-  ...t,
-  id: `${t.id}:${w.id || norm(w.name)}`,
-  workerId: w.id || norm(w.name),
-  workerName: w.name,
-  workerRole: w.role ? norm(w.role) : 'treballador',
-  startTime: w.startTime || '',
-  endTime: w.endTime || '',
-  meetingPoint: w.meetingPoint || t.meetingPoint,
-  department: w.department || t.department || 'Sense departament',
-}
+        const expanded: WorkerExpanded[] = t.__rawWorkers.map((w) => {
+          const obj: WorkerExpanded = {
+            ...t,
+            id: `${t.id}:${w.id || norm(w.name)}`,
+            workerId: w.id || norm(w.name),
+            workerName: w.name,
+            workerRole: w.role ? norm(w.role) : 'treballador',
+            startTime: w.startTime || '',
+            endTime: w.endTime || '',
+            meetingPoint: w.meetingPoint || t.meetingPoint,
+            department: w.department || t.department || 'Sense departament',
+          }
 
-// 🔎 log per validar que role i departament es conserven
-console.log('[getTorns] expand worker', {
-  event: t.eventName,
-  worker: w.name,
-  originalRole: w.role,
-  resultRole: obj.workerRole,
-  originalDept: w.department || t.department,
-  finalDept: obj.department,
-})
+          // 🔎 log per validar que role i departament es conserven
+          console.log('[getTorns] expand worker', {
+            event: t.eventName,
+            worker: w.name,
+            originalRole: w.role,
+            resultRole: obj.workerRole,
+            originalDept: w.department || t.department,
+            finalDept: obj.department,
+          })
 
+          return obj
+        })
 
+        return expanded
+      })
 
-  // 🔎 log per validar que el role es conserva
-  console.log('[getTorns] expand worker', {
-    event: t.eventName,
-    worker: w.name,
-    originalRole: w.role,
-    resultRole: obj.workerRole,
-  })
-
-  return obj
-})
-
-
-    return expanded
-  })
-
-  console.log('[getTorns] després flatMap → data:', data.length)
-  
-}
+      console.log('[getTorns] després flatMap → data:', data.length)
+    }
 
     // ── 1) Filtre roleType
     if (roleTypeParam && roleTypeParam !== 'all') {
       const rt = norm(roleTypeParam)
-      data = data.filter((t: any) => norm(t.workerRole || '') === rt)
+      data = data.filter((t) => norm(t.workerRole || '') === rt)
     }
 
     // ── 2) Filtre workerId / workerName
@@ -179,7 +183,7 @@ console.log('[getTorns] expand worker', {
         console.warn('[API/getTorns] resolveWorkerAlias error (ignored):', e)
       }
 
-      data = data.filter((t: any) => {
+      data = data.filter((t) => {
         if (role === 'Treballador') {
           return t.workerName && aliasSet.has(norm(t.workerName))
         }
@@ -191,7 +195,7 @@ console.log('[getTorns] expand worker', {
     }
 
     return Response.json({ ok: true, data, meta }, { status: 200 })
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('[api/torns/getTorns] error:', err)
     return Response.json({ ok: false, error: 'Internal Server Error' }, { status: 500 })
   }

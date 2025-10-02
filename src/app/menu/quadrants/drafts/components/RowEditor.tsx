@@ -1,4 +1,4 @@
-// file:src/app/menu/quadrants/drafts/components/RowEditor.tsx
+// file: src/app/menu/quadrants/drafts/components/RowEditor.tsx
 'use client'
 
 import React from 'react'
@@ -7,9 +7,30 @@ import { Input } from '@/components/ui/input'
 import type { Row } from './types'
 import brigades from '@/data/brigades.json'
 
+type AvailablePerson = {
+  id: string
+  name: string
+  alias?: string
+  meetingPoint?: string
+}
+
+type AvailableVehicle = {
+  id: string
+  plate: string
+  type: string
+  available: boolean
+}
+
+type AvailableData = {
+  responsables?: AvailablePerson[]
+  conductors?: AvailablePerson[]
+  treballadors?: AvailablePerson[]
+  vehicles?: AvailableVehicle[]
+}
+
 type RowEditorProps = {
   row: Row
-  available: any
+  available: AvailableData
   onPatch: (patch: Partial<Row>) => void
   onClose: () => void
   onRevert?: () => void
@@ -24,7 +45,7 @@ export default function RowEditor({
   onRevert,
   isLocked,
 }: RowEditorProps) {
-  const list =
+  const list: AvailablePerson[] =
     row.role === 'responsable'
       ? available?.responsables || []
       : row.role === 'conductor'
@@ -124,7 +145,7 @@ export default function RowEditor({
               <select
                 value={row.id || ''}
                 onChange={(e) => {
-                  const sel = list.find((p: any) => p.id === e.target.value)
+                  const sel = list.find((p) => p.id === e.target.value)
                   const displayName = sel?.name || sel?.alias || sel?.id || ''
                   onPatch({ id: sel?.id || '', name: displayName })
                   if (sel?.meetingPoint)
@@ -134,7 +155,7 @@ export default function RowEditor({
                 disabled={isLocked}
               >
                 <option value="">Selecciona {row.role}</option>
-                {list.map((p: any) => (
+                {list.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name || p.alias || p.id}
                   </option>
@@ -185,12 +206,12 @@ export default function RowEditor({
                   <option value="">— Selecciona matrícula —</option>
                   {(available?.vehicles || [])
                     .filter(
-                      (v: any) =>
+                      (v) =>
                         v.available &&
                         v.type?.toLowerCase() ===
                           row.vehicleType?.toLowerCase()
                     )
-                    .map((v: any) => (
+                    .map((v) => (
                       <option key={v.id} value={v.plate}>
                         {v.plate}
                       </option>
