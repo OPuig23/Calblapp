@@ -19,13 +19,15 @@ import {
 } from 'lucide-react'
 import { normalizeRole, type Role } from '@/lib/roles'
 import { useUnreadCountsByType } from '@/hooks/notifications'
+import type { LucideIcon } from 'lucide-react'
+
 
 interface ModuleOption {
   value: string
   label: string
   path: string
   roles: Role[]
-  icon: JSX.Element
+  icon: LucideIcon
   color: string
   iconColor: string
 }
@@ -36,7 +38,7 @@ const MODULES: ModuleOption[] = [
     label: 'Torns',
     path: '/menu/torns',
     roles: ['admin', 'direccio', 'cap', 'treballador'],
-    icon: <Grid />,
+    icon: Grid,
     color: 'from-blue-100 to-indigo-100',
     iconColor: 'text-blue-500',
   },
@@ -45,7 +47,7 @@ const MODULES: ModuleOption[] = [
     label: 'Esdeveniments',
     path: '/menu/events',
     roles: ['admin', 'direccio', 'cap', 'treballador'],
-    icon: <Calendar />,
+    icon: Calendar,
     color: 'from-yellow-100 to-orange-100',
     iconColor: 'text-orange-500',
   },
@@ -54,7 +56,7 @@ const MODULES: ModuleOption[] = [
     label: 'Calendar',
     path: '/menu/calendar',
     roles: ['admin', 'direccio'], // ➕ aquí afegirem 'comercial' quan existeixi el rol
-    icon: <CalendarDays />,
+    icon: CalendarDays,
     color: 'from-indigo-100 to-blue-50',
     iconColor: 'text-indigo-500',
   },
@@ -63,7 +65,7 @@ const MODULES: ModuleOption[] = [
     label: 'Personal',
     path: '/menu/personnel',
     roles: ['admin', 'direccio', 'cap'],
-    icon: <Users />,
+    icon: Users,
     color: 'from-green-100 to-lime-100',
     iconColor: 'text-green-600',
   },
@@ -72,7 +74,7 @@ const MODULES: ModuleOption[] = [
     label: 'Quadrants',
     path: '/menu/quadrants',
     roles: ['admin', 'direccio', 'cap'],
-    icon: <User />,
+    icon: User,
     color: 'from-indigo-100 to-blue-50',
     iconColor: 'text-indigo-500',
   },
@@ -81,7 +83,7 @@ const MODULES: ModuleOption[] = [
     label: 'Incidències',
     path: '/menu/incidents',
     roles: ['admin', 'direccio', 'cap'],
-    icon: <AlertTriangle />,
+    icon: AlertTriangle,
     color: 'from-red-100 to-pink-100',
     iconColor: 'text-red-500',
   },
@@ -90,7 +92,7 @@ const MODULES: ModuleOption[] = [
     label: 'Informes',
     path: '/menu/reports',
     roles: ['admin', 'direccio'],
-    icon: <BarChart2 />,
+    icon: BarChart2,
     color: 'from-cyan-100 to-blue-100',
     iconColor: 'text-cyan-600',
   },
@@ -99,7 +101,7 @@ const MODULES: ModuleOption[] = [
     label: 'Usuaris',
     path: '/menu/users',
     roles: ['admin'],
-    icon: <Shield />,
+    icon: Shield,
     color: 'from-gray-200 to-gray-50',
     iconColor: 'text-gray-600',
   },
@@ -108,7 +110,7 @@ const MODULES: ModuleOption[] = [
     label: 'Transports',
     path: '/menu/transports',
     roles: ['admin', 'direccio', 'cap'],
-    icon: <Truck />,
+    icon: Truck,
     color: 'from-orange-100 to-yellow-100',
     iconColor: 'text-orange-600',
   },
@@ -159,7 +161,7 @@ export default function MenuPage() {
               <div
                 className={`relative mb-2 rounded-full bg-white shadow flex items-center justify-center w-14 h-14 group-hover:bg-blue-50 transition-all ${mod.iconColor}`}
               >
-                {React.cloneElement(mod.icon, { className: `w-8 h-8 ${mod.iconColor}` })}
+                {(() => { const Icon = mod.icon; return <Icon className={`w-8 h-8 ${mod.iconColor}`} aria-hidden /> })()}
 
                 {/* 🔔 Badge per Torns */}
                 {mod.value === 'torns' && tornsCount > 0 && (

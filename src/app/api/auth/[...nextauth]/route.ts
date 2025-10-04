@@ -49,42 +49,57 @@ export const authOptions = {
         username: { label: 'Usuari', type: 'text' },
         password: { label: 'Contrasenya', type: 'password' },
       },
-      async authorize(credentials): Promise<(User & {
-        id: string
-        role?: string
-        department?: string
-        departmentLower?: string
-      }) | null> {
-        if (!credentials?.username || !credentials.password) return null
+     async authorize(credentials) {
+  if (!credentials?.username || !credentials.password) {
+    console.log("❌ Falta usuari o password")
+    return null
+  }
 
-        const snap = await firestore
-          .collection('users')
-          .where('name', '==', credentials.username)
-          .get()
-        if (snap.empty) return null
+  console.log("🔎 Intent login amb:", credentials.username)
 
-        for (const doc of snap.docs) {
-          const data = doc.data() as unknown as FirestoreUser
+  const snap = await firestore
+    .collection('users')
+    .where('name', '==', credentials.username)
+    .get()
 
-          if (data.password === credentials.password) {
-            if (!data.userId) {
-              await doc.ref.set({ userId: doc.id }, { merge: true })
-            }
+  if (snap.empty) {
+    console.log("❌ Usuari no trobat:", credentials.username)
+    return null
+  }
 
-            const roleNorm = normalizeRole(data.role)
-            const department = (data.department || '').toString().trim()
+  for (const doc of snap.docs) {
+    const data = doc.data() as FirestoreUser
+    console.log("✅ Usuari trobat:", data)
 
-            return {
-              id: data.userId || doc.id,
-              name: data.name || '',
-              role: roleNorm,
-              department,
-              departmentLower: normLower(department),
-            }
-          }
-        }
-        return null
-      },
+    // Ens assegurem que tot sigui string
+    const passDoc = (data.password || '').toString().trim()
+    const passInput = credentials.password.toString().trim()
+
+    if (passDoc === passInput) {
+      console.log("✅ Password correcte per:", data.name)
+
+      if (!data.userId) {
+        await doc.ref.set({ userId: doc.id }, { merge: true })
+      }
+
+      const roleNorm = normalizeRole(data.role)
+      const department = (data.department || '').toString().trim()
+
+      return {
+        id: data.userId || doc.id,
+        name: data.name || '',
+        role: roleNorm,
+        department,
+        departmentLower: normLower(department),
+      }
+    } else {
+      console.log("❌ Password incorrecte. Input:", passInput, "Doc:", passDoc)
+    }
+  }
+
+  return null
+}
+,
     }),
   ],
   session: { strategy: 'jwt' as const },

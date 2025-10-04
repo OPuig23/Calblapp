@@ -148,16 +148,16 @@ export default function EventsPage() {
         title="ESDEVENIMENTS"
         subtitle="Consulta i gestiona els esdeveniments"
       />
-
-      <FiltersBar
-        filters={filters}
-        setFilters={f => setFilters(prev => ({ ...prev, ...f }))}
-        visibleFilters={['ln', 'responsable']}
-        hiddenFilters={['location']}
-        lnOptions={availableLnOptions}
-        responsables={scopedResponsables}
-        locations={availableLocations}
-      />
+<FiltersBar
+  filters={filters}
+  setFilters={f => setFilters(prev => ({ ...prev, ...f }))}
+/* tot al diàleg, barra principal només dates */
+  visibleFilters={[]}
+  hiddenFilters={['ln', 'responsable', 'location']}
+  lnOptions={availableLnOptions}
+  responsables={scopedResponsables}
+  locations={availableLocations}
+/>
 
       {loading && <p className="text-gray-500">Carregant esdeveniments…</p>}
       {error && <p className="text-red-600">{String(error)}</p>}

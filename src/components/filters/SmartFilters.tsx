@@ -4,9 +4,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { CalendarRange, AlertTriangle } from 'lucide-react'
-
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Calendar } from '../ui/calendar' // 🔹 Ruta relativa (no '@/') segons la teva config actual
 import {
   startOfWeek,
   endOfWeek,
@@ -16,7 +16,7 @@ import {
   addWeeks,
   subWeeks,
   addDays,
-  subDays,
+  subDays
 } from 'date-fns'
 import { es } from 'date-fns/locale'
 import {
@@ -24,9 +24,10 @@ import {
   SelectTrigger,
   SelectContent,
   SelectItem,
-  SelectValue,
+  SelectValue
 } from '@/components/ui/select'
 
+/* ==================== Tipus ==================== */
 type Mode = 'week' | 'day' | 'range'
 type Role = 'Admin' | 'Direcció' | 'Cap Departament' | 'Treballador'
 type RoleType = 'treballador' | 'conductor' | 'responsable' | 'all'
@@ -45,7 +46,6 @@ export type SmartFiltersChange = {
 }
 
 export type WorkerOpt = { id: string; name: string; role?: string; roles?: string[] }
-export type WeekOpt = { label: string; start: string; end: string }
 
 export interface SmartFiltersProps {
   modeDefault?: Mode
@@ -63,6 +63,7 @@ export interface SmartFiltersProps {
   showStatus?: boolean
   showImportance?: boolean
   onChange: (f: SmartFiltersChange) => void
+  onLabelChange?: (label: string) => void
   statusOptions?: Array<'confirmed' | 'draft'>
   resetSignal?: number
   renderLabels?: {
@@ -74,6 +75,7 @@ export interface SmartFiltersProps {
   }
 }
 
+/* ==================== Utils ==================== */
 const toIso = (d: Date) => format(d, 'yyyy-MM-dd')
 const human = (d: Date) => format(d, 'd MMM yyyy', { locale: es })
 const humanSm = (d: Date) => format(d, 'd MMM', { locale: es })
@@ -85,14 +87,14 @@ const DEPT_LABELS: Record<string, string> = {
   logistica: 'Logística',
   serveis: 'Serveis',
   cuina: 'Cuina',
-  transports: 'Transports',
+  transports: 'Transports'
 }
 const labelDept = (v: string) =>
   DEPT_LABELS[v] || (v ? v[0].toUpperCase() + v.slice(1) : v)
 
+/* ==================== Component ==================== */
 export default function SmartFilters({
   modeDefault = 'week',
-  weekOptions = [],
   departmentOptions = [],
   workerOptions = [],
   locationOptions = [],
@@ -108,7 +110,7 @@ export default function SmartFilters({
   onChange,
   statusOptions = ['confirmed', 'draft'],
   resetSignal,
-  renderLabels = {},
+  renderLabels = {}
 }: SmartFiltersProps) {
   const isCap = role === 'Cap Departament'
   const isAdminOrDireccio =
@@ -119,7 +121,7 @@ export default function SmartFilters({
   const allowDepartment = showDepartment && isAdminOrDireccio
   const allowWorker = showWorker && (isCap || isAdminOrDireccio)
 
-  // 📌 State
+  /* ---------- State ---------- */
   const [mode, setMode] = useState<Mode>(modeDefault)
   const [anchor, setAnchor] = useState<Date>(new Date())
   const [dayStr, setDayStr] = useState<string>(toIso(new Date()))
@@ -134,23 +136,19 @@ export default function SmartFilters({
   const [importance, setImportance] = useState<string | undefined>(undefined)
   const [roleType, setRoleType] = useState<RoleType>('all')
 
+  /* ---------- Filtres derivats ---------- */
   const filteredWorkerOptions = useMemo(() => {
     if (!allowWorker) return []
     if (roleType === 'all') return workerOptions
-
-    const hasRoleInfo = workerOptions.some((w) => 'role' in w || 'roles' in w)
-    if (!hasRoleInfo) return workerOptions
-
     const matchesRole = (w: WorkerOpt) => {
       if (Array.isArray(w.roles)) return w.roles.some((r) => normStr(r) === normStr(roleType))
       if (w.role) return normStr(w.role) === normStr(roleType)
       return true
     }
-
     return workerOptions.filter(matchesRole)
   }, [workerOptions, roleType, allowWorker])
 
-  // 📅 Dates
+  /* ---------- Dates ---------- */
   const weekStart = useMemo(() => startOfWeek(anchor, { weekStartsOn: 1 }), [anchor])
   const weekEnd = useMemo(() => endOfWeek(anchor, { weekStartsOn: 1 }), [anchor])
   const weekLabel = useMemo(() => `${humanSm(weekStart)} – ${human(weekEnd)}`, [weekStart, weekEnd])
@@ -161,8 +159,8 @@ export default function SmartFilters({
       const d = parseISO(dayStr)
       return isValid(d) ? human(d) : 'Selecciona una data'
     }
-    const s = parseISO(rangeStartStr),
-      e = parseISO(rangeEndStr)
+    const s = parseISO(rangeStartStr)
+    const e = parseISO(rangeEndStr)
     if (isValid(s) && isValid(e)) {
       const [a, b] = s <= e ? [s, e] : [e, s]
       return `${human(a)} – ${human(b)}`
@@ -179,6 +177,7 @@ export default function SmartFilters({
     if (mode === 'day') setDayStr(toIso(addDays(parseISO(dayStr), 1)))
   }
 
+  /* ---------- Effect de sincronització ---------- */
   const lastPayloadRef = useRef<string>('')
 
   useEffect(() => {
@@ -213,14 +212,21 @@ export default function SmartFilters({
       workerName: allowWorker && workerName ? workerName : undefined,
       location: showLocation && location ? location : undefined,
       status: showStatus ? status : undefined,
-      importance: showImportance && importance !== 'all' ? (importance as 'Alta' | 'Mitjana' | 'Baixa') : undefined,
-      roleType: allowWorker && roleType !== 'all' ? (roleType as Exclude<RoleType, 'all'>) : undefined,
+      importance: showImportance && importance !== 'all'
+        ? (importance as 'Alta' | 'Mitjana' | 'Baixa')
+        : undefined,
+      roleType: allowWorker && roleType !== 'all'
+        ? (roleType as Exclude<RoleType, 'all'>)
+        : undefined
     }
 
     const key = JSON.stringify(payload)
     if (key !== lastPayloadRef.current) {
       lastPayloadRef.current = key
-      if (start && end) onChange(payload)
+      if (start && end) {
+        onChange(payload)
+        if (typeof onLabelChange === 'function') onLabelChange(headerLabel)
+      }
     }
   }, [
     mode,
@@ -241,7 +247,7 @@ export default function SmartFilters({
     showLocation,
     showStatus,
     showImportance,
-    onChange,
+    onChange
   ])
 
   useEffect(() => {
@@ -255,71 +261,77 @@ export default function SmartFilters({
     }
   }, [resetSignal])
 
+  /* ==================== RENDER ==================== */
   return (
-    <div className="flex flex-wrap md:flex-nowrap items-center gap-2 overflow-x-auto">
-      {/* 📅 Bloc Data */}
-      <div className="flex items-center gap-2">
-        <div className="flex items-center justify-between sm:justify-start gap-2">
-          <Button size="sm" variant="ghost" onClick={prev}>
-            ◀
-          </Button>
+    <div className="flex flex-col md:flex-row md:flex-wrap gap-2 w-full">
+      {/* 🔹 Barra superior scrollable (una sola línia a mòbil) */}
+      <div className="flex flex-wrap items-center justify-between w-full gap-2 py-2 px-2">
+
+        <div className="flex items-center gap-1 shrink-0">
+          <Button size="icon" variant="ghost" onClick={prev} className="h-9 w-9">◀</Button>
           <CalendarRange className="h-5 w-5 text-blue-600" aria-hidden />
-          <Button size="sm" variant="ghost" onClick={next}>
-            ▶
-          </Button>
+          <Button size="icon" variant="ghost" onClick={next} className="h-9 w-9">▶</Button>
         </div>
 
-        <AnimatePresence mode="wait" initial={false}>
-          {mode === 'range' ? (
-            <div className="flex flex-col sm:flex-row items-center gap-2 w-full">
-              <Input type="date" value={rangeStartStr} onChange={(e) => setRangeStartStr(e.target.value)} className="flex-1 rounded-xl border px-2 py-1 text-sm" />
-              <span className="hidden sm:inline text-gray-500">–</span>
-              <Input type="date" value={rangeEndStr} onChange={(e) => setRangeEndStr(e.target.value)} className="flex-1 rounded-xl border px-2 py-1 text-sm" />
-            </div>
-          ) : (
-            <motion.span
-              key={headerLabel}
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.18 }}
-              className="text-sm font-semibold"
-            >
-              {headerLabel}
-            </motion.span>
-          )}
-        </AnimatePresence>
+        {/* 📅 Calendari per Dia o Rang */}
+        {mode === 'day' ? (
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-9 text-sm whitespace-nowrap">
+                {headerLabel}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="p-2 w-auto">
+              <Calendar
+                mode="single"
+                selected={parseISO(dayStr)}
+                onSelect={(d) => d && setDayStr(toIso(d))}
+              />
+            </PopoverContent>
+          </Popover>
+        ) : mode === 'range' ? (
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-9 text-sm whitespace-nowrap">
+                {headerLabel}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="p-2 w-auto">
+              <Calendar
+                mode="range"
+                selected={{ from: parseISO(rangeStartStr), to: parseISO(rangeEndStr) }}
+                onSelect={(r) => {
+                  if (r?.from) setRangeStartStr(toIso(r.from))
+                  if (r?.to) setRangeEndStr(toIso(r.to))
+                }}
+              />
+            </PopoverContent>
+          </Popover>
+        ) : (
+          <span className="text-sm font-semibold whitespace-nowrap">{headerLabel}</span>
+        )}
+
+        {/* 🔘 Botons Setmana / Dia / Rang */}
+        <div className="inline-flex rounded-xl border bg-white p-1 shadow-sm shrink-0">
+          <Button size="sm" variant={mode === 'week' ? 'secondary' : 'ghost'} onClick={() => setMode('week')}>
+            Setmana
+          </Button>
+          <Button size="sm" variant={mode === 'day' ? 'secondary' : 'ghost'} onClick={() => setMode('day')}>
+            Dia
+          </Button>
+          <Button size="sm" variant={mode === 'range' ? 'secondary' : 'ghost'} onClick={() => setMode('range')}>
+            Rang
+          </Button>
+        </div>
       </div>
 
-      {/* 🔘 Botons mode */}
-      <div className="inline-flex rounded-xl border bg-white p-1 shadow-sm">
-        <Button size="sm" variant={mode === 'week' ? 'secondary' : 'ghost'} onClick={() => setMode('week')}>
-          Setmana
-        </Button>
-        <Button size="sm" variant={mode === 'day' ? 'secondary' : 'ghost'} onClick={() => setMode('day')}>
-          Dia
-        </Button>
-        <Button
-          size="sm"
-          variant={mode === 'range' ? 'secondary' : 'ghost'}
-          onClick={() => {
-            setMode('range')
-            setRangeStartStr('')
-            setRangeEndStr('')
-          }}
-        >
-          Rang
-        </Button>
-      </div>
-
-      {/* 🔽 Select Rol */}
-      {allowWorker && (
-        <div className="flex items-center gap-2">
+      {/* 🔽 Selects opcionals (es mostren només si cal) */}
+      <div className="flex flex-wrap gap-2">
+        {allowWorker && (
           <Select value={roleType} onValueChange={(v) => setRoleType(v as RoleType)}>
             <SelectTrigger className="w-[180px] border bg-white text-gray-900">
               <SelectValue placeholder="Rol">{renderLabels.roleType || 'Rol'}</SelectValue>
             </SelectTrigger>
-
             <SelectContent>
               <SelectItem value="all">🌐 Tots</SelectItem>
               <SelectItem value="treballador">Treballador</SelectItem>
@@ -327,12 +339,9 @@ export default function SmartFilters({
               <SelectItem value="responsable">Responsable</SelectItem>
             </SelectContent>
           </Select>
-        </div>
-      )}
+        )}
 
-      {/* 🔽 Select Estat */}
-      {showStatus && (
-        <div className="flex items-center gap-2">
+        {showStatus && (
           <Select value={status} onValueChange={(v) => setStatus(v as 'all' | 'confirmed' | 'draft')}>
             <SelectTrigger className="w-[150px]">
               <SelectValue placeholder="Estat" />
@@ -343,12 +352,9 @@ export default function SmartFilters({
               {statusOptions.includes('draft') && <SelectItem value="draft">📝 Borrador</SelectItem>}
             </SelectContent>
           </Select>
-        </div>
-      )}
+        )}
 
-      {/* 🔽 Select Departament */}
-      {allowDepartment && departmentOptions.length > 0 && (
-        <div className="flex items-center gap-2">
+        {allowDepartment && departmentOptions.length > 0 && (
           <Select value={dept || 'tots'} onValueChange={(v) => setDept(v === 'tots' ? '' : v)}>
             <SelectTrigger className="w-[180px] border bg-white text-gray-900">
               <SelectValue placeholder="Departament">{renderLabels.department || 'Departament'}</SelectValue>
@@ -362,12 +368,9 @@ export default function SmartFilters({
               ))}
             </SelectContent>
           </Select>
-        </div>
-      )}
+        )}
 
-      {/* 🔽 Select Worker */}
-      {allowWorker && filteredWorkerOptions.length > 0 && (
-        <div className="flex items-center gap-2">
+        {allowWorker && filteredWorkerOptions.length > 0 && (
           <Select
             value={workerId || workerName || '__all__'}
             onValueChange={(v) => {
@@ -397,12 +400,9 @@ export default function SmartFilters({
               ))}
             </SelectContent>
           </Select>
-        </div>
-      )}
+        )}
 
-      {/* 🔽 Select Location */}
-      {showLocation && locationOptions.length > 0 && (
-        <div className="flex items-center gap-2">
+        {showLocation && locationOptions.length > 0 && (
           <Select value={location || ''} onValueChange={(v) => setLocation(v)}>
             <SelectTrigger className="w-[180px] border bg-white text-gray-900">
               <SelectValue placeholder="Ubicació">{renderLabels.location || 'Ubicació'}</SelectValue>
@@ -415,12 +415,9 @@ export default function SmartFilters({
               ))}
             </SelectContent>
           </Select>
-        </div>
-      )}
+        )}
 
-      {/* 🔽 Select Importància */}
-      {showImportance && (
-        <div className="flex items-center gap-2">
+        {showImportance && (
           <Select value={importance} onValueChange={(v) => setImportance(v)}>
             <SelectTrigger className="w-[150px] border bg-white text-gray-900">
               <SelectValue
@@ -439,8 +436,8 @@ export default function SmartFilters({
               <SelectItem value="Baixa">🔵 Baixa</SelectItem>
             </SelectContent>
           </Select>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }

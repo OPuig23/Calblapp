@@ -3,7 +3,7 @@
 
 import React, { PropsWithChildren, useEffect } from 'react'
 import { Providers } from '@/app/providers'
-import { useSession } from 'next-auth/react'
+import { useSession, signOut } from 'next-auth/react'
 import { useRouter, usePathname } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -19,7 +19,6 @@ type SessionUser = {
   name?: string
   email?: string
 }
-
 
 const NAV_ITEMS: { label: string; path: string; roles: Role[]; department?: string }[] = [
   { label: 'Torns', path: '/menu/torns', roles: ['admin', 'direccio', 'cap', 'treballador'] },
@@ -52,28 +51,37 @@ const ROLE_BADGE_CLASS: Record<Role, string> = {
 }
 
 function InnerLayout({ children }: PropsWithChildren) {
+  const handleSignOut = async () => {
+  try {
+    await signOut({ redirect: false }) // sense redirect intern
+  } finally {
+    router.replace('/login')           // redirecció controlada
+  }
+}
+
   const { data: session, status } = useSession()
   const router = useRouter()
-  const path = usePathname()
+  const pathname = usePathname() ?? '' // <- evita l’error de null
 
   useEffect(() => {
-    if (status !== 'loading' && !session && !path.startsWith('/login')) {
+    if (status !== 'loading' && !session && !pathname.startsWith('/login')) {
       router.replace('/login')
     }
-  }, [status, session, path, router])
+  }, [status, session, pathname, router])
 
-  if (path.startsWith('/login')) {
+  // Layout especial per /login
+  if (pathname.startsWith('/login')) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
-        <Image src="/logo.png" alt="Cal Blay" width={200} height={200} className="object-contain" />
+      <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-gray-50">
+        <Image src="/logo.png" alt="Cal Blay" width={200} height={80} className="object-contain mb-2" />
         {children}
       </div>
     )
   }
 
   const username = session?.user?.name || session?.user?.email || 'Usuari'
-  const avatarLetter = username[0]?.toUpperCase() || 'U'
- const role = normalizeRole(((session?.user as SessionUser)?.role) || '')
+  const avatarLetter = (username[0] || 'U').toUpperCase()
+  const role = normalizeRole(((session?.user as SessionUser)?.role) || '')
   const roleLabel = ROLE_LABEL[role]
   const roleBadgeClass = ROLE_BADGE_CLASS[role]
   const userDept = ((session?.user as SessionUser)?.department) || ''
@@ -81,81 +89,126 @@ function InnerLayout({ children }: PropsWithChildren) {
   const navItemsByRole = NAV_ITEMS.filter((item) => {
     if (role === 'admin' || role === 'direccio') return true
     if (role === 'cap') {
-      if (item.department) {
-        return item.department.toLowerCase() === userDept.toLowerCase()
-      }
+      if (item.department) return item.department.toLowerCase() === userDept.toLowerCase()
       return true
     }
     return item.roles.includes(role)
   })
 
-  const isMenuHome = path === '/menu'
+  const isMenuHome = pathname === '/menu'
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50 text-gray-800">
+    <div className="flex flex-col min-h-[100dvh] bg-gray-50 text-gray-800">
       <header className="sticky top-0 z-50 bg-white/75 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b">
         <div className="pointer-events-none h-[1px] bg-gradient-to-r from-transparent via-blue-200/60 to-transparent" />
         <div className="pt-[env(safe-area-inset-top)]" />
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between py-2 px-4 md:px-8">
-          {/* Logo → /menu */}
-          <Link href="/menu" className="flex-shrink-0 flex items-center py-2 cursor-pointer">
-            <Image
-              src="/logo.png"
-              alt="Cal Blay"
-              width={130}
-              height={60}
-              className="object-contain transition-transform hover:scale-[1.02]"
-            />
-          </Link>
 
-          {/* NAV */}
-          <nav className="flex-1 flex justify-center w-full overflow-x-auto md:overflow-visible mt-2 md:mt-0">
-            {!isMenuHome && (
-              <ul className="flex flex-wrap gap-2 md:gap-3">
-                {navItemsByRole.map((item) => {
-                  const isActive = path.startsWith(item.path)
-                  return (
-                    <li key={item.path}>
-                      <Link
-                        href={item.path}
-                        aria-current={isActive ? 'page' : undefined}
-                        className={`relative inline-flex items-center gap-2 px-4 py-2 rounded-full font-medium transition
-                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2
-                          ${isActive ? 'bg-blue-100 text-blue-800 shadow-sm' : 'text-gray-800 hover:bg-gray-100/70'}`}
-                      >
-                        {isActive && (
-                          <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 h-1 w-8 rounded-full bg-blue-300/60" />
-                        )}
-                        {item.label}
-                      </Link>
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
-          </nav>
-
-          {/* Usuari */}
-          <div className="flex items-center gap-3 mt-2 md:mt-0">
-            <span className={`hidden sm:inline px-3 py-1 rounded-full text-sm ring-1 ${roleBadgeClass}`}>
-              {roleLabel}
-            </span>
-            <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold uppercase border border-blue-200">
+        {isMenuHome ? (
+          /* ===== Capçalera mínima només al /menu ===== */
+          <div className="h-14 relative flex items-center justify-between px-4">
+            {/* Inicial usuari (esquerra) */}
+            <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold uppercase border border-blue-200">
               {avatarLetter}
             </div>
+
+            {/* Logo centrat (link a /menu) */}
+            <Link
+              href="/menu"
+              aria-label="Cal Blay — Tornar al menú"
+              className="absolute left-1/2 -translate-x-1/2"
+            >
+              <Image
+                src="/logo.png"
+                alt="Cal Blay"
+                width={200}
+                height={96}
+                className="h-20 w-auto object-contain"
+                priority
+              />
+            </Link>
+
+            {/* Sortir discret (dreta) */}
             <button
-              onClick={() => router.push('/login')}
-              className="p-2 rounded hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
-              aria-label="Tancar Sessió"
+              onClick={handleSignOut}
+              aria-label="Tancar sessió"
               title="Tancar sessió"
+              className="p-1 rounded hover:bg-gray-100 active:scale-95"
             >
               <LogOut className="w-5 h-5 text-gray-600" />
             </button>
           </div>
+) : (
+  <div className="max-w-7xl mx-auto w-full px-4 md:px-8">
+    {/* -- MÒBIL: avatar esquerra, logo centrat, sortir dreta -- */}
+    <div className="md:hidden h-14 relative flex items-center justify-between">
+      <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold uppercase border border-blue-200">
+        {avatarLetter}
+      </div>
+
+      <Link
+        href="/menu"
+        aria-label="Cal Blay — Tornar al menú"
+        className="absolute left-1/2 -translate-x-1/2"
+      >
+        <Image src="/logo.png" alt="Cal Blay" width={200} height={96} className="h-20 w-auto object-contain" />
+      </Link>
+
+      <button
+        onClick={handleSignOut}
+        aria-label="Tancar sessió"
+        title="Tancar sessió"
+        className="p-1 rounded hover:bg-gray-100 active:scale-95"
+      >
+        <LogOut className="w-5 h-5 text-gray-600" />
+      </button>
+    </div>
+
+    {/* -- ESCRIPTORI: capçalera existent (sense canvis) -- */}
+    <div className="hidden md:flex items-center justify-between py-2">
+      {/* Logo → /menu */}
+      <Link href="/menu" className="flex-shrink-0 flex items-center py-2">
+        <Image src="/logo.png" alt="Cal Blay" width={130} height={60} className="object-contain" />
+      </Link>
+
+      {/* NAV (ja quedarà ocult en mòbil) */}
+      <nav className="flex-1 flex justify-center">
+        <ul className="hidden md:flex flex-wrap gap-2 md:gap-3">
+          {navItemsByRole.map((item) => {
+            const isActive = pathname.startsWith(item.path)
+            return (
+              <li key={item.path}>
+                <Link
+                  href={item.path}
+                  aria-current={isActive ? 'page' : undefined}
+                  className={`relative inline-flex items-center gap-2 px-4 py-2 rounded-full font-medium transition
+                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2
+                    ${isActive ? 'bg-blue-100 text-blue-800 shadow-sm' : 'text-gray-800 hover:bg-gray-100/70'}`}
+                >
+                  {item.label}
+                </Link>
+              </li>
+            )
+          })}
+        </ul>
+      </nav>
+
+      {/* Usuari + sortir */}
+      <div className="flex items-center gap-3">
+        <span className={`px-3 py-1 rounded-full text-sm ring-1 ${roleBadgeClass}`}>{roleLabel}</span>
+        <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold uppercase border border-blue-200">
+          {avatarLetter}
         </div>
+        <button onClick={handleSignOut} className="p-2 rounded hover:bg-gray-100" aria-label="Tancar sessió" title="Tancar sessió">
+          <LogOut className="w-5 h-5 text-gray-600" />
+        </button>
+      </div>
+    </div>
+  </div>
+)
+}
       </header>
 
-      <main className="flex-1 max-w-7xl mx-auto w-full p-4">{children}</main>
+      <main className="flex-1 max-w-7xl mx-auto w-full px-4 pb-6">{children}</main>
     </div>
   )
 }
