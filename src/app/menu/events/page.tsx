@@ -1,4 +1,4 @@
-// src/app/menu/events/page.tsx
+// filename: src/app/menu/events/page.tsx
 'use client'
 
 import { useSession } from 'next-auth/react'
@@ -66,7 +66,6 @@ export default function EventsPage() {
         .split(',')
         .map(r => normalize(r))
         .filter(Boolean)
-
       const selResp = normalize(filters.responsable)
       return evResps.includes(selResp)
     })
@@ -95,9 +94,7 @@ export default function EventsPage() {
 
   const scopedResponsables = useMemo(() => {
     if (!responsablesDetailed || responsablesDetailed.length === 0) return []
-
     let responsables: string[] = []
-
     if (role === 'admin' || role === 'direccio') {
       responsables = responsablesDetailed.map(r => r.name)
     } else {
@@ -105,7 +102,6 @@ export default function EventsPage() {
         .filter(r => userDept === 'total' || normalize(r.department) === userDept)
         .map(r => r.name)
     }
-
     return Array.from(new Set(responsables)).sort((a, b) => a.localeCompare(b, 'ca'))
   }, [role, userDept, responsablesDetailed])
 
@@ -142,44 +138,52 @@ export default function EventsPage() {
 
   /* ================= Render ================= */
   return (
-    <div className="p-4 space-y-6">
-      <ModuleHeader
-        icon="📅"
-        title="ESDEVENIMENTS"
-        subtitle="Consulta i gestiona els esdeveniments"
+    <div className="space-y-6">
+      {/* 🔹 Capçalera amb padding lateral */}
+      <div className="px-4">
+        <ModuleHeader
+          icon="📅"
+          title="ESDEVENIMENTS"
+          subtitle="Consulta i gestiona els esdeveniments"
+        />
+      </div>
+
+      {/* 🔹 Barra de filtres a pantalla completa (sense padding) */}
+      <FiltersBar
+        filters={filters}
+        setFilters={f => setFilters(prev => ({ ...prev, ...f }))}
+        visibleFilters={[]}
+        hiddenFilters={['ln', 'responsable', 'location']}
+        lnOptions={availableLnOptions}
+        responsables={scopedResponsables}
+        locations={availableLocations}
       />
-<FiltersBar
-  filters={filters}
-  setFilters={f => setFilters(prev => ({ ...prev, ...f }))}
-/* tot al diàleg, barra principal només dates */
-  visibleFilters={[]}
-  hiddenFilters={['ln', 'responsable', 'location']}
-  lnOptions={availableLnOptions}
-  responsables={scopedResponsables}
-  locations={availableLocations}
-/>
 
-      {loading && <p className="text-gray-500">Carregant esdeveniments…</p>}
-      {error && <p className="text-red-600">{String(error)}</p>}
-      {!loading && !error && filteredEvents.length === 0 && (
-        <p>No hi ha esdeveniments per mostrar.</p>
-      )}
+      {/* 🔹 Contingut principal amb padding lateral */}
+      <div className="px-4">
+        {loading && <p className="text-gray-500">Carregant esdeveniments…</p>}
+        {error && <p className="text-red-600">{String(error)}</p>}
+        {!loading && !error && filteredEvents.length === 0 && (
+          <p>No hi ha esdeveniments per mostrar.</p>
+        )}
 
-      {!loading && !error && filteredEvents.length > 0 && (
-        <div className="space-y-6">
-          {Object.entries(grouped)
-            .sort(([a], [b]) => a.localeCompare(b))
-            .map(([day, evs]) => (
-              <EventsDayGroup
-                key={day}
-                date={day}
-                events={evs}
-                onEventClick={openMenu}
-              />
-            ))}
-        </div>
-      )}
+        {!loading && !error && filteredEvents.length > 0 && (
+          <div className="space-y-6">
+            {Object.entries(grouped)
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([day, evs]) => (
+                <EventsDayGroup
+                  key={day}
+                  date={day}
+                  events={evs}
+                  onEventClick={openMenu}
+                />
+              ))}
+          </div>
+        )}
+      </div>
 
+      {/* 🔹 Modal de menú d’esdeveniment */}
       {isMenuOpen && selectedEvent && (
         <EventMenuModal
           event={{

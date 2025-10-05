@@ -1,4 +1,4 @@
-// filename: src/components/layout/FiltersBar.tsx
+// file: src/components/layout/FiltersBar.tsx
 'use client'
 
 import React, { useState, useCallback, memo } from 'react'
@@ -13,6 +13,9 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 
+/* ──────────────────────────────
+   Tipus i props
+────────────────────────────── */
 export type FiltersState = {
   start: string
   end: string
@@ -35,6 +38,9 @@ export type FiltersBarProps = {
   locations?: string[]
 }
 
+/* ──────────────────────────────
+   Component principal
+────────────────────────────── */
 export default function FiltersBar({
   filters,
   setFilters,
@@ -46,7 +52,9 @@ export default function FiltersBar({
   locations = [],
 }: FiltersBarProps) {
   const [resetSignal, setResetSignal] = useState(0)
+  const [isModalOpen, setIsModalOpen] = useState(false)
 
+  /* ─── Gestors ───────────────────── */
   const handleClearAll = useCallback(() => {
     setFilters({})
     setResetSignal((n) => n + 1)
@@ -60,6 +68,16 @@ export default function FiltersBar({
     [setFilters]
   )
 
+  const handleApplyFilters = () => {
+    setIsModalOpen(false)
+  }
+
+  const handleResetAndClose = () => {
+    handleClearAll()
+    setIsModalOpen(false)
+  }
+
+  /* ─── Selects inline ─────────────── */
   const SelectsInline = memo(() => {
     const base = 'h-10 rounded-xl border bg-white text-gray-900 px-3'
     return (
@@ -73,9 +91,7 @@ export default function FiltersBar({
           >
             <option value="__all__">LN: Totes</option>
             {lnOptions.map((o) => (
-              <option key={o} value={o}>
-                {o}
-              </option>
+              <option key={o} value={o}>{o}</option>
             ))}
           </select>
         )}
@@ -89,9 +105,7 @@ export default function FiltersBar({
           >
             <option value="__all__">Resp: Tots</option>
             {responsables.map((o) => (
-              <option key={o} value={o}>
-                {o}
-              </option>
+              <option key={o} value={o}>{o}</option>
             ))}
           </select>
         )}
@@ -105,9 +119,7 @@ export default function FiltersBar({
           >
             <option value="__all__">Ubicació: Totes</option>
             {locations.map((o) => (
-              <option key={o} value={o}>
-                {o}
-              </option>
+              <option key={o} value={o}>{o}</option>
             ))}
           </select>
         )}
@@ -115,13 +127,13 @@ export default function FiltersBar({
     )
   })
 
+  /* ─── Render principal ───────────── */
   return (
     <div className="sticky top-[56px] z-40 border-b border-gray-200 bg-white/90 backdrop-blur-sm">
-      {/* ✅ Barra de filtres: una sola línia, scroll horitzontal suau */}
       <div className="mx-auto flex w-full max-w-5xl items-center gap-2 overflow-x-auto whitespace-nowrap px-2 py-2 sm:flex-nowrap">
-        {/* 📅 Filtres de data (SmartFilters) */}
+        {/* 📅 Filtres de data */}
         <SmartFilters
-          modeDefault="week"          // setmana actual per defecte
+          modeDefault="week"
           role="Treballador"
           showDepartment={false}
           showWorker={false}
@@ -131,12 +143,12 @@ export default function FiltersBar({
           resetSignal={resetSignal}
         />
 
-        {/* Filtres visibles en línia (opcionals) */}
+        {/* Selects visibles */}
         <SelectsInline />
 
-        {/* ⚙️ Botó per obrir filtres avançats */}
+        {/* ⚙️ Botó filtres avançats */}
         {hiddenFilters.length > 0 && (
-          <Dialog>
+          <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
             <DialogTrigger asChild>
               <Button
                 size="icon"
@@ -148,15 +160,15 @@ export default function FiltersBar({
               </Button>
             </DialogTrigger>
 
-            {/* 📱 Modal optimitzat per a mòbil */}
-            <DialogContent className="fixed bottom-0 left-0 right-0 h-[85vh] w-full overflow-y-auto rounded-t-2xl border-t border-gray-200 bg-white p-5 shadow-xl sm:static sm:h-auto sm:max-w-lg sm:rounded-2xl">
+            {/* 📱 Modal centrat i responsive */}
+            <DialogContent className="max-w-lg w-[92vw] rounded-2xl">
               <DialogHeader>
-                <DialogTitle className="text-base font-semibold">
+                <DialogTitle className="text-base font-semibold text-gray-800 text-center">
                   Filtres avançats
                 </DialogTitle>
               </DialogHeader>
 
-              <div className="mt-3 flex flex-col gap-3">
+              <div className="mt-3 flex flex-col gap-3 pb-6 w-full">
                 {hiddenFilters.includes('ln') && (
                   <div className="flex flex-col gap-1">
                     <label className="text-sm text-gray-600">🌐 LN</label>
@@ -167,9 +179,7 @@ export default function FiltersBar({
                     >
                       <option value="__all__">Totes</option>
                       {lnOptions.map((o) => (
-                        <option key={o} value={o}>
-                          {o}
-                        </option>
+                        <option key={o} value={o}>{o}</option>
                       ))}
                     </select>
                   </div>
@@ -185,9 +195,7 @@ export default function FiltersBar({
                     >
                       <option value="__all__">Tots</option>
                       {responsables.map((o) => (
-                        <option key={o} value={o}>
-                          {o}
-                        </option>
+                        <option key={o} value={o}>{o}</option>
                       ))}
                     </select>
                   </div>
@@ -203,22 +211,30 @@ export default function FiltersBar({
                     >
                       <option value="__all__">Totes</option>
                       {locations.map((o) => (
-                        <option key={o} value={o}>
-                          {o}
-                        </option>
+                        <option key={o} value={o}>{o}</option>
                       ))}
                     </select>
                   </div>
                 )}
 
-                {/* 🔄 Botó de reinici dins del modal (LAND-007-F.2) */}
-                <Button
-                  variant="outline"
-                  className="mt-4 w-full text-gray-700 border-gray-300"
-                  onClick={handleClearAll}
-                >
-                  ↻ Reiniciar filtres
-                </Button>
+                {/* ─── Botons d'acció ───────────────────── */}
+                <div className="flex gap-2 mt-4">
+                  <Button
+                    variant="outline"
+                    className="flex-1 text-gray-700 border-gray-300"
+                    onClick={handleResetAndClose}
+                  >
+                    ↻ Reiniciar filtres
+                  </Button>
+
+                  <Button
+                    variant="default"
+                    className="flex-1 bg-blue-600 text-white hover:bg-blue-700"
+                    onClick={handleApplyFilters}
+                  >
+                    ✅ Aplica filtres
+                  </Button>
+                </div>
               </div>
             </DialogContent>
           </Dialog>

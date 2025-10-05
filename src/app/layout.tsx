@@ -208,27 +208,30 @@ function InnerLayout({ children }: PropsWithChildren) {
 }
       </header>
 
-      <main className="flex-1 max-w-7xl mx-auto w-full px-4 pb-6">{children}</main>
-    </div>
+      <main className="flex-1 w-full px-2 sm:px-4 pb-6 sm:max-w-7xl sm:mx-auto">{children}</main>
+
+   </div>
   )
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ca">
-      <head>
-        <title>Cal Blay</title>
-        <meta name="description" content="WebApp Cal Blay" />
-      </head>
-      <body suppressHydrationWarning={true}>
-        <Providers>
-          <TooltipProvider delayDuration={200}>
-            <NotificationsProvider>
-              <InnerLayout>{children}</InnerLayout>
-            </NotificationsProvider>
-          </TooltipProvider>
-        </Providers>
-      </body>
-    </html>
+  <head>
+    <title>Cal Blay</title>
+    <meta name="description" content="WebApp Cal Blay" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  </head>
+  <body suppressHydrationWarning={true}>
+    <Providers>
+      <TooltipProvider delayDuration={200}>
+        <NotificationsProvider>
+          <InnerLayout>{children}</InnerLayout>
+        </NotificationsProvider>
+      </TooltipProvider>
+    </Providers>
+  </body>
+</html>
+
   )
 }
