@@ -68,14 +68,42 @@ export default function FiltersBar({
     [setFilters]
   )
 
-  const handleApplyFilters = () => {
-    setIsModalOpen(false)
-  }
+// ✅ Aplica filtres seleccionats i tanca modal
+const handleApplyFilters = () => {
+  setFilters({
+    ln: filters.ln ?? '__all__',
+    responsable: filters.responsable ?? '__all__',
+    location: filters.location ?? '__all__',
+  })
+  setIsModalOpen(false)
+}
 
-  const handleResetAndClose = () => {
-    handleClearAll()
-    setIsModalOpen(false)
-  }
+  // ✅ Reinicia filtres, torna a setmana actual i tanca modal
+const handleResetAndClose = () => {
+  const today = new Date()
+  const first = new Date(today)
+  first.setDate(today.getDate() - today.getDay() + 1) // dilluns
+  const last = new Date(first)
+  last.setDate(first.getDate() + 6) // diumenge
+
+  const isoStart = first.toISOString().slice(0, 10)
+  const isoEnd = last.toISOString().slice(0, 10)
+
+  setFilters({
+    start: isoStart,
+    end: isoEnd,
+    mode: 'week',
+    ln: '',
+    responsable: '',
+    location: '',
+  })
+
+  setResetSignal((n) => n + 1)
+  onReset?.()
+
+  setTimeout(() => setIsModalOpen(false), 150)
+}
+
 
   /* ─── Selects inline ─────────────── */
   const SelectsInline = memo(() => {
@@ -161,7 +189,7 @@ export default function FiltersBar({
             </DialogTrigger>
 
             {/* 📱 Modal centrat i responsive */}
-            <DialogContent className="max-w-lg w-[92vw] rounded-2xl">
+            <DialogContent key={resetSignal} className="max-w-lg w-[92vw] rounded-2xl">
               <DialogHeader>
                 <DialogTitle className="text-base font-semibold text-gray-800 text-center">
                   Filtres avançats
@@ -173,15 +201,18 @@ export default function FiltersBar({
                   <div className="flex flex-col gap-1">
                     <label className="text-sm text-gray-600">🌐 LN</label>
                     <select
-                      className="h-10 rounded-xl border bg-white px-3"
-                      value={filters.ln ?? '__all__'}
-                      onChange={(e) => setFilters({ ln: e.target.value })}
-                    >
-                      <option value="__all__">Totes</option>
-                      {lnOptions.map((o) => (
-                        <option key={o} value={o}>{o}</option>
-                      ))}
-                    </select>
+  className="h-10 rounded-xl border bg-white px-3"
+  value={filters.ln ?? '__all__'}
+  onChange={(e) => setFilters({ ln: e.target.value })}
+>
+  <option value="__all__">Totes</option>
+  {lnOptions.map((o) => (
+    <option key={o} value={o}>
+      {o}
+    </option>
+  ))}
+</select>
+
                   </div>
                 )}
 
