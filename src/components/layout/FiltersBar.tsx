@@ -158,7 +158,7 @@ const handleResetAndClose = () => {
   /* ─── Render principal ───────────── */
   return (
     <div className="sticky top-[56px] z-40 border-b border-gray-200 bg-white/90 backdrop-blur-sm">
-      <div className="mx-auto flex w-full max-w-5xl items-center gap-2 overflow-x-auto whitespace-nowrap px-2 py-2 sm:flex-nowrap">
+      <div className="mx-auto flex w-full max-w-5xl items-center gap-2 overflow-x-auto whitespace-nowrap px-2 py-[3px] sm:flex-nowrap">
         {/* 📅 Filtres de data */}
         <SmartFilters
           modeDefault="week"

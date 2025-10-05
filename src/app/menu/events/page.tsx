@@ -140,7 +140,7 @@ export default function EventsPage() {
   return (
     <div className="space-y-6">
       {/* 🔹 Capçalera amb padding lateral */}
-      <div className="px-4">
+      <div className="px-4 mb-2">
         <ModuleHeader
           icon="📅"
           title="ESDEVENIMENTS"

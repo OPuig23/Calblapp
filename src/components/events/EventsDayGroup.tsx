@@ -4,6 +4,9 @@
 import React from 'react'
 import EventCard from './EventCard'
 import { Users, Calendar } from 'lucide-react'
+import { format, parseISO } from 'date-fns'
+import { ca } from 'date-fns/locale'
+
 
 export interface EventData {
   id: string
@@ -39,13 +42,14 @@ export default function EventsDayGroup({ date, events, onEventClick }: Props) {
     <section className="mb-6">
       {/* Capçalera de dia */}
       <header className="flex items-center justify-between mb-3 bg-blue-50 p-3 rounded-xl shadow-sm">
-        <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-          {date}
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
-            <Calendar className="w-3 h-3" />
-            {totalEvents} esdeveniments
-          </span>
-        </h2>
+  <h2 className="text-base font-semibold text-gray-800 flex items-center gap-2">
+    {format(parseISO(date), 'dd/MM/yyyy', { locale: ca })}
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-sm font-medium bg-purple-100 text-purple-700">
+      <Calendar className="w-3 h-3" />
+      {totalEvents} esdeveniments
+    </span>
+  </h2>
+
         <span className="flex items-center gap-1 text-pink-600 font-bold">
           <Users className="w-4 h-4" />
           {totalPax} pax
@@ -68,14 +72,7 @@ export default function EventsDayGroup({ date, events, onEventClick }: Props) {
             role="button"
             tabIndex={0}
           >
-            {/* Badge LN */}
-            {event.lnLabel && (
-              <span
-                className={`absolute right-20 top-5 z-10 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${lnClasses[event.lnKey || 'altres']}`}
-              >
-                {event.lnLabel}
-              </span>
-            )}
+            
 
             <EventCard event={event} />
           </div>
