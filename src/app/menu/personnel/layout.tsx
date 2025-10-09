@@ -16,7 +16,8 @@ export default function PersonnelLayout({ children }: { children: React.ReactNod
       />
 
       {/* 🔹 Contingut de les subpàgines */}
-      <main className="p-6 max-w-6xl mx-auto">{children}</main>
+     <main className="w-full px-2 sm:px-4 md:px-6">{children}</main>
+
     </div> 
   )
 }

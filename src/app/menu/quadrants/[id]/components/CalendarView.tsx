@@ -2,133 +2,92 @@
 'use client'
 
 import React from 'react'
-import { parseISO, isValid, format, startOfWeek } from 'date-fns'
+import { Users, Calendar } from 'lucide-react'
+import { format, parseISO } from 'date-fns'
 import { ca } from 'date-fns/locale'
-import { QuadrantEvent } from '@/app/menu/quadrants/[id]/hooks/useQuadrants'
 import EventTile from './EventTile'
+import type { QuadrantEvent } from '@/types/QuadrantEvent'
 
 interface CalendarViewProps {
+  date: string
   events: QuadrantEvent[]
-  onEventClick: (e: QuadrantEvent) => void
-  range: { start: string; end: string }
-}
-
-interface QuadrantEventFull extends QuadrantEvent {
-  responsable?: string
-  conductors?: string[]
-  treballadors?: string[]
+  onEventClick?: (ev: QuadrantEvent) => void
 }
 
 export default function CalendarView({
+  date,
   events,
   onEventClick,
-  range,
 }: CalendarViewProps) {
-  const dayKeys = ['Dl', 'Dt', 'Dc', 'Dj', 'Dv', 'Ds', 'Dg']
+  // ✅ Càlcul total de persones úniques per tot el dia
+  const totalWorkers = React.useMemo(() => {
+    const people = new Set<string>()
 
-  // 1) Determine the Monday to start from, fallback to this week
-  let monday: Date
-  const parsed = parseISO(range.start)
-  if (isValid(parsed)) {
-    monday = parsed
-  } else {
-    monday = startOfWeek(new Date(), { weekStartsOn: 1 }) // Dilluns d’aquesta setmana
-  }
+    for (const e of events) {
+      // Responsable
+      if (e.responsable) people.add(e.responsable)
 
-  // 2) Build the dates of the week
-  const weekDates = dayKeys.map((_, i) => {
-    const d = new Date(monday)
-    d.setDate(monday.getDate() + i)
-    return d
-  })
+      // Conductors
+      if (Array.isArray(e.conductors)) {
+        e.conductors.forEach((c: any) => {
+          if (typeof c === 'string') people.add(c)
+          else if (c?.name) people.add(c.name)
+        })
+      }
 
-  // 3) Initialize empty groups
-  const eventsByDay: Record<string, QuadrantEvent[]> = {}
-  dayKeys.forEach((k) => (eventsByDay[k] = []))
+      // Treballadors
+      if (Array.isArray(e.treballadors)) {
+        e.treballadors.forEach((t: any) => {
+          if (typeof t === 'string') people.add(t)
+          else if (t?.name) people.add(t.name)
+        })
+      }
+    }
 
-  // 4) Group events into days
-  events.forEach((ev) => {
-    const isoString =
-      typeof ev.start === 'string' ? ev.start : ev.start?.dateTime || ev.start?.date
-    if (!isoString) return
-    const dateObj = new Date(isoString)
-    if (isNaN(dateObj.getTime())) return
-    const idx = (dateObj.getDay() + 6) % 7
-    const key = dayKeys[idx]
-    if (!eventsByDay[key]) return
-    eventsByDay[key].push(ev)
-  })
+    return people.size
+  }, [events])
 
-  // 5) Sort each day by start time
-  dayKeys.forEach((k) => {
-    eventsByDay[k].sort((a, b) => {
-      const aTime = new Date(
-        typeof a.start === 'string' ? a.start : a.start.dateTime || a.start.date!
-      ).getTime()
-      const bTime = new Date(
-        typeof b.start === 'string' ? b.start : b.start.dateTime || b.start.date!
-      ).getTime()
-      return aTime - bTime
-    })
-  })
-
-  const todayIndex = (new Date().getDay() + 6) % 7
-
-  console.log('[CalendarView sample]', events?.[0])
+  // 🔹 Nombre total de quadrants del dia
+  const totalEvents = events.length
 
   return (
-    <div className="mt-8">
-      {/* Header with days and counts */}
-      <div className="grid grid-cols-7 bg-white rounded-t-lg border border-gray-200 shadow-inner">
-        {dayKeys.map((key, idx) => {
-          const date = weekDates[idx]
-          const count = eventsByDay[key].length
-          return (
-            <div
-              key={key}
-              className={`flex flex-col items-center py-3 ${
-                idx === todayIndex ? 'bg-blue-50' : ''
-              }`}
-            >
-              <span className="text-sm font-semibold text-gray-700 uppercase">
-                {key}
-              </span>
-              <span className="text-xs text-gray-500">
-                {format(date, 'dd/MM', { locale: ca })}
-              </span>
-              <span className="text-[10px] text-gray-400 mt-1">{count}</span>
-            </div>
-          )
-        })}
-      </div>
+    <section className="mb-6">
+      {/* 🟦 Capçalera del dia */}
+      <header className="flex items-center justify-between mb-3 bg-indigo-50 p-3 rounded-xl shadow-sm">
+        <h2 className="text-base font-semibold text-gray-800 flex items-center gap-2">
+          {format(parseISO(date), 'dd/MM/yyyy', { locale: ca })}
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-sm font-medium bg-indigo-100 text-indigo-700">
+            <Calendar className="w-3 h-3" />
+            {totalEvents} quadrant{totalEvents !== 1 && 's'}
+          </span>
+        </h2>
 
-      {/* Grid of events */}
-      <div className="grid grid-cols-7 border-l border-r border-b border-gray-200">
-        {dayKeys.map((key, idx) => (
+        <span className="flex items-center gap-1 text-pink-600 font-bold">
+          <Users className="w-4 h-4" />
+          {totalWorkers} {totalWorkers === 1 ? 'persona' : 'persones'}
+        </span>
+      </header>
+
+      {/* 🔸 Targetes de quadrant */}
+      <div className="flex flex-col gap-3 bg-white">
+        {events.map((ev) => (
           <div
-            key={key}
-            className={`p-2 space-y-2 ${idx % 2 === 0 ? 'bg-gray-50' : 'bg-white'}`}
+            key={ev.id}
+            className="relative"
+            onClick={() => onEventClick?.(ev)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                onEventClick?.(ev)
+              }
+            }}
+            role="button"
+            tabIndex={0}
           >
-            {eventsByDay[key].length > 0 ? (
-              eventsByDay[key].map((ev) => {
-                const evFull = ev as QuadrantEventFull
-                console.log('[CalendarView → EventTile]', {
-                  id: evFull.id,
-                  code: evFull.eventCode,
-                  responsable: evFull.responsable,
-                  conductors: evFull.conductors,
-                  treballadors: evFull.treballadors,
-                })
-                return <EventTile key={ev.id} event={ev} onClick={onEventClick} />
-              })
-            ) : (
-              <div className="text-center text-xs text-gray-300 py-4">
-                — Cap esdeveniment —
-              </div>
-            )}
+            <EventTile event={ev} onClick={() => onEventClick?.(ev)} />
           </div>
         ))}
       </div>
-    </div>
+    </section>
   )
 }

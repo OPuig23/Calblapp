@@ -242,7 +242,11 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent
+  className="max-w-md w-[95vw] sm:w-full max-h-[85vh] overflow-y-auto rounded-2xl p-4"
+  onClick={(e) => e.stopPropagation()}
+>
+
         <DialogHeader>
           <DialogTitle className="text-lg font-bold">{eventName}</DialogTitle>
           <DialogDescription>

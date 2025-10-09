@@ -4,11 +4,12 @@
 import { useMemo, useState } from 'react'
 import useSWR from 'swr'
 import { useSession } from 'next-auth/react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { format } from 'date-fns'
 import ModuleHeader from '@/components/layout/ModuleHeader'
-import DraftsFilters from './components/DraftsFilters'
+import FiltersBar from '@/components/layout/FiltersBar'
 import QuadrantsDayGroup from './components/QuadrantsDayGroup'
 import { ArrowLeft } from 'lucide-react'
-import { useRouter } from 'next/navigation'
 
 export interface Draft {
   id: string
@@ -33,7 +34,9 @@ export interface Draft {
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s)
 
-// --- helpers
+/* ──────────────────────────────
+   Helpers
+────────────────────────────── */
 const normalizeName = (v: unknown): string => {
   if (typeof v === 'string') return v
   if (v && typeof v === 'object') {
@@ -76,23 +79,37 @@ const locationTag = (v: unknown): string => {
   return raw.slice(0, end).trim()
 }
 
+/* ──────────────────────────────
+   Component principal
+────────────────────────────── */
 export default function DraftsPage() {
   const router = useRouter()
   const { data: session } = useSession()
+  const searchParams = useSearchParams()
+
+  // 🔹 Llegeix els paràmetres de la URL i inicialitza el rang de dates
+  const params = new URLSearchParams(searchParams.toString())
+  const startParam = params.get('start')
+  const endParam = params.get('end')
+
+  const [dateRange, setDateRange] = useState<[string, string]>(() => {
+    if (startParam && endParam) return [startParam, endParam]
+    const today = format(new Date(), 'yyyy-MM-dd')
+    return [today, today]
+  })
 
   const norm = (s: unknown) =>
     (s ?? '')
       .toString()
       .toLowerCase()
       .normalize('NFD')
-      .replace(/\p{Diacritic}/gu, '')
+      .replace(/[\u0300-\u036f]/g, '')
       .trim()
 
   const role = norm(session?.user?.role)
   const userDept = norm(session?.user?.department)
   const canSelectDepartment = ['admin', 'direccio', 'direccion'].includes(role)
 
-  const [dateRange, setDateRange] = useState<[string, string] | null>(null)
   const [department, setDepartment] = useState<string>(
     canSelectDepartment ? '' : userDept || ''
   )
@@ -100,8 +117,10 @@ export default function DraftsPage() {
   const [location, setLocation] = useState<string>('')
   const [status, setStatus] = useState<'all' | 'draft' | 'confirmed'>('all')
 
+  /* ──────────────────────────────
+     API i dades
+  ─────────────────────────────── */
   const apiUrl = useMemo(() => {
-    if (!dateRange) return null
     const params = new URLSearchParams({
       start: dateRange[0],
       end: dateRange[1],
@@ -112,9 +131,12 @@ export default function DraftsPage() {
     return `/api/quadrants/list?${params.toString()}`
   }, [dateRange, department, status])
 
-  const { data, isLoading, error } = useSWR(apiUrl || null, fetcher)
+  const { data, isLoading, error } = useSWR(apiUrl, fetcher)
   const drafts: Draft[] = useMemo(() => data?.drafts || [], [data])
 
+  /* ──────────────────────────────
+     Agrupacions i opcions
+  ─────────────────────────────── */
   const statusOptions = useMemo(() => {
     const s = new Set<'draft' | 'confirmed'>()
     drafts.forEach((d) => {
@@ -142,9 +164,9 @@ export default function DraftsPage() {
           if (n) names.push(n)
         })
     }
-    return Array.from(new Set(names.map((n) => n.toLowerCase())))
-      .map((n) => names.find((orig) => orig.toLowerCase() === n)!)
-      .sort((a, b) => a.localeCompare(b, 'ca', { sensitivity: 'base' }))
+    return Array.from(new Set(names.map((n) => n.toLowerCase()))).map(
+      (n) => names.find((orig) => orig.toLowerCase() === n)!
+    )
   }, [drafts])
 
   const locationOptions = useMemo(() => {
@@ -153,56 +175,14 @@ export default function DraftsPage() {
       const t = locationTag(d.location)
       if (t) tags.push(t)
     })
-    return Array.from(new Set(tags.map((t) => t.toLowerCase())))
-      .map((n) => tags.find((orig) => orig.toLowerCase() === n)!)
-      .sort((a, b) => a.localeCompare(b, 'ca', { sensitivity: 'base' }))
+    return Array.from(new Set(tags.map((t) => t.toLowerCase()))).map(
+      (n) => tags.find((orig) => orig.toLowerCase() === n)!
+    )
   }, [drafts])
 
-  const draftHasPerson = (d: Draft, p: string) => {
-    const qLC = p.trim().toLowerCase()
-    if (!qLC) return true
-    if (sameName(d.responsableName, qLC)) return true
-    if (Array.isArray(d.conductors) && d.conductors.some((x) => sameName(x, qLC))) return true
-    if (Array.isArray(d.treballadors) && d.treballadors.some((x) => sameName(x, qLC))) return true
-    return false
-  }
-
-  const draftHasLocation = (d: Draft, tag: string) => {
-    const q = tag.trim().toLowerCase()
-    if (!q) return true
-    const t = locationTag(d.location).toLowerCase()
-    return t === q
-  }
-
-  // ✅ agrupació per data
-  const groupedByDate: { date: string; items: Draft[] }[] = useMemo(() => {
-    const uniq = Array.from(
-      new Map(
-        drafts.map((d) => [`${(d.department || '').toLowerCase()}::${d.id}`, d])
-      ).values()
-    )
-    const filtered = uniq
-      .filter((d) => status === 'all' || (d.status || 'draft') === status)
-      .filter((d) => draftHasPerson(d, person) && draftHasLocation(d, location))
-
-    const map = new Map<string, Draft[]>()
-    filtered.forEach((d) => {
-      const key = d.startDate || ''
-      if (!map.has(key)) map.set(key, [])
-      map.get(key)!.push(d)
-    })
-    return Array.from(map.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, items]) => ({
-        date,
-        items: items.sort((a, b) =>
-          `${a.startDate || ''}T${a.startTime || ''}`.localeCompare(
-            `${b.startDate || ''}T${b.startTime || ''}`
-          )
-        ),
-      }))
-  }, [drafts, status, person, location])
-
+  /* ──────────────────────────────
+     Filtres i canvis
+  ─────────────────────────────── */
   const onFilter = (f: {
     dateRange?: [string, string]
     department?: string | null
@@ -226,6 +206,9 @@ export default function DraftsPage() {
     ? cap(userDept)
     : 'Tots'
 
+  /* ──────────────────────────────
+     Render
+  ─────────────────────────────── */
   return (
     <div className="p-4 space-y-6">
       <div className="flex items-center gap-3">
@@ -243,26 +226,33 @@ export default function DraftsPage() {
         subtitle={`Consulta i gestiona els quadrants – ${headerDept}`}
       />
 
-      <DraftsFilters
-        onFilter={onFilter}
-        canSelectDepartment={canSelectDepartment}
-        userDepartment={canSelectDepartment ? null : userDept}
-        personnelOptions={personnelOptions}
-        locationOptions={locationOptions}
-        status={status}
-        statusOptions={statusOptions}
-      />
+      {/* 🔹 Mostra el filtre només quan hi ha rang definit */}
+      {dateRange && (
+        <FiltersBar
+          filters={{
+            start: dateRange[0],
+            end: dateRange[1],
+          }}
+          setFilters={(f) => {
+            if (f.start && f.end) setDateRange([f.start, f.end])
+          }}
+        />
+      )}
 
       {isLoading && <p className="text-gray-500">Carregant quadrants…</p>}
       {error && <p className="text-red-600">{String(error)}</p>}
-      {!isLoading && !error && groupedByDate.length === 0 && (
+      {!isLoading && !error && drafts.length === 0 && (
         <p>No hi ha quadrants per mostrar.</p>
       )}
 
-      {!isLoading && !error && groupedByDate.length > 0 && (
+      {!isLoading && !error && drafts.length > 0 && (
         <div className="space-y-6">
-          {groupedByDate.map(({ date, items }) => (
-            <QuadrantsDayGroup key={date} date={date} quadrants={items} />
+          {drafts.map((d) => (
+            <QuadrantsDayGroup
+              key={d.startDate}
+              date={d.startDate}
+              quadrants={[d]}
+            />
           ))}
         </div>
       )}

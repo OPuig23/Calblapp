@@ -2,6 +2,7 @@
 'use client'
 
 import React, { useState, useCallback, memo } from 'react'
+import { useRouter, usePathname } from 'next/navigation'
 import SmartFilters, { SmartFiltersChange } from '@/components/filters/SmartFilters'
 import { SlidersHorizontal } from 'lucide-react'
 import {
@@ -12,6 +13,10 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { ClipboardList } from 'lucide-react'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+
+
 
 /* ──────────────────────────────
    Tipus i props
@@ -51,6 +56,10 @@ export default function FiltersBar({
   responsables = [],
   locations = [],
 }: FiltersBarProps) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const isQuadrants = pathname?.startsWith('/menu/quadrants') // 🔹 Detecta si és el mòdul Quadrants
+
   const [resetSignal, setResetSignal] = useState(0)
   const [isModalOpen, setIsModalOpen] = useState(false)
 
@@ -68,42 +77,38 @@ export default function FiltersBar({
     [setFilters]
   )
 
-// ✅ Aplica filtres seleccionats i tanca modal
-const handleApplyFilters = () => {
-  setFilters({
-    ln: filters.ln ?? '__all__',
-    responsable: filters.responsable ?? '__all__',
-    location: filters.location ?? '__all__',
-  })
-  setIsModalOpen(false)
-}
+  const handleApplyFilters = () => {
+    setFilters({
+      ln: filters.ln ?? '__all__',
+      responsable: filters.responsable ?? '__all__',
+      location: filters.location ?? '__all__',
+    })
+    setIsModalOpen(false)
+  }
 
-  // ✅ Reinicia filtres, torna a setmana actual i tanca modal
-const handleResetAndClose = () => {
-  const today = new Date()
-  const first = new Date(today)
-  first.setDate(today.getDate() - today.getDay() + 1) // dilluns
-  const last = new Date(first)
-  last.setDate(first.getDate() + 6) // diumenge
+  const handleResetAndClose = () => {
+    const today = new Date()
+    const first = new Date(today)
+    first.setDate(today.getDate() - today.getDay() + 1) // dilluns
+    const last = new Date(first)
+    last.setDate(first.getDate() + 6) // diumenge
 
-  const isoStart = first.toISOString().slice(0, 10)
-  const isoEnd = last.toISOString().slice(0, 10)
+    const isoStart = first.toISOString().slice(0, 10)
+    const isoEnd = last.toISOString().slice(0, 10)
 
-  setFilters({
-    start: isoStart,
-    end: isoEnd,
-    mode: 'week',
-    ln: '',
-    responsable: '',
-    location: '',
-  })
+    setFilters({
+      start: isoStart,
+      end: isoEnd,
+      mode: 'week',
+      ln: '',
+      responsable: '',
+      location: '',
+    })
 
-  setResetSignal((n) => n + 1)
-  onReset?.()
-
-  setTimeout(() => setIsModalOpen(false), 150)
-}
-
+    setResetSignal((n) => n + 1)
+    onReset?.()
+    setTimeout(() => setIsModalOpen(false), 150)
+  }
 
   /* ─── Selects inline ─────────────── */
   const SelectsInline = memo(() => {
@@ -158,7 +163,7 @@ const handleResetAndClose = () => {
   /* ─── Render principal ───────────── */
   return (
     <div className="sticky top-[56px] z-40 border-b border-gray-200 bg-white/90 backdrop-blur-sm">
-      <div className="mx-auto flex w-full max-w-5xl items-center gap-2 overflow-x-auto whitespace-nowrap px-2 py-[3px] sm:flex-nowrap">
+      <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-2 overflow-x-auto whitespace-nowrap px-2 py-[3px] sm:flex-nowrap">
         {/* 📅 Filtres de data */}
         <SmartFilters
           modeDefault="week"
@@ -174,101 +179,126 @@ const handleResetAndClose = () => {
         {/* Selects visibles */}
         <SelectsInline />
 
-        {/* ⚙️ Botó filtres avançats */}
-        {hiddenFilters.length > 0 && (
-          <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-            <DialogTrigger asChild>
-              <Button
-                size="icon"
-                variant="outline"
-                className="h-10 w-10 shrink-0 rounded-xl border-gray-300 hover:bg-gray-100"
-                title="Filtres avançats"
-              >
-                <SlidersHorizontal className="h-5 w-5 text-gray-700" />
-              </Button>
-            </DialogTrigger>
+        {/* 🔘 Diferència entre mòduls */}
+        {isQuadrants ? (
+  <TooltipProvider>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          size="icon"
+          variant="default"
+          className="h-10 w-10 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-sm flex items-center justify-center"
+          onClick={() => {
+            const start = filters.start
+            const end = filters.end
+            if (start && end) {
+              const url = `/menu/quadrants/drafts?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`
+              router.push(url)
+            } else {
+              router.push('/menu/quadrants/drafts')
+            }
+          }}
+        >
+          <ClipboardList className="h-5 w-5" />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent side="bottom" className="text-sm">
+        Veure quadrants
+      </TooltipContent>
+    </Tooltip>
+  </TooltipProvider>
+        ) : (
+          // ⚙️ Altres mòduls → Filtres avançats (sense canvis)
+          hiddenFilters.length > 0 && (
+            <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  size="icon"
+                  variant="outline"
+                  className="h-10 w-10 shrink-0 rounded-xl border-gray-300 hover:bg-gray-100"
+                  title="Filtres avançats"
+                >
+                  <SlidersHorizontal className="h-5 w-5 text-gray-700" />
+                </Button>
+              </DialogTrigger>
 
-            {/* 📱 Modal centrat i responsive */}
-            <DialogContent key={resetSignal} className="max-w-lg w-[92vw] rounded-2xl">
-              <DialogHeader>
-                <DialogTitle className="text-base font-semibold text-gray-800 text-center">
-                  Filtres avançats
-                </DialogTitle>
-              </DialogHeader>
+              {/* 📱 Modal centrat i responsive */}
+              <DialogContent key={resetSignal} className="max-w-lg w-[92vw] rounded-2xl">
+                <DialogHeader>
+                  <DialogTitle className="text-base font-semibold text-gray-800 text-center">
+                    Filtres avançats
+                  </DialogTitle>
+                </DialogHeader>
 
-              <div className="mt-3 flex flex-col gap-3 pb-6 w-full">
-                {hiddenFilters.includes('ln') && (
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm text-gray-600">🌐 LN</label>
-                    <select
-  className="h-10 rounded-xl border bg-white px-3"
-  value={filters.ln ?? '__all__'}
-  onChange={(e) => setFilters({ ln: e.target.value })}
->
-  <option value="__all__">Totes</option>
-  {lnOptions.map((o) => (
-    <option key={o} value={o}>
-      {o}
-    </option>
-  ))}
-</select>
+                <div className="mt-3 flex flex-col gap-3 pb-6 w-full">
+                  {hiddenFilters.includes('ln') && (
+                    <div className="flex flex-col gap-1">
+                      <label className="text-sm text-gray-600">🌐 LN</label>
+                      <select
+                        className="h-10 rounded-xl border bg-white px-3"
+                        value={filters.ln ?? '__all__'}
+                        onChange={(e) => setFilters({ ln: e.target.value })}
+                      >
+                        <option value="__all__">Totes</option>
+                        {lnOptions.map((o) => (
+                          <option key={o} value={o}>{o}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
 
-                  </div>
-                )}
+                  {hiddenFilters.includes('responsable') && (
+                    <div className="flex flex-col gap-1">
+                      <label className="text-sm text-gray-600">👤 Responsable</label>
+                      <select
+                        className="h-10 rounded-xl border bg-white px-3"
+                        value={filters.responsable ?? '__all__'}
+                        onChange={(e) => setFilters({ responsable: e.target.value })}
+                      >
+                        <option value="__all__">Tots</option>
+                        {responsables.map((o) => (
+                          <option key={o} value={o}>{o}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
 
-                {hiddenFilters.includes('responsable') && (
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm text-gray-600">👤 Responsable</label>
-                    <select
-                      className="h-10 rounded-xl border bg-white px-3"
-                      value={filters.responsable ?? '__all__'}
-                      onChange={(e) => setFilters({ responsable: e.target.value })}
+                  {hiddenFilters.includes('location') && (
+                    <div className="flex flex-col gap-1">
+                      <label className="text-sm text-gray-600">📍 Ubicació</label>
+                      <select
+                        className="h-10 rounded-xl border bg-white px-3"
+                        value={filters.location ?? '__all__'}
+                        onChange={(e) => setFilters({ location: e.target.value })}
+                      >
+                        <option value="__all__">Totes</option>
+                        {locations.map((o) => (
+                          <option key={o} value={o}>{o}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 mt-4">
+                    <Button
+                      variant="outline"
+                      className="flex-1 text-gray-700 border-gray-300"
+                      onClick={handleResetAndClose}
                     >
-                      <option value="__all__">Tots</option>
-                      {responsables.map((o) => (
-                        <option key={o} value={o}>{o}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
-                {hiddenFilters.includes('location') && (
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm text-gray-600">📍 Ubicació</label>
-                    <select
-                      className="h-10 rounded-xl border bg-white px-3"
-                      value={filters.location ?? '__all__'}
-                      onChange={(e) => setFilters({ location: e.target.value })}
+                      ↻ Reiniciar filtres
+                    </Button>
+                    <Button
+                      variant="default"
+                      className="flex-1 bg-blue-600 text-white hover:bg-blue-700"
+                      onClick={handleApplyFilters}
                     >
-                      <option value="__all__">Totes</option>
-                      {locations.map((o) => (
-                        <option key={o} value={o}>{o}</option>
-                      ))}
-                    </select>
+                      ✅ Aplica filtres
+                    </Button>
                   </div>
-                )}
-
-                {/* ─── Botons d'acció ───────────────────── */}
-                <div className="flex gap-2 mt-4">
-                  <Button
-                    variant="outline"
-                    className="flex-1 text-gray-700 border-gray-300"
-                    onClick={handleResetAndClose}
-                  >
-                    ↻ Reiniciar filtres
-                  </Button>
-
-                  <Button
-                    variant="default"
-                    className="flex-1 bg-blue-600 text-white hover:bg-blue-700"
-                    onClick={handleApplyFilters}
-                  >
-                    ✅ Aplica filtres
-                  </Button>
                 </div>
-              </div>
-            </DialogContent>
-          </Dialog>
+              </DialogContent>
+            </Dialog>
+          )
         )}
       </div>
     </div>

@@ -3,6 +3,8 @@ import { google, calendar_v3 } from 'googleapis'
 import path from 'path'
 import fs from 'fs'
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Tipus d'esdeveniment del Calendar
 export interface CalendarEvent {
   id: string
   summary?: string
@@ -14,37 +16,53 @@ export interface CalendarEvent {
     private?: Record<string, string | number | boolean | null>
     shared?: Record<string, string | number | boolean | null>
   }
-  /** 👇 IMPORTANT: adjunts del Calendar (Drive) */
   attachments?: Array<{ fileUrl: string; title?: string; mimeType?: string }>
-  [key: string]: unknown   // ✅ eliminem any
+  [key: string]: unknown
 }
 
-// Helper per autenticar-se amb Service Account
+// ─────────────────────────────────────────────────────────────────────────────
+// 🔐 AUTENTICACIÓ UNIVERSAL (Vercel + Local)
 async function authenticate() {
-  // 🔑 Primer intentem llegir credencials des d'entorn (Vercel)
-  if (process.env.GOOGLE_CLIENT_EMAIL && process.env.GOOGLE_PRIVATE_KEY) {
+  try {
+    // 1️⃣ Primer intent: variable d’entorn amb JSON complet (Vercel)
+    if (process.env.GOOGLE_SHEETS_CREDENTIALS) {
+      const creds = JSON.parse(process.env.GOOGLE_SHEETS_CREDENTIALS)
+      return new google.auth.GoogleAuth({
+        credentials: creds,
+        scopes: ['https://www.googleapis.com/auth/calendar.readonly'],
+      })
+    }
+
+    // 2️⃣ Segon intent: credencials individuals (per compatibilitat antiga)
+    if (process.env.GOOGLE_CLIENT_EMAIL && process.env.GOOGLE_PRIVATE_KEY) {
+      return new google.auth.GoogleAuth({
+        credentials: {
+          client_email: process.env.GOOGLE_CLIENT_EMAIL,
+          private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+        },
+        scopes: ['https://www.googleapis.com/auth/calendar.readonly'],
+      })
+    }
+
+    // 3️⃣ Últim recurs: lectura local de fitxer (entorn de desenvolupament)
+    const keyFileName = process.env.GOOGLE_SERVICE_ACCOUNT_KEY_FILE || 'serviceAccountKey.json'
+    const keyFilePath = path.resolve(process.cwd(), keyFileName)
+    if (!fs.existsSync(keyFilePath)) {
+      throw new Error(`Fitxer de credencials no trobat: ${keyFilePath}`)
+    }
+
     return new google.auth.GoogleAuth({
-      credentials: {
-        client_email: process.env.GOOGLE_CLIENT_EMAIL,
-        private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-      },
+      keyFile: keyFilePath,
       scopes: ['https://www.googleapis.com/auth/calendar.readonly'],
     })
+  } catch (err) {
+    console.error('[googleCalendar] Error d’autenticació:', err)
+    throw err
   }
-
-  // 🖥️ Fallback només per desenvolupament local amb fitxer JSON
-  const keyFileName = process.env.GOOGLE_SERVICE_ACCOUNT_KEY_FILE || 'serviceAccountKey.json'
-  const keyFilePath = path.resolve(process.cwd(), keyFileName)
-  if (!fs.existsSync(keyFilePath)) {
-    throw new Error(`Fitxer de credencials no trobat: ${keyFilePath}`)
-  }
-  return new google.auth.GoogleAuth({
-    keyFile: keyFilePath,
-    scopes: ['https://www.googleapis.com/auth/calendar.readonly'],
-  })
 }
 
-// Llegeix un rang d’esdeveniments (amb paginació + camps necessaris)
+// ─────────────────────────────────────────────────────────────────────────────
+// 📅 Obté esdeveniments en un rang de dates
 export async function getCalendarEvents(from: string, to: string): Promise<CalendarEvent[]> {
   const calendarId = process.env.NEXT_PUBLIC_GOOGLE_CALENDAR_ID
   if (!calendarId) throw new Error('Falta NEXT_PUBLIC_GOOGLE_CALENDAR_ID')
@@ -64,7 +82,8 @@ export async function getCalendarEvents(from: string, to: string): Promise<Calen
       orderBy: 'startTime',
       maxResults: 2500,
       pageToken,
-      fields: 'nextPageToken,items(id,summary,description,location,start,end,extendedProperties)',
+      fields:
+        'nextPageToken,items(id,summary,description,location,start,end,extendedProperties)',
     } as calendar_v3.Params$Resource$Events$List)
 
     events.push(...((resp.data.items as CalendarEvent[]) || []))
@@ -74,25 +93,29 @@ export async function getCalendarEvents(from: string, to: string): Promise<Calen
   return events
 }
 
-// Llegeix un únic esdeveniment per ID (incloent ATTACHMENTS)
+// ─────────────────────────────────────────────────────────────────────────────
+// 🔍 Llegeix un únic esdeveniment (incloent adjunts)
 export async function fetchGoogleEventById(id: string): Promise<CalendarEvent | null> {
   const calendarId = process.env.NEXT_PUBLIC_GOOGLE_CALENDAR_ID
   if (!calendarId) throw new Error('Falta NEXT_PUBLIC_GOOGLE_CALENDAR_ID')
 
   const auth = await authenticate()
   const calendar = google.calendar({ version: 'v3', auth })
+
   try {
     const resp = await calendar.events.get({
       calendarId,
       eventId: id,
-      fields: 'id,summary,description,location,start,end,extendedProperties,attachments(fileUrl,title,mimeType)',
+      fields:
+        'id,summary,description,location,start,end,extendedProperties,attachments(fileUrl,title,mimeType)',
     } as calendar_v3.Params$Resource$Events$Get)
 
     return (resp.data as CalendarEvent) || null
-  } catch (e: unknown) {   // ✅ no fem servir any
+  } catch (e: unknown) {
     if (typeof e === 'object' && e !== null && 'code' in e && (e as { code?: number }).code === 404) {
       return null
     }
+
     // Fallback sense "fields"
     try {
       const respFull = await calendar.events.get({

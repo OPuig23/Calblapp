@@ -73,6 +73,8 @@ export interface SmartFiltersProps {
     location?: React.ReactNode
     status?: React.ReactNode
   }
+  initialStart?: string
+  initialEnd?: string
 }
 
 /* ==================== Utils ==================== */
@@ -99,7 +101,7 @@ export default function SmartFilters({
   workerOptions = [],
   locationOptions = [],
   role,
-  fixedDepartment = null,
+    fixedDepartment = null,
   lockedWorkerId,
   lockedWorkerName,
   showDepartment = true,
@@ -110,8 +112,11 @@ export default function SmartFilters({
   onChange,
   statusOptions = ['confirmed', 'draft'],
   resetSignal,
-  renderLabels = {}
+  renderLabels = {},
+  initialStart,
+  initialEnd
 }: SmartFiltersProps) {
+  
   const isCap = role === 'Cap Departament'
   const isAdminOrDireccio =
     role?.toLowerCase() === 'admin' ||
@@ -127,6 +132,24 @@ export default function SmartFilters({
   const [dayStr, setDayStr] = useState<string>(toIso(new Date()))
   const [rangeStartStr, setRangeStartStr] = useState<string>('')
   const [rangeEndStr, setRangeEndStr] = useState<string>('')
+  // 🔹 Inicialitza automàticament el mode i les dates si venen donades per props
+useEffect(() => {
+  if (initialStart && initialEnd) {
+    if (initialStart === initialEnd) {
+      // 🔸 Mateixa data → mode DIA
+      setMode('day')
+      setDayStr(initialStart)
+      setAnchor(parseISO(initialStart))
+    } else {
+      // 🔸 Dates diferents → mode RANG
+      setMode('range')
+      setRangeStartStr(initialStart)
+      setRangeEndStr(initialEnd)
+    }
+  }
+}, [initialStart, initialEnd])
+
+
 
   const [dept, setDept] = useState<string>(() => normDept(fixedDepartment || ''))
   const [workerId, setWorkerId] = useState<string>(lockedWorkerId || '')

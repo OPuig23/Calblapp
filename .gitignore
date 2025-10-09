@@ -46,3 +46,5 @@ serviceAccountKey.json
 
 # ⚠️ Ignora només els secrets, no les dades necessàries
 src/data/service-account*.json
+
+.vercel

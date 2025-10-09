@@ -2,6 +2,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { normalizeStatus } from '@/utils/normalize'
 
 export interface EventData {
   id: string
@@ -133,52 +134,55 @@ export default function useEvents(
         })
 
         // 🔹 3. Merge Calendar + Firestore
-        const flat: EventData[] = eventsFromPayload.map((ev) => {
-          let pax = Number(ev.pax ?? 0)
-          if (!pax && ev.summary) {
-            const match = ev.summary.match(/(\d{1,3}(?:[\.\s]\d{3})*|\d+)\s*pax/i)
-            if (match) pax = parseInt(match[1].replace(/[^\d]/g, ''), 10)
-          }
+const flat: EventData[] = eventsFromPayload.map((ev) => {
+  let pax = Number(ev.pax ?? 0)
+  if ((!pax || Number.isNaN(pax)) && ev.summary) {
+    const match = ev.summary.match(/(\d{1,4})\s*(pax|persones?|comensals?)/i)
+    if (match) pax = parseInt(match[1].replace(/[^\d]/g, ''), 10)
+  }
 
-          const location = ev.location || ''
-          const state: 'pending' | 'draft' | 'confirmed' =
-            (ev.state as 'pending' | 'draft' | 'confirmed') ??
-            (ev.status as any) ??
-            'pending'
+  const location = ev.location || ''
 
-          let eventCode = ev.eventCode || ev.code || null
-          if (!eventCode && ev.summary) {
-            const cleaned = ev.summary.replace(/[#\-]/g, ' ').trim()
-            const match = cleaned.match(/([A-Z]{1,3}\d{5,7})/i)
-            if (match) eventCode = match[1].toUpperCase()
-          }
+  let eventCode = ev.eventCode || ev.code || null
+  if (!eventCode && ev.summary) {
+    const cleaned = ev.summary.replace(/[#\-]/g, ' ').trim()
+    const match = cleaned.match(/([A-Z]{1,3}\d{5,7})/i)
+    if (match) eventCode = match[1].toUpperCase()
+  }
 
-          let q = quadrantMap.get(ev.id)
-          if (!q) {
-            const key = normalizeCode(eventCode || ev.id)
-            q = quadrantMap.get(key)
-          }
+  let q = quadrantMap.get(ev.id)
+  if (!q) {
+    const key = normalizeCode(eventCode || ev.id)
+    q = quadrantMap.get(key)
+  }
 
-          return {
-            ...ev,
-            pax,
-            location,
-            day: ev.start.slice(0, 10), // 🔑 camp de agrupació
-            locationShort: computeLocationShort(location),
-            mapsUrl: computeMapsUrl(location),
-            state,
-            eventCode: eventCode || q?.code || null,
-            responsable: q?.responsableName || q?.responsable?.name || undefined,
-            conductors: Array.isArray(q?.conductors)
-              ? q.conductors.map((c) => c?.name).filter(Boolean) as string[]
-              : [],
-            treballadors: Array.isArray(q?.treballadors)
-              ? q.treballadors.map((t) => t?.name).filter(Boolean) as string[]
-              : [],
-          }
-        })
+  // ✅ Ara sí: calcular estat després de trobar q
+  const state = normalizeStatus(
+    (q?.status as string) ||
+    (ev.state as string) ||
+    (ev.status as string)
+  )
 
-        // 🔹 4. Comptadors totals
+  return {
+    ...ev,
+    pax,
+    location,
+    day: ev.start.slice(0, 10),
+    locationShort: computeLocationShort(location),
+    mapsUrl: computeMapsUrl(location),
+    state,
+    eventCode: eventCode || q?.code || null,
+    responsable: q?.responsableName || q?.responsable?.name || undefined,
+    conductors: Array.isArray(q?.conductors)
+      ? q.conductors.map((c) => c?.name).filter(Boolean) as string[]
+      : [],
+    treballadors: Array.isArray(q?.treballadors)
+      ? q.treballadors.map((t) => t?.name).filter(Boolean) as string[]
+      : [],
+  }
+})
+
+               // 🔹 4. Comptadors totals
         const totals: TotalPerDay = {}
         flat.forEach(ev => {
           const day = ev.start.slice(0, 10)

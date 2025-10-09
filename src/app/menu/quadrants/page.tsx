@@ -1,160 +1,154 @@
-// src/app/menu/quadrants/page.tsx
+//file: src/app/menu/quadrants/page.tsx
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useMemo } from 'react'
+import { LayoutGrid } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { LayoutGrid, Calendar as CalendarIcon, Users } from 'lucide-react'
-import CalendarView from './[id]/components/CalendarView'
-import CalendarHourGrid from './[id]/components/CalendarHourGrid'
-import QuadrantModal from './[id]/components/QuadrantModal'
+import { startOfWeek, endOfWeek, format } from 'date-fns'
 import useEvents, { EventData } from '@/hooks/events/useEvents'
-import SmartFilters from '@/components/filters/SmartFilters'
+import type { QuadrantEvent } from '@/types/QuadrantEvent'
 import ModuleHeader from '@/components/layout/ModuleHeader'
+import FiltersBar from '@/components/layout/FiltersBar'
+import QuadrantModal from './[id]/components/QuadrantModal'
+import QuadrantDayGroup from './[id]/components/CalendarView'
 
-// Helper per accents
-const unaccent = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+
+// 🔹 Tipus unificat per evitar discrepàncies
+type UnifiedEvent = EventData & QuadrantEvent
 
 export default function QuadrantsPage() {
   const router = useRouter()
 
-  // Rang setmana actual
-  const [range, setRange] = useState<{ start: string; end: string }>({ start: '', end: '' })
-  useEffect(() => {
-    const today = new Date()
-    const dow = today.getDay()
-    const diff = today.getDate() - dow + (dow === 0 ? -6 : 1)
-    const monday = new Date(today)
-    monday.setDate(diff)
-    monday.setHours(0, 0, 0, 0)
-    const sunday = new Date(monday)
-    sunday.setDate(monday.getDate() + 6)
-    sunday.setHours(23, 59, 59, 999)
-    setRange({ start: monday.toISOString(), end: sunday.toISOString() })
-  }, [])
+  // 📅 Setmana actual per defecte
+  const start = startOfWeek(new Date(), { weekStartsOn: 1 })
+  const end = endOfWeek(new Date(), { weekStartsOn: 1 })
+  const [range, setRange] = useState<{ start: string; end: string }>({
+    start: format(start, 'yyyy-MM-dd'),
+    end: format(end, 'yyyy-MM-dd'),
+  })
 
-  const canQuery = Boolean(range.start && range.end)
+  // 🔹 Dades d’esdeveniments amb quadrants
+  const { events = [], loading, error } = useEvents('all', range.start, range.end, 'all', true)
+  const [selected, setSelected] = useState<UnifiedEvent | null>(null)
 
-  // 🔹 Obtenim events amb quadrants
-  const {
-    events: allEvents = [],
-    loading,
-    error,
-  } = useEvents('all', range.start, range.end, 'all', true)
+  // ==========================================================
+  // 🎯 FILTRE: només mostrar esdeveniments amb codi vàlid
+  // Format vàlid → comença amb E, C, F, A o PM + mínim 4 xifres
+  // Exemple: C2025, PM2044, E1001...
+  // ==========================================================
+  const validCodePattern = /(^|\s)(PM|E|C|F|A)\d{4,}(\s|$)/i
+  const filteredEvents = useMemo(
+    () =>
+      events.filter(
+        (ev) =>
+          validCodePattern.test(ev.eventCode || '') ||
+          validCodePattern.test(ev.summary || '')
+      ),
+    [events]
+  )
 
-  const events = allEvents.filter((ev) => ev.eventCode)
+  // 🔹 Comptadors d’estat
+  const counts = useMemo(
+    () => ({
+      pending: filteredEvents.filter((e) => e.state === 'pending').length,
+      draft: filteredEvents.filter((e) => e.state === 'draft').length,
+      confirmed: filteredEvents.filter((e) => e.state === 'confirmed').length,
+    }),
+    [filteredEvents]
+  )
 
-  // Comptadors
-  const pendingCount = events.filter((e) => e.state === 'pending').length
-  const draftCount = events.filter((e) => e.state === 'draft').length
-  const confirmedCount = events.filter((e) => e.state === 'confirmed').length
+  // 🔹 Agrupació per dia
+  const grouped = useMemo(() => {
+    const map: Record<string, UnifiedEvent[]> = {}
+    for (const ev of filteredEvents as UnifiedEvent[]) {
+      const day = ev.start?.slice(0, 10)
+      if (!map[day]) map[day] = []
+      map[day].push(ev)
+    }
+    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b))
+  }, [filteredEvents])
 
-  const [view, setView] = useState<'kanban' | 'calendar'>('kanban')
-  const [sel, setSel] = useState<EventData | null>(null)
-
-  const closeModal = () => setSel(null)
-
+  // ==========================================================
+  // 🖥️ Render
+  // ==========================================================
   return (
-    <main className="p-6 space-y-6">
-      {/* 🔹 Capçalera unificada */}
+    <main className="space-y-5 px-4 pb-8">
+      {/* 🟦 Capçalera del mòdul */}
       <ModuleHeader
-        icon={<LayoutGrid className="w-7 h-7 text-indigo-700" />}
-        title="Creació de Quadrants"
-        subtitle="Gestiona i organitza els quadrants del teu departament"
+        icon={<LayoutGrid className="w-6 h-6 text-indigo-700" />}
+        title="Quadrants"
+        subtitle="Gestió setmanal per departament"
       />
 
-      {/* 🔹 Filtres + accions */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between rounded-xl bg-white shadow-sm border p-4 gap-4">
-        <SmartFilters
-          role="Direcció"
-          modeDefault="week"
-          showDepartment={false}
-          showWorker={false}
-          showLocation={false}
-          showStatus={false}
-          onChange={(f) => {
-            if (f.start && f.end) {
-              setRange({ start: f.start, end: f.end })
-            }
-          }}
-        />
+      {/* 📅 Barra de filtres amb SmartFilters intern i botó lateral */}
+      <FiltersBar
+        filters={range}
+        setFilters={(f) => {
+          if (f.start && f.end) setRange({ start: f.start, end: f.end })
+        }}
+      />
 
-        {/* Accions dreta */}
-        <div className="flex items-center gap-3">
-          {/* Toggle Quadrant/Horari */}
-          <div className="flex rounded-md border bg-gray-50 overflow-hidden text-sm">
-            <button
-              onClick={() => setView('kanban')}
-              className={`px-2 sm:px-3 py-1.5 flex items-center gap-1 ${
-                view === 'kanban'
-                  ? 'bg-indigo-600 text-white font-medium'
-                  : 'text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              <LayoutGrid className="w-4 h-4" />
-              <span className="hidden sm:inline">Quadrant</span>
-            </button>
-            <button
-              onClick={() => setView('calendar')}
-              className={`px-2 sm:px-3 py-1.5 flex items-center gap-1 ${
-                view === 'calendar'
-                  ? 'bg-indigo-600 text-white font-medium'
-                  : 'text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              <CalendarIcon className="w-4 h-4" />
-              <span className="hidden sm:inline">Horari</span>
-            </button>
-          </div>
-
-          {/* Botó principal veure quadrants */}
-          <Button
-            className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg px-3 sm:px-4 py-2 flex items-center gap-2"
-            onClick={() => router.push('/menu/quadrants/drafts')}
-          >
-            🗂 <span className="hidden sm:inline">Veure Quadrants</span>
-          </Button>
-        </div>
+      {/* 🔢 Comptadors d’estat */}
+      <div className="flex justify-around sm:justify-center sm:gap-10 bg-gradient-to-r from-indigo-50 to-blue-50 border rounded-2xl p-3 shadow-sm text-sm font-medium">
+        <span className="flex items-center gap-2 text-yellow-700">
+          <span className="w-2.5 h-2.5 bg-yellow-400 rounded-full" />
+          Pendents: {counts.pending}
+        </span>
+        <span className="flex items-center gap-2 text-blue-700">
+          <span className="w-2.5 h-2.5 bg-blue-500 rounded-full" />
+          Esborranys: {counts.draft}
+        </span>
+        <span className="flex items-center gap-2 text-green-700">
+          <span className="w-2.5 h-2.5 bg-green-500 rounded-full" />
+          Confirmats: {counts.confirmed}
+        </span>
       </div>
 
-      {/* 🔹 Comptadors */}
-      <Card className="rounded-2xl shadow border">
-        <CardContent>
-          <div className="flex justify-between items-center border-b pb-4 mb-4">
-            <span className="font-semibold text-lg flex items-center gap-2">
-              <Users className="w-5 h-5 text-indigo-700" />
-              Total esdeveniments: {events.length}
-            </span>
-            <div className="flex items-center gap-6">
-              <span className="flex items-center gap-1 text-yellow-600">
-                <span className="w-2 h-2 bg-yellow-400 rounded-full" /> Pendents: {pendingCount}
-              </span>
-              <span className="flex items-center gap-1 text-blue-600">
-                <span className="w-2 h-2 bg-blue-500 rounded-full" /> Esborranys: {draftCount}
-              </span>
-              <span className="flex items-center gap-1 text-green-700">
-                <span className="w-2 h-2 bg-green-500 rounded-full" /> Confirmats: {confirmedCount}
-              </span>
-            </div>
-          </div>
+      {/* 📄 Llistat de quadrants agrupats per dia */}
+      {loading && <p className="text-gray-500 text-center py-10">Carregant quadrants…</p>}
+      {error && <p className="text-red-600 text-center py-10">{String(error)}</p>}
+      {!loading && !error && grouped.length === 0 && (
+        <p className="text-gray-400 text-center py-10">
+          Cap quadrant trobat per aquesta setmana.
+        </p>
+      )}
 
-          {/* 🔹 Contingut */}
-          {!canQuery ? (
-            <div className="text-center py-12">Preparant la setmana…</div>
-          ) : loading ? (
-            <div className="text-center py-12">Carregant…</div>
-          ) : error ? (
-            <div className="text-center text-red-600 py-12">{String(error)}</div>
-          ) : view === 'kanban' ? (
-            <CalendarView events={events} onEventClick={setSel} range={range} />
-          ) : (
-            <CalendarHourGrid events={events} onEventClick={setSel} />
-          )}
-        </CardContent>
-      </Card>
+      {!loading && !error && grouped.length > 0 && (
+        <div className="space-y-6">
+          {grouped.map(([day, evs]: [string, UnifiedEvent[]]) => (
+            <QuadrantDayGroup
+              key={day}
+              date={day}
+              events={evs}
+              onEventClick={(ev: UnifiedEvent) => setSelected(ev)}
+            />
+          ))}
+        </div>
+      )}
 
-      {sel && <QuadrantModal open event={sel} onOpenChange={(o) => !o && closeModal()} />}
+      {/* 🪟 Modal de quadrant */}
+      {selected && (
+        <QuadrantModal
+          open
+          event={selected}
+          onOpenChange={(open) => !open && setSelected(null)}
+        />
+      )}
+
+      {/* 🔘 Botó veure tots */}
+<div className="flex justify-end mt-6">
+  <button
+    onClick={() =>
+      router.push(
+        `/menu/quadrants/drafts?start=${range.start}&end=${range.end}`
+      )
+    }
+    className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-full px-5 py-2 shadow"
+  >
+    🗂 Veure tots els quadrants
+  </button>
+</div>
+
     </main>
   )
 }

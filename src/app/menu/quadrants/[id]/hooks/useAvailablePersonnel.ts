@@ -1,7 +1,7 @@
 // File: src/app/menu/quadrants/[id]/hooks/useAvailablePersonnel.ts
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import axios from 'axios'
 import { useSession } from 'next-auth/react'
 
@@ -22,16 +22,24 @@ export interface UseAvailablePersonnelOptions {
   excludeIds?: string[]
 }
 
+/**
+ * Hook: useAvailablePersonnel
+ * 🔹 Recupera personal disponible per data i departament.
+ * 🔹 Controla exclusions locals i errors de xarxa sense bucles.
+ */
 export function useAvailablePersonnel(opts: UseAvailablePersonnelOptions) {
   const [responsables, setResponsables] = useState<PersonnelOption[]>([])
   const [conductors, setConductors] = useState<PersonnelOption[]>([])
   const [treballadors, setTreballadors] = useState<PersonnelOption[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const isFetchingRef = useRef(false)
 
   const { data: session } = useSession()
 
   const fetchPersonnel = useCallback(async () => {
+    // 🧩 Evitem reentrades mentre s’està carregant
+    if (isFetchingRef.current) return
     if (
       !opts.departament ||
       !opts.startDate ||
@@ -47,13 +55,14 @@ export function useAvailablePersonnel(opts: UseAvailablePersonnelOptions) {
 
     setLoading(true)
     setError(null)
+    isFetchingRef.current = true
 
     try {
       const excl = new Set(
         (opts.excludeIds ?? []).map((id) => id.toLowerCase().trim())
       )
 
-      console.log('[useAvailablePersonnel] INPUT', {
+      console.log('[useAvailablePersonnel] Fetch start', {
         departament: opts.departament,
         startDate: opts.startDate,
         endDate: opts.endDate,
@@ -73,37 +82,25 @@ export function useAvailablePersonnel(opts: UseAvailablePersonnelOptions) {
         headers: {
           Authorization: `Bearer ${session?.accessToken || ''}`,
         },
+        timeout: 7000, // ✅ límit màxim 7s per evitar bloqueigs
       })
+
+      if (!res?.data) throw new Error('Resposta buida del servidor')
 
       const cleanList = (
         arr: Array<Omit<PersonnelOption, 'status'> & { status: string }>,
         label: string
       ): PersonnelOption[] => {
-        const excluded = arr.filter((p) =>
-          excl.has(p.id.toLowerCase().trim())
-        )
-        if (excluded.length) {
-          console.log(
-            `[useAvailablePersonnel] LOCAL EXCLUDE ${label}:`,
-            excluded.map((e) => e.name)
-          )
-        }
-
         const out = arr
-          .filter((p) => !excl.has(p.id.toLowerCase().trim()))
+          .filter((p) => !excl.has(p.id?.toLowerCase()?.trim?.() || ''))
           .map((p) => ({
             id: p.id,
             name: p.name,
             role: p.role,
-            status: p.status as 'available' | 'conflict' | 'notfound',
+            status: (p.status as 'available' | 'conflict' | 'notfound') || 'notfound',
             reason: p.reason,
           }))
-
-        console.log(`[useAvailablePersonnel] CLEAN ${label}`, {
-          total: arr.length,
-          afterExclude: out.length,
-          excluded: arr.length - out.length,
-        })
+        console.log(`[useAvailablePersonnel] CLEAN ${label}`, out.length)
         return out
       }
 
@@ -113,12 +110,17 @@ export function useAvailablePersonnel(opts: UseAvailablePersonnelOptions) {
     } catch (err: unknown) {
       console.error('[useAvailablePersonnel] ERROR', err)
       const message =
-        err instanceof Error ? err.message : 'Error carregant personal'
+        err instanceof Error
+          ? err.message.includes('Network Error')
+            ? 'No es pot connectar amb el servidor.'
+            : err.message
+          : 'Error carregant personal disponible.'
       setError(message)
       setResponsables([])
       setConductors([])
       setTreballadors([])
     } finally {
+      isFetchingRef.current = false
       setLoading(false)
     }
   }, [
@@ -127,7 +129,7 @@ export function useAvailablePersonnel(opts: UseAvailablePersonnelOptions) {
     opts.endDate,
     opts.startTime,
     opts.endTime,
-    opts.excludeIds, // ✅ directe, sense JSON.stringify
+    opts.excludeIds?.join(','), // ✅ evita dependències infinites
     session?.accessToken,
   ])
 

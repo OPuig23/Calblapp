@@ -1,3 +1,4 @@
+// src/services/quadrants.ts
 export async function confirmQuadrant(department: string, eventId: string) {
   const res = await fetch('/api/quadrants/confirm', {
     method: 'POST',

@@ -223,10 +223,12 @@ export default function DraftsTable({ draft }: { draft: DraftInput }) {
   }
 
   return (
-    <div className="w-full rounded-2xl border bg-white shadow">
-      {/* Capçalera de columnes */}
+  <div className="w-full rounded-2xl border bg-white shadow">
+    {/* 💻 Vista escriptori */}
+    <div className="hidden sm:block overflow-x-auto">
+      {/* Capçalera */}
       <div
-        className="grid border-b bg-gray-50 text-xs font-semibold text-gray-600 px-1 py-2 items-center"
+        className="grid border-b bg-gray-50 text-xs font-semibold text-gray-600 px-1 py-2 items-center min-w-[750px]"
         style={{
           gridTemplateColumns:
             '32px 1fr 5.5rem 5.5rem minmax(10rem,1fr) minmax(10rem,1fr) auto',
@@ -259,9 +261,7 @@ export default function DraftsTable({ draft }: { draft: DraftInput }) {
               row={r}
               isLocked={isLocked}
               onEdit={() => startEdit(i)}
-              onDelete={() =>
-                setRows((rs) => rs.filter((_, idx) => idx !== i))
-              }
+              onDelete={() => setRows((rs) => rs.filter((_, idx) => idx !== i))}
             />
             {editIdx === i && (
               <RowEditor
@@ -275,122 +275,134 @@ export default function DraftsTable({ draft }: { draft: DraftInput }) {
             )}
           </React.Fragment>
         ))}
+      </div>
+    </div>
 
-        {/* Fila inferior */}
-        <div
-          className="grid items-center border-b px-1 py-3 bg-gray-50"
-          style={{
-            gridTemplateColumns:
-              '32px 1fr 5.5rem 5.5rem minmax(10rem,1fr) minmax(10rem,1fr) 3.5rem',
-          }}
-        >
-          <div></div>
-          <div className="col-span-3">
-            {dirty ? (
-              <span className="text-yellow-700 text-sm flex items-center gap-2">
-                ⚠️ Tens canvis sense desar
-              </span>
-            ) : (
-              <span className="text-gray-500 italic text-sm">
-                Afegir nou participant o brigada:
-              </span>
-            )}
+    {/* 📱 Vista mòbil */}
+    <div className="block sm:hidden divide-y">
+      {rows.map((r, i) => (
+        <div key={`${r.role}-${r.id || 'noid'}-${i}`} className="p-3 text-sm">
+          <div className="flex justify-between items-center">
+            <span className="font-semibold text-gray-800">{r.name || '—'}</span>
+            <span className="text-xs text-gray-500">{r.role}</span>
           </div>
-
-          <div className="flex gap-2 col-span-2 justify-end">
-            {/* Botons afegir línies */}
+          <div className="text-xs text-gray-600 mt-1 space-y-0.5">
+            <div>📅 {r.startDate}</div>
+            <div>🕒 {r.startTime || '—'}</div>
+            <div>📍 {r.meetingPoint || '—'}</div>
+            {r.vehicleType && <div>🚐 {r.vehicleType}</div>}
+          </div>
+          <div className="flex justify-end gap-2 mt-2">
             <button
-              onClick={() =>
-                setRows([
-                  ...rows,
-                  {
-                    id: '',
-                    name: '',
-                    role: 'responsable',
-                    startDate: draft.startDate,
-                    endDate: draft.endDate,
-                    startTime: draft.startTime,
-                    endTime: draft.endTime,
-                    meetingPoint: '',
-                    plate: '',
-                    vehicleType: '',
-                  },
-                ])
-              }
-              className="rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700 hover:bg-blue-200"
+              onClick={() => startEdit(i)}
+              className="px-2 py-1 rounded-md bg-blue-100 text-blue-700 text-xs"
             >
-              + Responsable
+              Edita
             </button>
             <button
-              onClick={() =>
-                setRows([
-                  ...rows,
-                  {
-                    id: '',
-                    name: '',
-                    role: 'conductor',
-                    startDate: draft.startDate,
-                    endDate: draft.endDate,
-                    startTime: draft.startTime,
-                    endTime: draft.endTime,
-                    meetingPoint: '',
-                    plate: '',
-                    vehicleType: '',
-                  },
-                ])
-              }
-              className="rounded-full bg-orange-100 px-3 py-1 text-xs font-medium text-orange-700 hover:bg-orange-200"
+              onClick={() => setRows((rs) => rs.filter((_, idx) => idx !== i))}
+              className="px-2 py-1 rounded-md bg-red-100 text-red-700 text-xs"
             >
-              + Conductor
-            </button>
-            <button
-              onClick={() =>
-                setRows([
-                  ...rows,
-                  {
-                    id: '',
-                    name: '',
-                    role: 'treballador',
-                    startDate: draft.startDate,
-                    endDate: draft.endDate,
-                    startTime: draft.startTime,
-                    endTime: draft.endTime,
-                    meetingPoint: '',
-                    plate: '',
-                    vehicleType: '',
-                  },
-                ])
-              }
-              className="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700 hover:bg-green-200"
-            >
-              + Treballador
-            </button>
-            <button
-              onClick={() =>
-                setRows([
-                  ...rows,
-                  {
-                    id: '',
-                    name: '',
-                    role: 'brigada',
-                    startDate: draft.startDate,
-                    endDate: draft.endDate,
-                    startTime: draft.startTime,
-                    endTime: draft.endTime,
-                    meetingPoint: draft.meetingPoint || '',
-                    workers: 0,
-                    plate: '',
-                    vehicleType: '',
-                  },
-                ])
-              }
-              className="rounded-full bg-purple-100 px-3 py-1 text-xs font-medium text-purple-700 hover:bg-purple-200"
-            >
-              + Brigada
+              Elimina
             </button>
           </div>
         </div>
-      </div>
+      ))}
     </div>
-  )
+
+    {/* 🔘 Botons comuns (tots els dispositius) */}
+    <div className="flex flex-wrap gap-2 justify-end sm:justify-start px-3 py-3 bg-gray-50 border-t">
+      <button
+        onClick={() =>
+          setRows([
+            ...rows,
+            {
+              id: '',
+              name: '',
+              role: 'responsable',
+              startDate: draft.startDate,
+              endDate: draft.endDate,
+              startTime: draft.startTime,
+              endTime: draft.endTime,
+              meetingPoint: '',
+              plate: '',
+              vehicleType: '',
+            },
+          ])
+        }
+        className="rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700 hover:bg-blue-200"
+      >
+        + Responsable
+      </button>
+      <button
+        onClick={() =>
+          setRows([
+            ...rows,
+            {
+              id: '',
+              name: '',
+              role: 'conductor',
+              startDate: draft.startDate,
+              endDate: draft.endDate,
+              startTime: draft.startTime,
+              endTime: draft.endTime,
+              meetingPoint: '',
+              plate: '',
+              vehicleType: '',
+            },
+          ])
+        }
+        className="rounded-full bg-orange-100 px-3 py-1 text-xs font-medium text-orange-700 hover:bg-orange-200"
+      >
+        + Conductor
+      </button>
+      <button
+        onClick={() =>
+          setRows([
+            ...rows,
+            {
+              id: '',
+              name: '',
+              role: 'treballador',
+              startDate: draft.startDate,
+              endDate: draft.endDate,
+              startTime: draft.startTime,
+              endTime: draft.endTime,
+              meetingPoint: '',
+              plate: '',
+              vehicleType: '',
+            },
+          ])
+        }
+        className="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700 hover:bg-green-200"
+      >
+        + Treballador
+      </button>
+      <button
+        onClick={() =>
+          setRows([
+            ...rows,
+            {
+              id: '',
+              name: '',
+              role: 'brigada',
+              startDate: draft.startDate,
+              endDate: draft.endDate,
+              startTime: draft.startTime,
+              endTime: draft.endTime,
+              meetingPoint: draft.meetingPoint || '',
+              workers: 0,
+              plate: '',
+              vehicleType: '',
+            },
+          ])
+        }
+        className="rounded-full bg-purple-100 px-3 py-1 text-xs font-medium text-purple-700 hover:bg-purple-200"
+      >
+        + Brigada
+      </button>
+    </div>
+  </div>
+)
+
 }
