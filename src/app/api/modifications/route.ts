@@ -31,18 +31,17 @@ function isTimestamp(val: unknown): val is FirebaseFirestore.Timestamp {
 
 /* ─────────────────────────── Google Sheets ─────────────────────────── */
 async function getSheetsClient() {
-  const keyFileName =
-    process.env.GOOGLE_SERVICE_ACCOUNT_KEY_FILE || "serviceAccountKey.json";
-  const keyFilePath = path.resolve(process.cwd(), keyFileName);
-  if (!fs.existsSync(keyFilePath)) {
-    throw new Error(`Fitxer de credencials no trobat: ${keyFilePath}`);
-  }
+  const credentialsJSON = process.env.GOOGLE_SHEETS_CREDENTIALS
+  if (!credentialsJSON) throw new Error('GOOGLE_SHEETS_CREDENTIALS no definit')
+
+  const credentials = JSON.parse(credentialsJSON)
   const auth = new google.auth.GoogleAuth({
-    keyFile: keyFilePath,
-    scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-  });
-  return google.sheets({ version: "v4", auth });
+    credentials,
+    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+  })
+  return google.sheets({ version: 'v4', auth })
 }
+
 
 /* ─────────────────────────── POST ─────────────────────────── */
 /**
