@@ -62,51 +62,24 @@ export async function POST(req: Request) {
       category,
       importance,
       description,
-    } = payload as {
-      eventId?: string
-      eventCode?: string
-      eventTitle?: string
-      eventDate?: string
-      eventLocation?: string
-      department?: string
-      createdBy?: string
-      category?: { id?: string; label?: string }
-      importance?: string
-      description?: string
-    }
+    } = payload as ModificationDoc
 
-    if (
-      !eventId ||
-      !eventCode ||
-      !eventTitle ||
-      !eventDate ||
-      !department ||
-      !createdBy ||
-      !category ||
-      !importance
-    ) {
-      return NextResponse.json(
-        { error: "Falten camps obligatoris" },
-        { status: 400 }
-      )
-    }
-
-    /* ───── 1️⃣ Desa a Firestore ───── */
+    // Desa sempre, encara que hi falti informació
     const docRef = await firestore.collection("modifications").add({
-      eventId,
-      eventCode,
-      eventTitle,
-      eventDate,
-      eventLocation,
-      department,
-      category,
-      importance: importance.trim().toLowerCase(),
-      description,
-      createdBy,
+      eventId: eventId || "",
+      eventCode: eventCode || "",
+      eventTitle: eventTitle || "",
+      eventDate: eventDate || "",
+      eventLocation: eventLocation || "",
+      department: department || "",
+      category: category || { id: "", label: "" },
+      importance: importance?.trim().toLowerCase() || "",
+      description: description || "",
+      createdBy: createdBy || "",
       createdAt: admin.firestore.Timestamp.now(),
     })
 
-    /* ───── 2️⃣ Escriu a Google Sheets ───── */
+    /* ───── Escriu a Google Sheets ───── */
     const sheets = await getSheetsClient()
     const spreadsheetId =
       process.env.MODIFICATIONS_SHEET_ID ||
@@ -117,27 +90,27 @@ export async function POST(req: Request) {
       process.env.INCIDENTS_SHEET_NAME ||
       "Taula"
 
-    const weekNum = getISOWeek(parseISO(eventDate))
-    const businessTag = eventCode?.startsWith("C")
+    const weekNum = eventDate ? getISOWeek(parseISO(eventDate)) : ""
+    const businessTag = eventCode?.toUpperCase().startsWith("C")
       ? "Casaments"
-      : eventCode?.startsWith("E")
+      : eventCode?.toUpperCase().startsWith("E")
       ? "Empresa"
-      : eventCode?.startsWith("F")
+      : eventCode?.toUpperCase().startsWith("F")
       ? "Foodlovers"
-      : eventCode?.startsWith("PM")
+      : eventCode?.toUpperCase().startsWith("PM")
       ? "Prova de menú"
       : "Altres"
 
     if (spreadsheetId) {
       const row: string[] = [
-        eventCode,
-        eventTitle,
-        new Date().toISOString(),
-        eventDate,
+        eventCode || "",
+        eventTitle || "",
+        new Date().toISOString(), // data de modificació
+        eventDate || "",
         businessTag,
         eventLocation || "",
-        department,
-        createdBy,
+        department || "",
+        createdBy || "",
         category?.id || "",
         category?.label || "",
         description || "",
