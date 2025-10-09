@@ -1,4 +1,3 @@
-// file: src/services/googleCalendar.ts
 import { google, calendar_v3 } from 'googleapis'
 import path from 'path'
 import fs from 'fs'
@@ -21,19 +20,40 @@ export interface CalendarEvent {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 🔐 AUTENTICACIÓ UNIVERSAL (Vercel + Local)
+// 🔐 AUTENTICACIÓ UNIVERSAL (Vercel + Local + Base64 tolerant)
 async function authenticate() {
   try {
-    // 1️⃣ Primer intent: variable d’entorn amb JSON complet (Vercel)
+    // 1️⃣ Primer intent: variable amb JSON complet (Vercel)
     if (process.env.GOOGLE_SHEETS_CREDENTIALS) {
-      const creds = JSON.parse(process.env.GOOGLE_SHEETS_CREDENTIALS)
-      return new google.auth.GoogleAuth({
-        credentials: creds,
-        scopes: ['https://www.googleapis.com/auth/calendar.readonly'],
-      })
+      let raw = process.env.GOOGLE_SHEETS_CREDENTIALS.trim()
+      let creds
+
+      // Si està codificat en Base64 (cas Railway o Vercel amb secrets), el decodifiquem
+      if (!raw.startsWith('{')) {
+        try {
+          raw = Buffer.from(raw, 'base64').toString('utf8')
+        } catch {
+          /* ignore */
+        }
+      }
+
+      // Intentem parsejar el JSON
+      try {
+        creds = JSON.parse(raw)
+      } catch (err) {
+        console.warn('[googleCalendar] WARN: GOOGLE_SHEETS_CREDENTIALS no és JSON vàlid, s’ignora.')
+        creds = null
+      }
+
+      if (creds) {
+        return new google.auth.GoogleAuth({
+          credentials: creds,
+          scopes: ['https://www.googleapis.com/auth/calendar.readonly'],
+        })
+      }
     }
 
-    // 2️⃣ Segon intent: credencials individuals (per compatibilitat antiga)
+    // 2️⃣ Segon intent: credencials individuals (local .env)
     if (process.env.GOOGLE_CLIENT_EMAIL && process.env.GOOGLE_PRIVATE_KEY) {
       return new google.auth.GoogleAuth({
         credentials: {
@@ -44,7 +64,7 @@ async function authenticate() {
       })
     }
 
-    // 3️⃣ Últim recurs: lectura local de fitxer (entorn de desenvolupament)
+    // 3️⃣ Últim recurs: lectura des d’un fitxer local (ex: serviceAccountKey.json)
     const keyFileName = process.env.GOOGLE_SERVICE_ACCOUNT_KEY_FILE || 'serviceAccountKey.json'
     const keyFilePath = path.resolve(process.cwd(), keyFileName)
     if (!fs.existsSync(keyFilePath)) {

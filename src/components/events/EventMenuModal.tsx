@@ -1,4 +1,3 @@
-// src/components/events/EventMenuModal.tsx
 'use client'
 
 import React, { useState } from 'react'
@@ -16,6 +15,8 @@ import EventDocumentsSheet from '@/components/events/EventDocumentsSheet'
 import EventPersonnelModal from './EventPersonnelModal'
 import { useEventPersonnel } from '@/hooks/useEventPersonnel'
 import EventIncidentsModal from './EventIncidentsModal'
+import EventModificationsModal from './EventModificationsModal'
+import CreateModificationModal from './CreateModificationModal'
 
 /** ───────────────────────── Helpers ───────────────────────── */
 const norm = (s?: string | number | null) =>
@@ -27,7 +28,6 @@ const norm = (s?: string | number | null) =>
 
 type LnKey = 'empresa' | 'casaments' | 'foodlovers' | 'agenda' | 'altres'
 
-// 🔹 Tipus simple per personal assignat
 interface WorkerLite {
   id?: string | number
   name?: string
@@ -72,6 +72,8 @@ export default function EventMenuModal({ event, user, onClose }: EventMenuModalP
   const [showPersonnel, setShowPersonnel] = useState(false)
   const { data: personnelData, loading: personnelLoading } = useEventPersonnel(event.id)
   const [showIncidents, setShowIncidents] = useState(false)
+  const [showModifications, setShowModifications] = useState(false)
+  const [showCreateModification, setShowCreateModification] = useState(false)
 
   if (!event || !event.id) return null
 
@@ -103,14 +105,22 @@ export default function EventMenuModal({ event, user, onClose }: EventMenuModalP
   const canSeeBudgetContract =
     isAdmin ||
     isDireccio ||
-    (isCapDept &&
-      !deptNoBudget.has(deptN) &&
-      DEPT_TO_LN[deptN] === lnKey)
+    (isCapDept && !deptNoBudget.has(deptN) && DEPT_TO_LN[deptN] === lnKey)
 
   const navigateTo = (path: string) => {
     onClose()
     router.push(path)
   }
+
+  const canSeeModifications =
+    isAdmin ||
+    isDireccio ||
+    (isCapDept && ['logistica', 'cuina', 'produccio'].includes(norm(deptN)))
+
+  const canCreateModification =
+    isAdmin ||
+    isDireccio ||
+    (isCapDept && ['logistica', 'cuina', 'produccio'].includes(norm(deptN)))
 
   return (
     <div
@@ -156,6 +166,24 @@ export default function EventMenuModal({ event, user, onClose }: EventMenuModalP
             </button>
           )}
 
+          {canCreateModification && (
+            <button
+              className="w-full py-2 rounded bg-purple-400 hover:bg-purple-500 text-white font-semibold flex items-center justify-center gap-2 transition"
+              onClick={() => setShowCreateModification(true)}
+            >
+              ✏️ Registrar modificació
+            </button>
+          )}
+
+          {canSeeModifications && (
+            <button
+              className="w-full py-2 rounded bg-purple-200 hover:bg-purple-300 text-purple-900 font-semibold flex items-center justify-center gap-2 transition"
+              onClick={() => setShowModifications(true)}
+            >
+              📝 Veure modificacions
+            </button>
+          )}
+
           <button
             className="w-full py-2 rounded bg-blue-400 hover:bg-blue-500 text-white font-semibold flex items-center justify-center gap-2 transition"
             onClick={() => setShowPersonnel(true)}
@@ -178,6 +206,7 @@ export default function EventMenuModal({ event, user, onClose }: EventMenuModalP
               <FileSignature className="w-5 h-5 text-slate-600" /> Veure contracte
             </button>
           )}
+
           {canSeeBudgetContract && (
             <button
               className="w-full py-2 rounded bg-purple-200 hover:bg-purple-300 text-purple-900 font-semibold flex items-center justify-center gap-2 transition"
@@ -188,6 +217,7 @@ export default function EventMenuModal({ event, user, onClose }: EventMenuModalP
           )}
         </div>
 
+        {/* ─────────── MODALS INTERNES ─────────── */}
         {showCreateIncident && (
           <CreateIncidentModal
             event={event}
@@ -214,6 +244,22 @@ export default function EventMenuModal({ event, user, onClose }: EventMenuModalP
           eventId={String(event.id)}
           eventSummary={event.summary}
         />
+
+        <EventModificationsModal
+          open={showModifications}
+          onClose={() => setShowModifications(false)}
+          eventId={String(event.id)}
+          eventSummary={event.summary}
+        />
+
+        {showCreateModification && (
+          <CreateModificationModal
+            event={event}
+            user={user}
+            onClose={() => setShowCreateModification(false)}
+            onCreated={() => setShowCreateModification(false)}
+          />
+        )}
       </div>
 
       <EventDocumentsSheet

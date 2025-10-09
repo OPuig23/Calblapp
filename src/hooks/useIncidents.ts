@@ -103,7 +103,7 @@ export function useIncidents(filters: {
     }
 
     fetchIncidents()
-  }, [fetchKey, filters])
+  }, [fetchKey])
 
   return { incidents, loading, error }
 }
