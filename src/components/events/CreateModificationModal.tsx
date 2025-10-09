@@ -48,7 +48,8 @@ export default function CreateModificationModal({
   const [loading, setLoading] = useState(false)
 
   const canSubmit =
-    !!event?.id && !!category?.id && !!description.trim() && !loading
+  !!event?.id && !!category?.id && !loading
+
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault()
@@ -61,11 +62,7 @@ export default function CreateModificationModal({
       toast({ title: 'Categoria obligatòria', variant: 'destructive' })
       return
     }
-    if (!description.trim()) {
-      toast({ title: 'Descripció obligatòria', variant: 'destructive' })
-      return
-    }
-
+   
     try {
       setLoading(true)
 

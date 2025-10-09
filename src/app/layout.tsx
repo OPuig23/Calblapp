@@ -26,6 +26,13 @@ const NAV_ITEMS: { label: string; path: string; roles: Role[]; department?: stri
   { label: 'Personal', path: '/menu/personnel', roles: ['admin', 'direccio', 'cap'] },
   { label: 'Quadrants', path: '/menu/quadrants', roles: ['admin', 'direccio', 'cap'] },
   { label: 'Incidències', path: '/menu/incidents', roles: ['admin', 'direccio', 'cap'] },
+  { 
+  label: 'Registre de modificacions',
+  path: '/menu/modifications',
+  roles: ['admin', 'direccio', 'cap'],
+  department: 'Producció, Cuina, Logistica',
+},
+
   { label: 'Informes', path: '/menu/reports', roles: ['admin', 'direccio'] },
   { label: 'Usuaris', path: '/menu/users', roles: ['admin'] },
   { label: 'Transports', path: '/menu/transports', roles: ['admin', 'direccio', 'cap'], department: 'Transports' },
@@ -86,14 +93,25 @@ function InnerLayout({ children }: PropsWithChildren) {
   const roleBadgeClass = ROLE_BADGE_CLASS[role]
   const userDept = ((session?.user as SessionUser)?.department) || ''
 
-  const navItemsByRole = NAV_ITEMS.filter((item) => {
-    if (role === 'admin' || role === 'direccio') return true
-    if (role === 'cap') {
-      if (item.department) return item.department.toLowerCase() === userDept.toLowerCase()
-      return true
-    }
-    return item.roles.includes(role)
-  })
+  const dept = ((session?.user as SessionUser)?.department || '').toLowerCase()
+
+const navItemsByRole = NAV_ITEMS.filter((item) => {
+  if (!item.roles.includes(role)) return false
+
+  // 🔸 Cas especial: Registre de modificacions
+  if (item.path === '/menu/modifications' && role === 'cap') {
+    return ['produccio', 'cuina', 'logistica'].includes(dept)
+  }
+
+  // 🔸 Altres mòduls amb restricció per departament (ex: Transports)
+  if (role === 'cap' && item.department) {
+    return item.department.toLowerCase() === dept
+  }
+
+  return true
+})
+
+
 
   const isMenuHome = pathname === '/menu'
 

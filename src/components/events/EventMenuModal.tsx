@@ -1,3 +1,4 @@
+//file: src/components/events/EventMenuModal.tsx
 'use client'
 
 import React, { useState } from 'react'

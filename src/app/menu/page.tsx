@@ -16,6 +16,7 @@ import {
   BarChart2,
   Shield,
   Truck,
+  FileEdit,
 } from 'lucide-react'
 import { normalizeRole, type Role } from '@/lib/roles'
 import { useUnreadCountsByType } from '@/hooks/notifications'
@@ -114,6 +115,16 @@ const MODULES: ModuleOption[] = [
     color: 'from-orange-100 to-yellow-100',
     iconColor: 'text-orange-600',
   },
+  {
+  value: 'modifications',
+  label: 'Modificacions',
+  path: '/menu/modifications',
+  roles: ['admin', 'direccio', 'cap'], // 👈 mantenim el rol genèric de cap
+  icon: FileEdit,
+  color: 'from-purple-100 to-violet-100',
+  iconColor: 'text-purple-600',
+},
+
 ]
 
 export default function MenuPage() {
@@ -132,10 +143,21 @@ export default function MenuPage() {
     }
   }, [isLoading, user, router])
 
-  const modules = useMemo(
-    () => MODULES.filter(mod => mod.roles.includes(role)),
-    [role]
-  )
+ const dept = (user?.department || '').toLowerCase()
+
+const modules = useMemo(() => {
+  return MODULES.filter(mod => {
+    if (!mod.roles.includes(role)) return false
+
+    // 🔸 Filtre addicional per al mòdul de modificacions
+    if (mod.value === 'modifications' && role === 'cap') {
+      return ['produccio', 'cuina', 'logistica'].includes(dept)
+    }
+
+    return true
+  })
+}, [role, dept])
+
 
   if (isLoading) return <p className="text-center mt-20">Carregant…</p>
   if (!user) return <p className="text-center mt-20">No autoritzat.</p>

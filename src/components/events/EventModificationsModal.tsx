@@ -1,3 +1,4 @@
+//file: src/components/events/EventModificationsModal.tsx
 'use client'
 
 import React from 'react'

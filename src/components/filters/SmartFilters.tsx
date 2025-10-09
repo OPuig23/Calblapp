@@ -43,6 +43,8 @@ export type SmartFiltersChange = {
   status?: 'all' | 'confirmed' | 'draft'
   importance?: 'Alta' | 'Mitjana' | 'Baixa'
   roleType?: Exclude<RoleType, 'all'>
+  categoryId?: string
+
 }
 
 export type WorkerOpt = { id: string; name: string; role?: string; roles?: string[] }
@@ -75,6 +77,8 @@ export interface SmartFiltersProps {
   }
   initialStart?: string
   initialEnd?: string
+  categoryOptions?: { id: string; label: string }[]  // ✅ AFEGIT
+
 }
 
 /* ==================== Utils ==================== */

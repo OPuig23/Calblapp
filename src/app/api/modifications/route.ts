@@ -1,3 +1,4 @@
+//filename: src/app/api/modifications/route.ts
 import { NextResponse } from "next/server";
 import { firestore } from "@/lib/firebaseAdmin";
 import { google } from "googleapis";
@@ -81,7 +82,7 @@ export async function POST(req: Request) {
     if (
       !eventId ||
       !department ||
-      !description ||
+     
       !createdBy ||
       !category ||
       !importance
@@ -117,18 +118,19 @@ export async function POST(req: Request) {
 
     /* ───── 3️⃣ Desa a Firestore ───── */
     const docRef = await firestore.collection("modifications").add({
-      eventId: String(eventId),
-      eventCode,
-      eventTitle: evTitle,
-      eventDate: evDate,
-      department,
-      tipus,
-      category,
-      importance: importance.trim().toLowerCase(),
-      description,
-      createdBy,
-      createdAt: admin.firestore.Timestamp.now(),
-    });
+  eventId: String(eventId),
+  eventCode,
+  eventTitle: evTitle,
+  eventDate: evDate,
+  department,
+  // tipus,   ← elimina aquesta línia
+  category,
+  importance: importance.trim().toLowerCase(),
+  description,
+  createdBy,
+  createdAt: admin.firestore.Timestamp.now(),
+});
+
 
     /* ───── 4️⃣ Escriu a Google Sheets ───── */
     const sheets = await getSheetsClient();
@@ -158,15 +160,16 @@ export async function POST(req: Request) {
         evTitle, // B
         new Date().toISOString(), // C data modificació
         evDate, // D data esdeveniment
-        "", // E diferència
+       
         businessTag, // F línia negoci
         "", // G comercial
         department, // H departament
         createdBy, // I usuari
         category?.id || "", // J categoria codi
         category?.label || "", // K categoria nom
-        description, // L descripció
-        importance, // M importància
+        description || '',     // L descripció
+        importance || '',      // M importància
+
       ];
 
       await sheets.spreadsheets.values.append({
