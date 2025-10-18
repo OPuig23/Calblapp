@@ -1,162 +1,126 @@
-// src/app/menu/calendar/page.tsx
-"use client"
+// file: src/app/menu/calendar/page.tsx
+'use client'
 
-import { useState, useEffect } from "react"
-import { Calendar as BigCalendar, dateFnsLocalizer } from "react-big-calendar"
-import format from "date-fns/format"
-import parse from "date-fns/parse"
-import startOfWeek from "date-fns/startOfWeek"
-import getDay from "date-fns/getDay"
-import ca from "date-fns/locale/ca"
-import es from "date-fns/locale/es"
-import "react-big-calendar/lib/css/react-big-calendar.css"
-import "./calendar.css"
+import React from 'react'
+import { RefreshCw, CalendarDays } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { useCalendarData } from '@/hooks/useCalendarData'
+import CalendarList from '@/components/calendar/CalendarList'
+import CalendarMonthView from '@/components/calendar/CalendarMonthView'
+import CalendarWeekView from '@/components/calendar/CalendarWeekView'
+import CalendarNewEventModal from '@/components/calendar/CalendarNewEventModal'
+import Legend from '@/components/calendar/CalendarLegend'
+import CalendarFilters, { CalendarFilterChange } from '@/components/calendar/CalendarFilters'
+import { useSession } from 'next-auth/react'
 
-import CreateEventModal from "./CreateEventModal"
-import EditEventModal from "./EditEventModal"
-
-const locales = { ca, es }
-
-const localizer = dateFnsLocalizer({
-  format,
-  parse,
-  startOfWeek,
-  getDay,
-  locales,
-})
-
-interface CalendarEvent {
-  id: string
-  code: string
-  title: string
-  start: Date
-  end: Date
-  location: string
-  pax: string
-  service: string
-  commercial: string
-}
-
-// Tipus de dades rebudes des de l’API (Firestore/JSON cru)
-interface RawCalendarEvent {
-  id: string
-  code?: string
-  title?: string
-  date?: string | { _seconds: number }
-  location?: string
-  pax?: string | number
-  service?: string
-  commercial?: string
-}
+type Mode = 'month' | 'week'
 
 export default function CalendarPage() {
-  const [openCreate, setOpenCreate] = useState(false)
-  const [openEdit, setOpenEdit] = useState(false)
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null)
-  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)
-  const [events, setEvents] = useState<CalendarEvent[]>([])
+  const { deals, loading, error, reload } = useCalendarData()
+  const { data: session } = useSession()
+  const role = String(session?.user?.role || '').toLowerCase()
 
-  const fetchEvents = async () => {
+  // Estat de filtres únic (font de veritat)
+  const [filters, setFilters] = React.useState<CalendarFilterChange>({
+    mode: 'month',
+    start: undefined,
+    end: undefined,
+  })
+  const [syncing, setSyncing] = React.useState(false)
+
+  // 🔄 Sincronització manual amb Zoho
+  const handleSync = async () => {
     try {
-      const res = await fetch("/api/calendar")
-      if (!res.ok) throw new Error("Error carregant esdeveniments")
-      const data = await res.json()
-
-      if (data.success && Array.isArray(data.data)) {
-        const formatted: CalendarEvent[] = data.data.map((ev: RawCalendarEvent) => {
-          let eventDate: Date
-          if (typeof ev.date === "object" && "_seconds" in ev.date) {
-            eventDate = new Date(ev.date._seconds * 1000)
-          } else {
-            eventDate = new Date(ev.date as string)
-          }
-
-          return {
-            id: String(ev.id),
-            code: String(ev.code ?? ""),
-            title: String(ev.title ?? "(Sense títol)"),
-            start: eventDate,
-            end: eventDate,
-            location: String(ev.location ?? ""),
-            pax: String(ev.pax ?? ""),
-            service: String(ev.service ?? ""),
-            commercial: String(ev.commercial ?? ""),
-          }
-        })
-        setEvents(formatted)
-      } else {
-        setEvents([])
-      }
+      setSyncing(true)
+      const res = await fetch('/api/sync/zoho-to-firestore?mode=manual', { cache: 'no-store' })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Error de sincronització')
+      alert(`✅ Sincronització completada:\n${json.updated || 0} actualitzats, ${json.created || 0} nous.`)
+      reload()
     } catch (err) {
-      console.error("🔥 Error carregant esdeveniments:", err)
-      setEvents([])
+      alert('❌ Error sincronitzant amb Zoho.')
+      console.error(err)
+    } finally {
+      setSyncing(false)
     }
   }
 
-  useEffect(() => {
-    fetchEvents()
-  }, [])
+// 🧠 Filtrar per solapament amb el rang [start, end]
+const visibleDeals = React.useMemo(() => {
+  if (!filters.start || !filters.end) return deals
+  const start = filters.start
+  const end = filters.end
+
+  // Comprovem si [eventStart, eventEnd] solapa amb [start, end]
+  const overlaps = (eventStart?: string, eventEnd?: string) => {
+    const s = (eventStart || '').slice(0, 10)
+    const e = (eventEnd || eventStart || '').slice(0, 10)
+    if (!s || !e) return false
+    return !(e < start || s > end)
+  }
+
+  // ✅ passem només DataInici i DataFi
+  return deals.filter(d => overlaps(d.DataInici || d.Data, d.DataFi))
+}, [deals, filters.start, filters.end])
+
+
+  if (error) {
+    return <div className="p-6 text-red-600 text-center">❌ Error carregant dades del calendari: {error}</div>
+  }
 
   return (
-    <section className="p-4">
-      <h1 className="text-xl font-bold mb-4">📅 Calendar</h1>
+    <div className="p-4 space-y-4">
+      {/* 🔹 CAPÇALERA */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <CalendarDays className="text-blue-600" size={22} />
+          <h1 className="text-xl font-semibold">Calendari Comercial</h1>
+        </div>
 
-      <div className="h-[80vh] bg-white rounded-xl shadow p-2">
-        <BigCalendar
-          selectable
-          localizer={localizer}
-          events={events}
-          startAccessor="start"
-          endAccessor="end"
-          style={{ height: "100%" }}
-          onSelectSlot={(slotInfo) => {
-            setSelectedDate(slotInfo.start as Date)
-            setOpenCreate(true)
-          }}
-          onSelectEvent={(event) => {
-            setSelectedEvent(event as CalendarEvent)
-            setOpenEdit(true)
-          }}
-          eventPropGetter={(event) => {
-            let bg = "#2563eb" // blau per defecte
-
-            if (event.code?.startsWith("C")) bg = "#dc2626" // vermell
-            if (event.code?.startsWith("E")) bg = "#16a34a" // verd
-            if (event.code?.startsWith("F")) bg = "#9333ea" // lila
-
-            return {
-              style: {
-                backgroundColor: bg,
-                borderRadius: "6px",
-                padding: "2px 4px",
-                color: "white",
-                border: "none",
-                marginBottom: "4px",
-              },
-            }
-          }}
-        />
+        <div className="flex flex-wrap gap-2 justify-end">
+          <CalendarNewEventModal onCreated={reload} />
+          {role === 'admin' && (
+            <Button
+              variant="outline"
+              onClick={handleSync}
+              disabled={syncing}
+              className="flex items-center gap-2"
+            >
+              <RefreshCw size={16} className={syncing ? 'animate-spin text-blue-500' : ''} />
+              {syncing ? 'Sincronitzant...' : 'Sincronitzar amb Zoho'}
+            </Button>
+          )}
+        </div>
       </div>
 
-      {/* Modal de creació */}
-      {selectedDate && (
-        <CreateEventModal
-          isOpen={openCreate}
-          onClose={() => setOpenCreate(false)}
-          defaultDate={selectedDate}
-          onSaved={fetchEvents}
-        />
-      )}
+      {/* 🔹 CÀPSULA ÚNICA DE FILTRES (vista + navegació) */}
+      <CalendarFilters
+        defaultMode="month"
+        onChange={(f) => setFilters(f)}
+        onReset={() => setFilters({ mode: 'month', start: undefined, end: undefined })}
+      />
 
-      {/* Modal d’edició */}
-      {selectedEvent && (
-        <EditEventModal
-          isOpen={openEdit}
-          onClose={() => setOpenEdit(false)}
-          event={selectedEvent}
-          onSaved={fetchEvents}
+      {/* 🔹 LLEGENDA */}
+      <Legend />
+
+      {/* 🔹 CONTINGUT PRINCIPAL */}
+      {filters.mode === 'month' ? (
+        <CalendarMonthView
+          deals={visibleDeals}
+          start={filters.start}
+          end={filters.end}
+          onCreated={reload}
         />
+      ) : filters.mode === 'week' ? (
+        <CalendarWeekView
+          deals={visibleDeals}
+          start={filters.start}
+          end={filters.end}
+          onCreated={reload}
+        />
+      ) : (
+        <CalendarList deals={visibleDeals} loading={loading} />
       )}
-    </section>
+    </div>
   )
 }
