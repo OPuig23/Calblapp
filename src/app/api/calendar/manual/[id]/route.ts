@@ -1,35 +1,44 @@
+//file: src/app/api/calendar/manual/[id]/route.ts
+// ✅ Vercel-ready: Node runtime + firebase-admin
 import { NextResponse } from 'next/server'
-import { initializeApp, getApps } from 'firebase/app'
-import { getFirestore, doc, updateDoc, deleteDoc } from 'firebase/firestore'
+import { firestore } from '@/lib/firebaseAdmin'
 
-const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_GOOGLE_API_KEY,
-  authDomain: 'cal-blay-webapp.firebaseapp.com',
-  projectId: process.env.FIREBASE_PROJECT_ID,
-}
+export const runtime = 'nodejs'
 
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApps()[0]
-const db = getFirestore(app)
-
-export async function PUT(req: Request, { params }: any) {
-  const { id } = params
-  const data = await req.json()
+export async function PUT(req: Request, { params }: { params: { id: string } }) {
   try {
-    await updateDoc(doc(db, 'manualEvents', id), { ...data, updatedAt: new Date().toISOString() })
+    const body = await req.json()
+    const { collection, ...data } = body as { collection?: string; [k: string]: any }
+
+    if (!collection || !collection.startsWith('stage_')) {
+      return NextResponse.json({ error: 'Falta o és invàlida la col·lecció' }, { status: 400 })
+    }
+
+    await firestore.collection(collection).doc(params.id).set(
+      { ...data, updatedAt: new Date().toISOString() },
+      { merge: true }
+    )
+
     return NextResponse.json({ ok: true })
-  } catch (err) {
-    console.error('❌ Error actualitzant:', err)
-    return NextResponse.json({ error: 'Error actualitzant' }, { status: 500 })
+  } catch (err: any) {
+    console.error('❌ PUT manual:', err?.message || err)
+    return NextResponse.json({ error: err?.message || 'Error actualitzant' }, { status: 500 })
   }
 }
 
-export async function DELETE(_: Request, { params }: any) {
-  const { id } = params
+export async function DELETE(req: Request, { params }: { params: { id: string } }) {
   try {
-    await deleteDoc(doc(db, 'manualEvents', id))
+    const url = new URL(req.url)
+    const collection = url.searchParams.get('collection')
+
+    if (!collection || !collection.startsWith('stage_')) {
+      return NextResponse.json({ error: 'Falta o és invàlida la col·lecció' }, { status: 400 })
+    }
+
+    await firestore.collection(collection).doc(params.id).delete()
     return NextResponse.json({ ok: true })
-  } catch (err) {
-    console.error('❌ Error eliminant:', err)
-    return NextResponse.json({ error: 'Error eliminant' }, { status: 500 })
+  } catch (err: any) {
+    console.error('❌ DELETE manual:', err?.message || err)
+    return NextResponse.json({ error: err?.message || 'Error eliminant' }, { status: 500 })
   }
 }
