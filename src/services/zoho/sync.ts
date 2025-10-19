@@ -1,3 +1,4 @@
+//file: src/services/zoho/sync.ts
 import { zohoFetch } from '@/services/zoho/auth'
 import { firestore } from '@/lib/firebaseAdmin'
 
@@ -88,33 +89,40 @@ export async function syncZohoDealsToFirestore() {
       const numPax = d.Nombre_de_persones || null
 
       return {
-        idZoho: String(d.id),
-        NomEvent: d.Deal_Name || 'Sense nom',
-        Stage: stage,
-        Servei: servei,
-        LN: pipeline,
-        Comercial: d?.Owner?.name ?? '—',
-        DataInici: dateString,
-        DataFi: dateString,
-        NumPax: numPax,
-        Ubicacio: ubicacio,
-        Color:
-          colorGroup === 'blau'
-            ? 'border-blue-300 bg-blue-50 text-blue-800'
-            : colorGroup === 'taronja'
-            ? 'border-orange-300 bg-orange-50 text-orange-800'
-            : 'border-green-300 bg-green-50 text-green-800',
-        StageDot:
-          colorGroup === 'blau'
-            ? 'bg-blue-400'
-            : colorGroup === 'taronja'
-            ? 'bg-orange-400'
-            : 'bg-green-500',
-        origen: 'zoho',
-        editable: colorGroup === 'verd',
-        updatedAt: new Date().toISOString(),
-        collection: colorGroup,
-      }
+  idZoho: String(d.id),
+  NomEvent: d.Deal_Name || 'Sense nom',
+  Stage: stage,
+  Servei: servei,
+  LN: pipeline,
+  Comercial: d?.Owner?.name ?? '—',
+  DataInici: dateString,
+  DataFi: dateString,
+  NumPax: numPax,
+  Ubicacio: ubicacio,
+  Color:
+    colorGroup === 'blau'
+      ? 'border-blue-300 bg-blue-50 text-blue-800'
+      : colorGroup === 'taronja'
+      ? 'border-orange-300 bg-orange-50 text-orange-800'
+      : 'border-green-300 bg-green-50 text-green-800',
+  StageDot:
+    colorGroup === 'blau'
+      ? 'bg-blue-400'
+      : colorGroup === 'taronja'
+      ? 'bg-orange-400'
+      : 'bg-green-500',
+  StageGroup:
+    colorGroup === 'blau'
+      ? 'Prereserva / Calentet'
+      : colorGroup === 'taronja'
+      ? 'Proposta / Pendent signar'
+      : 'Confirmat',
+  origen: 'zoho',
+  editable: colorGroup === 'verd',
+  updatedAt: new Date().toISOString(),
+  collection: colorGroup,
+}
+
     })
     .filter((d): d is NonNullable<typeof d> => d !== null)
 

@@ -135,6 +135,7 @@ const handleSave = async (e?: React.MouseEvent) => {
 
       <DialogContent
         className="max-w-md"
+         onClick={(e) => e.stopPropagation()}  
         onInteractOutside={(e) => e.preventDefault()} // evita tancar clicant fora
       >
         <DialogHeader>
@@ -166,27 +167,26 @@ const handleSave = async (e?: React.MouseEvent) => {
             )}
           </div>
 
-          {/* LN */}
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Línia de negoci</label>
-            {isEditable ? (
-              <select
-                value={editData.LN}
-                onClick={(e) => e.stopPropagation()} // evita obrir modal nou
-                onChange={(e) => handleChange('LN', e.target.value)}
-                className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-              >
-                <option value="Empresa">Empresa</option>
-                <option value="Casaments">Casaments</option>
-                <option value="Grups Restaurants">Grups Restaurants</option>
-                <option value="Foodlovers">Foodlovers</option>
-                <option value="Agenda">Agenda</option>
-                <option value="Altres">Altres</option>
-              </select>
-            ) : (
-              <p>{editData.LN}</p>
-            )}
-          </div>
+          {/* Línia de negoci */}
+<div>
+  <label className="block text-xs text-gray-500 mb-1">Línia de negoci</label>
+  {isEditable ? (
+    <select
+      value={editData.LN}
+      onChange={(e) => handleChange('LN', e.target.value)}
+      className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+    >
+      <option value="Empresa">Empresa</option>
+      <option value="Casaments">Casaments</option>
+      <option value="Grups Restaurants">Grups Restaurants</option>
+      <option value="Foodlovers">Foodlovers</option>
+      <option value="Agenda">Agenda</option>
+      <option value="Altres">Altres</option>
+    </select>
+  ) : (
+    <p>{deal.LN || '—'}</p>
+  )}
+</div>
 
           {/* Nom */}
           <div>
@@ -229,18 +229,19 @@ const handleSave = async (e?: React.MouseEvent) => {
           </div>
 
           {/* Num. pax */}
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Núm. pax</label>
-            {isEditable ? (
-              <Input
-                type="number"
-                value={editData.NumPax}
-                onChange={(e) => handleChange('NumPax', e.target.value)}
-              />
-            ) : (
-              <p>{editData.NumPax || '—'}</p>
-            )}
-          </div>
+<div>
+  <label className="block text-xs text-gray-500 mb-1">Núm. pax</label>
+  {isEditable ? (
+    <Input
+      type="text" // 👈 abans era number
+      value={editData.NumPax || ''}
+      onChange={(e) => handleChange('NumPax', e.target.value)}
+    />
+  ) : (
+    <p>{editData.NumPax || '—'}</p>
+  )}
+</div>
+
 
           {/* Ubicació */}
           <div>
@@ -255,18 +256,19 @@ const handleSave = async (e?: React.MouseEvent) => {
             )}
           </div>
 
-          {/* Servei */}
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Tipus de Servei</label>
-            {isEditable ? (
-              <Input
-                value={editData.Servei}
-                onChange={(e) => handleChange('Servei', e.target.value)}
-              />
-            ) : (
-              <p>{editData.Servei}</p>
-            )}
-          </div>
+{/* Tipus de Servei */}
+<div>
+  <label className="block text-xs text-gray-500 mb-1">Tipus de Servei</label>
+  {isEditable ? (
+    <Input
+      value={editData.Servei}
+      onChange={(e) => handleChange('Servei', e.target.value)}
+    />
+  ) : (
+    <p>{editData.Servei !== '' ? editData.Servei : '—'}</p>
+  )}
+</div>
+
 
           {/* Comercial */}
           <div>
