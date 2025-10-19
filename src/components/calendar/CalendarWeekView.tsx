@@ -88,6 +88,7 @@ export default function CalendarWeekView({
                     <CalendarModal
                       key={`${iso}-${ev.id}`}
                       deal={ev}
+                      onSaved={onCreated}
                       trigger={
                         <div
                           onClick={(e) => e.stopPropagation()}

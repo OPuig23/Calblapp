@@ -17,6 +17,7 @@ import type { Deal } from '@/hooks/useCalendarData'
 interface Props {
   deal: Deal
   trigger: React.ReactNode
+  onSaved?: () => void
 }
 
 /**
@@ -25,7 +26,7 @@ interface Props {
  * - Verd (Confirmat): editable
  * - Blau / Taronja: només lectura
  */
-export default function CalendarModal({ deal, trigger }: Props) {
+export default function CalendarModal({ deal, trigger, onSaved }: Props) {
   const [open, setOpen] = useState(false)
 
   // Dades del formulari
@@ -53,27 +54,41 @@ export default function CalendarModal({ deal, trigger }: Props) {
   const handleChange = (field: string, value: string) =>
     setEditData((prev) => ({ ...prev, [field]: value }))
 
-  // 💾 Desa canvis i refresca calendari
-  const handleSave = async (e?: React.MouseEvent) => {
-    e?.stopPropagation() // evita obrir nou modal
-    if (!colName) return alert('❌ No s’ha pogut determinar la col·lecció.')
+ // 💾 Desa canvis i refresca calendari
+const handleSave = async (e?: React.MouseEvent) => {
+  e?.stopPropagation() // evita obrir modal nou
+  if (!colName) return alert('❌ No s’ha pogut determinar la col·lecció.')
 
-    try {
-      const res = await fetch(`/api/calendar/manual/${deal.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...editData, collection: colName }),
-      })
-      if (!res.ok) throw new Error('Error desant canvis')
-      alert('✅ Canvis desats correctament')
-      setOpen(false)
-      // 🔄 refresca calendari perquè canviï el color
-      window.dispatchEvent(new Event('calendar-reload'))
-    } catch (err) {
-      console.error('❌ Error desant:', err)
-      alert('❌ No s’han pogut desar els canvis.')
+  try {
+    const res = await fetch(`/api/calendar/manual/${deal.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...editData, collection: colName }),
+    })
+    if (!res.ok) throw new Error('Error desant canvis')
+
+    alert('✅ Canvis desats correctament')
+    setOpen(false)
+    onSaved?.()
+
+    // ✅ Crida al reload si s’ha passat com a prop
+    if (typeof window !== 'undefined') {
+      // opcional: recarrega el calendari si l’app ho escolta
+      document.dispatchEvent(new CustomEvent('calendar:reload'))
     }
+
+    // Si CalendarModal rep un onSaved (des de CalendarMonthView o WeekView)
+    // l’executem directament
+    if (typeof (deal as any).onSaved === 'function') {
+      ;(deal as any).onSaved()
+    }
+
+  } catch (err) {
+    console.error('❌ Error desant:', err)
+    alert('❌ No s’han pogut desar els canvis.')
   }
+}
+
 
   // 🗑️ Elimina esdeveniment
   const handleDelete = async (e?: React.MouseEvent) => {

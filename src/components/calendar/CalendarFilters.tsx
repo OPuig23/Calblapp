@@ -1,11 +1,25 @@
-//file: src/components/calendar/CalendarFilters.tsx
+// ✅ file: src/components/calendar/CalendarFilters.tsx
 'use client'
 
 import React, { useEffect, useMemo, useState, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { CalendarDays, ChevronLeft, ChevronRight, Filter } from 'lucide-react'
-import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select'
-import { addMonths, addWeeks, endOfMonth, endOfWeek, format, startOfMonth, startOfWeek } from 'date-fns'
+import {
+  Select,
+  SelectTrigger,
+  SelectContent,
+  SelectItem,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  addMonths,
+  addWeeks,
+  endOfMonth,
+  endOfWeek,
+  format,
+  startOfMonth,
+  startOfWeek,
+} from 'date-fns'
 import { es } from 'date-fns/locale'
 
 export type Mode = 'month' | 'week'
@@ -26,12 +40,17 @@ export interface CalendarFiltersProps {
 
 const toIso = (d: Date) => format(d, 'yyyy-MM-dd')
 
-export default function CalendarFilters({ defaultMode = 'month', onChange, onReset }: CalendarFiltersProps) {
+export default function CalendarFilters({
+  defaultMode = 'month',
+  onChange,
+  onReset,
+}: CalendarFiltersProps) {
   const [mode, setMode] = useState<Mode>(defaultMode)
   const [anchor, setAnchor] = useState<Date>(new Date())
   const [ln, setLn] = useState<string>('Tots')
   const [stage, setStage] = useState<string>('Tots')
 
+  /* ─── Mesos i anys ─── */
   const years = useMemo(() => {
     const currentYear = new Date().getFullYear()
     return Array.from({ length: 8 }, (_, i) => currentYear - 2 + i)
@@ -42,26 +61,28 @@ export default function CalendarFilters({ defaultMode = 'month', onChange, onRes
     'Juliol', 'Agost', 'Setembre', 'Octubre', 'Novembre', 'Desembre',
   ]
 
+  /* ─── Opcions de filtres ─── */
   const lnOptions = ['Tots', 'Empresa', 'Casaments', 'Grups Restaurants', 'Foodlovers', 'Agenda', 'Altres']
   const stageOptions = ['Tots', 'Confirmat', 'Proposta / Pendent signar', 'Prereserva / Calentet']
 
-  // 🔁 Relació bidireccional
   const stagesByLN: Record<string, string[]> = {
     Empresa: ['Confirmat', 'Proposta / Pendent signar'],
     Casaments: ['Confirmat', 'Prereserva / Calentet'],
     'Grups Restaurants': ['Confirmat'],
     Foodlovers: ['Confirmat'],
     Agenda: ['Confirmat'],
-    Altres: ['Confirmat', 'Proposta / Pendent signar'],
+    Altres: ['Confirmat', 'Proposta / Pendent signar', 'Prereserva / Calentet'],
     Tots: stageOptions,
   }
 
+  /* ─── Sincronització entre LN i Stage ─── */
   useEffect(() => {
     if (ln !== 'Tots' && !stagesByLN[ln]?.includes(stage)) {
       setStage('Tots')
     }
   }, [ln])
 
+  /* ─── Rang de dates actual (mes o setmana) ─── */
   const range = useMemo(() => {
     if (mode === 'week') {
       const from = startOfWeek(anchor, { weekStartsOn: 1 })
@@ -73,28 +94,48 @@ export default function CalendarFilters({ defaultMode = 'month', onChange, onRes
     return { start: toIso(from), end: toIso(to) }
   }, [mode, anchor])
 
+  /* ─── Notifica canvis a CalendarPage ─── */
   const lastPayload = useRef<string>('')
+
   useEffect(() => {
-    const payload = JSON.stringify({ mode, start: range.start, end: range.end, ln, stage })
+    const payload = JSON.stringify({
+      mode,
+      start: range.start,
+      end: range.end,
+      ln,
+      stage,
+    })
+
+    // Evita bucles infinits
     if (payload !== lastPayload.current) {
       lastPayload.current = payload
-      onChange({ mode, start: range.start, end: range.end, ln, stage })
+      onChange({
+        mode,
+        start: range.start,
+        end: range.end,
+        ln,
+        stage,
+      })
     }
   }, [mode, range.start, range.end, ln, stage, onChange])
 
-  const prev = () => setAnchor((a) => (mode === 'week' ? addWeeks(a, -1) : addMonths(a, -1)))
-  const next = () => setAnchor((a) => (mode === 'week' ? addWeeks(a, 1) : addMonths(a, 1)))
+  /* ─── Navegació temporal ─── */
+  const prev = () => setAnchor(a => (mode === 'week' ? addWeeks(a, -1) : addMonths(a, -1)))
+  const next = () => setAnchor(a => (mode === 'week' ? addWeeks(a, 1) : addMonths(a, 1)))
+
   const handleMonthChange = (mIndex: number) => {
     const newDate = new Date(anchor)
     newDate.setMonth(mIndex)
     setAnchor(newDate)
   }
+
   const handleYearChange = (y: number) => {
     const newDate = new Date(anchor)
     newDate.setFullYear(y)
     setAnchor(newDate)
   }
 
+  /* ─── RENDER ─── */
   return (
     <div className="flex flex-col sm:flex-row flex-wrap items-center justify-between gap-2 bg-white/70 p-3 rounded-2xl border border-gray-200 shadow-sm">
       {/* 🔹 Navegació temporal */}
@@ -138,8 +179,7 @@ export default function CalendarFilters({ defaultMode = 'month', onChange, onRes
       {/* 🔹 Filtres LN i Stage */}
       <div className="flex items-center gap-2 flex-wrap justify-center">
         <Filter size={16} className="text-gray-500" />
-
-        <Select value={ln} onValueChange={setLn}>
+        <Select value={ln} onValueChange={(v) => setLn(v)}>
           <SelectTrigger className="w-[130px] text-xs sm:text-sm">
             <SelectValue>{ln}</SelectValue>
           </SelectTrigger>
@@ -152,12 +192,12 @@ export default function CalendarFilters({ defaultMode = 'month', onChange, onRes
           </SelectContent>
         </Select>
 
-        <Select value={stage} onValueChange={setStage}>
+        <Select value={stage} onValueChange={(v) => setStage(v)}>
           <SelectTrigger className="w-[150px] text-xs sm:text-sm">
             <SelectValue>{stage}</SelectValue>
           </SelectTrigger>
           <SelectContent>
-            {stagesByLN[ln].map((o) => (
+            {stagesByLN[ln]?.map((o) => (
               <SelectItem key={o} value={o}>
                 {o}
               </SelectItem>

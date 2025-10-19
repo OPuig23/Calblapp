@@ -1,20 +1,25 @@
-// ✅ filename: src/services/zoho/sync.ts
-// 🔁 SINCRONITZACIÓ ZOHO → FIRESTORE (versió revisada amb camps reals)
-// Compatible 100% amb Vercel i Firestore
-
 import { zohoFetch } from '@/services/zoho/auth'
 import { firestore } from '@/lib/firebaseAdmin'
 
+/**
+ * 🔁 SINCRONITZACIÓ ZOHO → FIRESTORE
+ * Lògica millorada:
+ * - Només sincronitza del dia actual en endavant (tots els stages)
+ * - Esborra automàticament esdeveniments passats per stage_blau i stage_taronja
+ * - Stage_verd només s’actualitza i mai s’esborra
+ */
 export async function syncZohoDealsToFirestore() {
   console.log('🚀 Iniciant sincronització Zoho → Firestore...')
 
+  const today = new Date().toISOString().slice(0, 10)
   const moduleName = process.env.ZOHO_CRM_MODULE || 'Deals'
   const fields = [
     'id',
     'Deal_Name',
     'Stage',
     'Tipo_de_lead',
-    'Servicio_texto',
+    'Producto_2',
+    'Men_texto',
     'Finca_2',
     'Espai_2',
     'Nombre_de_persones',
@@ -23,7 +28,7 @@ export async function syncZohoDealsToFirestore() {
     'Owner',
   ].join(',')
 
-  // 1️⃣ Lectura completa de Zoho (paginada)
+  // 1️⃣ Lectura completa Zoho (paginada)
   let allDeals: any[] = []
   let page = 1
   let fetched = 0
@@ -40,14 +45,14 @@ export async function syncZohoDealsToFirestore() {
 
   console.log(`📦 Total oportunitats rebudes de Zoho: ${allDeals.length}`)
 
-  // 2️⃣ Classificació per etapa
+  // 2️⃣ Classificació d'etapes
   const collections = {
     blau: firestore.collection('stage_blau'),
     taronja: firestore.collection('stage_taronja'),
     verd: firestore.collection('stage_verd'),
   } as const
 
-  function classifyStage(stage: string): 'blau' | 'taronja' | 'verd' | null {
+  const classifyStage = (stage: string): 'blau' | 'taronja' | 'verd' | null => {
     const s = stage.toLowerCase()
     if (s.includes('prereserva') || s.includes('calentet')) return 'blau'
     if (
@@ -62,7 +67,7 @@ export async function syncZohoDealsToFirestore() {
     return null
   }
 
-  // 3️⃣ Normalització i mapping
+  // 3️⃣ Normalització i filtre per data (només futur)
   const normalizedDeals = allDeals
     .map((d) => {
       const stage = d.Stage || ''
@@ -70,8 +75,15 @@ export async function syncZohoDealsToFirestore() {
       if (!colorGroup) return null
 
       const dataEvent = d.Fecha_del_evento || d.Fecha_y_hora_del_evento || null
+      const dateString = dataEvent ? String(dataEvent).slice(0, 10) : null
+      if (!dateString || dateString < today) {
+        // descarta passats
+        return null
+      }
+
       const pipeline = d.Tipo_de_lead || d.Pipeline || 'Altres'
-      const servei = d.Servicio_texto || ''
+      const servei = d.Producto_2 || d.Men_texto || ''
+
       const ubicacio = d.Finca_2 || d.Espai_2 || ''
       const numPax = d.Nombre_de_persones || null
 
@@ -82,8 +94,8 @@ export async function syncZohoDealsToFirestore() {
         Servei: servei,
         LN: pipeline,
         Comercial: d?.Owner?.name ?? '—',
-        DataInici: dataEvent ? String(dataEvent).slice(0, 10) : null,
-        DataFi: dataEvent ? String(dataEvent).slice(0, 10) : null,
+        DataInici: dateString,
+        DataFi: dateString,
         NumPax: numPax,
         Ubicacio: ubicacio,
         Color:
@@ -106,45 +118,40 @@ export async function syncZohoDealsToFirestore() {
     })
     .filter((d): d is NonNullable<typeof d> => d !== null)
 
-  console.log(`✅ Oportunitats vàlides: ${normalizedDeals.length}`)
+  console.log(`✅ Oportunitats vàlides (futures): ${normalizedDeals.length}`)
 
-  // 4️⃣ Escriptura a Firestore
+  // 4️⃣ Esborrar registres antics de blau/taronja
+  let deletedOldCount = 0
+  for (const colName of ['stage_blau', 'stage_taronja']) {
+    const snapshot = await firestore.collection(colName).get()
+    for (const doc of snapshot.docs) {
+      const data = doc.data()
+      const docDate = data?.DataInici || ''
+      if (docDate < today) {
+        await firestore.collection(colName).doc(doc.id).delete()
+        deletedOldCount++
+      }
+    }
+  }
+  console.log(`🧹 Eliminats ${deletedOldCount} registres antics (blau/taronja)`)
+
+  // 5️⃣ Escriure dades noves
   const batch = firestore.batch()
   let createdCount = 0
-
   for (const deal of normalizedDeals) {
     const col = collections[deal.collection]
     if (!col) continue
-    const docRef = col.doc(deal.idZoho)
-    batch.set(docRef, deal, { merge: true })
+    batch.set(col.doc(deal.idZoho), deal, { merge: true })
     createdCount++
   }
 
   await batch.commit()
-  console.log(`🔥 Firestore actualitzat (${createdCount} documents)`)
+  console.log(`🔥 Firestore actualitzat (${createdCount} nous/actualitzats)`)
 
-  // 5️⃣ Eliminació de registres obsolets
-  const allCollections = ['stage_blau', 'stage_taronja', 'stage_verd']
-  for (const colName of allCollections) {
-    const snapshot = await firestore.collection(colName).get()
-    const toDelete = snapshot.docs.filter(
-      (doc) =>
-        !normalizedDeals.find(
-          (d) => d.idZoho === doc.id && d.collection === colName.replace('stage_', '')
-        )
-    )
-    for (const doc of toDelete) {
-      await firestore.collection(colName).doc(doc.id).delete()
-    }
-    if (toDelete.length > 0)
-      console.log(`🧹 Eliminats ${toDelete.length} registres de ${colName}`)
-  }
-
-  // 6️⃣ Resultat final
+  // 6️⃣ Retorn resum
   return {
     totalCount: allDeals.length,
     createdCount,
-    updatedCount: 0,
-    removedCount: 0,
+    deletedOldCount,
   }
 }

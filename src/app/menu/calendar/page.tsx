@@ -1,4 +1,4 @@
-// file: src/app/menu/calendar/page.tsx
+// ✅ file: src/app/menu/calendar/page.tsx
 'use client'
 
 import React, { useState } from 'react'
@@ -19,10 +19,12 @@ export default function CalendarPage() {
     ln: 'Tots',
     stage: 'Tots',
   })
+
   const { deals, loading, error, reload } = useCalendarData({
     ln: filters.ln,
     stage: filters.stage,
   })
+
   const { data: session } = useSession()
   const role = String(session?.user?.role || '').toLowerCase()
   const [syncing, setSyncing] = useState(false)
@@ -70,22 +72,30 @@ export default function CalendarPage() {
       <CalendarFilters
         defaultMode="month"
         onChange={(f) => setFilters(f)}
-        onReset={() =>
-          setFilters({ mode: 'month', ln: 'Tots', stage: 'Tots' })
-        }
+        onReset={() => setFilters({ mode: 'month', ln: 'Tots', stage: 'Tots' })}
       />
 
       {/* 🔹 Llegenda */}
       <Legend />
 
-      {/* 🔹 Vista principal */}
+      {/* 🔹 Contingut */}
       {error && <div className="text-red-600">{error}</div>}
       {loading && <div className="text-gray-500">Carregant dades...</div>}
 
       {filters.mode === 'month' ? (
-        <CalendarMonthView deals={deals} onCreated={reload} />
+        <CalendarMonthView
+          deals={deals}
+          start={filters.start}
+          end={filters.end}
+          onCreated={reload}
+        />
       ) : (
-        <CalendarWeekView deals={deals} onCreated={reload} />
+        <CalendarWeekView
+          deals={deals}
+          start={filters.start}
+          end={filters.end}
+          onCreated={reload}
+        />
       )}
     </div>
   )

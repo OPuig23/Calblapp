@@ -96,7 +96,12 @@ export default function CalendarMonthView({
           return (
             <motion.div
               key={iso}
-              onClick={() => !d.isOther && setSelectedDate(iso)}
+              onClick={(e) => {
+  // Evita obrir el modal nou si el clic ve d’un modal existent
+  if ((e.target as HTMLElement).closest('.dialog-content')) return
+  if (!d.isOther) setSelectedDate(iso)
+}}
+
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.15 }}
@@ -134,6 +139,7 @@ export default function CalendarMonthView({
                       <CalendarModal
                         key={ev.id}
                         deal={ev}
+                        onSaved={onCreated}
                         trigger={
                           <div
                             onClick={(e) => e.stopPropagation()} // evita obrir nou modal

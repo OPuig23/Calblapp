@@ -26,7 +26,9 @@ export interface Deal {
 }
 
 /**
- * Hook unificat per carregar i filtrar esdeveniments de Firestore
+ * 📦 Hook — Carrega i filtra els esdeveniments segons la nova lògica:
+ * - Stage verd: mostra 1 mes enrere + futur
+ * - Stage blau/taronja: només futur
  */
 export function useCalendarData(filters?: { ln?: string; stage?: string }) {
   const [deals, setDeals] = useState<Deal[]>([])
@@ -53,11 +55,15 @@ export function useCalendarData(filters?: { ln?: string; stage?: string }) {
 
   const load = async () => {
     setLoading(true)
-    setError(null)
     try {
       const res = await fetch('/api/events/from-firestore', { cache: 'no-store' })
       if (!res.ok) throw new Error(`Error ${res.status}`)
       const json = await res.json()
+      const today = new Date()
+      const oneMonthAgo = new Date(today)
+      oneMonthAgo.setMonth(today.getMonth() - 1)
+      const todayISO = today.toISOString().slice(0, 10)
+      const limitPastISO = oneMonthAgo.toISOString().slice(0, 10)
 
       let data: Deal[] = (json.data || []).map((d: any) => ({
         id: d.id,
@@ -80,21 +86,30 @@ export function useCalendarData(filters?: { ln?: string; stage?: string }) {
         code: d.code || '',
       }))
 
-      // 🔍 Filtres actius (amb protecció de tipus)
+      // 🔹 Filtre temporal
+      data = data.filter((d) => {
+        const date = d.DataInici || ''
+        if (!date) return false
+        if (d.collection === 'verd') return date >= limitPastISO
+        return date >= todayISO
+      })
+
+     // 🔹 Filtres de LN i Stage
 if (filters?.ln && filters.ln !== 'Tots') {
-  const lnValue = filters.ln.toLowerCase()
-  data = data.filter((d) => (d.LN || '').toLowerCase() === lnValue)
+  const lnValue = String(filters.ln).toLowerCase()
+  data = data.filter(
+    (d) => (d.LN || '').toLowerCase() === lnValue
+  )
 }
 
 if (filters?.stage && filters.stage !== 'Tots') {
-  const stageValue = filters.stage.toLowerCase()
-  data = data.filter((d) =>
-    (d.StageGroup || '').toLowerCase().includes(stageValue)
+  const stageValue = String(filters.stage).toLowerCase()
+  data = data.filter(
+    (d) => (d.StageGroup || '').toLowerCase().includes(stageValue)
   )
 }
 
 
-      // 🔄 Ordenar cronològicament
       data.sort(
         (a, b) =>
           new Date(a.DataInici || a.Data || 0).getTime() -

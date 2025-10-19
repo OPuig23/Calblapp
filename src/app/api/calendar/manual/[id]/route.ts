@@ -5,24 +5,25 @@ import { firestore } from '@/lib/firebaseAdmin'
 
 export const runtime = 'nodejs'
 
-export async function PUT(req: Request, { params }: { params: { id: string } }) {
+export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   try {
     const body = await req.json()
-    const { collection, ...data } = body as { collection?: string; [k: string]: any }
+    const { collection, ...data } = body
 
-    if (!collection || !collection.startsWith('stage_')) {
-      return NextResponse.json({ error: 'Falta o és invàlida la col·lecció' }, { status: 400 })
+    if (!collection) {
+      return NextResponse.json({ error: 'Falta la col·lecció' }, { status: 400 })
     }
 
-    await firestore.collection(collection).doc(params.id).set(
-      { ...data, updatedAt: new Date().toISOString() },
-      { merge: true }
-    )
+    await firestore
+      .collection(collection)
+      .doc(id)
+      .set({ ...data, updatedAt: new Date().toISOString() }, { merge: true })
 
     return NextResponse.json({ ok: true })
-  } catch (err: any) {
-    console.error('❌ PUT manual:', err?.message || err)
-    return NextResponse.json({ error: err?.message || 'Error actualitzant' }, { status: 500 })
+  } catch (err) {
+    console.error('❌ Error actualitzant:', err)
+    return NextResponse.json({ error: 'Error actualitzant' }, { status: 500 })
   }
 }
 
