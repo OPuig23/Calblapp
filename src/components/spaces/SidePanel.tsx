@@ -9,26 +9,36 @@ import { Button } from '@/components/ui/button'
 interface SidePanelProps {
   open: boolean
   onClose: () => void
-  onApply: (filters: SpacesFilterState) => void   // 👈 afegeix aquesta línia
+  onApply: (filters: SpacesFilterState) => void
 }
 
-
 export default function SidePanel({ open, onClose, onApply }: SidePanelProps) {
-
   const [pendingFilters, setPendingFilters] = useState<SpacesFilterState | null>(null)
 
-const applyFilters = () => {
-  if (pendingFilters) {
-    console.log('✅ Filtres aplicats:', pendingFilters)
-    onApply(pendingFilters)   // ✅ <--- aquesta línia envia els filtres reals al page.tsx
+  /** ✅ Aplica filtres al pare */
+  const applyFilters = () => {
+  if (!pendingFilters) return
+  // 🔹 Si el filtre no porta baseDate, mantenim el de l'última vista
+  const filtersWithBase = {
+    ...pendingFilters,
+    baseDate: pendingFilters.baseDate || new Date().toISOString().split('T')[0],
   }
+  onApply(filtersWithBase)
   onClose()
 }
 
 
+  /** 🧹 Reinicia filtres */
   const resetFilters = () => {
-    setPendingFilters(null)
-    console.log('🔄 Filtres reiniciats')
+    const reset: SpacesFilterState = {
+      month: new Date().getMonth(),
+      year: new Date().getFullYear(),
+      finca: '',
+      comercial: '',
+      baseDate: new Date().toISOString().split('T')[0],
+    }
+    onApply(reset)
+    onClose()
   }
 
   return (
@@ -45,23 +55,12 @@ const applyFilters = () => {
 
       <SpacesFilters onChange={(f) => setPendingFilters(f)} />
 
-      {/* 🔹 Botons d'acció */}
       <div className="flex justify-between mt-6 border-t pt-3">
-        <Button
-          variant="outline"
-          size="sm"
-          className="text-gray-600 hover:text-gray-800"
-          onClick={resetFilters}
-        >
-          Reinicia
+        <Button variant="outline" size="sm" onClick={resetFilters}>
+          Neteja filtres
         </Button>
-        <Button
-          variant="default"
-          size="sm"
-          className="bg-blue-600 text-white hover:bg-blue-700"
-          onClick={applyFilters}
-        >
-          Aplica filtres
+        <Button variant="default" size="sm" className="bg-blue-600 text-white" onClick={applyFilters}>
+          Actualitza vista
         </Button>
       </div>
     </motion.aside>

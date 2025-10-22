@@ -1,32 +1,34 @@
-//file: src/components/spaces/SpaceCell.tsx
+// ✅ file: src/components/spaces/SpaceCell.tsx
+import { STAGE_COLORS } from '@/lib/colors'
+
 interface SpaceCellProps {
   eventName?: string
   commercial?: string
-  stageColor: 'verd' | 'blau' | 'taronja' | null
+  numPax?: number
+  stageColor: 'verd' | 'blau' | 'taronja' | 'lila' | null
 }
 
-export default function SpaceCell({ eventName, commercial, stageColor }: SpaceCellProps) {
-  const colorMap: Record<string, string> = {
-    verd: 'bg-green-200',
-    blau: 'bg-blue-200',
-    taronja: 'bg-orange-200',
-  }
+export default function SpaceCell({ eventName, commercial, numPax, stageColor }: SpaceCellProps) {
+  const baseColor = stageColor ? STAGE_COLORS[stageColor] : 'bg-gray-50 text-gray-700'
 
-  // 🔹 Limita el nom a 25 caràcters
   const shortEvent =
     eventName && eventName.length > 25
       ? eventName.slice(0, 25).trim() + '…'
       : eventName || ''
 
+  const titleText = [eventName, commercial, numPax ? `${numPax} pax` : '']
+    .filter(Boolean)
+    .join(' · ')
+
   return (
     <div
-      className={`rounded-lg p-1 h-12 flex flex-col justify-center text-xs ${
-        stageColor ? colorMap[stageColor] : 'bg-gray-50'
-      }`}
+      className={`rounded-md p-1 h-12 flex flex-col justify-center text-[11px] ${baseColor}`}
+      title={titleText}
     >
       {shortEvent && <span className="font-medium truncate">{shortEvent}</span>}
-      {commercial && (
-        <span className="text-[10px] truncate opacity-80">{commercial}</span>
+      {commercial && <span className="text-[10px] truncate opacity-80">{commercial}</span>}
+      {typeof numPax === 'number' && numPax > 0 && (
+        <span className="text-[10px] font-semibold">{numPax} pax</span>
       )}
     </div>
   )

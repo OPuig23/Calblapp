@@ -1,24 +1,39 @@
-//file: src/app/api/spaces/route.ts
 // ✅ API GET /api/spaces
-// Retorna la disponibilitat d’espais per setmana (consulta Firestore)
-
+// ✅ API GET /api/spaces — vista setmanal
 import { NextResponse } from 'next/server'
 import { getSpacesByWeek } from '@/services/spaces/spaces'
 
-export async function GET(request: Request): Promise<Response> {
-  const { searchParams } = new URL(request.url)
-  const week = searchParams.get('week') || undefined
-  const stage = searchParams.get('stage') || 'all'
-  const finca = searchParams.get('finca') || ''
 
-  try {
-    const data = await getSpacesByWeek(week, stage, finca)
-    return NextResponse.json({ spaces: data }, { status: 200 })
-  } catch (error) {
-    console.error('[API-SPACES]', error)
-    return NextResponse.json(
-      { error: 'Error carregant dades' },
-      { status: 500 }
-    )
-  }
+export async function GET(request: Request): Promise<Response> {
+const { searchParams } = new URL(request.url)
+
+
+const monthParam = searchParams.get('month')
+const yearParam = searchParams.get('year')
+const finca = searchParams.get('finca') || ''
+const comercial = searchParams.get('comercial') || ''
+const baseDate = searchParams.get('baseDate') || undefined // 👈 nou
+
+
+const today = new Date()
+const month = monthParam ? parseInt(monthParam, 10) : today.getMonth()
+const year = yearParam ? parseInt(yearParam, 10) : today.getFullYear()
+
+
+try {
+const { data, totalPaxPerDia } = await getSpacesByWeek(
+month,
+year,
+finca,
+comercial,
+baseDate
+)
+return NextResponse.json({ data, totalPaxPerDia }, { status: 200 })
+} catch (error) {
+console.error('[API-SPACES]', error)
+return NextResponse.json(
+{ error: 'Error carregant dades de disponibilitat' },
+{ status: 500 }
+)
+}
 }
