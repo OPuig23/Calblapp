@@ -1,6 +1,5 @@
 // ✅ file: src/hooks/useCalendarData.ts
 'use client'
-
 import { useEffect, useState } from 'react'
 
 export interface Deal {
@@ -14,7 +13,6 @@ export interface Deal {
   Data?: string
   DataInici?: string
   DataFi?: string
-  Hora?: string
   Ubicacio?: string
   Color: string
   StageDot?: string
@@ -25,25 +23,19 @@ export interface Deal {
   code?: string
 }
 
-/**
- * 📦 Hook — Carrega i filtra els esdeveniments segons la nova lògica:
- * - Stage verd: mostra 1 mes enrere + futur
- * - Stage blau/taronja: només futur
- */
 export function useCalendarData(filters?: { ln?: string; stage?: string }) {
   const [deals, setDeals] = useState<Deal[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const normalizeLN = (ln: string) => {
-    if (!ln) return 'Altres'
-    const val = ln.toLowerCase().trim()
+    const val = (ln || '').toLowerCase().trim()
+    if (!val) return 'Altres'
     if (val.includes('boda')) return 'Casaments'
     if (val.includes('empresa')) return 'Empresa'
-    if (val.includes('grup')) return 'Grups Restaurants'
-    if (val.includes('food')) return 'Foodlovers'
-    if (val.includes('agenda')) return 'Agenda'
-    return 'Altres'
+    if (val.includes('grup') || val.includes('restaur')) return 'Grups Restaurants'
+    if (val.includes('comida') || val.includes('food')) return 'Comida Preparada'
+    return ln.trim()
   }
 
   const toCollection = (g: string) =>
@@ -59,6 +51,7 @@ export function useCalendarData(filters?: { ln?: string; stage?: string }) {
       const res = await fetch('/api/events/from-firestore', { cache: 'no-store' })
       if (!res.ok) throw new Error(`Error ${res.status}`)
       const json = await res.json()
+
       const today = new Date()
       const oneMonthAgo = new Date(today)
       oneMonthAgo.setMonth(today.getMonth() - 1)
@@ -69,7 +62,7 @@ export function useCalendarData(filters?: { ln?: string; stage?: string }) {
         id: d.id,
         NomEvent: d.NomEvent || '—',
         Comercial: d.Comercial || '—',
-       LN: normalizeLN(d.LN || ''),
+        LN: normalizeLN(d.LN || ''),
         Servei: d.Servei || '',
         StageGroup: d.StageGroup || 'Sense categoria',
         collection: d.collection || toCollection(d.StageGroup || ''),
@@ -82,11 +75,11 @@ export function useCalendarData(filters?: { ln?: string; stage?: string }) {
         origen: d.origen || 'zoho',
         updatedAt: d.updatedAt || '',
         Menu: d.Menu || [],
-        NumPax: d.NumPax || '',
+        NumPax: d.NumPax ?? '',
         code: d.code || '',
       }))
 
-      // 🔹 Filtre temporal
+      // filtres temporals
       data = data.filter((d) => {
         const date = d.DataInici || ''
         if (!date) return false
@@ -94,21 +87,15 @@ export function useCalendarData(filters?: { ln?: string; stage?: string }) {
         return date >= todayISO
       })
 
-     // 🔹 Filtres de LN i Stage
-if (filters?.ln && filters.ln !== 'Tots') {
-  const lnValue = String(filters.ln).toLowerCase()
-  data = data.filter(
-    (d) => (d.LN || '').toLowerCase() === lnValue
-  )
-}
-
-if (filters?.stage && filters.stage !== 'Tots') {
-  const stageValue = String(filters.stage).toLowerCase()
-  data = data.filter(
-    (d) => (d.StageGroup || '').toLowerCase().includes(stageValue)
-  )
-}
-
+      // filtres LN/Stage
+      if (filters?.ln && filters.ln !== 'Tots') {
+        const lnValue = String(filters.ln).toLowerCase()
+        data = data.filter((d) => (d.LN || '').toLowerCase() === lnValue)
+      }
+      if (filters?.stage && filters.stage !== 'Tots') {
+        const stageValue = String(filters.stage).toLowerCase()
+        data = data.filter((d) => (d.StageGroup || '').toLowerCase().includes(stageValue))
+      }
 
       data.sort(
         (a, b) =>

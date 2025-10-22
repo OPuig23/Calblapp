@@ -28,7 +28,7 @@ export async function GET(req: Request) {
       ok: true,
       mode,
       created: result.createdCount,
-      deletedOld: result.deletedOldCount,
+      deletedOld: result.deletedCount,
       total: result.totalCount,
       timestamp: new Date().toISOString(),
     })

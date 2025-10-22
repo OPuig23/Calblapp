@@ -13,6 +13,8 @@ import {
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import type { Deal } from '@/hooks/useCalendarData'
+import { UploadCloud, FolderOpen } from 'lucide-react'
+
 
 interface Props {
   deal: Deal
@@ -283,6 +285,26 @@ const handleSave = async (e?: React.MouseEvent) => {
             )}
           </div>
         </div>
+        {/* 📎 Documents de l’esdeveniment (SharePoint) */}
+<div className="pt-2 border-t mt-4">
+  <label className="block text-xs text-gray-500 mb-2">
+    📎 Adjuntar documents a SharePoint
+  </label>
+  <Button
+  // @ts-ignore
+  variant="secondary"
+  className="w-full flex items-center justify-center gap-2"
+  onClick={() =>
+    alert('📎 Aquesta funció permetrà pujar arxius al SharePoint.')
+  }
+>
+
+    <UploadCloud className="w-4 h-4" />
+    Adjuntar arxius
+  </Button>
+</div>
+
+
 
         {/* Botons d'acció */}
         <DialogFooter className="mt-4 flex flex-col gap-2">

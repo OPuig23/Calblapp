@@ -3,18 +3,10 @@ import { NextResponse } from 'next/server'
 import { firestore } from '@/lib/firebaseAdmin'
 
 export const runtime = 'nodejs'
-// 100% compatible amb Vercel
 
-/**
- * 📅 API — Llegeix tots els esdeveniments del Firestore unificats
- * - stage_blau   → prereserva / calentet
- * - stage_taronja → proposta / pendent de signar / rq
- * - stage_verd   → confirmats
- * - permet integrar el calendari, esdeveniments i quadrants
- */
 export async function GET() {
   try {
-    const collections = ['stage_blau', 'stage_taronja', 'stage_verd']
+    const collections = ['stage_blau', 'stage_taronja', 'stage_verd'] as const
     const results: any[] = []
 
     for (const name of collections) {
@@ -34,12 +26,17 @@ export async function GET() {
       })
     }
 
-    // 🧩 Ordenem per data
     results.sort(
       (a, b) =>
         new Date(a.DataInici || a.Data || 0).getTime() -
         new Date(b.DataInici || b.Data || 0).getTime()
     )
+
+    if (results[0])
+      console.log('🧩 Firestore sample:', {
+        LN: results[0].LN,
+        Servei: results[0].Servei,
+      })
 
     return NextResponse.json({ data: results, total: results.length })
   } catch (error) {
