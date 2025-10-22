@@ -12,6 +12,7 @@ export const NAV_ITEMS: { label: string; path: string; roles: Role[]; department
   { label: 'Usuaris', path: '/menu/users', roles: ['admin'] },
   { label: 'Transports', path: '/menu/transports', roles: ['admin', 'direccio', 'cap'], department: 'Transports' },
   { label: 'Calendar', path: '/menu/calendar', roles: ['admin', 'direccio', 'comercial'] },
+  { label: 'Espais', path: '/menu/spaces', roles: ['admin', 'direccio', 'cap'] },
 ]
 
 // Helpers: labels i estils per rol

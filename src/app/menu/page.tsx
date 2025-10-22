@@ -124,6 +124,16 @@ const MODULES: ModuleOption[] = [
   color: 'from-purple-100 to-violet-100',
   iconColor: 'text-purple-600',
 },
+{
+  value: 'spaces',
+  label: 'Espais',
+  path: '/menu/spaces',
+  roles: ['admin', 'direccio', 'cap'],
+  icon: CalendarDays,               // pots triar un altre icon de Lucide si vols
+  color: 'from-emerald-100 to-green-50',
+  iconColor: 'text-emerald-600',
+},
+
 
 ]
 
