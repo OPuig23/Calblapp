@@ -11,6 +11,10 @@
     "cleanup:notifications": "tsc scripts/cleanupNotifications.ts --outDir dist && node dist/scripts/cleanupNotifications.js"
   },
   "dependencies": {
+    "@microsoft/mgt-components": "^4.6.0",
+    "@microsoft/mgt-element": "^4.6.0",
+    "@microsoft/mgt-msal2-provider": "^4.6.0",
+    "@microsoft/mgt-react": "^4.6.0",
     "@radix-ui/react-dialog": "^1.1.11",
     "@radix-ui/react-dropdown-menu": "^2.1.16",
     "@radix-ui/react-label": "^2.1.4",
@@ -24,6 +28,7 @@
     "buffer": "^6.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "cmdk": "^1.1.1",
     "csv": "^6.3.11",
     "csv-parse": "^5.6.0",
     "csv-stringify": "^6.5.2",
@@ -56,7 +61,7 @@
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
-    "@types/react": "^19",
+    "@types/react": "^19.2.2",
     "@types/react-dom": "^19",
     "dotenv": "^16.6.1",
     "eslint": "^9",

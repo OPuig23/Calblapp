@@ -12,6 +12,8 @@ const buttonVariants = cva(
         default: "bg-estado-confirmat text-white hover:bg-estado-confirmat/90",
         outline: "border border-input hover:bg-accent hover:text-accent-foreground",
         ghost: "hover:bg-accent hover:text-accent-foreground",
+        secondary: 'bg-gray-100 hover:bg-gray-200 text-gray-800',
+        destructive: "bg-red-600 text-white hover:bg-red-700 focus:ring-red-400",
       },
       size: {
         default: "h-10 py-2 px-4",
@@ -23,7 +25,7 @@ const buttonVariants = cva(
     },
     defaultVariants: {
       variant: "default",
-      size: "default",
+      size: "default", 
     },
   }
 )
