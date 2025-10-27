@@ -20,10 +20,12 @@ export default function CalendarPage() {
     stage: 'Tots',
   })
 
-  const { deals, loading, error, reload } = useCalendarData({
-    ln: filters.ln,
-    stage: filters.stage,
-  })
+const { deals, loading, error, reload } = useCalendarData({
+  ln: filters.ln,
+  stage: filters.stage,
+  start: filters.start,
+  end: filters.end,
+})
 
   const { data: session } = useSession()
   const role = String(session?.user?.role || '').toLowerCase()
@@ -53,7 +55,7 @@ export default function CalendarPage() {
           <h1 className="text-xl font-semibold">Calendari Comercial</h1>
         </div>
         <div className="flex flex-wrap gap-2 justify-end">
-          <CalendarNewEventModal onCreated={reload} />
+          <CalendarNewEventModal date={''} trigger={<div />} onSaved={reload} />
           {role === 'admin' && (
             <Button
               variant="outline"

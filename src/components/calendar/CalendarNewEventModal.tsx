@@ -83,6 +83,18 @@ const [multiDay, setMultiDay] = useState(false)
       console.error(`⚠️ Error comprovant ${collection}:`, err)
     }
   }
+
+  // 🧩 Normalitza ubicació i servei (compatibles amb objecte o string)
+const ubicacioValue =
+  typeof formData.Ubicacio === 'object' && formData.Ubicacio !== null
+    ? ((formData.Ubicacio as Record<string, unknown>)?.nom as string) || ''
+    : (formData.Ubicacio as string) || ''
+
+const serveiValue =
+  typeof formData.Servei === 'object' && formData.Servei !== null
+    ? ((formData.Servei as Record<string, unknown>)?.nom as string) || ''
+    : (formData.Servei as string) || ''
+
 // 💾 Desa l'esdeveniment nou reutilitzant /api/calendar/attachments
 const handleSave = async () => {
   if (!formData.NomEvent || !formData.Ubicacio) {
@@ -92,8 +104,9 @@ const handleSave = async () => {
 
   setSaving(true)
   try {
-    await ensureExists('finques', formData.Ubicacio)
-    await ensureExists('serveis', formData.Servei)
+    await ensureExists('finques', ubicacioValue)
+await ensureExists('serveis', serveiValue)
+
 
     // 🔹 Crea payload segur
     const payload = {
@@ -102,8 +115,8 @@ const handleSave = async () => {
       DataFi: formData.DataFi || formData.DataInici || null,
       HoraInici: formData.HoraInici || null,
       NumPax: formData.NumPax || null,
-      Ubicacio: formData.Ubicacio || '',
-      Servei: formData.Servei || '',
+      Ubicacio: ubicacioValue,
+      Servei: serveiValue,
       Comercial: formData.Comercial || '',
       LN: formData.LN || 'Altres',
       origen: 'manual',
@@ -126,10 +139,9 @@ const handleSave = async () => {
     if (!res.ok) throw new Error(data.error || 'Error backend')
 
     alert('✅ Esdeveniment creat correctament')
-    setOpen(false)
-    onSaved?.()
-    document.dispatchEvent(new CustomEvent('calendar:reload'))
-    window.location.reload()
+setOpen(false)
+onSaved?.() // ja crida reload() al CalendarPage
+
 
   } catch (err) {
     console.error('❌ Error creant esdeveniment:', err)

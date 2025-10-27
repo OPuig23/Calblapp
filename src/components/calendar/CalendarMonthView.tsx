@@ -16,6 +16,7 @@ type Cell = { date: Date; iso: string; isOther: boolean }
 type Week = Cell[]
 
 export default function CalendarMonthView({
+  
   deals,
   start,
   end,
@@ -59,7 +60,13 @@ deals.forEach(d => {
   // ───────────────────────────────────────────────
   // 🔁 Estat i context
   // ───────────────────────────────────────────────
-  const anchor = start ? new Date(start) : new Date()
+  const anchor =
+  start
+    ? new Date(start)
+    : deals.length > 0
+    ? new Date(deals[0].DataInici || deals[0].Data || new Date())
+    : new Date()
+
   const currentMonth = anchor.getMonth()
   const currentYear = anchor.getFullYear()
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
@@ -369,4 +376,4 @@ function MoreEventsPopup({ date, events }: { date: Date; events: Deal[] }) {
       </DialogContent>
     </Dialog>
   )
-}
+} 

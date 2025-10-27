@@ -213,31 +213,26 @@ try {
 
   // 🔹 Recollim Finca_2 i Espai_2
   for (const d of allDeals) {
-    if (Array.isArray(d.Finca_2)) {
-      d.Finca_2.forEach((f) => f && finquesSet.add(f.trim()))
-    }
-    if (Array.isArray(d.Espai_2)) {
-      d.Espai_2.forEach((e) => e && finquesSet.add(e.trim()))
-    }
+    if (Array.isArray(d.Finca_2)) d.Finca_2.forEach((f) => f && finquesSet.add(f.trim()))
+    if (Array.isArray(d.Espai_2)) d.Espai_2.forEach((e) => e && finquesSet.add(e.trim()))
   }
 
   const finquesArr = Array.from(finquesSet).filter(Boolean)
 
   // 🧹 Esborrem contingut antic
-  const snap = await firestore.collection('finques').get()
-  const dels = snap.docs.map((doc) => doc.ref.delete())
-  await Promise.all(dels)
+  {
+    const snap = await firestore.collection('finques').get()
+    await Promise.all(snap.docs.map((doc) => doc.ref.delete()))
+  }
 
-  // 🔥 Inserim només finques amb codi (ex: "Font de la Canya (CCE00004)")
+  // 🏗️ Inserim finques (amb o sense codi)
   const batchFinques = firestore.batch()
   const regexCodi = /\(([A-Z0-9]{7,})\)/ // busca (CXXXXXX)
 
   for (const nomRaw of finquesArr) {
     const match = nomRaw.match(regexCodi)
-    if (!match) continue // ❌ descarta sense codi
-
-    const codi = match[1]
-    const nomNet = nomRaw.replace(/\s*\([^)]+\)\s*/g, '').trim() // elimina (CXXXXXX)
+    const codi = match ? match[1] : nomRaw.toLowerCase().replace(/\s+/g, '-')
+    const nomNet = nomRaw.replace(/\s*\([^)]+\)\s*/g, '').trim()
     const searchable = (nomNet + ' ' + codi).toLowerCase()
 
     const ref = firestore.collection('finques').doc(codi)
@@ -251,62 +246,55 @@ try {
   }
 
   await batchFinques.commit()
-  console.info('🏡 Col·lecció "finques" actualitzada amb codis vàlids.')
+  console.info('🏡 Col·lecció "finques" actualitzada.')
 
   // 🧾 Actualitzar col·lecció "serveis" amb codis vàlids
-try {
-  const serveisSet = new Set<string>()
-  const serveisMap = new Map<string, string>() // codi → nom
+  try {
+    const serveisSet = new Set<string>()
+    const serveisMap = new Map<string, string>() // codi → nom
 
-  // 🔹 Recollim Servicio_texto + C_digo només d'oportunitats verdes i amb un sol codi
-for (const d of allDeals) {
-  const stage = (d.Stage || '').toLowerCase()
-  const codiRaw = d['C_digo']?.trim() || ''
-  const nomRaw = d.Servicio_texto?.trim() || ''
+    // 🔹 Recollim Servicio_texto + C_digo només d'oportunitats verdes i amb un sol codi
+    for (const d of allDeals) {
+      const stage = (d.Stage || '').toLowerCase()
+      const codiRaw = d['C_digo']?.trim() || ''
+      const nomRaw = d.Servicio_texto?.trim() || ''
+      if (stage.includes('cerrada ganada') && codiRaw && !codiRaw.includes(',') && nomRaw) {
+        serveisSet.add(codiRaw)
+        serveisMap.set(codiRaw, nomRaw)
+      }
+    }
 
-  // ✅ Només si l'etapa és "verde" i hi ha un sol codi (sense comes)
-  if (
-    stage.includes('cerrada ganada') &&
-    codiRaw &&
-    !codiRaw.includes(',') &&
-    nomRaw
-  ) {
-    serveisSet.add(codiRaw)
-    serveisMap.set(codiRaw, nomRaw)
+    // 🧹 Esborrem contingut antic
+    {
+      const snap = await firestore.collection('serveis').get()
+      await Promise.all(snap.docs.map((doc) => doc.ref.delete()))
+    }
+
+    // 🏗️ Inserim serveis amb codi
+    const batchServeis = firestore.batch()
+    for (const codi of serveisSet) {
+      const nom = serveisMap.get(codi) || ''
+      const searchable = (nom + ' ' + codi).toLowerCase()
+      const ref = firestore.collection('serveis').doc(codi)
+      batchServeis.set(ref, {
+        nom,
+        codi,
+        searchable,
+        updatedAt: new Date().toISOString(),
+        origen: 'zoho',
+      })
+    }
+
+    await batchServeis.commit()
+    console.info('🧾 Col·lecció "serveis" actualitzada amb codis vàlids.')
+  } catch (err) {
+    console.error('⚠️ Error actualitzant col·lecció serveis:', err)
   }
-}
-
-
-  // 🧹 Esborrem contingut antic
-  const snap = await firestore.collection('serveis').get()
-  const dels = snap.docs.map((doc) => doc.ref.delete())
-  await Promise.all(dels)
-
-  // 🏗️ Inserim serveis amb codi
-  const batchServeis = firestore.batch()
-  for (const codi of serveisSet) {
-    const nom = serveisMap.get(codi) || ''
-    const searchable = (nom + ' ' + codi).toLowerCase()
-    const ref = firestore.collection('serveis').doc(codi)
-    batchServeis.set(ref, {
-      nom,
-      codi,
-      searchable,
-      updatedAt: new Date().toISOString(),
-      origen: 'zoho',
-    })
-  }
-
-  await batchServeis.commit()
-  console.info('🧾 Col·lecció "serveis" actualitzada amb codis vàlids.')
-} catch (err) {
-  console.error('⚠️ Error actualitzant col·lecció serveis:', err)
-}
 
 } catch (err) {
   console.error('⚠️ Error actualitzant col·lecció finques:', err)
 }
 
-  console.info('🔥 Firestore sincronitzat correctament')
-  return { totalCount: allDeals.length, createdCount: normalized.length, deletedCount: deleted }
+console.info('🔥 Firestore sincronitzat correctament')
+return { totalCount: allDeals.length, createdCount: normalized.length, deletedCount: deleted }
 }

@@ -57,6 +57,8 @@ interface RawEvent {
   commercial: string
   numPax: number
   startTime?: string
+  code?: string
+  service?: string
 }
 
 interface EventOut extends RawEvent {
@@ -118,6 +120,8 @@ export async function getSpacesByWeek(
     if (stage === 'verd') collections = ['stage_verd']
     else if (stage === 'taronja') collections = ['stage_taronja', 'stage_blau']
 
+    console.log('🔍 START getSpacesByWeek', { startStr, endStr, collections })
+
     // 3️⃣ Llegeix totes les col·leccions dins el rang
     const rawEvents: RawEvent[] = []
     for (const col of collections) {
@@ -128,14 +132,32 @@ export async function getSpacesByWeek(
 
 
       const snap = await ref.get()
+      console.log(`📚 Llegint col·lecció ${col} dins rang ${startStr} → ${endStr}`)
+
       snap.forEach(doc => {
         const d = doc.data()
         const id = doc.id
-        const start = d.DataInici?.toDate ? d.DataInici.toDate() : parseISO(d.DataInici)
-        const endRaw = d.DataFinal || d.DataFi || d.DataInici
-const end = endRaw?.toDate ? endRaw.toDate() : parseISO(endRaw)
+ let start = d.DataInici
+let endRaw = d.DataFinal || d.DataFi || d.DataInici
 
-        if (!isValid(start) || !isValid(end)) return
+// 🔧 Accepta tant Timestamp com string
+if (start?.toDate) start = start.toDate()
+else if (typeof start === 'string') start = new Date(start)
+
+let end = endRaw
+if (endRaw?.toDate) end = endRaw.toDate()
+else if (typeof endRaw === 'string') end = new Date(endRaw)
+
+// 🛑 Només rebutja si realment no és una data
+if (!(start instanceof Date) || isNaN(start.getTime())) {
+  console.warn('⚠️ DataInici invàlida:', d.DataInici, 'doc:', id)
+  return
+}
+if (!(end instanceof Date) || isNaN(end.getTime())) {
+  console.warn('⚠️ DataFi invàlida:', d.DataFi, 'doc:', id)
+  return
+}
+
 
         const finca = normalizeText((d.Ubicacio || '').split('(')[0])
         const eventName = normalizeText(d.NomEvent)
@@ -144,6 +166,8 @@ const end = endRaw?.toDate ? endRaw.toDate() : parseISO(endRaw)
         const stageActual = col.replace('stage_', '') as RawEvent['stage']
         const numPax = Number(d.NumPax) || 0
         const startTime = normalizeText(d.HoraInici)
+        const service = normalizeText(d.Servei || d.service || '')
+        const code = d.code ? normalizeText(d.code) : (d.Code ? normalizeText(d.Code) : '')
 
         // Filtres recíprocs
         if (
@@ -152,7 +176,17 @@ const end = endRaw?.toDate ? endRaw.toDate() : parseISO(endRaw)
           (stage && stage !== 'all' && stageActual !== stage)
         )
           return
-
+if (d.origen === 'manual') {
+  console.log('🧩 EVENT MANUAL DETECTAT:', {
+    id,
+    NomEvent: d.NomEvent,
+    Ubicacio: d.Ubicacio,
+    DataInici: d.DataInici,
+    DataFi: d.DataFi,
+    StageGroup: d.StageGroup,
+    col
+  })
+}
         rawEvents.push({
           id,
           finca,
@@ -164,10 +198,12 @@ const end = endRaw?.toDate ? endRaw.toDate() : parseISO(endRaw)
           commercial,
           numPax,
           startTime,
+          code,
+          service,
         })
       })
     }
-
+  
     // 4️⃣ Expandeix esdeveniments de més d’un dia → duplicar cada dia dins el rang setmanal
     const expanded: RawEvent[] = []
     for (const ev of rawEvents) {
@@ -178,6 +214,10 @@ const end = endRaw?.toDate ? endRaw.toDate() : parseISO(endRaw)
         expanded.push({ ...ev, date: format(d, 'yyyy-MM-dd') })
       }
     }
+    console.log(`📊 Total rawEvents: ${rawEvents.length}`)
+const manuals = rawEvents.filter(e => e.eventName.toLowerCase().includes('prova'))
+console.log('🧩 DEBUG manual events trobats:', manuals)
+
 
     // 5️⃣ Agrupa per finca + dia
     const map = new Map<string, Map<string, RawEvent[]>>()
@@ -231,11 +271,11 @@ const end = endRaw?.toDate ? endRaw.toDate() : parseISO(endRaw)
         let paxRestaurant = 0
         for (const e of greens.filter(x => isRestaurant(x.ln))) {
           const nextTotal = paxRestaurant + (e.numPax || 0)
-          if (nextTotal <= 110) {
+          if (nextTotal <= 1000) {
             accepted.push(e)
             paxRestaurant = nextTotal
           } else {
-            conflicts.push({ ev: e, reason: 'Límit 110 pax Restaurant verd excedit' })
+            conflicts.push({ ev: e, reason: 'Límit 1000 pax Restaurant verd excedit' })
           }
         }
 

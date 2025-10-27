@@ -15,32 +15,38 @@ export async function GET() {
       const snapshot = await firestore.collection(name).get()
 
       snapshot.forEach((doc) => {
-        const data = doc.data()
+  const data = doc.data()
 
-        // 🧩 Normalitza el camp LN per garantir coherència
-        const normalizedData = {
-          ...data,
-          LN:
-            data.LN ||
-            data.ln ||
-            (typeof data.LN === 'string' && data.LN.trim()) ||
-            'Altres',
-        }
+  // 🧩 Normalitza el camp LN per garantir coherència
+  const normalizedData = {
+    ...data,
+    LN:
+      data.LN ||
+      data.ln ||
+      (typeof data.LN === 'string' && data.LN.trim()) ||
+      'Altres',
+  }
 
-        // 🧠 Determina StageGroup segons col·lecció
-        const StageGroup =
-          name === 'stage_blau'
-            ? 'Prereserva'
-            : name === 'stage_taronja'
-            ? 'Proposta'
-            : 'Confirmat'
+  // 🧠 Determina StageGroup segons col·lecció
+  const StageGroup =
+    name === 'stage_blau'
+      ? 'Prereserva'
+      : name === 'stage_taronja'
+      ? 'Proposta'
+      : 'Confirmat'
 
-        results.push({
-          id: doc.id,
-          ...normalizedData,
-          StageGroup,
-        })
-      })
+  // 🟢 Nou: assegura que tots els docs tinguin camp origen
+  const origen = data.origen || 'zoho'
+
+  // 🔹 Afegeix al resultat
+  results.push({
+    id: doc.id,
+    ...normalizedData,
+    StageGroup,
+    origen, // 👈 ja no donarà error
+  })
+})
+
     }
 
     // 🗓️ Ordena cronològicament per DataInici
