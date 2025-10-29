@@ -82,7 +82,7 @@ const toCollection = (g: string) => {
           LN: d.LN || 'Altres',
           Servei: d.Servei || '',
           StageGroup: d.StageGroup || 'Sense categoria',
-          collection:  d.collection?.replace('stage_', '') || toCollection(d.StageGroup || ''),
+          collection: d.collection || `stage_${toCollection(d.StageGroup || '')}`,
           Data: d.Data || '',
           DataInici: d.DataInici || d.Data || '',
           DataFi: d.DataFi || d.DataInici || d.Data || '',
@@ -98,30 +98,23 @@ const toCollection = (g: string) => {
         }
       })
 
-      // Normalitza format de data
-      mappedData.forEach((d) => {
-        d.DataInici = (d.DataInici || '').slice(0, 10)
-        d.DataFi = (d.DataFi || d.DataInici || '').slice(0, 10)
-      })
-
-      // ───────────────────────────────────────────────
-      // 📆 Filtre per mes visible (no per data del sistema)
-      // ───────────────────────────────────────────────
-      const baseDate = filters?.start ? new Date(filters.start) : new Date()
-      const startOfMonth = new Date(baseDate.getFullYear(), baseDate.getMonth(), 1)
-      const endOfMonth = new Date(baseDate.getFullYear(), baseDate.getMonth() + 1, 0)
-
-      let filtered = mappedData.filter((d) => {
-        const dateStr = d.DataInici || d.Data || ''
-        if (!dateStr) return false
-
-        const date = new Date(dateStr.length === 10 ? `${dateStr}T00:00:00` : dateStr)
-if (isNaN(date.getTime())) return false
+    // Normalitza format de data (sense desfasos UTC)
+mappedData.forEach((d) => {
+  const start = (d.DataInici || '').slice(0, 10)
+  const end = (d.DataFi || d.DataInici || '').slice(0, 10)
+  d.DataInici = `${start}T00:00:00`  // <— important: força local
+  d.DataFi = `${end}T00:00:00`
+})
 
 
-        // Inclou tots els esdeveniments dins el mes visible
-        return date >= startOfMonth && date <= endOfMonth
-      })
+// 📆 Inclou tots els esdeveniments sense filtre temporal
+let filtered = mappedData.filter((d) => {
+  const dateStr = d.DataInici || d.Data || ''
+  if (!dateStr) return false
+  const date = new Date(dateStr.length === 10 ? `${dateStr}T00:00:00` : dateStr)
+  return !isNaN(date.getTime()) // ✅ accepta totes les dates vàlides, passades i futures
+})
+
 
       console.log('🔍 AFTER temporal filter — filtered length:', filtered.length)
 console.log(

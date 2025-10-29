@@ -1,6 +1,8 @@
-// ✅ file: src/components/spaces/SpaceCell.tsx
+'use client'
+
 import { STAGE_COLORS } from '@/lib/colors'
 import type { Stage } from '@/services/spaces/spaces'
+import { AlertTriangle } from 'lucide-react'
 
 export interface SpaceCellEvent {
   eventName?: string
@@ -13,6 +15,7 @@ export interface SpaceCellEvent {
   Stage?: Stage
   discarded?: boolean
   reason?: string
+  warning?: boolean
 }
 
 interface SpaceCellProps {
@@ -21,51 +24,66 @@ interface SpaceCellProps {
 
 /**
  * 🔹 SpaceCell
- * Component que mostra una targeta d’esdeveniment dins la graella setmanal d’Espais.
- * - Mostra color segons stage (verd, blau, taronja, lila)
- * - Si l’event està marcat com "discarded", el pinta en vermell amb tooltip de motiu.
- * - Disseny mobile-first, text truncat i accessible.
+ * Targeta individual d’esdeveniment dins la graella setmanal d’Espais.
+ * - Pinta color segons stage (verd, blau, taronja, lila)
+ * - Si hi ha warning → mostra triangle vermell ⚠️
+ * - Si està descartat → color vermell i text reforçat
+ * - Mobile-first, accessible i amb tooltip complet
  */
 export default function SpaceCell({ event }: SpaceCellProps) {
-  // 🔸 Normalize data (accepta tant eventName com NomEvent, etc.)
+  // 🔸 Normalitza camps
   const eventName = event.eventName || event.NomEvent || ''
   const commercial = event.commercial || event.Comercial || ''
   const numPax = event.numPax ?? event.NumPax ?? 0
   const stage = event.stage || event.Stage || 'verd'
 
-  // 🔸 Camps de conflicte
+  // 🔸 Estat visual
   const isDiscarded = event.discarded ?? false
+  const hasWarning = event.warning ?? false
   const reason = event.reason ?? ''
 
-  // 🔸 Colors base segons stage o conflicte
+  // 🔸 Colors base
   const baseColor = isDiscarded
     ? 'bg-red-100 text-red-700 border border-red-300'
     : STAGE_COLORS[stage] || 'bg-gray-50 text-gray-700'
 
-  // 🔸 Truncament i title complet
+  // 🔸 Texts
   const shortEvent =
-    eventName.length > 25 ? eventName.slice(0, 25).trim() + '…' : eventName
+    eventName.length > 25 ? `${eventName.slice(0, 25).trim()}…` : eventName
   const titleText = [eventName, commercial, numPax ? `${numPax} pax` : '']
     .filter(Boolean)
     .join(' · ')
+  const tooltip = reason
+    ? `${titleText} ⚠️ ${reason}`
+    : titleText || 'Esdeveniment sense nom'
 
-  // 🔸 Tooltip amb motiu si hi ha conflicte
-  const tooltip = reason ? `${titleText} ⚠️ ${reason}` : titleText
-
+  // 🔸 Render
   return (
     <div
       className={`rounded-md px-2 py-[4px] min-h-9 flex flex-col justify-center text-[11px] text-center sm:text-left ${baseColor} cursor-pointer shadow-sm hover:shadow transition`}
       title={tooltip}
     >
+      {/* ─── Nom + Avís ─── */}
       {shortEvent && (
         <span
-          className={`font-medium truncate ${
+          className={`font-medium truncate flex items-center justify-center sm:justify-start gap-1 ${
             isDiscarded ? 'text-red-800 font-semibold' : ''
           }`}
         >
-          {shortEvent}
+        {shortEvent}
+{hasWarning && (
+<AlertTriangle
+  className="w-3 h-3 text-red-600 shrink-0"
+  {...({ title: reason || 'Possible conflicte' } as React.SVGProps<SVGSVGElement>)}
+/>
+
+
+)}
+
         </span>
       )}
+
+      {/* ─── Comercial ─── */}
       {commercial && (
         <span
           className={`text-[10px] truncate ${
@@ -75,6 +93,8 @@ export default function SpaceCell({ event }: SpaceCellProps) {
           {commercial}
         </span>
       )}
+
+      {/* ─── Num. Pax ─── */}
       {numPax > 0 && (
         <span
           className={`text-[10px] font-semibold ${

@@ -380,6 +380,27 @@ onSaved?.()
               <p>{editData.Servei || '—'}</p>
             )}
           </div>
+{/* Nombre de convidats */}
+<div>
+  <label className="block text-xs text-gray-500 mb-1">Nombre de Pax</label>
+  {isManual ? (
+    <div className="relative">
+      <Input
+        type="number"
+        value={editData.NumPax}
+        onChange={(e) => handleChange('NumPax', e.target.value)}
+        className="pr-12" // espai per a "Pax"
+      />
+      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">
+        Pax
+      </span>
+    </div>
+  ) : (
+    <p>{editData.NumPax ? `${editData.NumPax} Pax` : '—'}</p>
+  )}
+</div>
+
+
 
           {/* Comercial */}
           <div>
@@ -394,30 +415,7 @@ onSaved?.()
             )}
           </div>
 
-         {/* 📎 Documents SharePoint */}
-<div className="pt-3 border-t mt-4 space-y-3">
-  <label className="block text-xs text-gray-500 mb-2">
-    📎 Documents de l’esdeveniment (SharePoint)
-  </label>
 
- {/* Obrir carpeta base */}
-{(isZohoVerd || isManual) && (
-
-  <Button
-    type="button"
-    variant="outline"
-    onClick={() =>
-      window.open('https://calblayrest.sharepoint.com/sites/EsdevenimentsCalBlay/Documents%20compartits/Forms/AllItems.aspx?id=%2Fsites%2FEsdevenimentsCalBlay%2FDocuments%20compartits%2FEsdeveniments&viewid=b06d75e9%2De1e8%2D4952%2D9df4%2D41e8b8b2386a',
-        '_blank')
-    }
-    className="flex items-center gap-2 text-sm"
-  >
-    <FolderOpen className="w-4 h-4" />
-    Obrir carpeta SharePoint
-  </Button>
-)}
-
-  </div>
 
 {/* 📎 Adjuntar fitxer des de SharePoint */}
 {(isZohoVerd || isManual) && (

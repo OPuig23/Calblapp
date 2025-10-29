@@ -34,6 +34,7 @@ export default function CalendarNewEventModal({ date, trigger, onSaved }: Props)
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
 interface EventFormData {
+  code: string
   LN: string
   NomEvent: string
   DataInici: string
@@ -46,6 +47,7 @@ interface EventFormData {
 }
   // Dades del nou esdeveniment
 const [formData, setFormData] = useState<EventFormData>({
+  code: '',
   LN: '',
   NomEvent: '',
   DataInici: date || '',
@@ -110,6 +112,7 @@ await ensureExists('serveis', serveiValue)
 
     // 🔹 Crea payload segur
     const payload = {
+      code: formData.code || '',
       NomEvent: formData.NomEvent || 'Sense nom',
       DataInici: formData.DataInici || new Date().toISOString().slice(0, 10),
       DataFi: formData.DataFi || formData.DataInici || null,
@@ -153,6 +156,7 @@ onSaved?.() // ja crida reload() al CalendarPage
   // 🔁 Neteja el formulari
 const handleClear = () => {
   setFormData({
+    code: '',
     LN: '',
     NomEvent: '',
     DataInici: date || '',
@@ -232,6 +236,17 @@ const handleDeleteFile = async (key: string) => {
               placeholder="Nom de l’esdeveniment"
             />
           </div>
+
+          {/* Codi intern */}
+<div>
+  <label className="block text-xs text-gray-500 mb-1">Codi</label>
+  <Input
+    value={formData.code}
+    onChange={(e) => handleChange('code', e.target.value)}
+    placeholder="Codi intern o de document"
+  />
+</div>
+
 {/* 🗓️ Data inici */}
 <div>
   <label className="block text-xs text-gray-500 mb-1">Data inici</label>
@@ -319,46 +334,26 @@ const handleDeleteFile = async (key: string) => {
             />
           </div>
         </div>
-        {/* 📎 Documents SharePoint */}
+       {/* 📎 Documents SharePoint */}
 <div className="pt-3 border-t mt-4 space-y-3">
   <label className="block text-xs text-gray-500 mb-2">
     📎 Documents de l’esdeveniment (SharePoint)
   </label>
 
-  {/* Obrir carpeta base */}
-  <Button
-    type="button"
-    variant="outline"
-    onClick={() =>
-      window.open(
-        'https://calblayrest.sharepoint.com/sites/EsdevenimentsCalBlay/Documents%20compartits/Forms/AllItems.aspx?id=%2Fsites%2FEsdevenimentsCalBlay%2FDocuments%20compartits%2FEsdeveniments&viewid=b06d75e9%2De1e8%2D4952%2D9df4%2D41e8b8b2386a',
-        '_blank'
-      )
-    }
-    className="flex items-center gap-2 text-sm"
-  >
-    <FolderOpen className="w-4 h-4" />
-    Obrir carpeta SharePoint
-  </Button>
-</div>
-
-{/* 📎 Adjuntar fitxer des de SharePoint */}
-<div className="pt-3 border-t mt-4 space-y-3">
-  <label className="block text-xs text-gray-500 mb-2">
-    📎 Documents de l’esdeveniment (SharePoint)
-  </label>
-
+  {/* Botó per adjuntar fitxer */}
   <div className="mt-2">
     <AttachFileButton
-      collection="stage_verd"
-      docId={`temp-${Date.now()}`}
-      onAdded={(att) => {
-        setFiles((prev) => [
-          ...prev,
-          { key: `file${prev.length + 1}`, url: att.url },
-        ])
-      }}
-    />
+  collection="stage_verd"
+  docId={`temp-${Date.now()}`}
+  onAdded={(att) => {
+    setFiles((prev) => {
+      const jaExisteix = prev.some((f) => f.url === att.url)
+      if (jaExisteix) return prev
+      return [...prev, { key: `file${prev.length + 1}`, url: att.url }]
+    })
+  }}
+/>
+
   </div>
 
   {/* Llista de fitxers adjuntats */}
@@ -397,8 +392,6 @@ const handleDeleteFile = async (key: string) => {
     )}
   </div>
 </div>
-
-
         {/* Botons */}
         <DialogFooter className="mt-4 flex flex-col gap-2">
           <Button onClick={handleSave} disabled={saving} className="w-full">

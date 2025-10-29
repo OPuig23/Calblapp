@@ -82,17 +82,21 @@ export default function CalendarFilters({
     }
   }, [ln])
 
-  /* ─── Rang de dates actual (mes o setmana) ─── */
-  const range = useMemo(() => {
-    if (mode === 'week') {
-      const from = startOfWeek(anchor, { weekStartsOn: 1 })
-      const to = endOfWeek(anchor, { weekStartsOn: 1 })
-      return { start: toIso(from), end: toIso(to) }
-    }
-    const from = startOfMonth(anchor)
-    const to = endOfMonth(anchor)
+/* ─── Rang de dates actual (mes o setmana) ─── */
+const range = useMemo(() => {
+  if (mode === 'week') {
+    const from = startOfWeek(anchor, { weekStartsOn: 1 })
+    const to = endOfWeek(anchor, { weekStartsOn: 1 })
     return { start: toIso(from), end: toIso(to) }
-  }, [mode, anchor])
+  }
+
+  // ✅ Mostra tot el mes complet, no només a partir d'avui
+  const current = new Date(anchor.getFullYear(), anchor.getMonth(), 1)
+  const from = startOfMonth(current)
+  const to = endOfMonth(current)
+  return { start: toIso(from), end: toIso(to) }
+}, [mode, anchor])
+
 
   /* ─── Notifica canvis a CalendarPage ─── */
   const lastPayload = useRef<string>('')

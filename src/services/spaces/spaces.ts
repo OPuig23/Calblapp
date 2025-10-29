@@ -1,5 +1,7 @@
 // ✅ file: src/services/spaces/spaces.ts
 import { firestore } from '@/lib/firebaseAdmin'
+import { AlertTriangle } from 'lucide-react'
+
 import {
   startOfWeek,
   endOfWeek,
@@ -64,7 +66,9 @@ interface RawEvent {
 interface EventOut extends RawEvent {
   discarded?: boolean
   reason?: string
+  warning?: boolean   // 👈 afegim aquest camp
 }
+
 
 interface DayOut {
   date: string
@@ -125,10 +129,14 @@ export async function getSpacesByWeek(
     // 3️⃣ Llegeix totes les col·leccions dins el rang
     const rawEvents: RawEvent[] = []
     for (const col of collections) {
+     const startStrISO = startStr.toString()
+const endStrISO = endStr.toString() 
       const ref = firestore
-  .collection(col)
-  .where('DataInici', '<=', endStr)
-  .where('DataFi', '>=', startStr)
+        .collection(col)
+       .where('DataInici', '<=', endStrISO)
+      .where('DataFi', '>=', startStrISO)
+
+
 
 
       const snap = await ref.get()
@@ -228,96 +236,95 @@ console.log('🧩 DEBUG manual events trobats:', manuals)
       sub.get(ev.date)!.push(ev)
     }
 
-    // 6️⃣ Aplica regles d’ocupació
-    const result: SpaceRow[] = []
-    const totalPaxPerDia = Array(7).fill(0)
+// 6️⃣ Aplica regles d’ocupació (nova lògica: pinta tots, marca conflictes)
+const result: SpaceRow[] = []
+const totalPaxPerDia = Array(7).fill(0)
 
-    for (const [finca, days] of map.entries()) {
-      const dies: DayOut[] = Array(7)
-        .fill(null)
-        .map((_, i) => ({
-          date: format(addDays(startRange, i), 'yyyy-MM-dd'),
-          events: [],
-        }))
+for (const [finca, days] of map.entries()) {
+  const dies: DayOut[] = Array(7)
+    .fill(null)
+    .map((_, i) => ({
+      date: format(addDays(startRange, i), 'yyyy-MM-dd'),
+      events: [],
+    }))
 
-      for (let i = 0; i < 7; i++) {
-        const dateISO = dies[i].date
-        const evs = days.get(dateISO) || []
-        if (evs.length === 0) continue
+  for (let i = 0; i < 7; i++) {
+    const dateISO = dies[i].date
+    const evs = days.get(dateISO) || []
+    if (evs.length === 0) continue
 
-        // — 6.1 Casament verd bloqueja tot —
-        const weddingGreen = evs.find(e => e.stage === 'verd' && isWedding(e.ln))
-        if (weddingGreen) {
-          dies[i].events.push(weddingGreen)
-          // Marca la resta com descartats
-          for (const e of evs) {
-            if (e.id !== weddingGreen.id)
-              await logConflict(e, 'Bloquejat per casament verd en aquesta finca/dia')
-          }
-          totalPaxPerDia[i] += weddingGreen.numPax
-          continue
-        }
+    const eventsOut: EventOut[] = []
 
-        // — 6.2 Resta de verds segons LN —
-        const accepted: EventOut[] = []
-        const conflicts: { ev: RawEvent; reason: string }[] = []
+    for (const e of evs) {
+      // Marca general per conflictes (per defecte cap)
+      let warning = false
+      let reason = ''
 
-        const greens = evs.filter(e => e.stage === 'verd')
-        const blues = evs.filter(e => e.stage === 'blau')
-        const oranges = evs.filter(e => e.stage === 'taronja')
-        const lilas = evs.filter(e => e.stage === 'lila')
-
-        // a) Verd Restaurant → fins a 110 pax totals
-        let paxRestaurant = 0
-        for (const e of greens.filter(x => isRestaurant(x.ln))) {
-          const nextTotal = paxRestaurant + (e.numPax || 0)
-          if (nextTotal <= 1000) {
-            accepted.push(e)
-            paxRestaurant = nextTotal
-          } else {
-            conflicts.push({ ev: e, reason: 'Límit 1000 pax Restaurant verd excedit' })
-          }
-        }
-
-        // b) Verd Empresa/Grups → separació d’hores > 8h
-        const corpAccepted: RawEvent[] = []
-        for (const e of greens.filter(x => isCorporateOrGroups(x.ln))) {
-          const evMin = parseHourToMinutes(e.startTime)
-          if (evMin == null) {
-            conflicts.push({ ev: e, reason: 'Falta HoraInici per regla >8h' })
-            continue
-          }
-          const ok = corpAccepted.every(a => {
-            const aMin = parseHourToMinutes(a.startTime)
-            return aMin != null && diffHours(aMin, evMin) > 8
-          })
-          if (ok) {
-            corpAccepted.push(e)
-            accepted.push(e)
-          } else {
-            conflicts.push({ ev: e, reason: 'Solapament horari ≤8h amb un altre verd Empresa/Grups' })
-          }
-        }
-
-        // c) Altres verds sense LN específica → acceptem
-        for (const e of greens.filter(x => !x.ln)) accepted.push(e)
-
-        // d) Taronja/blau/lila → sempre
-        accepted.push(...blues, ...oranges, ...lilas)
-
-        // e) Ordena: verd → blau → taronja → lila
-        const order: Record<string, number> = { verd: 0, blau: 1, taronja: 2, lila: 3 }
-        accepted.sort((a, b) => order[a.stage] - order[b.stage])
-
-        // f) Guarda conflictes
-        for (const c of conflicts) await logConflict(c.ev, c.reason)
-
-        dies[i].events = accepted
-        totalPaxPerDia[i] += accepted.reduce((acc, e) => acc + (e.numPax || 0), 0)
+      // 1️⃣ Casament verd amb altres events a la mateixa finca/dia
+      const weddingGreen = evs.find(
+        (x) => x.stage === 'verd' && isWedding(x.ln)
+      )
+      if (weddingGreen && e.id !== weddingGreen.id) {
+        warning = true
+        reason = 'Casament verd en el mateix dia i finca'
       }
 
-      result.push({ finca, dies })
+      // 2️⃣ Verd Restaurant → sobrepàs teòric de 1000 pax
+      if (e.stage === 'verd' && isRestaurant(e.ln)) {
+        const totalPax = evs
+          .filter((x) => x.stage === 'verd' && isRestaurant(x.ln))
+          .reduce((acc, x) => acc + (x.numPax || 0), 0)
+        if (totalPax > 1000) {
+          warning = true
+          reason = 'Possible sobrepàs de 1000 pax Restaurant verd'
+        }
+      }
+
+      // 3️⃣ Verd Empresa/Grups → menys de 8h de separació
+      if (e.stage === 'verd' && isCorporateOrGroups(e.ln)) {
+        const evMin = parseHourToMinutes(e.startTime)
+        if (evMin != null) {
+          const other = evs.find((x) => {
+            if (x.id === e.id) return false
+            const xMin = parseHourToMinutes(x.startTime)
+            return (
+              x.stage === 'verd' &&
+              isCorporateOrGroups(x.ln) &&
+              xMin != null &&
+              diffHours(xMin, evMin) <= 8
+            )
+          })
+          if (other) {
+            warning = true
+            reason = 'Solapament horari ≤8h amb un altre verd Empresa/Grups'
+          }
+        }
+      }
+
+      // 4️⃣ Guarda resultat (sempre es pinta)
+      eventsOut.push({
+        ...e,
+        warning,
+        reason,
+      })
+
+      // Acumulem pax igualment
+      totalPaxPerDia[i] += e.numPax || 0
     }
+
+    // Ordenem per stage com abans
+    const order: Record<string, number> = { verd: 0, blau: 1, taronja: 2, lila: 3 }
+    eventsOut.sort((a, b) => order[a.stage] - order[b.stage])
+
+    // Assignem resultats del dia
+    dies[i].events = eventsOut
+  }
+
+  result.push({ finca, dies })
+}
+
+console.log(`✅ [getSpacesByWeek] ${result.length} finques — ${startStr} → ${endStr}`)
+
 
     // 7️⃣ Ordena finques
     result.sort((a, b) => a.finca.localeCompare(b.finca, 'ca', { sensitivity: 'base' }))

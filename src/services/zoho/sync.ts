@@ -1,4 +1,3 @@
-// ✅ file: src/services/zoho/sync.ts
 import { firestore } from '@/lib/firebaseAdmin'
 import { zohoFetch } from '@/services/zoho/auth'
 
@@ -12,16 +11,19 @@ interface ZohoDeal {
   id: string
   Deal_Name: string
   Stage: string
-  Servicio_texto?: string
-  Men_texto?: string
-  N_mero_de_invitados?: number
-  N_mero_de_personas_del_evento?: number
-  Finca_2?: string[]
-  Espai_2?: string[]
+  Servicio_texto?: string | null
+  Men_texto?: string | null
+  N_mero_de_invitados?: number | string | null
+  N_mero_de_personas_del_evento?: number | string | null
+  Finca_2?: string[] | null
+  Espai_2?: string[] | null
   Fecha_del_evento?: string | null
   Fecha_y_hora_del_evento?: string | null
+  Durac_n_del_evento?: number | string | null
+  C_digo?: string | null
   Owner: ZohoOwner
 }
+
 
 interface NormalizedDeal {
   idZoho: string
@@ -44,7 +46,6 @@ interface NormalizedDeal {
   collection: 'blau' | 'taronja' | 'verd' | string
 }
 
-
 export async function syncZohoDealsToFirestore(): Promise<{
   totalCount: number
   createdCount: number
@@ -55,76 +56,74 @@ export async function syncZohoDealsToFirestore(): Promise<{
   const todayISO = new Date().toISOString().slice(0, 10)
   const moduleName = process.env.ZOHO_CRM_MODULE || 'Deals'
   const fields =
-  'id,Deal_Name,Stage,Servicio_texto,Men_texto,C_digo,N_mero_de_invitados,N_mero_de_personas_del_evento,Finca_2,Espai_2,Fecha_del_evento,Fecha_y_hora_del_evento,Durac_n_del_evento,Owner'
+    'id,Deal_Name,Stage,Servicio_texto,Men_texto,C_digo,N_mero_de_invitados,N_mero_de_personas_del_evento,Finca_2,Espai_2,Fecha_del_evento,Fecha_y_hora_del_evento,Durac_n_del_evento,Owner'
 
-// 1️⃣ Llegir oportunitats amb paginació
-const allDeals: ZohoDeal[] = []
-for (let page = 1; ; page++) {
-  const res = await zohoFetch<{ data?: ZohoDeal[] }>(
-    `/${moduleName}?fields=${fields}&page=${page}&per_page=200`
-  )
-  const data = res.data ?? []
-  if (data.length === 0) break
-  allDeals.push(...data)
-}
+  // 1️⃣ Llegir oportunitats amb paginació
+  const allDeals: ZohoDeal[] = []
+  for (let page = 1; ; page++) {
+    const res = await zohoFetch<{ data?: ZohoDeal[] }>(
+      `/${moduleName}?fields=${fields}&page=${page}&per_page=200`
+    )
+    const data = res.data ?? []
+    if (data.length === 0) break
+    allDeals.push(...data)
+  }
 
-console.info(`📦 Rebudes ${allDeals.length} oportunitats`)
+  console.info(`📦 Rebudes ${allDeals.length} oportunitats`)
 
-// ✅ Filtra només les oportunitats amb data d'avui o futura
-const today = new Date().toISOString().slice(0, 10)
-const filteredDeals = allDeals.filter((d) => {
-  const eventDate = (d.Fecha_del_evento || d.Fecha_y_hora_del_evento || '').slice(0, 10)
-  return eventDate >= today
-})
+  // 2️⃣ Filtra només les oportunitats amb data d’avui o futura
+  const today = new Date().toISOString().slice(0, 10)
+  const filteredDeals = allDeals.filter((d) => {
+    const eventDate = (d.Fecha_del_evento || d.Fecha_y_hora_del_evento || '').slice(0, 10)
+    return eventDate >= today
+  })
 
-  // 2️⃣ Funció per determinar LN amb retard per evitar límits
+  // 3️⃣ Funció per determinar LN segons propietari
   const getLN = async (ownerId?: string): Promise<string> => {
     if (!ownerId) return 'Altres'
-    await new Promise((r) => setTimeout(r, 100)) // 10 req/s
+    await new Promise((r) => setTimeout(r, 100))
     try {
       const res = await zohoFetch<{ users: { role?: { name?: string } }[] }>(
         `/users/${ownerId}`
       )
       const role = res.users?.[0]?.role?.name?.toLowerCase() ?? ''
       if (role.includes('bodas')) return 'Casaments'
-      if (role.includes('corporativo') || role.includes('empresa'))
-        return 'Empresa'
-      return 'Altres'
+      if (role.includes('corporativo') || role.includes('empresa')) return 'Empresa'
+      if (role.includes('comida preparada') || role.includes('preparada')) return 'Precuinats'
+      return 'Agenda'
     } catch {
-      return 'Altres'
+      return 'Agenda'
     }
   }
 
+  // 4️⃣ Classifica etapes (Stage) — incloent 'RQ' com a verd
   const classifyStage = (stage: string): 'blau' | 'taronja' | 'verd' | null => {
     const s = stage.toLowerCase()
     if (s.includes('prereserva') || s.includes('calentet')) return 'blau'
-    if (s.includes('rq') || s.includes('pendent') || s.includes('proposta'))
-      return 'taronja'
-    if (s.includes('pagament') || s.includes('cerrada ganada')) return 'verd'
+    if (s.includes('pagament') || s.includes('cerrada ganada') || s.includes('rq')) return 'verd'
+    if (s.includes('pendent') || s.includes('proposta')) return 'taronja'
     return null
   }
 
-  // 3️⃣ Normalitzar amb control de tipus i retard
+  // 5️⃣ Normalitzar oportunitats
   const normalized: NormalizedDeal[] = []
   for (const d of filteredDeals) {
-
     const group = classifyStage(d.Stage)
     if (!group) continue
 
-   const eventDateTime = d.Fecha_y_hora_del_evento || d.Fecha_del_evento
-let dateISO: string | null = null
-let hora: string | null = null
+    const eventDateTime = d.Fecha_y_hora_del_evento || d.Fecha_del_evento
+    let dateISO: string | null = null
+    let hora: string | null = null
 
-if (eventDateTime) {
-  const parts = eventDateTime.split('T')
-  dateISO = parts[0]
-  hora = parts[1]?.slice(0, 5) || null // ⏱️ format HH:mm
-}
+    if (eventDateTime) {
+      const parts = eventDateTime.split('T')
+      dateISO = parts[0]
+      hora = parts[1]?.slice(0, 5) || null
+    }
 
-
-// ⏱️ Calcula DataFi segons Durac_n_del_evento
+// ⏱️ Calcula DataFi segons duració
 let dataFiISO = dateISO
-const duracio = Number(d['Durac_n_del_evento'] || 1)
+const duracio = Number(d.Durac_n_del_evento ?? 1)
 
 if (dateISO && !isNaN(duracio) && duracio > 1) {
   const fi = new Date(dateISO)
@@ -135,17 +134,10 @@ if (dateISO && !isNaN(duracio) && duracio > 1) {
 
     let LN = await getLN(d.Owner?.id)
 
-// ✅ Si la finca o espai conté la paraula "restaurant", forcem la LN
-const ubicacions = [
-  ...(d.Finca_2 || []),
-  ...(d.Espai_2 || [])
-]
-const teRestaurant = ubicacions.some((u) =>
-  u?.toLowerCase().includes('restaurant')
-)
-
-if (teRestaurant) LN = 'Grups Restaurants'
-
+    // Si la finca conté “restaurant” → Grups Restaurants
+    const ubicacions = [...(d.Finca_2 || []), ...(d.Espai_2 || [])]
+    const teRestaurant = ubicacions.some((u) => u?.toLowerCase().includes('restaurant'))
+    if (teRestaurant) LN = 'Grups Restaurants'
 
     normalized.push({
       idZoho: String(d.id),
@@ -156,8 +148,8 @@ if (teRestaurant) LN = 'Grups Restaurants'
       Comercial: d.Owner?.name || '—',
       DataInici: dateISO,
       DataFi: dataFiISO,
-      NumPax:
-        d.N_mero_de_invitados || d.N_mero_de_personas_del_evento || null,
+      HoraInici: hora,
+      NumPax: d.N_mero_de_invitados || d.N_mero_de_personas_del_evento || null,
       Ubicacio: d.Finca_2?.[0] || d.Espai_2?.[0] || '',
       Color:
         group === 'blau'
@@ -181,14 +173,12 @@ if (teRestaurant) LN = 'Grups Restaurants'
       editable: group === 'verd',
       updatedAt: new Date().toISOString(),
       collection: group,
-      HoraInici: hora,
-
     })
   }
 
   console.info(`✅ Oportunitats vàlides: ${normalized.length}`)
 
-  // 4️⃣ Esborrar antics (blau/taronja)
+  // 6️⃣ Esborrar antics (només blau i taronja)
   let deleted = 0
   for (const col of ['stage_blau', 'stage_taronja']) {
     const snap = await firestore.collection(col).get()
@@ -199,7 +189,7 @@ if (teRestaurant) LN = 'Grups Restaurants'
     await Promise.all(dels)
   }
 
-  // 5️⃣ Escriure nous
+  // 7️⃣ Escriure nous registres
   const batch = firestore.batch()
   for (const deal of normalized) {
     const ref = firestore.collection(`stage_${deal.collection}`).doc(deal.idZoho)
@@ -207,94 +197,113 @@ if (teRestaurant) LN = 'Grups Restaurants'
   }
   await batch.commit()
 
-// 6️⃣ Actualitzar col·lecció "finques" amb dades úniques de Zoho
-try {
-  const finquesSet = new Set<string>()
-
-  // 🔹 Recollim Finca_2 i Espai_2
-  for (const d of allDeals) {
-    if (Array.isArray(d.Finca_2)) d.Finca_2.forEach((f) => f && finquesSet.add(f.trim()))
-    if (Array.isArray(d.Espai_2)) d.Espai_2.forEach((e) => e && finquesSet.add(e.trim()))
-  }
-
-  const finquesArr = Array.from(finquesSet).filter(Boolean)
-
-  // 🧹 Esborrem contingut antic
-  {
-    const snap = await firestore.collection('finques').get()
-    await Promise.all(snap.docs.map((doc) => doc.ref.delete()))
-  }
-
-  // 🏗️ Inserim finques (amb o sense codi)
-  const batchFinques = firestore.batch()
-  const regexCodi = /\(([A-Z0-9]{7,})\)/ // busca (CXXXXXX)
-
-  for (const nomRaw of finquesArr) {
-    const match = nomRaw.match(regexCodi)
-    const codi = match ? match[1] : nomRaw.toLowerCase().replace(/\s+/g, '-')
-    const nomNet = nomRaw.replace(/\s*\([^)]+\)\s*/g, '').trim()
-    const searchable = (nomNet + ' ' + codi).toLowerCase()
-
-    const ref = firestore.collection('finques').doc(codi)
-    batchFinques.set(ref, {
-      nom: nomNet,
-      codi,
-      searchable,
-      updatedAt: new Date().toISOString(),
-      origen: 'zoho',
-    })
-  }
-
-  await batchFinques.commit()
-  console.info('🏡 Col·lecció "finques" actualitzada.')
-
-  // 🧾 Actualitzar col·lecció "serveis" amb codis vàlids
+  // 8️⃣ Actualitzar col·lecció FINQUES (sense eliminar, upsert per nom)
   try {
-    const serveisSet = new Set<string>()
-    const serveisMap = new Map<string, string>() // codi → nom
-
-    // 🔹 Recollim Servicio_texto + C_digo només d'oportunitats verdes i amb un sol codi
+    const finquesRaw = new Set<string>()
     for (const d of allDeals) {
-      const stage = (d.Stage || '').toLowerCase()
-      const codiRaw = d['C_digo']?.trim() || ''
-      const nomRaw = d.Servicio_texto?.trim() || ''
-      if (stage.includes('cerrada ganada') && codiRaw && !codiRaw.includes(',') && nomRaw) {
-        serveisSet.add(codiRaw)
-        serveisMap.set(codiRaw, nomRaw)
-      }
+;(d.Finca_2 ?? []).forEach((f) => f && finquesRaw.add(f.trim()))
+;(d.Espai_2 ?? []).forEach((e) => e && finquesRaw.add(e.trim()))
+
     }
 
-    // 🧹 Esborrem contingut antic
-    {
-      const snap = await firestore.collection('serveis').get()
-      await Promise.all(snap.docs.map((doc) => doc.ref.delete()))
-    }
+    const stripCode = (t: string) => t.replace(/\s*\([^)]+\)\s*/g, '').trim()
+    const stripZZ = (t: string) =>
+      t.replace(/^ZZRestaurant\s*/i, '').replace(/^ZZ\s*/i, '').trim()
+    const slug = (t: string) =>
+      t
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
 
-    // 🏗️ Inserim serveis amb codi
-    const batchServeis = firestore.batch()
-    for (const codi of serveisSet) {
-      const nom = serveisMap.get(codi) || ''
-      const searchable = (nom + ' ' + codi).toLowerCase()
-      const ref = firestore.collection('serveis').doc(codi)
-      batchServeis.set(ref, {
-        nom,
+    const existSnap = await firestore.collection('finques').get()
+    const existing = new Set<string>()
+    existSnap.docs.forEach((doc) => {
+      const n = (doc.data().nom as string) || ''
+      existing.add(slug(stripZZ(stripCode(n))))
+    })
+
+    const batchFinques = firestore.batch()
+    let created = 0
+
+    for (const nomRaw of Array.from(finquesRaw)) {
+      const nomNet = stripZZ(stripCode(nomRaw))
+      const norm = slug(nomNet)
+      if (!norm || existing.has(norm)) continue
+      const match = nomRaw.match(/\(([A-Z0-9]{3,})\)/i)
+      const codi = match ? match[1] : norm
+      const ref = firestore.collection('finques').doc(codi)
+      batchFinques.set(ref, {
+        nom: nomNet,
         codi,
-        searchable,
+        searchable: `${nomNet} ${codi}`.toLowerCase(),
         updatedAt: new Date().toISOString(),
         origen: 'zoho',
       })
+      created++
     }
 
-    await batchServeis.commit()
-    console.info('🧾 Col·lecció "serveis" actualitzada amb codis vàlids.')
+    if (created > 0) {
+      await batchFinques.commit()
+      console.info(`🏡 Finques: afegides ${created} noves (sense esborrar).`)
+    } else console.info('🏡 Finques: cap alta nova.')
   } catch (err) {
-    console.error('⚠️ Error actualitzant col·lecció serveis:', err)
+    console.error('⚠️ Error actualitzant finques:', err)
   }
 
-} catch (err) {
-  console.error('⚠️ Error actualitzant col·lecció finques:', err)
-}
+  // 9️⃣ Actualitzar col·lecció SERVEIS (sense eliminar, upsert per nom)
+  try {
+    const serveisRaw = new Set<string>()
+    for (const d of allDeals) {
+      const nom = (d.Servicio_texto || d.Men_texto || '').trim()
+      if (nom) serveisRaw.add(nom)
+    }
 
-console.info('🔥 Firestore sincronitzat correctament')
-return { totalCount: allDeals.length, createdCount: normalized.length, deletedCount: deleted }
+    const slug = (t: string) =>
+      t
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+
+    const existSnap = await firestore.collection('serveis').get()
+    const existing = new Set<string>()
+    existSnap.docs.forEach((doc) => {
+      const n = (doc.data().nom as string) || ''
+      existing.add(slug(n))
+    })
+
+    const batchServeis = firestore.batch()
+    let created = 0
+
+    for (const nomRaw of Array.from(serveisRaw)) {
+      const norm = slug(nomRaw)
+      if (!norm || existing.has(norm)) continue
+      const ref = firestore.collection('serveis').doc(norm)
+      batchServeis.set(ref, {
+        nom: nomRaw,
+        codi: norm,
+        searchable: `${nomRaw} ${norm}`.toLowerCase(),
+        updatedAt: new Date().toISOString(),
+        origen: 'zoho',
+      })
+      created++
+    }
+
+    if (created > 0) {
+      await batchServeis.commit()
+      console.info(`🧾 Serveis: afegits ${created} nous (sense esborrar).`)
+    } else console.info('🧾 Serveis: cap alta nova.')
+  } catch (err) {
+    console.error('⚠️ Error actualitzant serveis:', err)
+  }
+
+  console.info('🔥 Firestore sincronitzat correctament')
+  return {
+    totalCount: allDeals.length,
+    createdCount: normalized.length,
+    deletedCount: deleted,
+  }
 }

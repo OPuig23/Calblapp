@@ -1,4 +1,3 @@
-// ✅ file: src/components/calendar/CalendarMonthView.tsx
 'use client'
 
 import React, { useMemo, useState } from 'react'
@@ -7,16 +6,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import CalendarModal from './CalendarModal'
 import CalendarNewEventModal from './CalendarNewEventModal'
 import type { Deal } from '@/hooks/useCalendarData'
-import { colorByLN } from '@/lib/colors'
-import { colorByStage } from '@/lib/colors'
-
-
+import { colorByLN, colorByStage } from '@/lib/colors'
 
 type Cell = { date: Date; iso: string; isOther: boolean }
 type Week = Cell[]
 
 export default function CalendarMonthView({
-  
   deals,
   start,
   end,
@@ -27,14 +22,15 @@ export default function CalendarMonthView({
   end?: string
   onCreated?: () => void
 }) {
+  // ───────────────────────────────
+  // 📊 DEBUG
   console.log('📊 CalendarMonthView → deals rebuts:', deals.length)
-deals.forEach(d => {
-  console.log(`🗓️ ${d.id} | ${d.NomEvent} | ${d.LN} | ${d.DataInici} → ${d.DataFi}`)
-})
+  deals.forEach((d) =>
+    console.log(`🗓️ ${d.id} | ${d.NomEvent} | ${d.LN} | ${d.DataInici} → ${d.DataFi}`)
+  )
 
-  // ───────────────────────────────────────────────
+  // ───────────────────────────────
   // 📅 Utils
-  // ───────────────────────────────────────────────
   const toISO = (d: Date) =>
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
       d.getDate()
@@ -57,15 +53,14 @@ deals.forEach(d => {
   const daysBetweenInclusive = (a: Date, b: Date) =>
     Math.floor((b.getTime() - a.getTime()) / (1000 * 60 * 60 * 24)) + 1
 
-  // ───────────────────────────────────────────────
+  // ───────────────────────────────
   // 🔁 Estat i context
-  // ───────────────────────────────────────────────
   const anchor =
-  start
-    ? new Date(start)
-    : deals.length > 0
-    ? new Date(deals[0].DataInici || deals[0].Data || new Date())
-    : new Date()
+    start
+      ? new Date(start)
+      : deals.length > 0
+      ? new Date(deals[0].DataInici || deals[0].Data || new Date())
+      : new Date()
 
   const currentMonth = anchor.getMonth()
   const currentYear = anchor.getFullYear()
@@ -76,9 +71,8 @@ deals.forEach(d => {
     year: 'numeric',
   })
 
-  // ───────────────────────────────────────────────
+  // ───────────────────────────────
   // 🧮 Graella del mes
-  // ───────────────────────────────────────────────
   const weeks: Week[] = useMemo(() => {
     const firstOfMonth = new Date(currentYear, currentMonth, 1)
     const lastOfMonth = new Date(currentYear, currentMonth + 1, 0)
@@ -98,10 +92,8 @@ deals.forEach(d => {
     return w
   }, [currentMonth, currentYear])
 
-  
-  // ───────────────────────────────────────────────
-  // ⚙️ StageGroup Weight
-  // ───────────────────────────────────────────────
+  // ───────────────────────────────
+  // ⚙️ Ordre per StageGroup
   const stageWeight = (stage?: string) => {
     const s = (stage || '').toLowerCase()
     if (s.includes('confirmat') || s.includes('ganada')) return 1
@@ -109,35 +101,32 @@ deals.forEach(d => {
     return 3
   }
 
-  // ───────────────────────────────────────────────
-  // Helpers d’esdeveniments
-  // ───────────────────────────────────────────────
+  // ───────────────────────────────
+  // 📆 Nova lògica de dates (igual que CalendarWeekView)
   const getEventStartISO = (ev: Deal) =>
     (ev.DataInici || ev.Data)?.slice(0, 10) || null
+
   const getEventEndISO = (ev: Deal) =>
     (ev.DataFi || ev.DataInici || ev.Data)?.slice(0, 10) || null
 
-// ✅ Funcions robustes de dates per evitar desfasos UTC i errors amb format curt
-const parseDate = (d?: string | null) => {
-  if (!d) return null
-  const normalized = d.length === 10 ? `${d}T00:00:00` : d
-  return new Date(normalized)
-}
+  const overlaps = (ev: Deal, rangeStart: Date, rangeEnd: Date) => {
+    const s = getEventStartISO(ev)
+    const e = getEventEndISO(ev)
+    if (!s || !e) return false
 
-const overlaps = (ev: Deal, rangeStart: Date, rangeEnd: Date) => {
-  const s = parseDate(ev.DataInici || ev.Data)
-  const e = parseDate(ev.DataFi || ev.DataInici || ev.Data)
-  if (!s || !e) return false
-  return s <= rangeEnd && e >= rangeStart
-}
+    const startISO = rangeStart.toISOString().slice(0, 10)
+    const endISO = rangeEnd.toISOString().slice(0, 10)
 
-const isInCurrentMonth = (ev: Deal) => {
-  const s = parseDate(ev.DataInici || ev.Data)
-  const e = parseDate(ev.DataFi || ev.DataInici || ev.Data)
-  if (!s || !e) return false
-  return s.getMonth() === currentMonth || e.getMonth() === currentMonth
-}
+    return !(e < startISO || s > endISO)
+  }
 
+  const isInCurrentMonth = (ev: Deal) => {
+    const s = getEventStartISO(ev)
+    const e = getEventEndISO(ev)
+    if (!s || !e) return false
+    const monthStr = String(currentMonth + 1).padStart(2, '0')
+    return s.slice(5, 7) === monthStr || e.slice(5, 7) === monthStr
+  }
 
   const isMultiDay = (ev: Deal) => {
     const s = getEventStartISO(ev)
@@ -145,15 +134,15 @@ const isInCurrentMonth = (ev: Deal) => {
     return !!(s && e && s !== e)
   }
 
-  // ───────────────────────────────────────────────
+  // ───────────────────────────────
   // 🖼️ Render
-  // ───────────────────────────────────────────────
   return (
     <div className="space-y-2 sm:space-y-3 overflow-y-auto">
       <div className="sticky top-0 bg-white z-10 py-2 text-center font-semibold capitalize shadow-sm">
         {monthName}
       </div>
 
+      {/* Dies de la setmana */}
       <div className="grid grid-cols-7 text-[10px] sm:text-xs text-gray-600 select-none bg-gray-50">
         {['Dl', 'Dt', 'Dc', 'Dj', 'Dv', 'Ds', 'Dg'].map((d) => (
           <div key={d} className="text-center py-1 font-medium">
@@ -162,16 +151,17 @@ const isInCurrentMonth = (ev: Deal) => {
         ))}
       </div>
 
+      {/* Setmanes */}
       <div className="space-y-[2px]">
         {weeks.map((week, wIdx) => {
           const weekStart = new Date(week[0].iso)
           const weekEnd = new Date(week[6].iso)
+
           const weekEvents = deals
             .filter(isInCurrentMonth)
             .filter((ev) => overlaps(ev, weekStart, weekEnd))
             .sort((a, b) => stageWeight(a.StageGroup) - stageWeight(b.StageGroup))
 
-          // Agrupar esdeveniments d’un sol dia (límit 5)
           const eventsByDay: Record<string, Deal[]> = {}
           weekEvents.forEach((ev) => {
             const sISO = getEventStartISO(ev)
@@ -185,7 +175,6 @@ const isInCurrentMonth = (ev: Deal) => {
 
           return (
             <div key={`week-${wIdx}`} className="relative border-b border-gray-100">
-              {/* Graella de dies */}
               <div className="grid grid-cols-7">
                 {week.map((cell) => {
                   const dailyEvents = eventsByDay[cell.iso]?.slice(0, 5) || []
@@ -201,10 +190,11 @@ const isInCurrentMonth = (ev: Deal) => {
                       }}
                       whileHover={{ scale: 1.02 }}
                       className={`relative border rounded-md flex flex-col justify-start p-1.5 transition 
-                        ${cell.isOther ? 'bg-gray-50 text-gray-300 border-gray-100' : 'bg-white hover:bg-blue-50 cursor-pointer'}
+                        ${cell.isOther
+                          ? 'bg-gray-50 text-gray-300 border-gray-100'
+                          : 'bg-white hover:bg-blue-50 cursor-pointer'}
                       `}
                       style={{ aspectRatio: '1 / 1', minHeight: 'calc(100vh / 6)' }}
-                      tabIndex={0}
                     >
                       <div className="absolute top-0 right-1 text-[10px] sm:text-xs text-gray-500 z-[30]">
                         {cell.date.getDate()}
@@ -225,9 +215,10 @@ const isInCurrentMonth = (ev: Deal) => {
                                   onClick={(e) => e.stopPropagation()}
                                 >
                                   <span
-  className={`inline-block w-2 h-2 rounded-full ${colorByStage(ev.StageGroup)}`}
-></span>
-
+                                    className={`inline-block w-2 h-2 rounded-full ${colorByStage(
+                                      ev.StageGroup
+                                    )}`}
+                                  ></span>
                                   <span className="truncate">{ev.NomEvent}</span>
                                 </div>
                               }
@@ -286,9 +277,10 @@ const isInCurrentMonth = (ev: Deal) => {
                             title={`${ev.NomEvent} — ${ev.LN || '—'}`}
                           >
                             <span
-  className={`inline-block w-2 h-2 rounded-full ${colorByStage(ev.StageGroup)}`}
-></span>
-
+                              className={`inline-block w-2 h-2 rounded-full ${colorByStage(
+                                ev.StageGroup
+                              )}`}
+                            ></span>
                             <span className="truncate">
                               {showName ? ev.NomEvent : ''}
                             </span>
@@ -304,6 +296,7 @@ const isInCurrentMonth = (ev: Deal) => {
         })}
       </div>
 
+      {/* Modal nou esdeveniment */}
       {selectedDate && (
         <CalendarNewEventModal
           key={selectedDate}
@@ -319,12 +312,15 @@ const isInCurrentMonth = (ev: Deal) => {
   )
 }
 
-// ───────────────────────────────────────────────
+// ───────────────────────────────
 // 🔹 Submodal +X més
-// ───────────────────────────────────────────────
+// ───────────────────────────────
 function MoreEventsPopup({ date, events }: { date: Date; events: Deal[] }) {
   const [open, setOpen] = useState(false)
-  const dayLabel = date.toLocaleDateString('ca-ES', { day: 'numeric', month: 'long' })
+  const dayLabel = date.toLocaleDateString('ca-ES', {
+    day: 'numeric',
+    month: 'long',
+  })
 
   const ordered = [...events].sort((a, b) => a.StageGroup.localeCompare(b.StageGroup))
 
@@ -351,9 +347,9 @@ function MoreEventsPopup({ date, events }: { date: Date; events: Deal[] }) {
           className="space-y-1 mt-2 max-h-[300px] overflow-y-auto"
           onClick={(e) => e.stopPropagation()}
         >
-          {ordered.map((ev) => (
-            <CalendarModal
-              key={ev.id}
+       {ordered.map((ev, eIdx) => (
+  <CalendarModal
+    key={`${ev.id || 'noid'}-${ev.date || ev.DataInici || ev.NomEvent || eIdx}`}
               deal={ev}
               trigger={
                 <div
@@ -364,9 +360,10 @@ function MoreEventsPopup({ date, events }: { date: Date; events: Deal[] }) {
                   title={`${ev.NomEvent} — ${ev.LN || '—'}`}
                 >
                   <span
-  className={`inline-block w-2 h-2 rounded-full ${colorByStage(ev.StageGroup)}`}
-></span>
-
+                    className={`inline-block w-2 h-2 rounded-full ${colorByStage(
+                      ev.StageGroup
+                    )}`}
+                  ></span>
                   <span className="truncate">{ev.NomEvent}</span>
                 </div>
               }
@@ -376,4 +373,4 @@ function MoreEventsPopup({ date, events }: { date: Date; events: Deal[] }) {
       </DialogContent>
     </Dialog>
   )
-} 
+}
