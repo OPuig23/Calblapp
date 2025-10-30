@@ -8,13 +8,17 @@ export interface NewPerson {
   name: string
   role: string
   department: string
-  driver?: {
-    type: 'none' | 'camioGran' | 'camioPetit'
+  driver: {                  // 👇 estructura real
+    isDriver: boolean
+    camioGran: boolean
+    camioPetit: boolean
   }
+  available: boolean
   email: string
   phone: string
-  available: boolean
+  maxHoursWeek: number
 }
+
 
 export function useCreatePersonnel() {
   const [loading, setLoading] = useState(false)

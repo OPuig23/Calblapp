@@ -55,6 +55,7 @@ export async function GET(
 }
 
 /**
+/**
  * PUT: Modifica una persona pel seu ID
  */
 export async function PUT(
@@ -68,21 +69,17 @@ export async function PUT(
 
   const personnelId = context.params.id
   try {
-    const body = (await request.json()) as UpdatePersonnelBody
+    const body = await request.json()
 
-    if (typeof body.available !== 'boolean') {
-      return NextResponse.json(
-        { error: "Camp 'available' incorrecte" },
-        { status: 400 }
-      )
+    if (!body || typeof body !== 'object') {
+      return NextResponse.json({ error: 'Body invàlid' }, { status: 400 })
     }
 
-    await firestore.collection('personnel').doc(personnelId).update({
-      available: body.available,
-    })
+    // ✅ Actualitza tots els camps rebuts (merge conserva els existents)
+    await firestore.collection('personnel').doc(personnelId).set(body, { merge: true })
 
-    return NextResponse.json({ id: personnelId, available: body.available })
-  } catch (err: unknown) {
+    return NextResponse.json({ id: personnelId, ...body })
+  } catch (err) {
     console.error(`[api/personnel/${personnelId} PUT] Error:`, err)
     if (err instanceof Error) {
       return NextResponse.json({ error: err.message }, { status: 500 })
@@ -93,6 +90,7 @@ export async function PUT(
     )
   }
 }
+
 
 /**
  * DELETE: Esborra una persona pel seu ID

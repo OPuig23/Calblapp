@@ -1,4 +1,4 @@
-// src/app/api/personnel/route.ts
+// ✅ file: src/app/api/personnel/route.ts
 export const runtime = 'nodejs'
 
 import { NextResponse } from 'next/server'
@@ -60,9 +60,9 @@ export interface PersonnelItem {
 const unaccent = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 const normLower = (s?: string) => unaccent((s || '').toString().trim()).toLowerCase()
 
-/**
- * GET: Llista de personal
- */
+/* -------------------------------------------------------------------------- */
+/*                                   GET LIST                                 */
+/* -------------------------------------------------------------------------- */
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session) {
@@ -99,12 +99,11 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // 1) Consultes de Firestore
+    // 1️⃣ Consultes de Firestore segons departament
     const byId = new Map<string, FirebaseFirestore.QueryDocumentSnapshot<FirestorePersonnelDoc>>()
     const stepUsed: string[] = []
 
     if (deptLower) {
-      // a) departmentLower
       const s1 = await firestore
         .collection('personnel')
         .where('departmentLower', '==', deptLower)
@@ -112,7 +111,6 @@ export async function GET(request: NextRequest) {
       s1.docs.forEach(d => byId.set(d.id, d))
       stepUsed.push(`lower:${s1.size}`)
 
-      // b) department exact
       const rawTrim = rawDept.trim()
       if (rawTrim) {
         const s2 = await firestore
@@ -123,7 +121,6 @@ export async function GET(request: NextRequest) {
         stepUsed.push(`exact:${s2.size}`)
       }
 
-      // c) fallback all
       const s3all = await firestore.collection('personnel').get()
       const addedFromAll = s3all.docs.filter(d => {
         const data = d.data() as FirestorePersonnelDoc
@@ -133,7 +130,6 @@ export async function GET(request: NextRequest) {
       addedFromAll.forEach(d => byId.set(d.id, d))
       stepUsed.push(`all+filter:${addedFromAll.length}`)
     } else {
-      // Sense filtre → tot
       const sAll = await firestore.collection('personnel').get()
       sAll.docs.forEach(d => byId.set(d.id, d))
       stepUsed.push(`all(no-dept-filter):${sAll.size}`)
@@ -148,7 +144,7 @@ export async function GET(request: NextRequest) {
       ids: baseDocs.map(d => d.id),
     })
 
-    // 2) Enriquir amb users + requests
+    // 2️⃣ Enriquir amb users i userRequests
     const personIds = baseDocs.map(d => d.id)
 
     const userDocs = await Promise.all(
@@ -157,34 +153,19 @@ export async function GET(request: NextRequest) {
     const hasUser = new Map<string, boolean>()
     userDocs.forEach(doc => hasUser.set(doc.id, doc.exists))
 
-    dbg.steps.push({
-      step: 'users-lookup',
-      usersFound: userDocs.filter(d => d.exists).length,
-      userIds: userDocs.filter(d => d.exists).map(d => d.id),
-    })
-
     const reqDocs = await Promise.all(
       personIds.map(id => firestore.collection('userRequests').doc(id).get())
     )
     const reqStatus = new Map<string, 'none' | 'pending' | 'approved' | 'rejected'>()
     reqDocs.forEach(doc => {
-      if (!doc.exists) {
-        reqStatus.set(doc.id, 'none')
-      } else {
+      if (!doc.exists) reqStatus.set(doc.id, 'none')
+      else {
         const d = doc.data() as UserRequestDoc
         reqStatus.set(doc.id, d?.status || 'pending')
       }
     })
 
-    dbg.steps.push({
-      step: 'requests-lookup',
-      pending: reqDocs.filter(d => d.exists && (d.data() as UserRequestDoc)?.status === 'pending').map(d => d.id),
-      approved: reqDocs.filter(d => d.exists && (d.data() as UserRequestDoc)?.status === 'approved').map(d => d.id),
-      rejected: reqDocs.filter(d => d.exists && (d.data() as UserRequestDoc)?.status === 'rejected').map(d => d.id),
-      none: reqDocs.filter(d => !d.exists).length,
-    })
-
-    // 3) Construcció de la llista final
+    // 3️⃣ Construcció final de la llista
     const list: PersonnelItem[] = baseDocs.map(doc => {
       const data = doc.data() as FirestorePersonnelDoc
       return {
@@ -222,6 +203,41 @@ export async function GET(request: NextRequest) {
     }
     return NextResponse.json(
       { success: false, error: 'Error intern llegint personal.' },
+      { status: 500 }
+    )
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/*                                   POST NEW                                 */
+/* -------------------------------------------------------------------------- */
+export async function POST(request: Request) {
+  const session = await getServerSession(authOptions)
+  if (!session) {
+    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+  }
+
+  try {
+    const body = await request.json()
+    if (!body?.id) {
+      return NextResponse.json({ success: false, error: 'Falta camp id' }, { status: 400 })
+    }
+
+    const id = body.id
+    const now = Date.now()
+    const payload = {
+      ...body,
+      role: body.role || 'soldat',
+      departmentLower: (body.department || '').toLowerCase(),
+      createdAt: now,
+    }
+
+    await firestore.collection('personnel').doc(id).set(payload)
+    return NextResponse.json({ success: true, id, ...payload }, { status: 201 })
+  } catch (err) {
+    console.error('[api/personnel POST] Error:', err)
+    return NextResponse.json(
+      { success: false, error: 'Error creant personal' },
       { status: 500 }
     )
   }

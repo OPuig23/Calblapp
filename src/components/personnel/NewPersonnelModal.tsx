@@ -65,17 +65,18 @@ export default function NewPersonnelModal({
   // Mode auto-ID (per defecte true)
   const [autoId, setAutoId] = useState(true)
 
-  const [form, setForm] = useState<NewPerson>({
-    id:         '',
-    name:       '',
-    role:       'soldat',
-    department: defaultDepartment,
-    driver: { isDriver: false, camioGran: false, camioPetit: false },
-    available:  true,
-    email:      '',
-    phone:      '',
-    maxHoursWeek: 40,
-  })
+ const [form, setForm] = useState<NewPerson>({
+  id: '',
+  name: '',
+  role: 'soldat',
+  department: defaultDepartment,
+  driver: { isDriver: false, camioGran: false, camioPetit: false }, // 👈 important!
+  available: true,
+  email: '',
+  phone: '',
+  maxHoursWeek: 40,
+})
+
 
   // Quan obrim el modal, preparem l’esborrany
   useEffect(() => {
@@ -215,7 +216,7 @@ export default function NewPersonnelModal({
               value={form.driver?.isDriver ? 'si' : 'no'}
               onChange={e =>
                 handleChange('driver', {
-                  ...form.driver,
+                  ...(form.driver ?? {}),
                   isDriver: e.target.value === 'si'
                 })
               }

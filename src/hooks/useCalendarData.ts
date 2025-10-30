@@ -86,7 +86,11 @@ const toCollection = (g: string) => {
           Data: d.Data || '',
           DataInici: d.DataInici || d.Data || '',
           DataFi: d.DataFi || d.DataInici || d.Data || '',
-          Ubicacio: d.Ubicacio || '',
+          // 🔧 Neteja prefixos com "ZZ ", "Z_", etc. de les finques
+Ubicacio: (d.Ubicacio || '')
+  .replace(/^ZZ[\s_-]?/i, '')   // elimina "ZZ ", "ZZ_", "ZZ-"
+  .trim(),
+
           Color: d.Color || 'border-gray-300 bg-gray-100 text-gray-700',
           StageDot: d.StageDot || '',
           origen: d.origen || 'zoho',

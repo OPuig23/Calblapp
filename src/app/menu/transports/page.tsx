@@ -1,3 +1,5 @@
+//file: src/app/menu/transports/page.tsx
+
 'use client'
 
 import React, { useState } from 'react'
@@ -11,21 +13,56 @@ import ModuleHeader from '@/components/layout/ModuleHeader'
 export default function TransportsPage() {
   const { data: transports, refetch } = useTransports()
   const [isModalOpen, setModalOpen] = useState(false)
+  const [editingTransport, setEditingTransport] = useState<any | null>(null)
+
+  // 🔹 Crear o actualitzar vehicle
+  const handleSaved = () => {
+    setModalOpen(false)
+    setEditingTransport(null)
+    refetch()
+  }
+
+  // 🔹 Obrir modal per crear
+  const handleCreate = () => {
+    setEditingTransport(null)
+    setModalOpen(true)
+  }
+
+  // 🔹 Obrir modal per editar vehicle existent
+  const handleEdit = (t: any) => {
+    setEditingTransport(t)
+    setModalOpen(true)
+  }
+
+  // 🔹 Eliminar vehicle amb confirmació
+  const handleDelete = async (t: any) => {
+    const confirmDelete = window.confirm(`Vols eliminar el vehicle ${t.plate}?`)
+    if (!confirmDelete) return
+
+    try {
+      const res = await fetch(`/api/transports/${t.id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('Error esborrant vehicle')
+      await refetch()
+    } catch (err) {
+      console.error('❌ Error eliminant vehicle:', err)
+      alert('No s’ha pogut eliminar el vehicle.')
+    }
+  }
 
   return (
     <section className="space-y-6">
-      {/* Capçalera global unificada */}
+      {/* Capçalera del mòdul */}
       <ModuleHeader
         icon="🚛"
         title="TRANSPORTS"
         subtitle="Gestió de vehicles i conductors"
       />
 
-      {/* Capçalera llistat + CTA */}
+      {/* Capçalera del llistat */}
       <div className="flex items-center justify-between rounded-xl bg-white shadow-sm border p-4">
         <h2 className="text-xl font-semibold text-gray-800">Llistat de vehicles</h2>
         <Button
-          onClick={() => setModalOpen(true)}
+          onClick={handleCreate}
           className="flex items-center gap-2 px-4 py-2 rounded-lg bg-violet-600 text-white hover:bg-violet-700 transition"
         >
           <PlusCircle className="h-5 w-5" />
@@ -33,18 +70,19 @@ export default function TransportsPage() {
         </Button>
       </div>
 
-      {/* Llistat de vehicles */}
+      {/* Llistat de targetes de vehicle */}
       <TransportList
         transports={transports}
-        onEdit={() => {}}
-        onDelete={() => refetch()}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
       />
 
-      {/* Modal crear transport */}
+      {/* Modal crear / editar vehicle */}
       <NewTransportModal
         isOpen={isModalOpen}
         onOpenChange={setModalOpen}
-        onCreated={() => refetch()}
+        onCreated={handleSaved}
+        defaultValues={editingTransport ?? undefined}
       />
     </section>
   )

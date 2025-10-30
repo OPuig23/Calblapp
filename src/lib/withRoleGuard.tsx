@@ -1,38 +1,54 @@
 // file: src/lib/withRoleGuard.tsx
 'use client'
 
+import * as React from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { useEffect } from 'react'
-import { type Role, normalizeRole } from '@/lib/roles'
+import { normalizeRole } from '@/lib/roles'
 
-// Ampliem el tipus de Session user per incloure role
 interface SessionUser {
   id: string
   name?: string | null
   email?: string | null
   role?: string
+  department?: string | null
 }
 
-export function withRoleGuard<P>(
-  Component: React.ComponentType<P>,
-  allowedRoles: Role[]
-) {
-  return function GuardedComponent(props: P) {
-    const { data: session, status } = useSession()
-    const router = useRouter()
+interface RoleGuardProps {
+  allowedRoles: string[]
+  children: React.ReactNode
+}
 
-    useEffect(() => {
-      if (status !== 'loading') {
-        const user = session?.user as SessionUser | undefined
-        const role = normalizeRole(user?.role || '')
-        if (!allowedRoles.includes(role)) {
-          router.replace('/menu') // o /login
-        }
-      }
-    }, [status, session, router, allowedRoles])
+/**
+ * 🔒 Component de protecció d’accés per rols i departaments
+ * - Mostra “Carregant…” mentre la sessió s’està carregant.
+ * - Redirigeix a /menu si l’usuari no té accés.
+ */
+export function RoleGuard({ allowedRoles, children }: RoleGuardProps) {
+  const { data: session, status } = useSession()
+  const router = useRouter()
 
-    if (status === 'loading') return <p>Carregant…</p>
-    return <Component {...props} />
-  }
+  React.useEffect(() => {
+    if (status === 'loading') return
+
+    const user = session?.user as SessionUser | undefined
+    const role = normalizeRole(user?.role || '')
+    const dept = (user?.department || '').toLowerCase()
+
+    // Sense sessió o rol no permès
+    if (!session || !allowedRoles.includes(role)) {
+      router.replace('/menu')
+      return
+    }
+
+    // Cap d’un altre departament
+    if (role === 'cap' && dept !== 'logistica') {
+      router.replace('/menu')
+      return
+    }
+  }, [status, session, router, allowedRoles])
+
+  if (status === 'loading') return <p>Carregant…</p>
+
+  return <>{children}</>
 }
