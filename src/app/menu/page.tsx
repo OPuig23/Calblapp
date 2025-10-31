@@ -116,6 +116,16 @@ const MODULES: ModuleOption[] = [
     iconColor: 'text-orange-600',
   },
   {
+  value: 'logistics',
+  label: 'Preparació Logística',
+  path: '/menu/Logistics',
+  roles: ['admin', 'direccio', 'cap', 'treballador'],
+  icon: Truck,
+  color: 'from-green-100 to-emerald-50',
+  iconColor: 'text-green-600',
+},
+
+  {
   value: 'modifications',
   label: 'Modificacions',
   path: '/menu/modifications',

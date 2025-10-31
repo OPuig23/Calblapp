@@ -36,6 +36,7 @@ const NAV_ITEMS: { label: string; path: string; roles: Role[]; department?: stri
   { label: 'Informes', path: '/menu/reports', roles: ['admin', 'direccio'] },
   { label: 'Usuaris', path: '/menu/users', roles: ['admin'] },
   { label: 'Transports', path: '/menu/transports', roles: ['admin', 'direccio', 'cap'], department: 'Transports' },
+  { label: 'Preparació Logística', path: '/menu/Logistics', roles: ['admin', 'direccio', 'cap', 'treballador'], department: 'Logistica' },
   { label: 'Calendar', path: '/menu/calendar', roles: ['admin', 'direccio', 'comercial'] },
   { label: 'Espais', path: '/menu/spaces', roles: ['admin', 'direccio', 'cap'] },
 

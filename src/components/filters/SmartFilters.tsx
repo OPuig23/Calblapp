@@ -48,6 +48,7 @@ export type SmartFiltersChange = {
 }
 
 export type WorkerOpt = { id: string; name: string; role?: string; roles?: string[] }
+type WeekOpt = { label: string; start: string; end: string }
 
 export interface SmartFiltersProps {
   modeDefault?: Mode
@@ -114,6 +115,7 @@ export default function SmartFilters({
   showStatus = true,
   showImportance = false,
   onChange,
+   onLabelChange,
   statusOptions = ['confirmed', 'draft'],
   resetSignal,
   renderLabels = {},
