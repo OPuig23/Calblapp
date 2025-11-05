@@ -1,4 +1,3 @@
-// src/app/menu/quadrants/[id]/components/QuadrantTable.tsx
 'use client'
 
 import { useState } from 'react'
@@ -16,103 +15,145 @@ import {
   Edit
 } from 'lucide-react'
 
+/* ──────────────────────────────
+   Icones segons rol
+────────────────────────────── */
 const roleIcon = {
-  responsable: <GraduationCap className="text-blue-700" size={20} title="Responsable" />,  
-  conductor:   <Truck className="text-orange-500" size={18} title="Conductor" />,   
-  treballador: <User className="text-green-600" size={18} title="Treballador" />  
+  responsable: (
+    <GraduationCap className="text-blue-700" size={20}>
+      <title>Responsable</title>
+    </GraduationCap>
+  ),
+  conductor: (
+    <Truck className="text-orange-500" size={18}>
+      <title>Conductor</title>
+    </Truck>
+  ),
+  treballador: (
+    <User className="text-green-600" size={18}>
+      <title>Treballador</title>
+    </User>
+  ),
 }
 
-// Format (DD/MM)
+/* ──────────────────────────────
+   Formats
+────────────────────────────── */
 const formatDate = (d: string) => {
   if (!d) return '--/--'
   const [, mm, dd] = d.split('-')
   return `${dd}/${mm}`
 }
+const formatTime = (t: string) => (t ? t.substring(0, 5) : '--:--')
 
-// Format (HH:MM)
-const formatTime = (t: string) => t ? t.substring(0, 5) : '--:--'
+/* ──────────────────────────────
+   Component principal
+────────────────────────────── */
+export default function QuadrantTable({ eventId, initialData }) {
+  const draft = initialData || {}
 
+  /* ---------- Tipus ---------- */
+  interface WorkerRow {
+    role: 'responsable' | 'conductor' | 'treballador'
+    id: string
+    name: string
+    startDate: string
+    startTime: string
+    endDate: string
+    endTime: string
+    meetingPoint: string
+  }
 
-export default function QuadrantTable({ draft }) {
-  const [rows, setRows] = useState([
+  /* ---------- Estat inicial ---------- */
+  const [rows, setRows] = useState<WorkerRow[]>([
     ...(draft.responsableId
-      ? [{
-          role: 'responsable',
-          id: draft.responsable.id,
-          name: draft.responsable.name,
-          startDate: draft.startDate,
-          startTime: draft.startTime,
-          endDate: draft.endDate,
-          endTime: draft.endTime,
-          meetingPoint: draft.meetingPoint || ''
-        }]
+      ? [
+          {
+            role: 'responsable',
+            id: draft.responsable?.id ?? '',
+            name: draft.responsable?.name ?? '',
+            startDate: draft.startDate ?? '',
+            startTime: draft.startTime ?? '',
+            endDate: draft.endDate ?? '',
+            endTime: draft.endTime ?? '',
+            meetingPoint: draft.meetingPoint || '',
+          },
+        ]
       : []),
     ...(Array.isArray(draft.conductors)
-      ? draft.conductors.map(c => ({
+      ? draft.conductors.map((c: any) => ({
           role: 'conductor',
           id: c.id,
           name: c.name,
-          startDate: draft.startDate,
-          startTime: draft.startTime,
-          endDate: draft.endDate,
-          endTime: draft.endTime,
-          meetingPoint: draft.meetingPoint || ''
+          startDate: draft.startDate ?? '',
+          startTime: draft.startTime ?? '',
+          endDate: draft.endDate ?? '',
+          endTime: draft.endTime ?? '',
+          meetingPoint: draft.meetingPoint || '',
         }))
       : []),
     ...(Array.isArray(draft.treballadors)
-      ? draft.treballadors.map(t => ({
+      ? draft.treballadors.map((t: any) => ({
           role: 'treballador',
           id: t.id,
           name: t.name,
-          startDate: draft.startDate,
-          startTime: draft.startTime,
-          endDate: draft.endDate,
-          endTime: draft.endTime,
-          meetingPoint: draft.meetingPoint || ''
+          startDate: draft.startDate ?? '',
+          startTime: draft.startTime ?? '',
+          endDate: draft.endDate ?? '',
+          endTime: draft.endTime ?? '',
+          meetingPoint: draft.meetingPoint || '',
         }))
-      : [])
+      : []),
   ])
 
-  const [editIdx, setEditIdx] = useState(null)
-  const [editRow, setEditRow] = useState(null)
+  /* ---------- Estats i accions ---------- */
+  const [editIdx, setEditIdx] = useState<number | null>(null)
+  const [editRow, setEditRow] = useState<WorkerRow | null>(null)
 
-  const handleConfirm = () => { /* TODO */ }
-  const handleSave    = () => { /* TODO */ }
-  const handleDelete  = () => { /* TODO */ }
+  const handleConfirm = () => {}
+  const handleSave = () => {}
+  const handleDelete = () => {}
 
-  const handleEdit = i => {
+  const handleEdit = (i: number) => {
     setEditIdx(i)
     setEditRow({ ...rows[i] })
   }
-  const handleEditChange = (k, v) => {
-    setEditRow(r => ({ ...r, [k]: v }))
+
+  const handleEditChange = (k: keyof WorkerRow, v: string) => {
+    setEditRow((r) => (r ? { ...r, [k]: v } : null))
   }
-  const handleEditSave = i => {
-    setRows(rs => rs.map((r, idx) => (idx === i ? editRow : r)))
+
+  const handleEditSave = (i: number) => {
+    setRows((rs) => rs.map((r, idx) => (idx === i ? (editRow ?? r) : r)))
     setEditIdx(null)
     setEditRow(null)
   }
-  const handleDeleteLine = i => {
-    setRows(rs => rs.filter((_, idx) => idx !== i))
+
+  const handleDeleteLine = (i: number) => {
+    setRows((rs) => rs.filter((_, idx) => idx !== i))
     setEditIdx(null)
     setEditRow(null)
   }
-  const handleAddLine = role => {
-    setRows(rs => [
+
+  const handleAddLine = (role: WorkerRow['role']) => {
+    setRows((rs) => [
       ...rs,
       {
         role,
         id: '',
         name: '',
-        startDate: draft.startDate,
-        startTime: draft.startTime,
-        endDate: draft.endDate,
-        endTime: draft.endTime,
-        meetingPoint: draft.meetingPoint || ''
-      }
+        startDate: draft.startDate ?? '',
+        startTime: draft.startTime ?? '',
+        endDate: draft.endDate ?? '',
+        endTime: draft.endTime ?? '',
+        meetingPoint: draft.meetingPoint || '',
+      },
     ])
   }
 
+  /* ──────────────────────────────
+     Render
+  ─────────────────────────────── */
   return (
     <div className="w-full bg-white rounded-2xl shadow border px-4 py-4">
       {/* Header */}
@@ -128,13 +169,28 @@ export default function QuadrantTable({ draft }) {
           )}
         </div>
         <div className="flex gap-2">
-          <Button size="icon" className="bg-green-600 text-white" onClick={handleConfirm} title="Confirma">
+          <Button
+            size="icon"
+            className="bg-green-600 text-white"
+            onClick={handleConfirm}
+            title="Confirma"
+          >
             <CheckCircle size={18} />
           </Button>
-          <Button size="icon" className="bg-blue-600 text-white" onClick={handleSave} title="Desa">
+          <Button
+            size="icon"
+            className="bg-blue-600 text-white"
+            onClick={handleSave}
+            title="Desa"
+          >
             <Save size={18} />
           </Button>
-          <Button size="icon" className="bg-red-600 text-white" onClick={handleDelete} title="Elimina">
+          <Button
+            size="icon"
+            className="bg-red-600 text-white"
+            onClick={handleDelete}
+            title="Elimina"
+          >
             <Trash size={18} />
           </Button>
         </div>
@@ -143,7 +199,10 @@ export default function QuadrantTable({ draft }) {
       {/* Rows */}
       <div className="flex flex-col gap-0.5">
         {rows.map((r, i) => (
-          <div key={i} className="group relative flex items-center border-b py-2">
+          <div
+            key={i}
+            className="group relative flex items-center border-b py-2"
+          >
             <div className="w-7 flex justify-center items-center">
               {roleIcon[r.role]}
             </div>
@@ -159,6 +218,7 @@ export default function QuadrantTable({ draft }) {
             <div className="min-w-[80px] max-w-[110px] truncate text-xs text-slate-700">
               {r.meetingPoint || '-'}
             </div>
+
             <div className="flex gap-1 ml-2">
               <Button
                 size="icon"
@@ -180,34 +240,41 @@ export default function QuadrantTable({ draft }) {
               </Button>
             </div>
 
-            {/* Editable panel */}
-            {editIdx === i && (
+            {/* Panell editable */}
+            {editIdx === i && editRow && (
               <div className="absolute left-0 top-full w-full mt-1 bg-slate-50 border rounded-xl px-3 py-3 flex flex-col gap-2 z-10 shadow">
                 <div className="flex flex-col md:flex-row gap-2">
                   <div className="flex-1">
                     <label className="text-xs font-medium">Nom</label>
                     <Input
-                      value={editRow.name}
-                      onChange={e => handleEditChange('name', e.target.value)}
+                      value={editRow?.name ?? ''}
+                      onChange={(e) => handleEditChange('name', e.target.value)}
                       className="text-sm"
                     />
                   </div>
                   <div className="flex-1">
-                    <label className="text-xs font-medium">Lloc convocatòria</label>
+                    <label className="text-xs font-medium">
+                      Lloc convocatòria
+                    </label>
                     <Input
-                      value={editRow.meetingPoint}
-                      onChange={e => handleEditChange('meetingPoint', e.target.value)}
+                      value={editRow?.meetingPoint ?? ''}
+                      onChange={(e) =>
+                        handleEditChange('meetingPoint', e.target.value)
+                      }
                       className="text-xs"
                     />
                   </div>
                 </div>
+
                 <div className="flex flex-wrap gap-2">
                   <div>
                     <label className="text-xs font-medium">Data inici</label>
                     <Input
                       type="date"
-                      value={editRow.startDate}
-                      onChange={e => handleEditChange('startDate', e.target.value)}
+                      value={editRow?.startDate ?? ''}
+                      onChange={(e) =>
+                        handleEditChange('startDate', e.target.value)
+                      }
                       className="text-xs"
                     />
                   </div>
@@ -215,8 +282,10 @@ export default function QuadrantTable({ draft }) {
                     <label className="text-xs font-medium">Hora inici</label>
                     <Input
                       type="time"
-                      value={editRow.startTime}
-                      onChange={e => handleEditChange('startTime', e.target.value)}
+                      value={editRow?.startTime ?? ''}
+                      onChange={(e) =>
+                        handleEditChange('startTime', e.target.value)
+                      }
                       className="text-xs"
                     />
                   </div>
@@ -224,8 +293,10 @@ export default function QuadrantTable({ draft }) {
                     <label className="text-xs font-medium">Data fi</label>
                     <Input
                       type="date"
-                      value={editRow.endDate}
-                      onChange={e => handleEditChange('endDate', e.target.value)}
+                      value={editRow?.endDate ?? ''}
+                      onChange={(e) =>
+                        handleEditChange('endDate', e.target.value)
+                      }
                       className="text-xs"
                     />
                   </div>
@@ -233,35 +304,65 @@ export default function QuadrantTable({ draft }) {
                     <label className="text-xs font-medium">Hora fi</label>
                     <Input
                       type="time"
-                      value={editRow.endTime}
-                      onChange={e => handleEditChange('endTime', e.target.value)}
+                      value={editRow?.endTime ?? ''}
+                      onChange={(e) =>
+                        handleEditChange('endTime', e.target.value)
+                      }
                       className="text-xs"
                     />
                   </div>
                 </div>
+
                 <div className="flex gap-2 justify-end mt-1">
-                  <Button size="sm" className="bg-green-600 text-white" onClick={() => handleEditSave(i)}>
-                    <Save size={16} className="mr-1" />Desa
+                  <Button
+                    size="sm"
+                    className="bg-green-600 text-white"
+                    onClick={() => handleEditSave(i)}
+                  >
+                    <Save size={16} className="mr-1" />
+                    Desa
                   </Button>
-                  <Button size="sm" variant="secondary" onClick={() => { setEditIdx(null); setEditRow(null) }}>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      setEditIdx(null)
+                      setEditRow(null)
+                    }}
+                  >
                     Cancel·la
                   </Button>
                 </div>
               </div>
             )}
           </div>
-        ))}
+        ))} {/* ✅ tanca el map correctament */}
       </div>
 
       {/* Add buttons */}
       <div className="flex flex-wrap gap-2 justify-center mt-4">
-        <Button size="sm" variant="outline" className="gap-1" onClick={() => handleAddLine('treballador')}>
+        <Button
+          size="sm"
+          variant="outline"
+          className="gap-1"
+          onClick={() => handleAddLine('treballador')}
+        >
           <Plus className="text-green-600" size={16} /> Treballador
         </Button>
-        <Button size="sm" variant="outline" className="gap-1" onClick={() => handleAddLine('conductor')}>
+        <Button
+          size="sm"
+          variant="outline"
+          className="gap-1"
+          onClick={() => handleAddLine('conductor')}
+        >
           <Plus className="text-orange-500" size={16} /> Conductor
         </Button>
-        <Button size="sm" variant="outline" className="gap-1" onClick={() => handleAddLine('responsable')}>
+        <Button
+          size="sm"
+          variant="outline"
+          className="gap-1"
+          onClick={() => handleAddLine('responsable')}
+        >
           <Plus className="text-blue-600" size={16} /> Responsable
         </Button>
       </div>

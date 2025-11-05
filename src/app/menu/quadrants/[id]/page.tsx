@@ -1,18 +1,17 @@
-// src/app/menu/quadrants/[id]/page.tsx
-'use client';
+// ✅ file: src/app/menu/quadrants/[id]/page.tsx
+'use client'
 
-import React from 'react';
-import QuadrantTable from './components/QuadrantTable';
+import React from 'react'
+import QuadrantTable from './components/QuadrantTable'
 
-interface Params {
-  params: { id: string };
-}
+export default function QuadrantDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  // ✅ Desempaqueta la promesa de `params`
+  const { id } = React.use(params)
 
-export default function QuadrantDetailPage({ params }: Params) {
-  // initialData can come from props or a fetch; use null for now
   return (
     <main className="p-6">
-      <QuadrantTable eventId={params.id} initialData={null} />
+      {/* ✅ Manté la mateixa funcionalitat actual */}
+      <QuadrantTable eventId={id} initialData={null} />
     </main>
-  );
+  )
 }

@@ -133,8 +133,8 @@ export default function useEvents(
           if (d.eventId) quadrantMap.set(String(d.eventId), d)
         })
 
-        // 🔹 3. Merge Calendar + Firestore
-const flat: EventData[] = eventsFromPayload.map((ev) => {
+// 🔹 3. Merge Calendar + Firestore
+const flat = eventsFromPayload.map((ev) => {
   let pax = Number(ev.pax ?? 0)
   if ((!pax || Number.isNaN(pax)) && ev.summary) {
     const match = ev.summary.match(/(\d{1,4})\s*(pax|persones?|comensals?)/i)
@@ -180,7 +180,8 @@ const flat: EventData[] = eventsFromPayload.map((ev) => {
       ? q.treballadors.map((t) => t?.name).filter(Boolean) as string[]
       : [],
   }
-})
+}) as EventData[] // 👈 ← l’únic lloc correcte on posar el cast
+
 
                // 🔹 4. Comptadors totals
         const totals: TotalPerDay = {}
@@ -238,4 +239,5 @@ const flat: EventData[] = eventsFromPayload.map((ev) => {
     responsablesDetailed,
     lnOptions,
   }
+  
 }

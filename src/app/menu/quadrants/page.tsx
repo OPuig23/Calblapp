@@ -28,7 +28,7 @@ export default function QuadrantsPage() {
   })
 
   // 🔹 Dades d’esdeveniments amb quadrants
-  const { events = [], loading, error } = useEvents('all', range.start, range.end, 'all', true)
+  const { events = [], loading, error } = useEvents('all', range.start, range.end, 'all')
   const [selected, setSelected] = useState<UnifiedEvent | null>(null)
 
   // ==========================================================
@@ -135,19 +135,20 @@ export default function QuadrantsPage() {
         />
       )}
 
-      {/* 🔘 Botó veure tots */}
+{/* 🔘 Botó veure tots */}
 <div className="flex justify-end mt-6">
   <button
     onClick={() =>
-      router.push(
-        `/menu/quadrants/drafts?start=${range.start}&end=${range.end}`
-      )
+      router.push(`/menu/quadrants/drafts?start=${range.start}&end=${range.end}`)
     }
     className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-full px-5 py-2 shadow"
   >
     🗂 Veure tots els quadrants
   </button>
 </div>
+
+
+
 
     </main>
   )

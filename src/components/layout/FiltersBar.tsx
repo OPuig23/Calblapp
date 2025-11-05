@@ -180,34 +180,80 @@ export default function FiltersBar({
         <SelectsInline />
 
         {/* 🔘 Diferència entre mòduls */}
-        {isQuadrants ? (
-  <TooltipProvider>
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          size="icon"
-          variant="default"
-          className="h-10 w-10 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-sm flex items-center justify-center"
-          onClick={() => {
-            const start = filters.start
-            const end = filters.end
-            if (start && end) {
-              const url = `/menu/quadrants/drafts?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`
-              router.push(url)
-            } else {
-              router.push('/menu/quadrants/drafts')
-            }
-          }}
-        >
-          <ClipboardList className="h-5 w-5" />
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent side="bottom" className="text-sm">
-        Veure quadrants
-      </TooltipContent>
-    </Tooltip>
-  </TooltipProvider>
-        ) : (
+       {isQuadrants ? (
+  <div className="flex items-center gap-2">
+    {/* 🔵 Veure quadrants */}
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            size="icon"
+            variant="default"
+            className="h-10 w-10 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-sm flex items-center justify-center"
+            onClick={() => {
+              const start = filters.start
+              const end = filters.end
+              if (start && end) {
+                const url = `/menu/quadrants/drafts?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`
+                router.push(url)
+              } else {
+                router.push('/menu/quadrants/drafts')
+              }
+            }}
+          >
+            <ClipboardList className="h-5 w-5" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" className="text-sm">
+          Veure quadrants
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+
+    {/* 🟢 Vista setmanal operativa */}
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            size="icon"
+            variant="default"
+            className="h-10 w-10 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full shadow-sm flex items-center justify-center"
+            onClick={() => {
+              const start = filters.start
+              const end = filters.end
+              if (start && end) {
+                const url = `/menu/quadrants/operativa?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`
+                router.push(url)
+              } else {
+                router.push('/menu/quadrants/operativa')
+              }
+            }}
+          >
+            {/* 🗓 Icona de llista per vista operativa */}
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={2}
+              stroke="currentColor"
+              className="h-5 w-5"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M9 12h6m-6 4h6m-2-8h2m2 10a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2h12z"
+              />
+            </svg>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" className="text-sm">
+          Vista setmanal operativa
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  </div>
+) : (
+
           // ⚙️ Altres mòduls → Filtres avançats (sense canvis)
           hiddenFilters.length > 0 && (
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
