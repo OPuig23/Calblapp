@@ -1,3 +1,4 @@
+//file: src/services/zoho/sync.ts
 import { firestore } from '@/lib/firebaseAdmin'
 import { zohoFetch } from '@/services/zoho/auth'
 
@@ -22,6 +23,9 @@ interface ZohoDeal {
   Durac_n_del_evento?: number | string | null
   C_digo?: string | null
   Owner: ZohoOwner
+  Fecha_de_petici_n?: string | null
+  Precio_Total?: number | string | null
+  Amount?: number | string | null
 }
 
 
@@ -44,7 +48,11 @@ interface NormalizedDeal {
   editable: boolean
   updatedAt: string
   collection: 'blau' | 'taronja' | 'verd' | string
+  DataPeticio?: string | null
+  PreuMenu?: number | string | null
+  Import?: number | string | null
 }
+
 
 export async function syncZohoDealsToFirestore(): Promise<{
   totalCount: number
@@ -56,7 +64,8 @@ export async function syncZohoDealsToFirestore(): Promise<{
   const todayISO = new Date().toISOString().slice(0, 10)
   const moduleName = process.env.ZOHO_CRM_MODULE || 'Deals'
   const fields =
-    'id,Deal_Name,Stage,Servicio_texto,Men_texto,C_digo,N_mero_de_invitados,N_mero_de_personas_del_evento,Finca_2,Espai_2,Fecha_del_evento,Fecha_y_hora_del_evento,Durac_n_del_evento,Owner'
+  'id,Deal_Name,Stage,Servicio_texto,Men_texto,C_digo,N_mero_de_invitados,N_mero_de_personas_del_evento,Finca_2,Espai_2,Fecha_del_evento,Fecha_y_hora_del_evento,Durac_n_del_evento,Owner,Fecha_de_petici_n,Precio_Total,Amount'
+
 
   // 1️⃣ Llegir oportunitats amb paginació
   const allDeals: ZohoDeal[] = []
@@ -173,6 +182,9 @@ if (dateISO && !isNaN(duracio) && duracio > 1) {
       editable: group === 'verd',
       updatedAt: new Date().toISOString(),
       collection: group,
+      DataPeticio: d.Fecha_de_petici_n || null,
+      PreuMenu: d.Precio_Total || null,
+      Import: d.Amount || null,
     })
   }
 

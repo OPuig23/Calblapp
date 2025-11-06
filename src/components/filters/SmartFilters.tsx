@@ -79,6 +79,9 @@ export interface SmartFiltersProps {
   initialStart?: string
   initialEnd?: string
   categoryOptions?: { id: string; label: string }[]  // ✅ AFEGIT
+   startDefault?: string
+  endDefault?: string
+  
 
 }
 
