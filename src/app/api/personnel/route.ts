@@ -5,7 +5,8 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
-import { firestore } from '@/lib/firebaseAdmin'
+import { db, firestoreAdmin } from '@/lib/firebaseAdmin'
+
 import { normalizeRole } from '@/lib/roles'
 
 interface FirestorePersonnelDoc {
@@ -104,7 +105,7 @@ export async function GET(request: NextRequest) {
     const stepUsed: string[] = []
 
     if (deptLower) {
-      const s1 = await firestore
+      const s1 = await firestoreAdmin
         .collection('personnel')
         .where('departmentLower', '==', deptLower)
         .get()
@@ -113,7 +114,7 @@ export async function GET(request: NextRequest) {
 
       const rawTrim = rawDept.trim()
       if (rawTrim) {
-        const s2 = await firestore
+        const s2 = await firestoreAdmin
           .collection('personnel')
           .where('department', '==', rawTrim)
           .get()
@@ -121,7 +122,8 @@ export async function GET(request: NextRequest) {
         stepUsed.push(`exact:${s2.size}`)
       }
 
-      const s3all = await firestore.collection('personnel').get()
+      const s3all = await db.collection('personnel').get()
+
       const addedFromAll = s3all.docs.filter(d => {
         const data = d.data() as FirestorePersonnelDoc
         const dep = normLower(data.departmentLower || data.department)
@@ -130,7 +132,7 @@ export async function GET(request: NextRequest) {
       addedFromAll.forEach(d => byId.set(d.id, d))
       stepUsed.push(`all+filter:${addedFromAll.length}`)
     } else {
-      const sAll = await firestore.collection('personnel').get()
+      const sAll = await firestoreAdmin.collection('personnel').get()
       sAll.docs.forEach(d => byId.set(d.id, d))
       stepUsed.push(`all(no-dept-filter):${sAll.size}`)
     }
@@ -148,13 +150,13 @@ export async function GET(request: NextRequest) {
     const personIds = baseDocs.map(d => d.id)
 
     const userDocs = await Promise.all(
-      personIds.map(id => firestore.collection('users').doc(id).get())
+      personIds.map(id => firestoreAdmin.collection('users').doc(id).get())
     )
     const hasUser = new Map<string, boolean>()
     userDocs.forEach(doc => hasUser.set(doc.id, doc.exists))
 
     const reqDocs = await Promise.all(
-      personIds.map(id => firestore.collection('userRequests').doc(id).get())
+      personIds.map(id => firestoreAdmin.collection('userRequests').doc(id).get())
     )
     const reqStatus = new Map<string, 'none' | 'pending' | 'approved' | 'rejected'>()
     reqDocs.forEach(doc => {
@@ -232,7 +234,7 @@ export async function POST(request: Request) {
       createdAt: now,
     }
 
-    await firestore.collection('personnel').doc(id).set(payload)
+    await firestoreAdmin.collection('personnel').doc(id).set(payload)
     return NextResponse.json({ success: true, id, ...payload }, { status: 201 })
   } catch (err) {
     console.error('[api/personnel POST] Error:', err)

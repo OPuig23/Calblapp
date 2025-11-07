@@ -1,6 +1,6 @@
 // src/app/api/incidents/route.ts
 import { NextResponse } from "next/server";
-import { firestore } from "@/lib/firebaseAdmin";
+import { firestoreAdmin } from "@/lib/firebaseAdmin";
 import { google } from "googleapis";
 import path from "path";
 import fs from "fs";
@@ -112,7 +112,7 @@ export async function POST(req: Request) {
     }
 
     // 3) Desa a Firestore
-    const docRef = await firestore.collection("incidents").add({
+    const docRef = await firestoreAdmin.collection("incidents").add({
       eventId: String(eventId),
       eventCode,
       department,
@@ -204,7 +204,7 @@ export async function GET(req: Request) {
     console.log("[incidents] GET query", { from, to, importance, eventId, categoryId });
 
     let ref: FirebaseFirestore.Query<FirebaseFirestore.DocumentData> =
-      firestore.collection("incidents").orderBy("createdAt", "desc");
+      firestoreAdmin.collection("incidents").orderBy("createdAt", "desc");
 
     if (from && to) {
       ref = ref

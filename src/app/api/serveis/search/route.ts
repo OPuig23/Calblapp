@@ -1,5 +1,8 @@
+// ✅ file: src/app/api/serveis/search/route.ts
 import { NextResponse } from 'next/server'
-import { firestore } from '@/lib/firebaseAdmin'
+import { db } from '@/lib/firebaseAdmin'
+
+export const runtime = 'nodejs'
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
@@ -8,7 +11,8 @@ export async function GET(req: Request) {
   if (q.length < 2) return NextResponse.json({ data: [] })
 
   try {
-    const snap = await firestore.collection('serveis').get()
+    // ✅ correcte: utilitza la instància "db" de firebase-admin
+    const snap = await db.collection('serveis').get()
     const all = snap.docs.map((d) => d.data() as any)
 
     const filtered = all.filter((s) => {

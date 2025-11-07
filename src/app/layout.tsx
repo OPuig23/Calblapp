@@ -20,7 +20,12 @@ type SessionUser = {
   email?: string
 }
 
-const NAV_ITEMS: { label: string; path: string; roles: Role[]; department?: string }[] = [
+const NAV_ITEMS: {
+  label: string
+  path: string
+  roles: Role[]
+  department?: string | string[]
+}[] = [
   { label: 'Torns', path: '/menu/torns', roles: ['admin', 'direccio', 'cap', 'treballador'] },
   { label: 'Esdeveniments', path: '/menu/events', roles: ['admin', 'direccio', 'cap', 'treballador', 'comercial', 'usuari'] },
   { label: 'Personal', path: '/menu/personnel', roles: ['admin', 'direccio', 'cap'] },
@@ -107,9 +112,15 @@ const navItemsByRole = NAV_ITEMS.filter((item) => {
   }
 
   // 🔸 Altres mòduls amb restricció per departament (ex: Transports)
-  if (role === 'cap' && item.department) {
-    return item.department.toLowerCase() === dept
+ // 🔸 Altres mòduls amb restricció per departament (ex: Transports)
+if (role === 'cap' && item.department) {
+  // pot ser un string o una llista
+  if (Array.isArray(item.department)) {
+    return item.department.map(d => d.toLowerCase()).includes(dept)
   }
+  return item.department.toLowerCase() === dept
+}
+
 
   return true
 })

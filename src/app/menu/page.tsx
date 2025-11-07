@@ -21,7 +21,7 @@ import {
 import { normalizeRole, type Role } from '@/lib/roles'
 import { useUnreadCountsByType } from '@/hooks/notifications'
 import type { LucideIcon } from 'lucide-react'
-
+import { Settings } from 'lucide-react'
 
 interface ModuleOption {
   value: string
@@ -184,7 +184,33 @@ const modules = useMemo(() => {
   if (!modules.length) return <p className="text-center mt-20">No tens cap mòdul assignat.</p>
 
   return (
-    <section className="w-full max-w-2xl mx-auto p-4">
+    <section className="relative w-full max-w-2xl mx-auto p-4">
+
+            {/* ⚙️ Botó de configuració (només Admin / Direcció) */}
+      {(role === 'admin' || role === 'direccio') && (
+        <Link
+          href="/menu/configuracio"
+          title="Configuració"
+          className="absolute top-5 right-6 p-2 rounded-full bg-gray-100 hover:bg-gray-200 shadow-sm transition"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="w-5 h-5 text-gray-600 hover:text-gray-800"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.591 1.04 1.724 1.724 0 012.307.307 1.724 1.724 0 01-.307 2.307 1.724 1.724 0 001.04 2.591c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.04 2.591 1.724 1.724 0 01-.307 2.307 1.724 1.724 0 01-2.307-.307 1.724 1.724 0 00-2.591 1.04c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.591-1.04 1.724 1.724 0 01-2.307-.307 1.724 1.724 0 01.307-2.307 1.724 1.724 0 00-1.04-2.591c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.04-2.591 1.724 1.724 0 01.307-2.307 1.724 1.724 0 012.307.307 1.724 1.724 0 002.591-1.04z"
+            />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        </Link>
+      )}
+
       <h1 className="text-2xl font-bold mb-4 text-center">Accedeix als teus mòduls</h1>
       <div className="grid grid-cols-1 min-[360px]:grid-cols-2 sm:grid-cols-3 gap-5">
         {modules.map(mod => {

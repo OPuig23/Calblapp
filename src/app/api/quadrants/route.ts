@@ -1,6 +1,7 @@
 // src/app/api/quadrants/route.ts
 import { NextResponse, type NextRequest } from 'next/server'
-import { firestore } from '@/lib/firebaseAdmin'
+import { db } from '@/lib/firebaseAdmin'
+
 import { autoAssign } from '@/services/autoAssign'
 
 export const runtime = 'nodejs'

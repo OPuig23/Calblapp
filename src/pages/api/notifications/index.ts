@@ -1,6 +1,7 @@
 // file: src/pages/api/notifications/index.ts
 import type { NextApiRequest, NextApiResponse } from 'next'
-import { firestore } from '@/lib/firebaseAdmin'
+import { db, firestoreAdmin } from '@/lib/firebaseAdmin'
+
 
 const COLLECTION = 'notifications'
 
@@ -9,7 +10,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (req.method === 'GET') {
       const { mode = 'list', limit = 50, type } = req.query
 
-      let ref = firestore.collection(COLLECTION)
+      let ref = firestoreAdmin.collection(COLLECTION)
 
       if (type) {
         ref = ref.where('type', '==', String(type))

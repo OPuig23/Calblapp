@@ -1,5 +1,6 @@
 // file: src/services/autoAssign.ts
-import { firestore } from '@/lib/firebaseAdmin'
+import { db } from '@/lib/firebaseAdmin'
+
 import { loadPremises } from './premises'
 import { buildLedger } from './workloadLedger'
 import { isEligibleByName } from './eligibility'

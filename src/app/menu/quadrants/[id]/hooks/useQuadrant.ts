@@ -104,7 +104,8 @@ export function useQuadrant(eventId: string, initialData: Partial<QuadrantDraft>
       setQuadrant(next);
 
       try {
-        await axios.post('/api/quadrantsDraft/save', { id: eventId, ...next });
+       await axios.post('/api/quadrantsDraft/confirm', next);
+
         savedSnapshotRef.current = safeStringify(next);
         setLastSavedAt(new Date().toISOString());
       } catch {
@@ -130,7 +131,8 @@ export function useQuadrant(eventId: string, initialData: Partial<QuadrantDraft>
       setQuadrant(next);
 
       try {
-        await axios.post('/api/quadrantsDraft/confirm', { id: eventId, ...next });
+        await axios.post('/api/quadrantsDraft/confirm', next);
+
         savedSnapshotRef.current = safeStringify(next);
         setLastSavedAt(new Date().toISOString());
       } catch {

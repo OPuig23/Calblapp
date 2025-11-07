@@ -3,7 +3,8 @@ export const runtime = 'nodejs'
 
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { firestore } from '@/lib/firebaseAdmin'
+import { db } from '@/lib/firebaseAdmin'
+
 
 /**
  * 🔹 GET → retorna la sol·licitud d’usuari de Firestore

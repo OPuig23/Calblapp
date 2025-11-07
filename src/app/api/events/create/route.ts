@@ -1,6 +1,7 @@
 // ✅ file: src/app/api/events/create/route.ts
 import { NextResponse } from 'next/server'
-import { firestore } from '@/lib/firebaseAdmin'
+import { db } from '@/lib/firebaseAdmin'
+
 
 export const runtime = 'nodejs'
 

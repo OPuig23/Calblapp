@@ -2,7 +2,8 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
-import { firestore } from '@/lib/firebaseAdmin'
+import { db, firestoreAdmin } from '@/lib/firebaseAdmin'
+
 
 /** Estructura mínima d’un document de personnel */
 interface PersonnelDoc {
@@ -31,7 +32,7 @@ export async function GET(
   }
 
   try {
-    const doc = await firestore.collection('personnel').doc(personnelId).get()
+    const doc = await firestoreAdmin.collection('personnel').doc(personnelId).get()
     if (!doc.exists) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
@@ -76,7 +77,7 @@ export async function PUT(
     }
 
     // ✅ Actualitza tots els camps rebuts (merge conserva els existents)
-    await firestore.collection('personnel').doc(personnelId).set(body, { merge: true })
+    await firestoreAdmin.collection('personnel').doc(personnelId).set(body, { merge: true })
 
     return NextResponse.json({ id: personnelId, ...body })
   } catch (err) {
@@ -106,7 +107,7 @@ export async function DELETE(
 
   const personnelId = context.params.id
   try {
-    await firestore.collection('personnel').doc(personnelId).delete()
+    await firestoreAdmin.collection('personnel').doc(personnelId).delete()
     return NextResponse.json({ success: true }, { status: 200 }) // ✅ millor 200
   } catch (err: unknown) {
     console.error(`[api/personnel/${personnelId} DELETE] Error:`, err)

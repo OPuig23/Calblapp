@@ -1,54 +1,65 @@
 // file: src/app/menu/quadrants/[id]/components/CalendarView.tsx
 'use client'
 
-import React from 'react'
+import React, { useMemo } from 'react'
 import { Users, Calendar } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { ca } from 'date-fns/locale'
 import EventTile from './EventTile'
 import type { QuadrantEvent } from '@/types/QuadrantEvent'
+import { useQuadrants } from '@/app/menu/quadrants/hooks/useQuadrants'
 
 interface CalendarViewProps {
   date: string
   events: QuadrantEvent[]
   onEventClick?: (ev: QuadrantEvent) => void
+  department?: string // 👈 afegim el departament per saber quina col·lecció mirar
 }
 
 export default function CalendarView({
   date,
   events,
   onEventClick,
+  department = 'logistica',
 }: CalendarViewProps) {
-  // ✅ Càlcul total de persones úniques per tot el dia
-  const totalWorkers = React.useMemo(() => {
+  // 📅 Carreguem quadrants del departament per al rang de dates
+  const { quadrants, loading: loadingQuadrants } = useQuadrants(department)
+
+  // ✅ Creuem events amb quadrants per saber estat
+  const enrichedEvents = useMemo(() => {
+    return events.map((ev) => {
+      // 🧩 Normalitza codis per evitar problemes amb #, espais o majúscules
+const normalizeCode = (val?: string) =>
+  (val || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase()
+
+const match = quadrants.find(
+  (q) => normalizeCode(q.code) === normalizeCode(ev.code)
+)
+
+const quadrantStatus: 'confirmed' | 'draft' | null = match ? match.status : null
+
+
+      return {
+        ...ev,
+        quadrantStatus,
+      }
+    })
+  }, [events, quadrants])
+
+  // ✅ Comptem total de persones
+  const totalWorkers = useMemo(() => {
     const people = new Set<string>()
-
     for (const e of events) {
-      // Responsable
       if (e.responsable) people.add(e.responsable)
-
-      // Conductors
-      if (Array.isArray(e.conductors)) {
-        e.conductors.forEach((c: any) => {
-          if (typeof c === 'string') people.add(c)
-          else if (c?.name) people.add(c.name)
-        })
-      }
-
-      // Treballadors
-      if (Array.isArray(e.treballadors)) {
-        e.treballadors.forEach((t: any) => {
-          if (typeof t === 'string') people.add(t)
-          else if (t?.name) people.add(t.name)
-        })
-      }
+      if (Array.isArray(e.conductors))
+        e.conductors.forEach((c: any) => people.add(c?.name || c))
+      if (Array.isArray(e.treballadors))
+        e.treballadors.forEach((t: any) => people.add(t?.name || t))
     }
-
     return people.size
   }, [events])
 
-  // 🔹 Nombre total de quadrants del dia
-  const totalEvents = events.length
+  const totalEvents = enrichedEvents.length
 
   return (
     <section className="mb-6">
@@ -68,25 +79,32 @@ export default function CalendarView({
         </span>
       </header>
 
-      {/* 🔸 Targetes de quadrant */}
+      {/* 🔸 Targetes */}
       <div className="flex flex-col gap-3 bg-white">
-        {events.map((ev) => (
-          <div
-            key={ev.id}
-            className="relative"
-            onClick={() => onEventClick?.(ev)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault()
-                onEventClick?.(ev)
-              }
-            }}
-            role="button"
-            tabIndex={0}
-          >
-            <EventTile event={ev} onClick={() => onEventClick?.(ev)} />
-          </div>
-        ))}
+        {loadingQuadrants && (
+          <p className="text-center text-sm text-gray-400 py-2">
+            Carregant quadrants...
+          </p>
+        )}
+
+        {!loadingQuadrants &&
+          enrichedEvents.map((ev) => (
+            <div
+              key={ev.id}
+              className="relative"
+              onClick={() => onEventClick?.(ev)}
+              role="button"
+              tabIndex={0}
+            >
+              <EventTile event={ev} onClick={() => onEventClick?.(ev)} />
+            </div>
+          ))}
+
+        {!loadingQuadrants && enrichedEvents.length === 0 && (
+          <p className="text-center text-gray-400 italic text-sm py-2">
+            No hi ha esdeveniments aquest dia.
+          </p>
+        )}
       </div>
     </section>
   )

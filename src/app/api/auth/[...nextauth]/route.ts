@@ -3,7 +3,8 @@ export const runtime = 'nodejs'
 
 import NextAuth, { type User, type Session } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
-import { firestore } from '@/lib/firebaseAdmin'
+import { firestoreAdmin as firestore } from '@/lib/firebaseAdmin'
+
 import { normalizeRole } from '@/lib/roles'
 import type { JWT } from 'next-auth/jwt'
 import type { AdapterUser } from 'next-auth/adapters'

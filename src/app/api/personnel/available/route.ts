@@ -2,7 +2,8 @@
 import { NextResponse } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 import type { NextRequest } from 'next/server'
-import { firestore } from '@/lib/firebaseAdmin'
+import { db } from '@/lib/firebaseAdmin'
+
 import {
   loadMinRestHours,
   hasMinRestByName,

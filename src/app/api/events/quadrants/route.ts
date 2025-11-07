@@ -1,0 +1,67 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { db } from '@/lib/firebaseAdmin'
+
+export const runtime = 'nodejs'
+
+export async function GET(req: NextRequest) {
+  try {
+    const url = new URL(req.url)
+    const start = url.searchParams.get('start')
+    const end = url.searchParams.get('end')
+
+    if (!start || !end) {
+      return NextResponse.json({ error: 'Falten start i end' }, { status: 400 })
+    }
+
+    console.log(`[events/quadrants] 🔍 Llegint Firestore: stage_verd`)
+
+    const snap = await db.collection('stage_verd').get()
+
+    const events = (snap.docs || [])
+      .map((doc) => {
+        const d = doc.data() as any
+
+        // 📅 Dates
+        const startISO = d?.DataInici ? `${d.DataInici}T00:00:00.000Z` : null
+        const endISO = d?.DataFi ? `${d.DataFi}T00:00:00.000Z` : startISO
+
+        // 📍 Ubicació neta
+        const rawLocation = d?.Ubicacio || ''
+        const location = rawLocation
+          .split('(')[0]
+          .split('/')[0]
+          .replace(/^ZZRestaurant\s*/i, '')
+          .replace(/^ZZ\s*/i, '')
+          .trim()
+
+        return {
+          id: doc.id,
+          summary: d?.NomEvent || '(Sense títol)',
+          start: startISO,
+          end: endISO,
+          day: startISO ? startISO.slice(0, 10) : '',
+          location,
+          lnKey: (d?.LN || 'Altres').toLowerCase(),
+          lnLabel: d?.LN || 'Altres',
+          service: d?.Servei || '',
+          commercial: d?.Comercial || '',
+          numPax: d?.NumPax || '',
+          code: d?.code || d?.C_digo || '',
+          state: d?.StageGroup?.toLowerCase().includes('confirmat')
+            ? 'confirmed'
+            : d?.StageGroup?.toLowerCase().includes('proposta')
+            ? 'draft'
+            : 'pending',
+        }
+      })
+      // 🎯 Només esdeveniments amb codi
+      .filter((ev) => ev.code && ev.code.trim() !== '')
+
+    console.log(`[events/quadrants] 📦 Total trobats: ${events.length}`)
+
+    return NextResponse.json({ events }, { status: 200 })
+  } catch (err: unknown) {
+    console.error('[events/quadrants] ❌ Error:', err)
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+  }
+}

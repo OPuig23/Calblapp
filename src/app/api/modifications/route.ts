@@ -1,6 +1,6 @@
 // filename: src/app/api/modifications/route.ts
 import { NextResponse } from "next/server"
-import { firestore } from "@/lib/firebaseAdmin"
+import { firestoreAdmin  } from "@/lib/firebaseAdmin"
 import { google } from "googleapis"
 import { getISOWeek, parseISO } from "date-fns"
 import admin from "firebase-admin"
@@ -65,7 +65,7 @@ export async function POST(req: Request) {
     } = payload as ModificationDoc
 
     // Desa sempre, encara que hi falti informació
-    const docRef = await firestore.collection("modifications").add({
+    const docRef = await firestoreAdmin.collection("modifications").add({
       eventId: eventId || "",
       eventCode: eventCode || "",
       eventTitle: eventTitle || "",
@@ -146,7 +146,7 @@ export async function GET(req: Request) {
 
   try {
     let ref: FirebaseFirestore.Query<FirebaseFirestore.DocumentData> =
-      firestore.collection("modifications").orderBy("createdAt", "desc")
+      firestoreAdmin.collection("modifications").orderBy("createdAt", "desc")
 
     if (from)
       ref = ref.where(

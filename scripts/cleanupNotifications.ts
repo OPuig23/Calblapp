@@ -1,8 +1,8 @@
 // scripts/cleanupNotifications.js
-import { firestore } from "../src/lib/firebaseAdmin.js"
+import { firestoreAdmin } from "../src/lib/firebaseAdmin.js"
 
 async function cleanup() {
-  const snap = await firestore.collectionGroup("notifications").get()
+  const snap = await firestoreAdmin.collectionGroup("notifications").get()
   let deleted = 0
 
   for (const doc of snap.docs) {

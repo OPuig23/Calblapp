@@ -1,5 +1,6 @@
 //file: src/services/zoho/sync.ts
-import { firestore } from '@/lib/firebaseAdmin'
+import { firestoreAdmin as firestore } from '@/lib/firebaseAdmin'
+
 import { zohoFetch } from '@/services/zoho/auth'
 
 interface ZohoOwner {

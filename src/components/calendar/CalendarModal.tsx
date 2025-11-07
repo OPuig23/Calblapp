@@ -31,53 +31,99 @@ interface Props {
  * - No puja fitxers. Guarda enllaços (file1, file2, ...)
  * - Llista enllaços guardats i permet obrir-los / eliminar-los
  * - Manté l’edició de camps bàsics si l’esdeveniment és Confirmat
+ * 
  */
 export default function CalendarModal({ deal, trigger, onSaved }: Props) {
+    console.log('🧩 Dades rebudes al modal:', deal)
+
   const [open, setOpen] = useState(false)
 
 // ✅ Dades del formulari de l’esdeveniment
-const [editData, setEditData] = useState({
-  LN: deal.LN || 'Altres',
-  code: deal.code || '',
-  NomEvent: (deal.NomEvent || '').split('/')[0].trim(),
-  DataInici: deal.DataInici || deal.Data || '',
-  DataFi: deal.DataFi || '',
-  NumPax: deal.NumPax || '',
-  Ubicacio: deal.Ubicacio || '',
-  Servei: deal.Servei || '',
-  Comercial: deal.Comercial || '',
-})
+
+const get = (obj: any, ...keys: string[]) => {
+  for (const k of keys) {
+    const foundKey = Object.keys(obj || {}).find(
+      (key) => key.toLowerCase() === k.toLowerCase()
+    )
+    if (foundKey) return obj[foundKey]
+  }
+  return undefined
+}
+
+const [editData, setEditData] = useState(() => ({
+  LN: get(deal, 'LN', 'ln', 'liniaNegoci') || 'Altres',
+  code: get(deal, 'code', 'C_digo', 'codi') || '',
+  NomEvent: get(deal, 'NomEvent', 'nomEvent', 'summary') || '',
+  DataInici: get(deal, 'DataInici', 'dataInici', 'Data', 'dateStart') || '',
+  DataFi: get(deal, 'DataFi', 'dataFi', 'dateEnd') || '',
+  NumPax: get(deal, 'NumPax', 'numPax', 'pax') || '',
+  Ubicacio: get(deal, 'Ubicacio', 'ubicacio', 'location') || '',
+  Servei: get(deal, 'Servei', 'servei', 'service') || '',
+  Comercial: get(deal, 'Comercial', 'comercial', 'responsable') || '',
+}))
+
 
 // Guarda una còpia per poder fer reset si cal
 const [initialData, setInitialData] = useState(editData)
 
 // 🧩 Sincronitza el formulari quan canviï el deal (p. ex. al obrir un nou esdeveniment)
 useEffect(() => {
-  setEditData({
-    LN: deal.LN || 'Altres',
+  // 🧩 Funció per recuperar un camp sense importar majúscules/minúscules
+  const get = (obj: any, ...keys: string[]) => {
+    for (const k of keys) {
+      const foundKey = Object.keys(obj || {}).find(
+        (key) => key.toLowerCase() === k.toLowerCase()
+      )
+      if (foundKey) return obj[foundKey]
+    }
+    return undefined
+  }
 
-    code: deal.code || '',
-    NomEvent: (deal.NomEvent || '').split('/')[0].trim(),
-    DataInici: deal.DataInici || deal.Data || '',
-    DataFi: deal.DataFi || '',
-    NumPax: deal.NumPax || '',
-    Ubicacio: deal.Ubicacio || '',
-    Servei: deal.Servei || '',
-    Comercial: deal.Comercial || '',
+  const NomEventRaw = get(deal, 'NomEvent', 'nomEvent', 'summary') || ''
+  const LN = get(deal, 'LN', 'ln', 'liniaNegoci') || 'Altres'
+ const Servei = get(deal, 'Servei', 'servei', 'service', 'TipusServei', 'tipusservei') || ''
+const Comercial = get(deal, 'Comercial', 'comercial', 'responsable', 'salesperson', 'Salesperson') || ''
+const NumPax = get(deal, 'NumPax', 'numPax', 'pax', 'Num_Pax', 'num_pax', 'PAX') || ''
+
+  const Ubicacio = get(deal, 'Ubicacio', 'ubicacio', 'location') || ''
+  const Code = get(deal, 'code', 'C_digo', 'codi') || ''
+  const DataInici = get(deal, 'DataInici', 'dataInici', 'Data', 'dateStart') || ''
+  const DataFi = get(deal, 'DataFi', 'dataFi', 'dateEnd') || ''
+console.log('📊 Extracte camps:', {
+  NomEvent: deal.NomEvent,
+  Comercial: deal.Comercial,
+  Servei: deal.Servei,
+  NumPax: deal.NumPax,
+  LN: deal.LN,
+  origen: deal.origen,
+  collection: deal.collection,
+})
+
+
+  setEditData({
+    LN,
+    code: Code,
+    NomEvent: NomEventRaw.split('/')[0].trim(),
+    DataInici,
+    DataFi,
+    NumPax,
+    Ubicacio,
+    Servei,
+    Comercial,
   })
+
   setInitialData({
-    LN: deal.LN || 'Altres',
-    code: deal.code || '',
-    NomEvent: (deal.NomEvent || '').split('/')[0].trim(),
-    DataInici: deal.DataInici || deal.Data || '',
-    DataFi: deal.DataFi || '',
-    NumPax: deal.NumPax || '',
-    Ubicacio: deal.Ubicacio || '',
-    Servei: deal.Servei || '',
-    Comercial: deal.Comercial || '',
+    LN,
+    code: Code,
+    NomEvent: NomEventRaw.split('/')[0].trim(),
+    DataInici,
+    DataFi,
+    NumPax,
+    Ubicacio,
+    Servei,
+    Comercial,
   })
 }, [deal])
-
 
   // Fitxers (file1, file2, ...) llegits del deal
   const [files, setFiles] = useState<{ key: string; url: string }[]>([])
@@ -103,6 +149,7 @@ const isManual = deal.origen !== 'zoho'
 
   // Inicialitza llistat de fileN del deal
   useEffect(() => {
+     console.log('🟢 DEAL COMPLET rebut al modal:', deal)
     const loaded = Object.entries(deal)
       .filter(([k, v]) => k.startsWith('file') && typeof v === 'string' && (v as string).length > 0)
       .sort((a, b) => {

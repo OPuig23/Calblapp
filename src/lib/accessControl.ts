@@ -1,8 +1,12 @@
-// src/lib/accessControl.ts
 import { type Role } from '@/lib/roles'
 
 // Definim quins rols tenen accés a cada mòdul
-export const NAV_ITEMS: { label: string; path: string; roles: Role[]; department?: string }[] = [
+export const NAV_ITEMS: { 
+  label: string
+  path: string
+  roles: Role[]
+  department?: string | string[]
+}[] = [
   { label: 'Torns', path: '/menu/torns', roles: ['admin', 'direccio', 'cap', 'treballador'] },
   { label: 'Esdeveniments', path: '/menu/events', roles: ['admin', 'direccio', 'cap', 'treballador', 'comercial', 'usuari'] },
   { label: 'Personal', path: '/menu/personnel', roles: ['admin', 'direccio', 'cap'] },
@@ -10,7 +14,15 @@ export const NAV_ITEMS: { label: string; path: string; roles: Role[]; department
   { label: 'Incidències', path: '/menu/incidents', roles: ['admin', 'direccio', 'cap'] },
   { label: 'Informes', path: '/menu/reports', roles: ['admin', 'direccio'] },
   { label: 'Usuaris', path: '/menu/users', roles: ['admin'] },
-  { label: 'Transports', path: '/menu/transports', roles: ['admin', 'direccio', 'cap'], department: 'Transports' },
+  
+  // ✅ Ampliem Transports per Logistica també
+  { 
+    label: 'Transports',
+    path: '/menu/transports',
+    roles: ['admin', 'direccio', 'cap'],
+    department: ['Transports', 'Logistica'], // 👈 ara també ho veu el David
+  },
+
   { label: 'Calendar', path: '/menu/calendar', roles: ['admin', 'direccio', 'comercial'] },
   { label: 'Espais', path: '/menu/spaces', roles: ['admin', 'direccio', 'cap'] },
 ]

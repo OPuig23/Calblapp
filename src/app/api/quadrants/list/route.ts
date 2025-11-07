@@ -1,37 +1,12 @@
-// file: src/app/api/quadrants/list/route.ts
-import { NextResponse } from 'next/server'
+// ✅ file: src/app/api/quadrants/list/route.ts
+import { NextResponse, type NextRequest } from 'next/server'
 import { getToken } from 'next-auth/jwt'
-import type { NextRequest } from 'next/server'
 import { db } from '@/lib/firebaseAdmin'
 import { normalizeRole as normalizeRoleCore } from '@/lib/roles'
 
-interface FirestoreDraftDoc {
-  id?: string
-  code?: string
-  eventName?: string
-  department?: string
-  startDate?: string
-  startTime?: string
-  endDate?: string
-  endTime?: string
-  location?: string
-  totalWorkers?: number
-  numDrivers?: number
-  responsableId?: string
-  responsableName?: string
-  responsable?: FirestorePerson
-  conductors?: FirestorePerson[]
-  treballadors?: FirestorePerson[]
-  brigades?: FirestoreBrigade[]
-  updatedAt?: { toDate?: () => Date } | string
-  status?: string
-  confirmedAt?: { toDate?: () => Date } | string
-  confirmada?: boolean
-  confirmed?: boolean
-  meetingPoint?: string
-  [key: string]: unknown
-}
-
+/* ──────────────────────────────────────────────────────────────────────────
+   Tipus: documents a Firestore (acceptem diversos noms de camps històrics)
+────────────────────────────────────────────────────────────────────────── */
 interface FirestorePerson {
   id?: string
   name?: string
@@ -55,6 +30,47 @@ interface FirestoreBrigade {
   [key: string]: unknown
 }
 
+interface FirestoreDraftDoc {
+  // camps “moderns”
+  id?: string
+  code?: string
+  eventName?: string
+  department?: string
+  startDate?: string
+  startTime?: string
+  endDate?: string
+  endTime?: string
+  location?: string
+  totalWorkers?: number
+  numDrivers?: number
+  responsableId?: string
+  responsableName?: string
+  responsable?: FirestorePerson
+  conductors?: FirestorePerson[]
+  treballadors?: FirestorePerson[]
+  brigades?: FirestoreBrigade[]
+  updatedAt?: { toDate?: () => Date } | string
+  status?: string
+  confirmedAt?: { toDate?: () => Date } | string
+  confirmada?: boolean
+  confirmed?: boolean
+  meetingPoint?: string
+
+  // alias heretats de les col·leccions d’esdeveniments originals
+  HoraInici?: string
+  horaInici?: string
+  HoraFi?: string
+  horaFi?: string
+  DataInici?: string
+  DataFi?: string
+  Ubicacio?: string
+
+  [key: string]: unknown
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Tipus de sortida del servei
+────────────────────────────────────────────────────────────────────────── */
 export const runtime = 'nodejs'
 
 type Person = {
@@ -101,7 +117,9 @@ type Draft = {
 
 type Dept = string
 
-/* ---------- Utils ---------- */
+/* ──────────────────────────────────────────────────────────────────────────
+   Utils
+────────────────────────────────────────────────────────────────────────── */
 const unaccent = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 const normalizeDept = (raw: string) => unaccent(String(raw || '').toLowerCase().trim())
 
@@ -121,12 +139,15 @@ function currentWeekRangeYMD() {
   return { start: toYMD(monday), end: toYMD(sunday) }
 }
 
-/* ---------- Resolució col·leccions quadrants* ---------- */
+/* ──────────────────────────────────────────────────────────────────────────
+   Resolució col·leccions: quadrantsLogistica / quadrantsCuina / ...
+────────────────────────────────────────────────────────────────────────── */
 function normalizeColId(id: string): string {
   const rest = id.replace(/^quadrants/i, '')
-  return rest.replace(/[_\-\s]/g, '')
-             .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-             .toLowerCase()
+  return rest
+    .replace(/[_\-\s]/g, '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
 }
 
 const COLS_MAP: Record<string, string> = {}
@@ -148,7 +169,9 @@ async function resolveColForDept(dept: Dept): Promise<string | undefined> {
   return COLS_MAP[dept.toLowerCase()]
 }
 
-/* ---------- Helpers ---------- */
+/* ──────────────────────────────────────────────────────────────────────────
+   Helpers de camp/persona
+────────────────────────────────────────────────────────────────────────── */
 const readMp = (o?: Partial<FirestorePerson>): string => {
   if (!o) return ''
   if (typeof o.meetingPoint === 'string') return o.meetingPoint
@@ -173,8 +196,14 @@ const mapPerson = (p: FirestorePerson, doc?: FirestoreDraftDoc): Person => ({
   vehicleType: p?.vehicleType ?? p?.type ?? '',
 })
 
-/* ---------- Query ---------- */
-async function fetchDeptDrafts(dept: Dept, start?: string, end?: string): Promise<Draft[]> {
+/* ──────────────────────────────────────────────────────────────────────────
+   Query principal (carrega drafts d’un departament)
+────────────────────────────────────────────────────────────────────────── */
+async function fetchDeptDrafts(
+  dept: Dept,
+  start?: string,
+  end?: string
+): Promise<Draft[]> {
   const colName = await resolveColForDept(dept)
   if (!colName) {
     console.warn('[quadrants/list] ❌ No col·lecció trobada per dept:', dept)
@@ -191,7 +220,7 @@ async function fetchDeptDrafts(dept: Dept, start?: string, end?: string): Promis
   const snap = await ref.get()
   console.log(`[quadrants/list] 📥 ${snap.size} documents trobats a ${colName}`)
 
-  return snap.docs.map((doc) => {
+  const drafts: Draft[] = snap.docs.map((doc) => {
     const d = doc.data() as FirestoreDraftDoc
 
     const statusRaw = String(d?.status ?? '').toLowerCase()
@@ -216,16 +245,28 @@ async function fetchDeptDrafts(dept: Dept, start?: string, end?: string): Promis
         ? updatedAtVal.toDate().toISOString()
         : (typeof updatedAtVal === 'string' ? updatedAtVal : new Date().toISOString())
 
+    // 🕒 Normalize start/end date/time acceptant alias
+    const startDate = d.startDate || d.DataInici || ''
+    const endDate   = d.endDate   || d.DataFi    || ''
+
+    const startTime =
+      d.startTime || d.HoraInici || d.horaInici || ''
+
+    const endTime =
+      d.endTime || d.HoraFi || d.horaFi || ''
+
+    const location = d.location || d.Ubicacio || ''
+
     return {
       id: doc.id,
       code: d.code || '',
       eventName: d.eventName || '',
       department: normalizeDept(d.department || dept),
-      startDate: d.startDate || '',
-      startTime: d.startTime || '',
-      endDate: d.endDate || '',
-      endTime: d.endTime || '',
-      location: d.location || '',
+      startDate,
+      startTime,
+      endDate,
+      endTime,
+      location,
       totalWorkers: Number(d.totalWorkers || 0),
       numDrivers: Number(d.numDrivers || 0),
       responsableId: d.responsableId || '',
@@ -238,12 +279,12 @@ async function fetchDeptDrafts(dept: Dept, start?: string, end?: string): Promis
         : [],
       brigades: Array.isArray(d.brigades)
         ? d.brigades.map((b) => ({
-          id: b.id || '',
-          name: b.name || '',
-          workers: Number(b.workers || 0),
-          startTime: b.startTime || '',
-          endTime: b.endTime || ''
-        }))
+            id: b.id || '',
+            name: b.name || '',
+            workers: Number(b.workers || 0),
+            startTime: b.startTime || '',
+            endTime: b.endTime || '',
+          }))
         : [],
       responsable: d.responsable
         ? mapPerson(d.responsable, d)
@@ -256,9 +297,13 @@ async function fetchDeptDrafts(dept: Dept, start?: string, end?: string): Promis
       confirmed,
     }
   })
+
+  return drafts
 }
 
-/* ---------- Handler ---------- */
+/* ──────────────────────────────────────────────────────────────────────────
+   Handler HTTP
+────────────────────────────────────────────────────────────────────────── */
 export async function GET(req: NextRequest) {
   try {
     const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET })
@@ -274,9 +319,9 @@ export async function GET(req: NextRequest) {
     const role = roleNorm === 'cap' ? 'cap departament' : roleNorm
 
     const { searchParams } = new URL(req.url)
-    const qsDept = normalizeDept(searchParams.get('department') || '')
-    const qsStart = searchParams.get('start') || ''
-    const qsEnd   = searchParams.get('end') || ''
+    const qsDept   = normalizeDept(searchParams.get('department') || '')
+    const qsStart  = searchParams.get('start') || ''
+    const qsEnd    = searchParams.get('end')   || ''
     const qsStatus = (searchParams.get('status') || 'all').toLowerCase()
 
     const { start: defStart, end: defEnd } = currentWeekRangeYMD()
@@ -289,7 +334,7 @@ export async function GET(req: NextRequest) {
     let deptsToFetch: Dept[] = []
 
     if (role === 'cap departament') {
-      if (sessDept && existing.includes(sessDept)) { 
+      if (sessDept && existing.includes(sessDept)) {
         deptsToFetch = [sessDept]
       } else {
         console.warn('[quadrants/list] ⚠️ Cap departament sense col·lecció vàlida', { sessDept })

@@ -1,5 +1,6 @@
 // filename: src/services/vehicleAssign.ts
-import { firestore } from '@/lib/firebaseAdmin'
+import { db } from '@/lib/firebaseAdmin'
+
 import { isEligibleByName } from './eligibility'
 import { normalizeVehicleType } from '@/utils/normalizeVehicleType'
 

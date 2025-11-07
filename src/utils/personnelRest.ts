@@ -1,7 +1,8 @@
 // filename: src/utils/personnelRest.ts
 import fs from 'fs'
 import path from 'path'
-import { firestore } from '@/lib/firebaseAdmin'
+import { db } from '@/lib/firebaseAdmin'
+
 
 /* ================= Helpers ================= */
 export const unaccent = (s: string) =>

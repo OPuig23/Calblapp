@@ -4,87 +4,35 @@
 import React from 'react'
 import { motion } from 'framer-motion'
 import { Card, CardContent } from '@/components/ui/card'
-import { MapPin } from 'lucide-react'
+import { MapPin, Clock, User, UtensilsCrossed } from 'lucide-react'
 import { Tooltip, TooltipTrigger } from '@/components/ui/tooltip'
-import GeneralTooltip from '@/components/events/GeneralTooltip'
+import { colorByLN } from '@/lib/colors'
 
 interface QuadrantEvent {
   id: string
   summary: string
-  start: string
-  end: string
-  location: string
-  state: 'pending' | 'draft' | 'confirmed'
-  name: string
-  eventCode: string
-  locationShort?: string
-  mapsUrl?: string
+  start?: string
+  end?: string
+  location?: string
+  state?: 'pending' | 'draft' | 'confirmed'
+  lnLabel?: string
   commercial?: string
   service?: string
+  numPax?: string | number
+  code?: string
+  locationShort?: string
+  mapsUrl?: string
+  HoraInici?: string
 }
 
-/* 🎨 Colors per línia de negoci */
-const lnStyles: Record<string, { label: string; badge: string }> = {
-  PM: { label: 'Prova de menú', badge: 'bg-amber-200 text-amber-700' },
-  E:  { label: 'Empresa',       badge: 'bg-emerald-200 text-emerald-700' },
-  C:  { label: 'Casaments',     badge: 'bg-sky-200 text-sky-700' },
-  F:  { label: 'Foodlovers',    badge: 'bg-rose-200 text-rose-700' },
-  A:  { label: 'Agenda',        badge: 'bg-violet-200 text-violet-700' },
-  '-':{ label: '—',             badge: 'bg-slate-200 text-slate-700' },
+/* 🔹 Color d’estat visual segons quadrant real */
+function getQuadrantColor(status?: string | null) {
+  if (!status) return 'bg-amber-400' // pendent
+  if (status === 'draft') return 'bg-blue-400' // esborrany
+  if (status === 'confirmed') return 'bg-green-500' // confirmat
+  return 'bg-gray-300'
 }
 
-/* 🟢 Color de punt segons estat */
-function statusColor(s: 'pending' | 'draft' | 'confirmed') {
-  return s === 'pending'
-    ? 'bg-yellow-500'
-    : s === 'draft'
-    ? 'bg-blue-500'
-    : 'bg-green-600'
-}
-
-/* 🔠 Obtenir LN segons codi */
-function getLnKey(codeRaw: string): keyof typeof lnStyles {
-  const up = codeRaw.toUpperCase()
-  if (up.startsWith('PM')) return 'PM'
-  const k = up.charAt(0) as keyof typeof lnStyles
-  return ['E', 'C', 'F', 'A'].includes(k) ? k : '-'
-}
-
-/* 🔤 Nom d’esdeveniment net */
-function getEventTitle(ev: QuadrantEvent) {
-  if (ev.name?.trim()) return ev.name
-  const parts = ev.summary?.split('-').map(p => p.trim()) || []
-  return parts.length >= 2 ? parts[1] : ev.summary || '—'
-}
-
-/* 🔗 Ubicació */
-function renderLocation(ev: QuadrantEvent) {
-  const locShort =
-    ev.locationShort ||
-    (ev.location ? (ev.location.split(/[|,\.]/)[0] || ev.location).trim() : '')
-  if (!locShort) return null
-
-  const isLink = !!ev.mapsUrl
-  const baseClass = `flex items-center gap-1 text-[12px] truncate ${
-    isLink ? 'text-blue-600 font-medium' : 'text-gray-600'
-  }`
-
-  return isLink ? (
-    <a href={ev.mapsUrl} target="_blank" rel="noopener noreferrer" className={baseClass}>
-      <MapPin className="w-3.5 h-3.5 text-blue-500" />
-      <span>{locShort}</span>
-    </a>
-  ) : (
-    <div className={baseClass}>
-      <MapPin className="w-3.5 h-3.5 text-gray-400" />
-      <span>{locShort}</span>
-    </div>
-  )
-}
-
-/* ──────────────────────────────────────────────── */
-/* Component principal */
-/* ──────────────────────────────────────────────── */
 export default function EventTile({
   event,
   onClick,
@@ -92,63 +40,94 @@ export default function EventTile({
   event: QuadrantEvent
   onClick: (ev: QuadrantEvent) => void
 }) {
-  const codeRaw = (event.eventCode || '').replace(/^#/, '').toUpperCase()
-  const lnKey = getLnKey(codeRaw)
-  const ln = lnStyles[lnKey] || lnStyles['C'] // 👈 color per defecte
+  const lnColor = colorByLN(event.lnLabel)
+  const stateColor = getQuadrantColor((event as any).quadrantStatus)
+
+  const loc =
+    event.locationShort ||
+    (event.location ? event.location.split(/[|,\.]/)[0].trim() : '')
+
+  // 🕒 Només mostrem l'hora d'inici real si ve de Firestore
+  const startTime =
+    (event as any).HoraInici || (event as any).horaInici || null
 
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <motion.div
           layout
-          onClick={() => onClick(event)}
           whileHover={{ scale: 1.02 }}
-          className={`cursor-pointer rounded-2xl border-l-4 ${
-            ln.badge.replace('bg-', 'border-')
-          } shadow-[0_2px_6px_rgba(0,0,0,0.05)] hover:brightness-105 transition-all duration-200 
-          bg-gradient-to-br from-gray-50 to-gray-100 ring-1 ring-inset ring-gray-100`}
+          onClick={() => onClick(event)}
+          className={`cursor-pointer rounded-2xl bg-white shadow-md hover:shadow-lg transition-all 
+            border-l-4 ${stateColor}`}
         >
           <Card className="border-none bg-transparent rounded-2xl">
             <CardContent className="px-3 py-2 flex flex-col gap-1.5">
-              
-              {/* 🔹 Línia 1: Nom + Codi + Estat */}
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-gray-900 truncate">
-                  {getEventTitle(event)}{' '}
-                  {event.eventCode && (
-                    <span className="text-gray-500 text-xs">· #{event.eventCode}</span>
+              {/* 🔹 Capçalera: nom + hora + punt */}
+              <div className="flex items-start justify-between">
+                <div className="flex flex-col flex-1">
+                  <h3 className="text-[15px] font-semibold text-gray-900 leading-tight truncate">
+                    {event.summary || '—'}
+                  </h3>
+
+                  {startTime && (
+                    <div className="flex items-center gap-1 text-xs text-gray-500 mt-[1px]">
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>{startTime} h</span>
+                    </div>
                   )}
-                </h3>
+                </div>
+
                 <span
-                  className={`h-3 w-3 rounded-full border-2 border-white shadow ${statusColor(event.state)}`}
-                  title={event.state}
+                  className={`h-3.5 w-3.5 rounded-full shadow-inner ${stateColor}`}
+                  title={event.state || 'pendent'}
                 />
               </div>
 
-              {/* 🔹 Línia 2: LN + Comercial + Servei */}
-              <div className="text-[12px] text-gray-700 truncate flex items-center gap-1">
-                <span className={`px-2 py-[1px] rounded-full text-[11px] font-medium ${ln.badge}`}>
-                  {ln.label}
+              {/* 🔹 Bloc 2: Línia negoci + Comercial */}
+              <div className="flex flex-wrap items-center gap-2 text-xs mt-1">
+                <span
+                  className={`px-2 py-[1px] rounded-full font-medium ${lnColor}`}
+                >
+                  {event.lnLabel || 'Altres'}
                 </span>
-                <span>· Comercial: {event.commercial || '—'}</span>
-                <span>· Servei: {event.service || '—'}</span>
+                {event.commercial && (
+                  <span className="flex items-center gap-1 text-gray-700">
+                    <User className="w-3.5 h-3.5" />
+                    <span>{event.commercial}</span>
+                  </span>
+                )}
               </div>
 
-              {/* 🔹 Línia 3: Ubicació */}
-              {renderLocation(event)}
+              {/* 🔹 Bloc 3: Servei + Pax + Codi */}
+              <div className="flex flex-wrap gap-2 items-center text-[12px] text-gray-600 mt-0.5">
+                {event.service && (
+                  <span className="flex items-center gap-1">
+                    <UtensilsCrossed className="w-3.5 h-3.5" />
+                    <span>{event.service}</span>
+                  </span>
+                )}
+                {event.numPax && <span>· {event.numPax} pax</span>}
+                {event.code && (
+                  <span>
+                    · <strong className="text-gray-800">{event.code}</strong>
+                  </span>
+                )}
+              </div>
+
+              {/* 🔹 Bloc 4: Ubicació */}
+              {loc && (
+                <div className="flex items-center gap-1.5 text-[11px] text-gray-500 mt-1.5">
+                  <MapPin className="w-3.5 h-3.5 text-gray-400" />
+                  <span>{loc}</span>
+                </div>
+              )}
             </CardContent>
           </Card>
         </motion.div>
       </TooltipTrigger>
 
-      {/* 🧠 Tooltip ampli */}
-      <GeneralTooltip
-        summary={event.summary}
-        location={event.location}
-        start={event.start}
-        end={event.end}
-        commercial={event.commercial}
-      />
+      
     </Tooltip>
   )
 }

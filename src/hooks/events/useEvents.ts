@@ -41,7 +41,11 @@ interface EventPayload {
   code?: string
   responsableName?: string
   responsable?: { name?: string }
+  LN?: string               // 🟢 Afegit per compatibilitat Firestore
+  lnKey?: string            // 🟢 Afegit per compatibilitat futura
+  lnLabel?: string    
   [key: string]: unknown
+
 }
 
 interface QuadrantDraft {
@@ -142,7 +146,6 @@ const flat = eventsFromPayload.map((ev) => {
   }
 
   const location = ev.location || ''
-
   let eventCode = ev.eventCode || ev.code || null
   if (!eventCode && ev.summary) {
     const cleaned = ev.summary.replace(/[#\-]/g, ' ').trim()
@@ -156,12 +159,15 @@ const flat = eventsFromPayload.map((ev) => {
     q = quadrantMap.get(key)
   }
 
-  // ✅ Ara sí: calcular estat després de trobar q
   const state = normalizeStatus(
     (q?.status as string) ||
     (ev.state as string) ||
     (ev.status as string)
   )
+
+  // 🟢 Afegim LN (línia de negoci)
+  const lnKey = (ev.LN || ev.lnKey || '').toLowerCase() || 'altres'
+  const lnLabel = ev.LN || ev.lnLabel || 'Altres'
 
   return {
     ...ev,
@@ -179,8 +185,11 @@ const flat = eventsFromPayload.map((ev) => {
     treballadors: Array.isArray(q?.treballadors)
       ? q.treballadors.map((t) => t?.name).filter(Boolean) as string[]
       : [],
+    lnKey,
+    lnLabel,
   }
-}) as EventData[] // 👈 ← l’únic lloc correcte on posar el cast
+}) as EventData[]
+
 
 
                // 🔹 4. Comptadors totals

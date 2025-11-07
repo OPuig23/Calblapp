@@ -35,107 +35,74 @@ export function useCalendarData(filters?: {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // 🔹 Funcions de normalització
+  const normalize = (txt: string = '') =>
+    txt.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 
+  const toCollection = (state: string) => {
+    const t = normalize(state)
+    if (t.includes('confirm')) return 'verd'
+    if (t.includes('pend') || t.includes('proposta')) return 'taronja'
+    return 'blau'
+  }
 
-
-  // 🔹 Converteix StageGroup en col·lecció visual (normalitzat)
-const normalize = (txt: string = '') =>
-  txt.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') // treu accents
-
-const toCollection = (g: string) => {
-  const t = normalize(g)
-  if (t.includes('confirmat') || t.includes('confirmat')) return 'verd'
-  if (t.includes('proposta')) return 'taronja'
-  return 'blau'
-}
-  // 🔁 Carrega dades des de Firestore (via API)
-  // ───────────────────────────────────────────────
+  // 🔁 Carrega dades del backend (Firestore via API)
   const load = async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/events/from-firestore', { cache: 'no-store' })
+      // 🗓️ Defineix rang temporal per defecte (una setmana)
+      const today = new Date()
+      const start = filters?.start || today.toISOString().slice(0, 10)
+      const end = filters?.end || new Date(today.getTime() + 7 * 86400000).toISOString().slice(0, 10)
+
+      console.log('🕒 Fetch /api/events/list', { start, end })
+      const res = await fetch(`/api/events/calendar?start=${start}&end=${end}`, { cache: 'no-store' })
+
+
       if (!res.ok) throw new Error(`Error ${res.status}`)
       const json = await res.json()
 
-      console.log(
-        '📦 Dades rebudes del backend:',
-        json.data.slice(0, 5).map((d: any) => ({
-          id: d.id,
-          LN: d.LN,
-          origen: d.origen,
-          DataInici: d.DataInici,
-        }))
-      )
+      // ⚠️ Validació de resposta
+      if (!json || !Array.isArray(json.events)) {
+        console.error('⚠️ Resposta inesperada de /api/events/list:', json)
+        setDeals([])
+        setError('Cap dada trobada')
+        return
+      }
 
-      // ───────────────────────────────────────────────
-      // 🗂️ Mapeig i normalització
-      // ───────────────────────────────────────────────
-      const mappedData: Deal[] = (json.data || []).map((d: any) => {
-        const fileFields = Object.fromEntries(
-          Object.entries(d).filter(([key]) => key.startsWith('file'))
-        )
+      const events = json.events
+      console.log('📦 Dades rebudes del backend:', events.slice(0, 5))
 
-        return {
-          id: d.id,
-          NomEvent: d.NomEvent || '—',
-          Comercial: d.Comercial || '—',
-          LN: d.LN || 'Altres',
-          Servei: d.Servei || '',
-          StageGroup: d.StageGroup || 'Sense categoria',
-          collection: d.collection || `stage_${toCollection(d.StageGroup || '')}`,
-          Data: d.Data || '',
-          DataInici: d.DataInici || d.Data || '',
-          DataFi: d.DataFi || d.DataInici || d.Data || '',
-          // 🔧 Neteja prefixos com "ZZ ", "Z_", etc. de les finques
-Ubicacio: (d.Ubicacio || '')
-  .replace(/^ZZ[\s_-]?/i, '')   // elimina "ZZ ", "ZZ_", "ZZ-"
-  .trim(),
+      // 🗂️ Mapeig dels nous camps → format intern
+      const mappedData: Deal[] = events.map((ev: any) => ({
+        id: ev.id || crypto.randomUUID(),
+        NomEvent: ev.summary || '(Sense títol)',
+        Comercial: ev.responsableName || '—',
+        LN: ev.lnLabel || 'Altres',
+        Servei: ev.lnKey || '',
+        StageGroup: ev.state || 'Sense categoria',
+        collection: ev.collection || 'stage_verd',
+        Data: ev.day || ev.start || '',
+        DataInici: ev.start ? ev.start.slice(0, 10) : '',
+        DataFi: ev.end ? ev.end.slice(0, 10) : '',
+        HoraInici: ev.HoraInici || ev.horaInici || '', // 🕒 Importem l’hora d’inici si existeix
+        Ubicacio: ev.location || '',
+        Color:
+          ev.state === 'confirmed'
+            ? 'border-green-300 bg-green-50 text-green-700'
+            : ev.state === 'pending'
+            ? 'border-amber-300 bg-amber-50 text-amber-700'
+            : 'border-blue-300 bg-blue-50 text-blue-700',
+        StageDot: ev.state || '',
+        origen: 'firestore',
+        updatedAt: ev.updatedAt || '',
+        NumPax: ev.pax ?? '',
+        code: ev.eventCode || '',
+      }))
 
-          Color: d.Color || 'border-gray-300 bg-gray-100 text-gray-700',
-          StageDot: d.StageDot || '',
-          origen: d.origen || 'zoho',
-          updatedAt: d.updatedAt || '',
-          Menu: d.Menu || [],
-          NumPax: d.NumPax ?? '',
-          code: d.code || '',
-          ...fileFields,
-        }
-      })
+      // 🎯 Aplicar filtres opcionals
+      let filtered = mappedData
 
-    // Normalitza format de data (sense desfasos UTC)
-mappedData.forEach((d) => {
-  const start = (d.DataInici || '').slice(0, 10)
-  const end = (d.DataFi || d.DataInici || '').slice(0, 10)
-  d.DataInici = `${start}T00:00:00`  // <— important: força local
-  d.DataFi = `${end}T00:00:00`
-})
-
-
-// 📆 Inclou tots els esdeveniments sense filtre temporal
-let filtered = mappedData.filter((d) => {
-  const dateStr = d.DataInici || d.Data || ''
-  if (!dateStr) return false
-  const date = new Date(dateStr.length === 10 ? `${dateStr}T00:00:00` : dateStr)
-  return !isNaN(date.getTime()) // ✅ accepta totes les dates vàlides, passades i futures
-})
-
-
-      console.log('🔍 AFTER temporal filter — filtered length:', filtered.length)
-console.log(
-  '🧮 DESPRÉS FILTRE TEMPORAL:',
-  filtered.length,
-  filtered.filter(d => d.origen === 'manual').map(d => ({
-    id: d.id,
-    Nom: d.NomEvent,
-    DataInici: d.DataInici,
-    LN: d.LN,
-    Stage: d.StageGroup,
-  }))
-)
-
-      // ───────────────────────────────────────────────
-      // 🎯 Filtres per LN i Stage
-      // ───────────────────────────────────────────────
       if (filters?.ln && filters.ln !== 'Tots') {
         const lnValue = filters.ln.toLowerCase()
         filtered = filtered.filter((d) => (d.LN || '').toLowerCase() === lnValue)
@@ -147,49 +114,30 @@ console.log(
           (d.StageGroup || '').toLowerCase().includes(stageValue)
         )
       }
-console.log(
-  '🎯 DESPRÉS FILTRES FINALS:',
-  filtered.length,
-  filtered.filter(d => d.origen === 'manual').map(d => d.id)
-)
 
-      // Ordena cronològicament
+      // ⏰ Ordenació cronològica
       filtered.sort(
         (a, b) =>
           new Date(a.DataInici || a.Data || 0).getTime() -
           new Date(b.DataInici || b.Data || 0).getTime()
       )
 
-      console.log('HOOK → setDeals:', filtered.length, filtered.slice(0,3).map(d=>({id:d.id, Nom:d.NomEvent, Data:d.DataInici, origen:d.origen})))
-console.log(
-  '🧩 DEBUG MANUALS:',
-  mappedData.filter(d => d.origen === 'manual').map(d => ({
-    id: d.id,
-    Nom: d.NomEvent,
-    Data: d.DataInici,
-    Stage: d.StageGroup,
-    LN: d.LN,
-  }))
-)
-
+      console.log('✅ Final mapped & filtered:', filtered.length)
       setDeals(filtered)
     } catch (e: any) {
       console.error('❌ Error carregant dades Firestore:', e)
       setError(String(e))
+      setDeals([])
     } finally {
       setLoading(false)
     }
   }
 
-  // ───────────────────────────────────────────────
   // 🔄 Efectes reactius
-  // ───────────────────────────────────────────────
- // 🔁 Recarrega quan canvien els filtres (manté mida fixa)
-useEffect(() => {
-  load()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [filters?.ln ?? '', filters?.stage ?? '', filters?.start ?? '', filters?.end ?? ''])
-
+  useEffect(() => {
+    load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters?.ln ?? '', filters?.stage ?? '', filters?.start ?? '', filters?.end ?? ''])
 
   return { deals, loading, error, reload: load }
 }

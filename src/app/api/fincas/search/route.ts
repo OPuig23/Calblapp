@@ -1,6 +1,8 @@
 // ✅ file: src/app/api/fincas/search/route.ts
 import { NextResponse } from 'next/server'
-import { firestore } from '@/lib/firebaseAdmin'
+import { db } from '@/lib/firebaseAdmin'
+
+export const runtime = 'nodejs'
 
 /**
  * 🔍 Cerca intel·ligent dins la col·lecció "finques"
@@ -16,14 +18,15 @@ export async function GET(req: Request) {
   if (q.length < 2) return NextResponse.json({ data: [] })
 
   try {
-    const snap = await firestore.collection('finques').get()
+    // ✅ Cal fer servir "db" i no "firestore"
+    const snap = await db.collection('finques').get()
     const all = snap.docs.map((d) => d.data() as any)
 
-    // 🔤 Funció per normalitzar text (elimina accents, minúscules)
+    // 🔤 Normalitza text (elimina accents, passa a minúscules)
     const normalize = (s: string) =>
       (s || '')
         .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '') // elimina accents
+        .replace(/[\u0300-\u036f]/g, '')
         .toLowerCase()
         .trim()
 
@@ -41,7 +44,7 @@ export async function GET(req: Request) {
       )
     })
 
-    // 📊 Ordenem per rellevància (exacte > parcial)
+    // 📊 Ordena per rellevància (exacte > parcial)
     const sorted = filtered.sort((a, b) => {
       const na = normalize(a.nom)
       const nb = normalize(b.nom)
@@ -50,7 +53,7 @@ export async function GET(req: Request) {
       return na.localeCompare(nb)
     })
 
-    // 🔢 Limitem a 10
+    // 🔢 Limita a 10 resultats
     const data = sorted.slice(0, 10).map((f) => ({
       nom: f.nom || '',
       codi: f.codi || '',

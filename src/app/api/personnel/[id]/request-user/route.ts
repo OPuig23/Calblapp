@@ -5,7 +5,8 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
-import { firestore } from '@/lib/firebaseAdmin'
+import { db, firestoreAdmin } from '@/lib/firebaseAdmin'
+
 import { normalizeRole } from '@/lib/roles'
 
 interface SessionUser {
@@ -57,7 +58,7 @@ const normLower = (s?: string) =>
   unaccent((s || '').toString().trim()).toLowerCase()
 
 async function notifyAdmins(title: string, body: string, personId: string) {
-  const snap = await firestore.collection('users').get()
+  const snap = await firestoreAdmin.collection('users').get()
   const admins = snap.docs.filter(d => {
     const data = d.data() as unknown as UserDoc
     return normalizeRole(String(data.role || '')) === 'admin'
@@ -119,7 +120,7 @@ export async function POST(
     console.log('📩 Nova sol·licitud → personId:', personId)
 
     // Carreguem el personal
-    const personSnap = await firestore.collection('personnel').doc(personId).get()
+    const personSnap = await firestoreAdmin.collection('personnel').doc(personId).get()
     if (!personSnap.exists) {
       console.error('❌ No existeix el personal:', personId)
       return NextResponse.json(
@@ -148,7 +149,7 @@ export async function POST(
     }
 
     // Si ja té usuari → sortim
-    const userDoc = await firestore.collection('users').doc(personId).get()
+    const userDoc = await firestoreAdmin.collection('users').doc(personId).get()
     if (userDoc.exists) {
       console.warn('⚠️ Aquest treballador ja té usuari:', personId)
       return NextResponse.json(
@@ -158,7 +159,7 @@ export async function POST(
     }
 
     // Si ja hi ha sol·licitud pendent → idempotent
-    const reqRef = firestore.collection('userRequests').doc(personId)
+    const reqRef = firestoreAdmin.collection('userRequests').doc(personId)
     const reqSnap = await reqRef.get()
     const existing = reqSnap.data() as unknown as UserRequestDoc | undefined
     if (reqSnap.exists && existing?.status === 'pending') {

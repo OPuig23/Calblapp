@@ -1,3 +1,4 @@
+//file: src/app/menu/quadrants/%5Bid%5D/components/QuadrantTable.tsx
 'use client'
 
 import { useState } from 'react'

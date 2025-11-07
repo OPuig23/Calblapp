@@ -13,4 +13,5 @@ export interface QuadrantEvent {
   responsable?: string
   conductors?: string[]
   treballadors?: string[]
+  code?: string
 }

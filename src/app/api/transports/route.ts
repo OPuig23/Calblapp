@@ -1,6 +1,7 @@
 // src/app/api/transports/route.ts
 import { NextResponse } from 'next/server'
-import { firestore } from '@/lib/firebaseAdmin'
+import { db, firestoreAdmin } from '@/lib/firebaseAdmin'
+
 
 // Afegir transport
 export async function POST(req: Request) {
@@ -18,7 +19,7 @@ export async function POST(req: Request) {
     }
 
     // 2) Creació a Firestore
-    const ref = await firestore.collection('transports').add({
+    const ref = await firestoreAdmin.collection('transports').add({
       plate,
       type,
       conductorId: conductorId || null,
@@ -38,7 +39,7 @@ export async function POST(req: Request) {
 // Llegir transports
 export async function GET() {
   try {
-    const snap = await firestore.collection('transports').get()
+    const snap = await firestoreAdmin.collection('transports').get()
     const data = snap.docs.map(d => ({
       id: d.id,
       ...(d.data() as { plate?: string; type?: string; conductorId?: string }),
