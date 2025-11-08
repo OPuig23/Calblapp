@@ -3,8 +3,7 @@
   "version": 2,
   "crons": [
     {
-      "path": "/api/sync/zoho-to-firestoreAdmin
-?mode=cron",
+      "path": "/api/sync/zoho-to-firestoreAdmin?mode=cron",
       "schedule": "0 3 * * *"
     }
   ]

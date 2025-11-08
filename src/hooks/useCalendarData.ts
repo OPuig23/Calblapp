@@ -74,31 +74,32 @@ export function useCalendarData(filters?: {
       console.log('📦 Dades rebudes del backend:', events.slice(0, 5))
 
       // 🗂️ Mapeig dels nous camps → format intern
-      const mappedData: Deal[] = events.map((ev: any) => ({
-        id: ev.id || crypto.randomUUID(),
-        NomEvent: ev.summary || '(Sense títol)',
-        Comercial: ev.responsableName || '—',
-        LN: ev.lnLabel || 'Altres',
-        Servei: ev.lnKey || '',
-        StageGroup: ev.state || 'Sense categoria',
-        collection: ev.collection || 'stage_verd',
-        Data: ev.day || ev.start || '',
-        DataInici: ev.start ? ev.start.slice(0, 10) : '',
-        DataFi: ev.end ? ev.end.slice(0, 10) : '',
-        HoraInici: ev.HoraInici || ev.horaInici || '', // 🕒 Importem l’hora d’inici si existeix
-        Ubicacio: ev.location || '',
-        Color:
-          ev.state === 'confirmed'
-            ? 'border-green-300 bg-green-50 text-green-700'
-            : ev.state === 'pending'
-            ? 'border-amber-300 bg-amber-50 text-amber-700'
-            : 'border-blue-300 bg-blue-50 text-blue-700',
-        StageDot: ev.state || '',
-        origen: 'firestore',
-        updatedAt: ev.updatedAt || '',
-        NumPax: ev.pax ?? '',
-        code: ev.eventCode || '',
-      }))
+   const mappedData: Deal[] = events.map((ev: any) => ({
+  id: ev.id || crypto.randomUUID(),
+  NomEvent: ev.summary || '(Sense títol)',
+  Comercial: ev.comercial || ev.Comercial || '—',
+  LN: ev.lnLabel || 'Altres',
+  Servei: ev.servei || ev.Servei || '',
+  StageGroup: ev.stageGroup || ev.StageGroup || '',
+  collection: ev.collection || 'stage_verd',
+  Data: ev.day || ev.start || '',
+  DataInici: ev.start ? ev.start.slice(0, 10) : '',
+  DataFi: ev.end ? ev.end.slice(0, 10) : '',
+  HoraInici: ev.HoraInici || ev.horaInici || '',
+  Ubicacio: ev.location || ev.Ubicacio || '',
+  Color:
+    ev.stageGroup === 'verd'
+      ? 'border-green-300 bg-green-50 text-green-700'
+      : ev.stageGroup === 'taronja'
+      ? 'border-amber-300 bg-amber-50 text-amber-700'
+      : 'border-blue-300 bg-blue-50 text-blue-700',
+  StageDot: ev.stageGroup || '',
+  origen: 'firestore',
+  updatedAt: ev.updatedAt || '',
+  NumPax: ev.numPax ?? ev.NumPax ?? '',
+  code: ev.code || ev.eventCode || '',
+}))
+
 
       // 🎯 Aplicar filtres opcionals
       let filtered = mappedData
