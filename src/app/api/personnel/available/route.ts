@@ -91,12 +91,39 @@ export async function GET(request: NextRequest) {
       minRest,
     })
 
-    const colId = `quadrants${deptParam.charAt(0).toUpperCase()}${deptParam.slice(1)}`
-    const allBusy: QuadrantDoc[] = []
-    const snap = await firestore.collection(colId).where('startDate', '<=', ed).get()
-    snap.docs.forEach((d) => allBusy.push(d.data() as QuadrantDoc))
+// 🧩 Generem el nom correcte de la col·lecció segons el departament
+function capitalizeDept(dept: string): string {
+  const d = (dept || '').trim().toLowerCase()
 
-    const personnelSnap = await firestore.collection('personnel').get()
+  // Casos reconeguts a Cal Blay
+  if (d.startsWith('serv')) return 'Serveis'
+  if (d.startsWith('log')) return 'Logistica'
+  if (d.startsWith('cui')) return 'Cuina'
+  if (d.startsWith('prod')) return 'Produccio'
+
+  // Si no encaixa amb cap, torna el valor capitalitzat
+  return d.charAt(0).toUpperCase() + d.slice(1)
+}
+
+const colId = `quadrants${capitalizeDept(deptParam)}`
+const allBusy: QuadrantDoc[] = []
+
+try {
+  // 🔹 Intentem llegir la col·lecció
+  const snap = await db.collection(colId).where('startDate', '<=', ed).get()
+
+  if (snap.empty) {
+    console.warn(`[available] ⚠️ No s’han trobat documents a la col·lecció ${colId}`)
+  } else {
+    snap.docs.forEach((d) => allBusy.push(d.data() as QuadrantDoc))
+    console.log(`[available] ✅ Trobats ${snap.docs.length} documents a ${colId}`)
+  }
+} catch (error) {
+  console.error(`[available] ❌ Error accedint a la col·lecció ${colId}:`, error)
+}
+
+
+    const personnelSnap = await db.collection('personnel').get()
     const deptPersonnel = personnelSnap.docs.filter((doc) => {
       const d = doc.data() as PersonnelDoc
       return norm(d.department) === deptNorm

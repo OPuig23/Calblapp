@@ -1,3 +1,4 @@
+//file:src\app\api\events\quadrants\route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/firebaseAdmin'
 
@@ -20,6 +21,7 @@ export async function GET(req: NextRequest) {
     const events = (snap.docs || [])
       .map((doc) => {
         const d = doc.data() as any
+console.log(`[events/quadrants] CODE → ${d?.code || d?.C_digo || '(sense codi)'} | NomEvent: ${d?.NomEvent}`)
 
         // 📅 Dates
         const startISO = d?.DataInici ? `${d.DataInici}T00:00:00.000Z` : null
@@ -47,11 +49,12 @@ export async function GET(req: NextRequest) {
           commercial: d?.Comercial || '',
           numPax: d?.NumPax || '',
           code: d?.code || d?.C_digo || '',
-          state: d?.StageGroup?.toLowerCase().includes('confirmat')
-            ? 'confirmed'
-            : d?.StageGroup?.toLowerCase().includes('proposta')
-            ? 'draft'
-            : 'pending',
+          status: d?.StageGroup?.toLowerCase().includes('confirmat')
+  ? 'confirmed'
+  : d?.StageGroup?.toLowerCase().includes('proposta')
+  ? 'draft'
+  : 'pending',
+
         }
       })
       // 🎯 Només esdeveniments amb codi

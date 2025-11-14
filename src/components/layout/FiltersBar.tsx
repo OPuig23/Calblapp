@@ -15,6 +15,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { ClipboardList } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { startOfWeek, endOfWeek, format } from 'date-fns'
+
 
 
 
@@ -70,12 +72,23 @@ export default function FiltersBar({
     onReset?.()
   }, [setFilters, onReset])
 
-  const handleDatesChange = useCallback(
-    (f: SmartFiltersChange) => {
-      if (f.start && f.end) setFilters({ start: f.start, end: f.end, mode: f.mode })
-    },
-    [setFilters]
-  )
+
+const handleDatesChange = useCallback(
+  (f: SmartFiltersChange) => {
+    if (f.start) {
+      const base = new Date(f.start)
+      const weekStart = startOfWeek(base, { weekStartsOn: 1 })
+      const weekEnd = endOfWeek(base, { weekStartsOn: 1 })
+      setFilters({
+        start: format(weekStart, 'yyyy-MM-dd'),
+        end: format(weekEnd, 'yyyy-MM-dd'),
+        mode: 'week',
+      })
+    }
+  },
+  [setFilters]
+)
+
 
   const handleApplyFilters = () => {
     setFilters({

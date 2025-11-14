@@ -18,7 +18,7 @@ export async function GET(
     const { id } = await ctx.params
     console.log('📥 GET /api/user-requests/:id', id)
 
-    const snap = await firestore.collection('userRequests').doc(id).get()
+    const snap = await firestoreAdmin.collection('userRequests').doc(id).get()
     if (!snap.exists) {
       console.warn('❌ userRequest no trobat:', id)
       return NextResponse.json(

@@ -2,10 +2,27 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/firebaseAdmin'
 
+/** Troba el nom de col·lecció existent per al departament (singular o plural). */
+async function resolveReadCollectionForDepartment(department: string) {
+  const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
+  const d = department.toLowerCase().trim()
+  const singular = `quadrant${cap(d)}`
+  const plural   = `quadrants${cap(d)}`
+
+  const cols = await db.listCollections()
+  const names = cols.map(c => c.id)
+
+  // Prioritza la que existeixi (a Cal Blay sovint és singular)
+  if (names.includes(singular)) return singular
+  if (names.includes(plural))   return plural
+
+  // Si no existeix cap, tornem el plural per consistència (no fallarà però donarà 0)
+  return plural
+}
+
 /**
  * 🔹 API GET /api/quadrants/get
  * Llegeix quadrants per departament i rang de dates (String o Timestamp).
- * Totalment compatible amb col·leccions actuals Cal Blay.
  */
 export async function GET(req: Request) {
   try {
@@ -18,20 +35,19 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Falten dates' }, { status: 400 })
     }
 
-    const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
-    const colName = `quadrants${capitalize(department)}`
+    const colName = await resolveReadCollectionForDepartment(department)
     const collectionRef = db.collection(colName)
 
     console.log('🟢 [quadrants/get] Inici consulta:')
     console.log({ colName, start, end })
 
-    // 🧩 Primer intentem la query com a String (format actual de Firestore)
+    // 1r intent: camps string YYYY-MM-DD (el més habitual)
     let snapshot = await collectionRef
       .where('startDate', '<=', end)
       .where('endDate', '>=', start)
       .get()
 
-    // 📅 Si no troba res, provem amb comparació per Timestamp (mixt)
+    // 2n intent: si els camps són Timestamp
     if (snapshot.empty) {
       console.log('⚙️ Cap resultat amb string — provant amb Timestamp')
       const startDate = new Date(start)
@@ -45,18 +61,14 @@ export async function GET(req: Request) {
     console.log('📈 [quadrants/get] Nombre de docs trobats:', snapshot.size)
 
     const results = snapshot.docs.map((doc) => {
-      const d = doc.data()
+      const d = doc.data() as any
       return {
         id: doc.id,
         eventCode: d.eventCode || d.code || doc.id,
         eventName: d.eventName || d.name || '',
         location: d.location || d.finca || '',
-        startDate: d.startDate?.toDate
-          ? d.startDate.toDate().toISOString().split('T')[0]
-          : d.startDate || '',
-        endDate: d.endDate?.toDate
-          ? d.endDate.toDate().toISOString().split('T')[0]
-          : d.endDate || '',
+        startDate: d.startDate?.toDate ? d.startDate.toDate().toISOString().slice(0, 10) : (d.startDate || ''),
+        endDate:   d.endDate?.toDate   ? d.endDate.toDate().toISOString().slice(0, 10)   : (d.endDate   || ''),
         startTime: d.startTime || '',
         endTime: d.endTime || '',
         responsable: d.responsable?.name || '',
@@ -65,7 +77,7 @@ export async function GET(req: Request) {
         pax: d.pax || 0,
         dressCode: d.dressCode || '',
         department,
-        status: d.status || 'pendent',
+        status: d.status || 'draft',
       }
     })
 

@@ -32,12 +32,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const { action, notificationId, type } = req.body
 
       if (action === 'markRead' && notificationId) {
-        await firestore.collection(COLLECTION).doc(notificationId).update({ read: true })
+        await firestoreAdmin.collection(COLLECTION).doc(notificationId).update({ read: true })
         return res.status(200).json({ ok: true })
       }
 
       if (action === 'markReadAll' && type) {
-        const snap = await firestore.collection(COLLECTION)
+        const snap = await firestoreAdmin.collection(COLLECTION)
           .where('type', '==', String(type))
           .where('read', '==', false)
           .get()
@@ -58,7 +58,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(400).json({ ok: false, error: 'Missing fields' })
       }
 
-      const ref = await firestore.collection(COLLECTION).add({
+      const ref = await firestoreAdmin.collection(COLLECTION).add({
         title,
         body,
         type, // 'user_request' o 'torn_assigned'

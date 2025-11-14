@@ -194,7 +194,7 @@ if (dateISO && !isNaN(duracio) && duracio > 1) {
   // 6️⃣ Esborrar antics (només blau i taronja)
   let deleted = 0
   for (const col of ['stage_blau', 'stage_taronja']) {
-    const snap = await firestore.collection(col).get()
+    const snap = await firestoreAdmin.collection(col).get()
     const dels = snap.docs
       .filter((d) => (d.data().DataInici || '') < todayISO)
       .map((d) => d.ref.delete())
@@ -205,7 +205,7 @@ if (dateISO && !isNaN(duracio) && duracio > 1) {
   // 7️⃣ Escriure nous registres
   const batch = firestore.batch()
   for (const deal of normalized) {
-    const ref = firestore.collection(`stage_${deal.collection}`).doc(deal.idZoho)
+    const ref = firestoreAdmin.collection(`stage_${deal.collection}`).doc(deal.idZoho)
     batch.set(ref, deal, { merge: true })
   }
   await batch.commit()
@@ -230,7 +230,7 @@ if (dateISO && !isNaN(duracio) && duracio > 1) {
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-+|-+$/g, '')
 
-    const existSnap = await firestore.collection('finques').get()
+    const existSnap = await firestoreAdmin.collection('finques').get()
     const existing = new Set<string>()
     existSnap.docs.forEach((doc) => {
       const n = (doc.data().nom as string) || ''
@@ -246,7 +246,7 @@ if (dateISO && !isNaN(duracio) && duracio > 1) {
       if (!norm || existing.has(norm)) continue
       const match = nomRaw.match(/\(([A-Z0-9]{3,})\)/i)
       const codi = match ? match[1] : norm
-      const ref = firestore.collection('finques').doc(codi)
+      const ref = firestoreAdmin.collection('finques').doc(codi)
       batchFinques.set(ref, {
         nom: nomNet,
         codi,
@@ -281,7 +281,7 @@ if (dateISO && !isNaN(duracio) && duracio > 1) {
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-+|-+$/g, '')
 
-    const existSnap = await firestore.collection('serveis').get()
+    const existSnap = await firestoreAdmin.collection('serveis').get()
     const existing = new Set<string>()
     existSnap.docs.forEach((doc) => {
       const n = (doc.data().nom as string) || ''
@@ -294,7 +294,7 @@ if (dateISO && !isNaN(duracio) && duracio > 1) {
     for (const nomRaw of Array.from(serveisRaw)) {
       const norm = slug(nomRaw)
       if (!norm || existing.has(norm)) continue
-      const ref = firestore.collection('serveis').doc(norm)
+      const ref = firestoreAdmin.collection('serveis').doc(norm)
       batchServeis.set(ref, {
         nom: nomRaw,
         codi: norm,

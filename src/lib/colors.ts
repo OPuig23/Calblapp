@@ -21,12 +21,15 @@ export const STAGE_COLORS: Record<string, string> = {
 // ───────────────────────────────────────────────
 export const COLORS_LN: Record<string, string> = {
   empresa: 'bg-blue-100 border border-blue-300 text-blue-700',
-  casaments: 'bg-green-100 border border-green-300 text-green-700',
+  casaments:  'bg-pink-100 border border-pink-300 text-pink-700',
   'grups restaurants': 'bg-yellow-100 border border-yellow-300 text-yellow-700',
-  Foodlovers: 'bg-pink-100 border border-pink-300 text-pink-700',
-  foodlovers: 'bg-pink-100 border border-pink-300 text-pink-700',
+  Foodlovers: 'bg-green-100 border border-green-300 text-green-700',
+  foodlovers: 'bg-green-100 border border-green-300 text-green-700',
   agenda: 'bg-orange-100 border border-orange-300 text-orange-700',
   altres: 'bg-gray-100 border border-gray-300 text-gray-700',
+  'Prova de Menu': 'bg-violet-100 border border-violet-300 text-violet-700',
+  'Prova de menu': 'bg-violet-100 border border-violet-300 text-violet-700',
+  PM: 'bg-violet-100 border border-violet-300 text-violet-700',
 }
 
 // ───────────────────────────────────────────────

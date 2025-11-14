@@ -13,7 +13,7 @@ export async function GET() {
 
     // 🔁 Recorre totes les col·leccions
     for (const name of collections) {
-      const snapshot = await firestore.collection(name).get()
+      const snapshot = await firestoreAdmin.collection(name).get()
 
       snapshot.forEach((doc) => {
   const data = doc.data()

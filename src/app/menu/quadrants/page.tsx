@@ -1,7 +1,7 @@
-//file: src/app/menu/quadrants/page.tsx
+// ✅ file: src/app/menu/quadrants/page.tsx
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { LayoutGrid } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { startOfWeek, endOfWeek, format } from 'date-fns'
@@ -11,6 +11,8 @@ import ModuleHeader from '@/components/layout/ModuleHeader'
 import FiltersBar from '@/components/layout/FiltersBar'
 import QuadrantModal from './[id]/components/QuadrantModal'
 import QuadrantDayGroup from './[id]/components/CalendarView'
+import { useQuadrants } from '@/app/menu/quadrants/hooks/useQuadrants'
+import { useSession } from 'next-auth/react'
 
 // 🔹 Tipus unificat per evitar discrepàncies
 type UnifiedEvent = QuadrantEvent & {
@@ -44,23 +46,55 @@ export default function QuadrantsPage() {
 
   const [selected, setSelected] = useState<UnifiedEvent | null>(null)
 
+// 🧩 Departament actual (dinàmic segons la sessió)
+const { data: session } = useSession()
+
+const department =
+  (session?.user?.department ||
+    (session as any)?.department ||
+    (session as any)?.dept ||
+    'serveis')
+    .toString()
+    .toLowerCase()
+
+const { quadrants } = useQuadrants(department, range.start, range.end)
+console.log('[QuadrantsPage] 🔍 Rang passat al hook:', range)
+
+
+  // 🧩 Normalitza codis per fer comparacions fiables
+  const normalizeCode = (val?: string) =>
+    (val || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase()
+
   // 🎯 FILTRE: només mostrar esdeveniments amb el camp `code` ple
   const filteredEvents = useMemo(
     () => events.filter((ev) => ev.code && ev.code.trim() !== ''),
     [events]
   )
 
-  // 🔹 Comptadors d’estat
-  const counts = useMemo(
-    () => ({
-      pending: filteredEvents.filter((e) => e.StageGroup?.toLowerCase().includes('pendent')).length,
-      draft: filteredEvents.filter((e) => e.StageGroup?.toLowerCase().includes('proposta')).length,
-      confirmed: filteredEvents.filter((e) =>
-        e.StageGroup?.toLowerCase().includes('confirmat')
-      ).length,
-    }),
-    [filteredEvents]
-  )
+// 🔹 Comptadors com a estat per poder-los modificar en viu
+const [counts, setCounts] = useState({ pending: 0, draft: 0, confirmed: 0 })
+
+useEffect(() => {
+  let pending = 0
+  let draft = 0
+  let confirmed = 0
+
+  for (const e of filteredEvents) {
+    const match = quadrants.find(
+      (q: any) =>
+        (q.code || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase() ===
+        (e.code || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase()
+    )
+
+    if (!match) pending++
+    else if (String(match.status).toLowerCase() === 'draft') draft++
+    else if (String(match.status).toLowerCase() === 'confirmed') confirmed++
+    else pending++
+  }
+
+  setCounts({ pending, draft, confirmed })
+}, [filteredEvents, quadrants])
+
 
   // 🔹 Agrupació per dia
   const grouped = useMemo(() => {
@@ -93,22 +127,21 @@ export default function QuadrantsPage() {
         }}
       />
 
-    {/* 📊 Comptadors d’estat */}
-<div className="flex justify-around sm:justify-center sm:gap-10 bg-gradient-to-r from-indigo-50 to-blue-50 border rounded-2xl p-3 shadow-sm text-sm font-medium">
-  <span className="flex items-center gap-2 text-yellow-700">
-    <span className="w-2.5 h-2.5 bg-yellow-400 rounded-full" />
-    Pendents: {counts.pending}
-  </span>
-  <span className="flex items-center gap-2 text-blue-700">
-    <span className="w-2.5 h-2.5 bg-blue-500 rounded-full" />
-    Esborranys: {counts.draft}
-  </span>
-  <span className="flex items-center gap-2 text-green-700">
-    <span className="w-2.5 h-2.5 bg-green-500 rounded-full" />
-    Confirmats: {counts.confirmed}
-  </span>
-</div>
-
+      {/* 📊 Comptadors d’estat */}
+      <div className="flex justify-around sm:justify-center sm:gap-10 bg-gradient-to-r from-indigo-50 to-blue-50 border rounded-2xl p-3 shadow-sm text-sm font-medium">
+        <span className="flex items-center gap-2 text-yellow-700">
+          <span className="w-2.5 h-2.5 bg-yellow-400 rounded-full"></span>
+          Pendents: {counts.pending}
+        </span>
+        <span className="flex items-center gap-2 text-blue-700">
+          <span className="w-2.5 h-2.5 bg-blue-500 rounded-full"></span>
+          Esborranys: {counts.draft}
+        </span>
+        <span className="flex items-center gap-2 text-green-700">
+          <span className="w-2.5 h-2.5 bg-green-500 rounded-full"></span>
+          Confirmats: {counts.confirmed}
+        </span>
+      </div>
 
       {/* 📄 Llistat de quadrants agrupats per dia */}
       {loading && <p className="text-gray-500 text-center py-10">Carregant quadrants…</p>}
@@ -127,6 +160,7 @@ export default function QuadrantsPage() {
               date={day}
               events={evs}
               onEventClick={(ev: UnifiedEvent) => setSelected(ev)}
+              department={department}
             />
           ))}
         </div>

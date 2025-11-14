@@ -1,68 +1,49 @@
-// src/app/api/events/[id]/documents/route.ts
+// file: src/app/api/events/[id]/documents/route.ts
 import { NextResponse } from 'next/server'
-import { fetchGoogleEventById } from '@/services/googleCalendar'
+import { db } from '@/lib/firebaseAdmin'
 
-// Tipus retornats a la UI
+/**
+ * Tipus retornats a la UI
+ */
 export type EventDoc = {
   id: string
   title: string
   mimeType?: string
-  source: 'calendar-attachment' | 'description-link'
+  source: 'firestore-file'
   url: string
   previewUrl?: string
   icon: 'pdf' | 'doc' | 'sheet' | 'slide' | 'img' | 'link'
 }
 
-// Google Calendar Event mínim tipat
-interface GoogleCalendarAttachment {
-  fileUrl: string
-  title?: string
-  mimeType?: string
-}
-interface GoogleCalendarEvent {
-  attachments?: GoogleCalendarAttachment[]
-  description?: string
-}
-
-const DRIVE_FILE_RE = /\/file\/d\/([^/]+)\//
-const DRIVE_OPEN_ID_RE = /[\?&]id=([^&]+)/
-
-function detectIcon(mime?: string, url?: string): EventDoc['icon'] {
-  const u = (url || '').toLowerCase()
+// Detecta icona segons URL/mimetype
+function detectIcon(url: string, mime?: string): EventDoc['icon'] {
+  const u = url.toLowerCase()
   const m = (mime || '').toLowerCase()
+
   if (m.includes('pdf') || u.endsWith('.pdf')) return 'pdf'
   if (m.includes('image/') || /\.(png|jpg|jpeg|gif|webp)$/.test(u)) return 'img'
   if (u.includes('docs.google.com/document')) return 'doc'
   if (u.includes('docs.google.com/spreadsheets')) return 'sheet'
   if (u.includes('docs.google.com/presentation')) return 'slide'
+
   return 'link'
 }
 
-function toPreviewUrl(url: string, mime?: string): string | undefined {
+// Genera preview si és possible
+function toPreviewUrl(url: string): string | undefined {
   const u = url.toLowerCase()
-  const byFile = DRIVE_FILE_RE.exec(url)
-  const byOpen = DRIVE_OPEN_ID_RE.exec(url)
-  const fileId = byFile?.[1] || byOpen?.[1]
-  if (fileId) return `https://drive.google.com/file/d/${fileId}/preview`
+
+  // Google Drive → format preview
+  const m = /\/file\/d\/([^/]+)\//.exec(url)
+  if (m?.[1]) return `https://drive.google.com/file/d/${m[1]}/preview`
 
   if (u.includes('docs.google.com/document')) return url.replace(/\/edit.*$/, '/preview')
   if (u.includes('docs.google.com/spreadsheets')) return url.replace(/\/edit.*$/, '/preview')
   if (u.includes('docs.google.com/presentation')) return url.replace(/\/edit.*$/, '/preview')
 
-  if ((mime || '').includes('pdf') || u.endsWith('.pdf')) return url
+  if (u.endsWith('.pdf')) return url
 
   return undefined
-}
-
-function extractLinksFromText(text?: string): string[] {
-  if (!text) return []
-  const urls = new Set<string>()
-  const re = /(https?:\/\/[^\s)\]]+)/g
-  let m: RegExpExecArray | null
-  while ((m = re.exec(text)) !== null) {
-    urls.add(m[1])
-  }
-  return Array.from(urls)
 }
 
 export async function GET(
@@ -71,63 +52,45 @@ export async function GET(
 ) {
   try {
     const { id } = await ctx.params
-    const eventId = id
 
-    const ev = (await fetchGoogleEventById(eventId)) as unknown as GoogleCalendarEvent | null
-    if (!ev) {
+    // 🔥 Agafem l'esdeveniment només de stage_verd
+    const snap = await db.collection('stage_verd').doc(id).get()
+
+    if (!snap.exists) {
       return NextResponse.json({ docs: [] }, { status: 404 })
     }
 
-    const docs: EventDoc[] = []
+    const data = snap.data() || {}
 
-    // 1) Adjunts del Calendar
-    const atts: GoogleCalendarAttachment[] | undefined = ev.attachments
-    if (atts?.length) {
-      for (const a of atts) {
-        const icon = detectIcon(a.mimeType, a.fileUrl)
-        docs.push({
-          id: a.fileUrl || a.title || Math.random().toString(36).slice(2),
-          title: a.title || 'Adjunt',
-          mimeType: a.mimeType,
-          source: 'calendar-attachment',
-          url: a.fileUrl,
-          previewUrl: toPreviewUrl(a.fileUrl, a.mimeType),
-          icon,
-        })
-      }
-    }
-
-    // 2) Enllaços dins la descripció
-    const links: string[] = extractLinksFromText(ev.description)
-    for (const url of links) {
-      const title = url
-        .replace(/^https?:\/\//, '')
-        .replace(/[#\?].*$/, '')
-        .slice(0, 60)
-      const icon = detectIcon(undefined, url)
-      docs.push({
-        id: url,
-        title,
-        source: 'description-link',
-        url,
-        previewUrl: toPreviewUrl(url),
-        icon,
-      })
-    }
-
-    // Únics
-    const unique: EventDoc[] = Object.values(
-      docs.reduce<Record<string, EventDoc>>((acc, d) => {
-        acc[d.id] = d
-        return acc
-      }, {})
+    // 🔍 Tots els camps que comencen per fileN
+    const fileEntries = Object.entries(data).filter(([key, val]) =>
+      key.toLowerCase().startsWith('file') &&
+      typeof val === 'string' &&
+      val.length > 0
     )
 
-    return NextResponse.json({ docs: unique })
-  } catch (err: unknown) {
-    if (err instanceof Error) {
-      return NextResponse.json({ error: err.message }, { status: 500 })
-    }
-    return NextResponse.json({ error: String(err) }, { status: 500 })
+    // 📚 Construcció EventDoc[]
+    const docs: EventDoc[] = fileEntries
+      .sort((a, b) => {
+        const ai = parseInt(a[0].replace('file', ''), 10)
+        const bi = parseInt(b[0].replace('file', ''), 10)
+        return ai - bi
+      })
+      .map(([key, url]) => {
+        const icon = detectIcon(url as string)
+        return {
+          id: key,
+          title: decodeURIComponent((url as string).split('/').pop() || key),
+          source: 'firestore-file',
+          url: url as string,
+          previewUrl: toPreviewUrl(url as string),
+          icon,
+        }
+      })
+
+    return NextResponse.json({ docs })
+  } catch (err) {
+    console.error('❌ Error a /events/[id]/documents:', err)
+    return NextResponse.json({ error: 'Error intern' }, { status: 500 })
   }
 }

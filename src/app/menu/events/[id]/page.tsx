@@ -37,7 +37,7 @@ export default async function EventDetailPage({ params }: Params) {
       user.department.slice(1).toLowerCase()
     const colName = `quadrants${deptNorm}`
 
-    const snap = await firestore.collection(colName).doc(eventId).get()
+    const snap = await firestoreAdmin.collection(colName).doc(eventId).get()
     if (snap.exists) {
       const data = snap.data() || {}
       const respName = String(data?.responsable?.name || '').toLowerCase().trim()

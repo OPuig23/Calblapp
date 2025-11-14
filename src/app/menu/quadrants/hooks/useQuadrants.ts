@@ -1,57 +1,77 @@
-// src/app/menu/quadrants/hooks/useQuadrants.ts
+'use client'
+
 import { useEffect, useState, useCallback } from 'react'
 
-export type Quadrant = {
+export type QuadrantEvent = {
   id: string
-  department: string
-  startDate: string
-  startTime: string
-  endDate: string
-  endTime: string
-  status: 'draft' | 'confirmed'
-  eventName?: string
   code?: string
+  eventName?: string
   location?: string
+  startDate?: string
+  endDate?: string
+  startTime?: string
+  endTime?: string
+  pax?: number
+  ln?: string
+  commercial?: string
+  // Camps provinents del quadrant si existeix
+  status?: 'pending' | 'draft' | 'confirmed'
+  department?: string
+  responsableName?: string
+  totalWorkers?: number
+  numDrivers?: number
   [key: string]: unknown
 }
 
-export function useQuadrants(
-  department: string,
-  start?: string,
-  end?: string,
-  status: 'all' | 'confirmed' | 'draft' = 'all'
-) {
-  const [quadrants, setQuadrants] = useState<Quadrant[]>([])
+/**
+ * 🔹 Hook que carrega tots els esdeveniments confirmats (stage_verd)
+ * i comprova a Firestore si existeix el seu quadrant dins del departament.
+ * Retorna la llista d'esdeveniments amb tota la informació fusionada.
+ */
+export function useQuadrants(department: string, start?: string, end?: string) {
+  const [quadrants, setQuadrants] = useState<QuadrantEvent[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<unknown>(null)
 
   const fetchData = useCallback(async () => {
+    if (!department || !start || !end) return
+
     setLoading(true)
     setError(null)
+
     try {
       const params = new URLSearchParams()
-      if (department) params.set('department', department)
-      if (start) params.set('start', start)
-      if (end) params.set('end', end)
-      if (status) params.set('status', status)
+      params.set('department', department)
+      params.set('start', start)
+      params.set('end', end)
 
-      const url = `/api/quadrants/list?${params.toString()}`
-      console.log('[useQuadrants] Fetch URL=', url)
+      const url = `/api/quadrants/get?${params.toString()}`
+      console.log('[useQuadrants] 🔗 Crida API:', url)
 
       const res = await fetch(url, { cache: 'no-store' })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
+
       const json = await res.json()
-      setQuadrants(json.drafts ?? json.quadrants ?? [])
-    } catch (e: unknown) {
-      setError(e)
+      const data = json?.quadrants || json?.events || []
+
+      console.log(`[useQuadrants] ✅ Rebuts ${data.length} quadrants`)
+      setQuadrants(data)
+    } catch (err) {
+      console.error('[useQuadrants] ❌ Error carregant dades:', err)
+      if (err instanceof Error) alert(`Error: ${err.message}`)
+      setError(err)
     } finally {
       setLoading(false)
     }
-  }, [department, start, end, status])
+  }, [department, start, end])
 
+  // 🔁 Ara es recarrega cada cop que canvia el departament o el rang
   useEffect(() => {
+    if (!department || !start || !end) return
     fetchData()
-  }, [fetchData])
+  }, [department, start, end])
 
   return { quadrants, loading, error, reload: fetchData }
 }
+
+export default useQuadrants

@@ -59,7 +59,7 @@ async function main() {
 
   console.log(`📦 Migrant ${dataRows.length} registres a Firestore…`)
   const batch = firestore.batch()
-  const colRef = firestore.collection('personnel')
+  const colRef = firestoreAdmin.collection('personnel')
 
   for (const r of dataRows) {
     const idRaw = r[idx['id']]?.trim()

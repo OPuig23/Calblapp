@@ -1,6 +1,5 @@
-// filename: src/services/vehicleAssign.ts
+// ✅ filename: src/services/vehicleAssign.ts
 import { db } from '@/lib/firebaseAdmin'
-
 import { isEligibleByName } from './eligibility'
 import { normalizeVehicleType } from '@/utils/normalizeVehicleType'
 
@@ -20,7 +19,7 @@ export type DriverPoolItem = {
 }
 
 export type BaseCtx = {
-  busyAssignments: Map<string, string[]>
+  busyAssignments: any[]   // 👈 ara s’ajusta al tipus real que ve del ledger
   restHours: number
   allowMultipleEventsSameDay: boolean
 }
@@ -59,8 +58,8 @@ export async function assignVehiclesAndDrivers({
 }: AssignDriverParams): Promise<DriverAssignment[]> {
   const drivers: DriverAssignment[] = []
 
-  // Consulta tots els transports un cop
-  const transportsSnap = await firestore.collection('transports').get()
+  // ✅ Consulta correcta dels transports a Firestore (admin)
+  const transportsSnap = await db.collection('transports').get()
   const allTransports: Transport[] = transportsSnap.docs.map(d => {
     const data = d.data() as Partial<Transport>
     return {
@@ -77,18 +76,20 @@ export async function assignVehiclesAndDrivers({
 
     // --- Cas 3: vehicleId o matrícula explícita ---
     if (requested.id || requested.plate) {
-      chosenVehicle = allTransports.find(
-        v =>
-          (requested.id && v.id === requested.id) ||
-          (requested.plate && v.plate === requested.plate)
-      ) || null
+      chosenVehicle =
+        allTransports.find(
+          v =>
+            (requested.id && v.id === requested.id) ||
+            (requested.plate && v.plate === requested.plate)
+        ) || null
     }
 
     // --- Cas 2: només tipus ---
     if (!chosenVehicle && requested.vehicleType) {
       const pool = allTransports.filter(
         v =>
-          normalizeVehicleType(v.type || '') === normalizeVehicleType(requested.vehicleType || '') &&
+          normalizeVehicleType(v.type || '') ===
+            normalizeVehicleType(requested.vehicleType || '') &&
           v.available !== false
       )
       chosenVehicle = pool.shift() || null
@@ -96,7 +97,6 @@ export async function assignVehiclesAndDrivers({
 
     // --- Cas 1: ni tipus ni matrícula ---
     if (!chosenVehicle && !requested.vehicleType) {
-      // No hi ha vehicle → només conductor
       const pick = driverPool.shift()
       drivers.push({
         name: pick ? pick.p.name : 'Extra',
@@ -114,9 +114,7 @@ export async function assignVehiclesAndDrivers({
       const fixed = driverPool.find(d => d.p.id === chosenVehicle!.conductorId)
       if (fixed) {
         const elig = isEligibleByName(fixed.p.name, startISO, endISO, baseCtx)
-        if (elig.eligible) {
-          assigned = fixed.p.name
-        }
+        if (elig.eligible) assigned = fixed.p.name
       }
     }
 
@@ -129,7 +127,9 @@ export async function assignVehiclesAndDrivers({
       name: assigned || 'Extra',
       meetingPoint,
       plate: chosenVehicle?.plate || '',
-      vehicleType: normalizeVehicleType(chosenVehicle?.type || requested.vehicleType || ''),
+      vehicleType: normalizeVehicleType(
+        chosenVehicle?.type || requested.vehicleType || ''
+      ),
     })
   }
 

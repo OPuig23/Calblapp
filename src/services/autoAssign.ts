@@ -1,11 +1,13 @@
 // file: src/services/autoAssign.ts
 import { db } from '@/lib/firebaseAdmin'
-
 import { loadPremises } from './premises'
 import { buildLedger } from './workloadLedger'
 import { isEligibleByName } from './eligibility'
 import { calculatePersonalNeeded } from '@/utils/calculatePersonalNeeded'
 import { assignVehiclesAndDrivers } from './vehicleAssign'
+import { firestoreAdmin } from '@/lib/firebaseAdmin'
+
+
 
 export interface Personnel {
   id: string
@@ -104,7 +106,8 @@ export async function autoAssign(payload: {
 
   const startISO = `${startDate}T${startTime}:00`
   const endISO = `${endDate}T${endTime}:00`
-  const dept = norm(department)
+  const dept: string = norm(department)
+
 
   console.log('[autoAssign] ▶️ inici', {
     dept, eventId, dates: { startISO, endISO },
@@ -132,10 +135,14 @@ export async function autoAssign(payload: {
   const [ws, we, ms, me] = [weekStart, weekEnd, monthStart, monthEnd].map(x => x.toISOString().slice(0, 10))
 
   // 3) Ledger
-  const ledger = (await buildLedger(dept, ws, we, ms, me)) as Ledger
+  // 3️⃣ Ledger
+const ledger = (await buildLedger(dept, ws, we, ms, me)) as any
+
+
+
 
   // 4) Personal del departament
-  const ps = await firestore.collection('personnel').get()
+  const ps = await db.collection('personnel').get()
   const all: Personnel[] = ps.docs
     .map(dref => ({ id: dref.id, ...(dref.data() as Record<string, unknown>) }))
     .filter(p => norm((p as Personnel).department) === dept) as Personnel[]
@@ -187,11 +194,12 @@ export async function autoAssign(payload: {
   }
 
   // 6) Pools de conductors i staff
-  const baseCtx = {
-    busyAssignments: ledger.busyAssignments,
-    restHours: premises.restHours,
-    allowMultipleEventsSameDay: !!premises.allowMultipleEventsSameDay
-  }
+const baseCtx = {
+  busyAssignments: ledger.busyAssignments,
+  restHours: premises.restHours,
+  allowMultipleEventsSameDay: !!premises.allowMultipleEventsSameDay
+} as any
+
 
   const exclude = new Set<string>(chosenResp ? [norm(chosenResp.name)] : [])
 
@@ -217,6 +225,7 @@ export async function autoAssign(payload: {
 
   // 6.1) Assignació de conductors + vehicles
   const drivers = await assignVehiclesAndDrivers({
+
     dept,
     meetingPoint,
     startISO,

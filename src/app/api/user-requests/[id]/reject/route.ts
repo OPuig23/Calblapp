@@ -30,7 +30,7 @@ export async function POST(req: NextRequest, ctx: { params: { id: string } }) {
     console.log('📝 [reject] Motiu rebut:', reason)
 
     // 1️⃣ Llegim la sol·licitud
-    const reqRef = firestore.collection('userRequests').doc(personId)
+    const reqRef = firestoreAdmin.collection('userRequests').doc(personId)
     const reqSnap = await reqRef.get()
     if (!reqSnap.exists) {
       console.warn('❌ [reject] Sol·licitud no trobada a userRequests:', personId)
@@ -55,7 +55,7 @@ export async function POST(req: NextRequest, ctx: { params: { id: string } }) {
     console.log('🔎 [reject] Estat userRequests després:', checkReq.data())
 
     // 4️⃣ També actualitzem a personnel
-    const personRef = firestore.collection('personnel').doc(personId)
+    const personRef = firestoreAdmin.collection('personnel').doc(personId)
     await personRef.set(
       {
         status: 'rejected', // 👈 ara usem el mateix camp que al card

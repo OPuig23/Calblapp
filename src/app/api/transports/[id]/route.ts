@@ -18,7 +18,7 @@ export async function PUT(
   try {
     const { id } = await context.params // 👈 fem await abans d’usar id
     const body = await req.json()
-    await firestore.collection(COLLECTION).doc(id).update(body)
+    await db.collection(COLLECTION).doc(id).update(body)
     return NextResponse.json({ success: true })
   } catch (error: unknown) {
     console.error('Error actualitzant transport:', error)
@@ -36,7 +36,7 @@ export async function DELETE(
 
   try {
     const { id } = await context.params // 👈 també aquí
-    await firestore.collection(COLLECTION).doc(id).delete()
+    await db.collection(COLLECTION).doc(id).delete()
     return NextResponse.json({ success: true })
   } catch (error: unknown) {
     console.error('Error eliminant transport:', error)

@@ -77,7 +77,7 @@ export async function syncRowsToFirestore(rows: SapRow[], opts?: { threshold?: n
     // Aplica fuzzy sobre el nom
     const match = candidates.find(c => isFuzzyMatch(sapName, c.NomEvent || '', threshold))
     if (match) {
-      const ref = firestore.collection('stage_verd').doc(match.id)
+      const ref = firestoreAdmin.collection('stage_verd').doc(match.id)
       batch.update(ref, { code })
       pending++
       updated++

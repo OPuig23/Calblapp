@@ -75,8 +75,9 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
   const router = useRouter()
   const department = session?.user?.department || ''
 
-  const { name: eventName, code: eventCode } = splitTitle(event.summary || event.title || '')
-
+  const rawTitle = event.summary || event.title || ''
+  const { name: eventName, code: parsedCode } = splitTitle(rawTitle)
+  const eventCode = parsedCode || (rawTitle.match(/[A-Z]\d{6,}/)?.[0] ?? '').toUpperCase()
   const [startDate, setStartDate]       = useState(extractDate(event.start))
   const [endDate, setEndDate]           = useState(extractDate(event.start))
   const [startTime, setStartTime]       = useState(event.startTime || '')
@@ -232,7 +233,10 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
 
       setSuccess(true)
       toast.success('Borrador creat correctament!')
-      setTimeout(() => { onOpenChange(false); router.refresh() }, 700)
+      // 🧩 Notificació d'actualització immediata
+window.dispatchEvent(new CustomEvent('quadrant:created', { detail: { status: 'draft' } }))
+onOpenChange(false)
+
     } catch (err: unknown) {
       const error = err as Error
       setError(error.message)

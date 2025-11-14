@@ -1,4 +1,4 @@
-// src/app/api/transports/available/route.ts
+// ✅ src/app/api/transports/available/route.ts
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/firebaseAdmin'
 
@@ -43,30 +43,36 @@ export async function POST(req: Request) {
     })
 
     if (!startDate || !startTime || !endDate || !endTime) {
-      console.warn('[API /transports/available] ⚠️ Falten camps obligatoris')
       return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
     }
 
     const start = toDateTime(startDate, startTime)
     const end   = toDateTime(endDate, endTime)
 
-    // 1) Vehicles de Firestore
+    // 1️⃣ Vehicles de Firestore
     const vehSnap = await db.collection('transports').get()
     const vehicles: Vehicle[] = vehSnap.docs.map(d => ({
       id: d.id,
       ...(d.data() as Omit<Vehicle, 'id'>),
     }))
-    console.log('[API /transports/available] 🚚 Vehicles trobats a Firestore:', vehicles)
+    console.log('[API /transports/available] 🚚 Vehicles trobats:', vehicles.length)
 
-    // 2) Quadrants de tots els departaments
-    const quadSnap = await db.collectionGroup('quadrants').get()
-    const quadrants: Quadrant[] = quadSnap.docs.map(d => ({
-      id: d.id,
-      ...(d.data() as Omit<Quadrant, 'id'>),
-    }))
-    console.log('[API /transports/available] 📑 Quadrants trobats:', quadrants.length)
+    // 2️⃣ Quadrants de tots els departaments
+    const quadrantCollections = ['quadrantsServeis', 'quadrantsLogistica', 'quadrantsCuina']
+    let quadrants: Quadrant[] = []
 
-    // 3) Helper per comprovar si un vehicle està ocupat
+    for (const col of quadrantCollections) {
+      const snap = await db.collection(col).get()
+      quadrants = quadrants.concat(
+        snap.docs.map(d => ({
+          id: d.id,
+          ...(d.data() as Omit<Quadrant, 'id'>),
+        }))
+      )
+    }
+    console.log('[API /transports/available] 📑 Quadrants trobats total:', quadrants.length)
+
+    // 3️⃣ Comprovació d’ocupació
     const isVehicleBusy = (vehId: string) =>
       quadrants.some((q) =>
         q.vehicles?.some((v: QuadrantVehicle) =>
@@ -74,13 +80,13 @@ export async function POST(req: Request) {
           overlaps(
             start,
             end,
-            new Date(`${q.startDate}T${q.startTime}`),
-            new Date(`${q.endDate}T${q.endTime}`)
+            new Date(`${q.startDate}T${q.startTime || '00:00'}`),
+            new Date(`${q.endDate}T${q.endTime || '23:59'}`)
           )
         )
       )
 
-    // 4) Resultat final
+    // 4️⃣ Resultat final
     const result = vehicles.map(v => ({
       id: v.id,
       plate: v.plate || v.matricula || '(sense matrícula)',
@@ -90,12 +96,7 @@ export async function POST(req: Request) {
     }))
 
     console.log('[API /transports/available] ✅ Vehicles retornats:',
-      result.map(r => ({
-        id: r.id,
-        plate: r.plate,
-        type: r.type,
-        available: r.available,
-      }))
+      result.map(r => ({ id: r.id, plate: r.plate, type: r.type, available: r.available }))
     )
 
     return NextResponse.json({ vehicles: result })

@@ -1,9 +1,10 @@
-// types/next-auth.d.ts
 import NextAuth, { DefaultSession } from "next-auth"
-import { JWT as DefaultJWT } from "next-auth/jwt"
+import { DefaultJWT } from "next-auth/jwt"
 
+// ✅ Extensió del tipus Session
 declare module "next-auth" {
-  interface Session {
+  interface Session extends DefaultSession {
+    accessToken?: string
     user?: {
       id: string
       role?: string
@@ -13,8 +14,10 @@ declare module "next-auth" {
   }
 }
 
+// ✅ Extensió del tipus JWT
 declare module "next-auth/jwt" {
   interface JWT extends DefaultJWT {
+    accessToken?: string
     role?: string
     department?: string
     deptLower?: string

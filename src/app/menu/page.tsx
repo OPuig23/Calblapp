@@ -53,6 +53,16 @@ const MODULES: ModuleOption[] = [
     iconColor: 'text-orange-500',
   },
   {
+  value: 'pissarra',
+  label: 'La Pissarra',
+  path: '/menu/pissarra',
+  roles: ['admin', 'direccio', 'cap', 'treballador', 'comercial', 'usuari'],
+  icon: FileEdit, // pots canviar-ho si vols un altre icon
+  color: 'from-rose-100 to-pink-50',
+  iconColor: 'text-rose-600',
+},
+
+  {
     value: 'calendar',
     label: 'Calendar',
     path: '/menu/calendar',
@@ -212,7 +222,7 @@ const modules = useMemo(() => {
       )}
 
       <h1 className="text-2xl font-bold mb-4 text-center">Accedeix als teus mòduls</h1>
-      <div className="grid grid-cols-1 min-[360px]:grid-cols-2 sm:grid-cols-3 gap-5">
+      <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 gap-3">
         {modules.map(mod => {
           const isActive = pathname?.startsWith(mod.path)
           return (

@@ -2,6 +2,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 import { db } from '@/lib/firebaseAdmin'
+import { firestoreAdmin } from '@/lib/firebaseAdmin'
+
 
 export const runtime = 'nodejs'
 

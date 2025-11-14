@@ -1,7 +1,8 @@
-// filename: src/utils/personnelRest.ts
+// ✅ filename: src/utils/personnelRest.ts
 import fs from 'fs'
 import path from 'path'
-import { db } from '@/lib/firebaseAdmin'
+import { firestoreAdmin } from '@/lib/firebaseAdmin'
+
 
 
 /* ================= Helpers ================= */
@@ -32,6 +33,18 @@ export interface QuadrantDoc {
   responsableName?: string
   conductors?: WorkerRef[]
   treballadors?: WorkerRef[]
+}
+
+/* =============== Resolució col·lecció per departament =============== */
+function resolveQuadrantCollection(department: string): string {
+  const d = norm(department)
+  if (d.startsWith('serv')) return 'quadrantsServeis'
+  if (d.startsWith('log')) return 'quadrantsLogistica'
+  if (d.startsWith('cui')) return 'quadrantsCuina'
+  if (d.startsWith('prod')) return 'quadrantsProduccio'
+
+  console.warn(`[personnelRest] ⚠️ Departament desconegut: ${department}`)
+  return 'quadrantsServeis' // valor per defecte
 }
 
 /* =============== Premisses (JSON) =============== */
@@ -124,8 +137,8 @@ export async function getBusyPersonnelIds(
   const newStart = new Date(`${startDate}T${startTime || '00:00'}:00Z`)
   const newEnd = new Date(`${endDate}T${endTime || '23:59'}:00Z`)
 
-  const colId = `quadrants${capitalize(norm(department))}`
-  const snap = await firestore
+  const colId = resolveQuadrantCollection(department)
+  const snap = await firestoreAdmin
     .collection(colId)
     .where('startDate', '<=', endDate)
     .get()

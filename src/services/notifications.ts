@@ -2,6 +2,7 @@
 import { db } from '@/lib/firebaseAdmin'
 import { FieldValue } from 'firebase-admin/firestore'
 
+
 type NewShiftNotif = {
   userId: string
   quadrantId: string

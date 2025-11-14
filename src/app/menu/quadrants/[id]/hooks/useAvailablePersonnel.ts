@@ -129,9 +129,10 @@ export function useAvailablePersonnel(opts: UseAvailablePersonnelOptions) {
     opts.endDate,
     opts.startTime,
     opts.endTime,
-    opts.excludeIds?.join(','), // ✅ evita dependències infinites
+    opts.excludeIds?.join(',') ?? '',
     session?.accessToken,
   ])
+
 
   useEffect(() => {
     fetchPersonnel()

@@ -17,7 +17,7 @@ export async function fetchDraftRows(
   weekEnd: string
 ): Promise<DraftRow[]> {
   const docId = `${department}:${weekStart}:${weekEnd}`
-  const snap = await firestore.collection('quadrantDrafts').doc(docId).get()
+  const snap = await firestoreAdmin.collection('quadrantDrafts').doc(docId).get()
   const data = snap.data()
   return Array.isArray(data?.draft) ? (data!.draft as DraftRow[]) : []
 }

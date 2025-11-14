@@ -1,8 +1,9 @@
 // src/app/api/users/[id]/route.ts
 export const runtime = 'nodejs'
 
+import { db } from '@/lib/firebaseAdmin'
 import { NextResponse } from 'next/server'
-import { firestore as db } from '@/lib/firebaseAdmin'
+
 
 const unaccent = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 const normLower = (s?: string) => unaccent((s || '').toString().trim()).toLowerCase()
@@ -65,9 +66,17 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       update.workerRank = undefined
     }
 
-    pruneUndefined(update)
-    await db.collection('users').doc(id).set(update, { merge: true })
-    await db.collection('users').doc(id).set({ userId: id }, { merge: true })
+    function pruneUndefined<T extends Record<string, unknown>>(obj: T): asserts obj is T {
+  Object.keys(obj).forEach((k) => {
+    if (obj[k] === undefined) delete obj[k]
+  })
+}
+
+   await db.collection('users').doc(id).set(
+  { ...update, userId: id },
+  { merge: true }
+)
+
 
     if (isTreballador(update.role)) {
       const personRef = db.collection('personnel').doc(id)

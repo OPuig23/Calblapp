@@ -43,6 +43,11 @@ export async function POST(req: NextRequest) {
     const dept = norm(deptRaw)
     const colName = `quadrants${capitalize(dept)}`
     const ref = db.collection(colName).doc(String(eventId))
+    // 🧩 Obtenim el camp `code` del document original (stage_verd)
+const stageSnap = await db.collection('stage_verd').doc(String(eventId)).get()
+const stageData = stageSnap.exists ? stageSnap.data() : null
+const eventCode = stageData?.code || stageData?.C_digo || ''
+
 
     // Llegim estat anterior
     const snap = await ref.get()
@@ -55,6 +60,7 @@ export async function POST(req: NextRequest) {
         status: 'confirmed',
         confirmedAt: Timestamp.fromDate(new Date()), // 👈 Timestamp
         confirmedBy: token.user?.email || token.email || 'system',
+        code: eventCode,
       },
       { merge: true }
     )

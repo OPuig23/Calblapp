@@ -2,6 +2,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/firebaseAdmin'
 import { fetchGoogleEventById } from '@/services/googleCalendar'
+import { firestoreAdmin } from '@/lib/firebaseAdmin'
+
 
 export const runtime = 'nodejs'
 

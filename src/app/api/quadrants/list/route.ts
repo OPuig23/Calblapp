@@ -143,12 +143,16 @@ function currentWeekRangeYMD() {
    Resolució col·leccions: quadrantsLogistica / quadrantsCuina / ...
 ────────────────────────────────────────────────────────────────────────── */
 function normalizeColId(id: string): string {
-  const rest = id.replace(/^quadrants/i, '')
-  return rest
+  // ✅ accepta tant "quadrant" com "quadrants" al nom
+  const rest = id
+    .replace(/^quadrants?/i, '') // <-- canvi clau: la “s” passa a opcional
     .replace(/[_\-\s]/g, '')
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
+  return rest
 }
+
 
 const COLS_MAP: Record<string, string> = {}
 let COLS_LOADED = false
@@ -156,12 +160,20 @@ let COLS_LOADED = false
 async function loadCollectionsMap() {
   if (COLS_LOADED) return
   const cols = await db.listCollections()
+  console.log('[quadrants/list] 📚 Col·leccions detectades:', cols.map(c => c.id))
+  console.log(
+  '[quadrants/list] 📚 Col·leccions trobades:',
+  cols.map((c) => c.id)
+)
+
   cols.forEach(c => {
     const key = normalizeColId(c.id)
     if (key) COLS_MAP[key] = c.id
   })
   COLS_LOADED = true
   console.log('[quadrants/list] 🔄 Collections map carregat:', COLS_MAP)
+  console.log('[quadrants/list] 🧭 Clau per "serveis":', COLS_MAP['serveis'])
+
 }
 
 async function resolveColForDept(dept: Dept): Promise<string | undefined> {
@@ -223,9 +235,20 @@ async function fetchDeptDrafts(
   const drafts: Draft[] = snap.docs.map((doc) => {
     const d = doc.data() as FirestoreDraftDoc
 
+    // 🧪 LOG: estat tal com arriba del document
+    console.log(
+      `[quadrants/list] ▶️ Doc ${doc.id} status (raw):`,
+      d?.status,
+      '| confirmada:', d?.confirmada,
+      '| confirmed:', d?.confirmed
+    )
+
     const statusRaw = String(d?.status ?? '').toLowerCase()
     const status: 'confirmed' | 'draft' =
       statusRaw === 'confirmed' ? 'confirmed' : 'draft'
+
+    // 🧪 LOG: estat normalitzat
+    console.log(`[quadrants/list] ✅ Doc ${doc.id} status (normalized):`, status)
 
     const confirmedAtVal = d?.confirmedAt as { toDate?: () => Date } | string | undefined
     const confirmedAt =
@@ -307,7 +330,10 @@ async function fetchDeptDrafts(
 export async function GET(req: NextRequest) {
   try {
     const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET })
-    if (!token) return NextResponse.json({ drafts: [] }, { status: 401 })
+    if (!token) {
+      console.warn('[quadrants/list] 🔒 Sense token - 401')
+      return NextResponse.json({ drafts: [] }, { status: 401 })
+    }
 
     const t = token as Record<string, unknown>
     const sessDept = normalizeDept(String(
@@ -317,6 +343,8 @@ export async function GET(req: NextRequest) {
     const roleRaw = String(t.userRole ?? t.role ?? '')
     const roleNorm = normalizeRoleCore(roleRaw)
     const role = roleNorm === 'cap' ? 'cap departament' : roleNorm
+
+    console.log('[quadrants/list] 👤 Sessió', { roleRaw, roleNorm, role, sessDept })
 
     const { searchParams } = new URL(req.url)
     const qsDept   = normalizeDept(searchParams.get('department') || '')
@@ -351,6 +379,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ drafts: [], range: { start, end } }, { status: 403 })
     }
 
+    console.log('[quadrants/list] 🗂️ Depts a consultar:', deptsToFetch, { start, end, qsStatus })
+
     const results = await Promise.all(
       deptsToFetch.map((d) => fetchDeptDrafts(d, start, end))
     )
@@ -364,6 +394,7 @@ export async function GET(req: NextRequest) {
       drafts = drafts.filter((d) => d.status === qsStatus)
     }
 
+    console.log('[quadrants/list] ✅ Retornant drafts:', drafts.length)
     return NextResponse.json({ drafts, range: { start, end } })
   } catch (err) {
     console.error('[quadrants/list] 💥 Error GET:', err)

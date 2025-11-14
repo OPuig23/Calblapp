@@ -1,6 +1,8 @@
 // ✅ file: src/app/api/logistics/update/route.ts
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/firebaseAdmin'
+import { firestoreAdmin } from '@/lib/firebaseAdmin'
+
 
 export async function POST(req: Request) {
   try {

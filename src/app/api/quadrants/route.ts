@@ -1,7 +1,7 @@
 // src/app/api/quadrants/route.ts
 import { NextResponse, type NextRequest } from 'next/server'
 import { db } from '@/lib/firebaseAdmin'
-
+import { firestoreAdmin } from '@/lib/firebaseAdmin'
 import { autoAssign } from '@/services/autoAssign'
 
 export const runtime = 'nodejs'
@@ -12,10 +12,24 @@ const norm = (v?: string | null) => unaccent((v || '').toString().trim().toLower
 const capitalize = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s)
 
 /** Construeix el nom de col·lecció per departament: quadrantsLogistica, quadrantsServeis, ... */
-function collectionForDepartment(department: string) {
+/** Retorna el nom de col·lecció existent per al departament (singular o plural). */
+async function resolveWriteCollectionForDepartment(department: string) {
   const d = capitalize(norm(department))
-  return `quadrants${d}` // ex: "logistica" -> "quadrantsLogistica"
+  const plural = `quadrants${d}`
+  const singular = `quadrant${d}`
+
+  // Comprova si existeix el singular
+  const all = await db.listCollections()
+  const names = all.map(c => c.id.toLowerCase())
+
+  // Prioritza la que existeixi (singular en el teu cas actual)
+  if (names.includes(singular.toLowerCase())) return singular
+  if (names.includes(plural.toLowerCase())) return plural
+
+  // Si no existeix cap, crea/escriu al plural per estandarditzar
+  return plural
 }
+
 
 /* ================= Tipus ================= */
 interface Brigade {
@@ -124,10 +138,21 @@ export async function POST(req: NextRequest) {
     if (Array.isArray(body.brigades)) {
       toSave.brigades = body.brigades as Brigade[]
     }
+// 🔹 Determinem la col·lecció segons el departament
+const collectionName = await resolveWriteCollectionForDepartment(deptNorm)
+console.log('[quadrants/route] 🗂️ Escriuré a col·lecció:', collectionName)
+
+// 🧩 Si el code no arriba del front, recuperem el del stage_verd
+if (!toSave.code) {
+  const stageSnap = await db.collection('stage_verd').doc(body.eventId).get()
+  const stageData = stageSnap.exists ? stageSnap.data() : null
+  toSave.code = stageData?.code || stageData?.C_digo || ''
+}
 
     // Desa a la col·lecció específica del departament (ex.: quadrantsLogistica)
-    const collectionName = collectionForDepartment(deptNorm)
-    await firestore.collection(collectionName).doc(body.eventId).set(toSave, { merge: true })
+    await db.collection(collectionName).doc(body.eventId).set(toSave, { merge: true })
+
+    
 
     // Resposta API
     return NextResponse.json({

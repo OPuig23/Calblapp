@@ -49,7 +49,7 @@ export async function POST(req: Request) {
     })
 
     // 🔥 Desa a Firestore
-    await firestore.collection('stage_verd').doc(id).set(payload)
+    await firestoreAdmin.collection('stage_verd').doc(id).set(payload)
 
     return NextResponse.json({ ok: true, id }, { status: 200 })
   } catch (err: any) {

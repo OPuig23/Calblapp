@@ -49,7 +49,8 @@ export async function buildLedger(
   const lastAssignedAtByUser = new Map<string, string | null>()
 
   // 🔹 Carreguem docs de Firestore
-  const snap = await firestore.collection(collForDept(department)).get()
+ const snap = await db.collection(collForDept(department)).get()
+
   const busy: BusyAssignment[] = snap.docs.map(d => ({
     id: d.id,
     ...(d.data() as Omit<BusyAssignment, 'id'>),

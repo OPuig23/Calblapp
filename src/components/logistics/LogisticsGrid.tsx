@@ -14,7 +14,8 @@ type EditedMap = Record<string, { PreparacioData?: string; PreparacioHora?: stri
 function parseDM(value: string) {
   const m = /^(\d{1,2})\/(\d{1,2})$/.exec(value?.trim() || '')
   if (!m) return null
-  const d = Number(m[1]), mm = Number(m[2])
+  const d = Number(m[1])
+  const mm = Number(m[2])
   if (d < 1 || d > 31 || mm < 1 || mm > 12) return null
   return { d, m: mm }
 }
@@ -58,8 +59,9 @@ export default function LogisticsGrid() {
         const bHas = !!(b.PreparacioData && b.PreparacioHora)
         if (aHas && !bHas) return -1
         if (!aHas && bHas) return 1
-        if (!aHas && !bHas)
+        if (!aHas && !bHas) {
           return new Date(a.DataInici).getTime() - new Date(b.DataInici).getTime()
+        }
         const d1 = new Date(`${a.PreparacioData}T${a.PreparacioHora || '00:00'}`).getTime()
         const d2 = new Date(`${b.PreparacioData}T${b.PreparacioHora || '00:00'}`).getTime()
         return d1 - d2
@@ -88,7 +90,9 @@ export default function LogisticsGrid() {
         const year = original ? new Date(original.DataInici).getFullYear() : new Date().getFullYear()
         payload.PreparacioData = toISOFromDM(edited[id].PreparacioData!, year)
       }
-      if (edited[id]?.PreparacioHora) payload.PreparacioHora = edited[id].PreparacioHora!
+      if (edited[id]?.PreparacioHora) {
+        payload.PreparacioHora = edited[id].PreparacioHora!
+      }
 
       await fetch('/api/logistics/update', {
         method: 'POST',
@@ -118,9 +122,7 @@ export default function LogisticsGrid() {
 
   return (
     <div className="mt-4 w-full bg-white border rounded-xl shadow-sm overflow-hidden">
-     
       {/* 🔹 SmartFilter: control de dates centralitzat */}
-    
       <div className="px-4 py-3 border-b bg-gray-50">
         <SmartFilters
           showStatus={false}
@@ -135,12 +137,18 @@ export default function LogisticsGrid() {
         <table className="min-w-max text-[10px] sm:text-xs border-collapse w-full">
           <thead>
             <tr className="bg-gray-100 text-left">
-              <th className="p-2 bg-white sticky left-0 shadow-sm z-30">Data esdeveniment</th>
-              <th className="p-2">Nom</th>
-              <th className="p-2">Pax</th>
-              <th className="p-2">Ubicació</th>
-              <th className="p-2">Data preparació</th>
+              {/* 1 → Data preparació (sticky) */}
+              <th className="p-2 bg-white sticky left-0 shadow-sm z-30">Data preparació</th>
+              {/* 2 → Hora preparació */}
               <th className="p-2">Hora preparació</th>
+              {/* 3 → Nom */}
+              <th className="p-2">Nom</th>
+              {/* 4 → Pax */}
+              <th className="p-2">Pax</th>
+              {/* 5 → Ubicació */}
+              <th className="p-2">Ubicació</th>
+              {/* 6 → Data esdeveniment */}
+              <th className="p-2">Data esdeveniment</th>
             </tr>
           </thead>
 
@@ -161,13 +169,8 @@ export default function LogisticsGrid() {
                     key={`row-${idx}`}
                     className="border-t align-top hover:bg-gray-50 transition-colors text-left"
                   >
+                    {/* 1 → Data preparació (sticky) */}
                     <td className="p-2 bg-white sticky left-0 border-r shadow-sm font-medium">
-                      {format(new Date(ev.DataInici), 'dd/MM', { locale: ca })}
-                    </td>
-                    <td className="p-2">{ev.NomEvent}</td>
-                    <td className="p-2">{ev.NumPax ?? '-'}</td>
-                    <td className="p-2">{ev.Ubicacio}</td>
-                    <td className="p-2">
                       {(role === 'cap' || role === 'admin' || role === 'direccio') ? (
                         <input
                           type="text"
@@ -188,6 +191,8 @@ export default function LogisticsGrid() {
                         <span>{prepDM || '-'}</span>
                       )}
                     </td>
+
+                    {/* 2 → Hora preparació */}
                     <td className="p-2">
                       {(role === 'cap' || role === 'admin' || role === 'direccio') ? (
                         <input
@@ -205,6 +210,20 @@ export default function LogisticsGrid() {
                       ) : (
                         <span>{prepH || '-'}</span>
                       )}
+                    </td>
+
+                    {/* 3 → Nom */}
+                    <td className="p-2">{ev.NomEvent}</td>
+
+                    {/* 4 → Pax */}
+                    <td className="p-2">{ev.NumPax ?? '-'}</td>
+
+                    {/* 5 → Ubicació */}
+                    <td className="p-2">{ev.Ubicacio}</td>
+
+                    {/* 6 → Data esdeveniment */}
+                    <td className="p-2">
+                      {format(new Date(ev.DataInici), 'dd/MM', { locale: ca })}
                     </td>
                   </tr>
                 )

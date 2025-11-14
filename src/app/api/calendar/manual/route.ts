@@ -41,7 +41,7 @@ export async function POST(req: Request) {
     }
 
     // 🔥 Desa al Firestore dins stage_verd
-    await firestore.collection('stage_verd').doc(id).set(newEvent)
+    await firestoreAdmin.collection('stage_verd').doc(id).set(newEvent)
 
     return NextResponse.json({ ok: true, id })
   } catch (error: any) {

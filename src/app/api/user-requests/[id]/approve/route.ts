@@ -42,7 +42,7 @@ export async function POST(req: NextRequest, ctx: { params: { id: string } }) {
   try {
     console.log('📩 [approve] Inici aprovació per personId:', personId)
 
-    const reqRef = firestore.collection('userRequests').doc(personId)
+    const reqRef = firestoreAdmin.collection('userRequests').doc(personId)
     const reqSnap = await reqRef.get()
     if (!reqSnap.exists) {
       console.error('❌ [approve] Sol·licitud no trobada:', personId)
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest, ctx: { params: { id: string } }) {
     console.log('📥 [approve] Dades de la sol·licitud:', reqData)
 
     // 🔎 Comprovar si l'usuari ja existeix
-    const userRef = firestore.collection('users').doc(personId)
+    const userRef = firestoreAdmin.collection('users').doc(personId)
     const userDoc = await userRef.get()
     if (userDoc.exists) {
       console.warn('⚠️ [approve] Usuari ja existia, no es crearà de nou:', personId)
@@ -61,7 +61,7 @@ export async function POST(req: NextRequest, ctx: { params: { id: string } }) {
     }
 
     // 🔹 Reaprofitem dades de personnel
-    const personSnap = await firestore.collection('personnel').doc(personId).get()
+    const personSnap = await firestoreAdmin.collection('personnel').doc(personId).get()
     if (!personSnap.exists) {
       console.error('❌ [approve] Personal no trobat:', personId)
       return NextResponse.json({ success: false, error: 'Personal no trobat' }, { status: 404 })

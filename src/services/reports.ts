@@ -38,7 +38,7 @@ interface QuadrantDoc {
 
 export async function getPersonnelReport(filters: ReportFilters) {
   // 1) Consulta quadrants segons dates
-  let q = firestore.collection('quadrants')
+  let q = firestoreAdmin.collection('quadrants')
   if (filters.from) q = q.where('weekStart', '>=', Timestamp.fromDate(new Date(filters.from)))
   if (filters.to)   q = q.where('weekStart', '<=', Timestamp.fromDate(new Date(filters.to)))
   const quadSnap = await q.get()

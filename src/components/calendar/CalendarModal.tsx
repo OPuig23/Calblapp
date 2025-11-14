@@ -309,12 +309,41 @@ onSaved?.()
         {trigger}
       </DialogTrigger>
 
-      <DialogContent className="max-w-md z-[100]" onClick={(e) => e.stopPropagation()}>
+<DialogContent
+  className="
+    w-full 
+    max-w-lg 
+
+    /* 📱 Mòbil: modal fullscreen */
+    h-[95dvh]
+    overflow-y-auto 
+    rounded-none
+
+    /* 🖥 Desktop: modal centrat clàssic */
+    sm:h-auto
+    sm:rounded-lg
+    sm:fixed
+    sm:top-[50%]
+    sm:left-[50%]
+    sm:-translate-x-1/2
+    sm:-translate-y-1/2
+  "
+  onClick={(e) => e.stopPropagation()}
+>
+
+
         <DialogHeader>
           <DialogTitle className="text-base font-semibold">
             {editData.NomEvent || 'Esdeveniment'}
           </DialogTitle>
         </DialogHeader>
+        <button
+  onClick={() => setOpen(false)}
+  className="absolute right-3 top-3 text-gray-500 hover:text-gray-700 sm:hidden"
+>
+  ✕
+</button>
+
 
         <div className="space-y-3 text-sm text-gray-700">
           {/* Etapa */}
