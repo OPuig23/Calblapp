@@ -1,4 +1,3 @@
-// file: src/components/personnel/PersonnelList.tsx
 'use client'
 
 import * as React from 'react'
@@ -14,36 +13,48 @@ import {
   AtSign,
   Pencil,
   Trash2,
+  UserPlus,
+  Clock,
+  CheckCircle2,
+  XCircle
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-/* ──────────────────────────────
-   Icones de rol i vehicle
-────────────────────────────── */
+/* 🎨 Icones de rol */
 const roleIcon: Record<string, React.ReactNode> = {
   responsable: <GraduationCap className="text-blue-700" size={18} />,
-  conductor: <Truck className="text-orange-500" size={18} />,
+  driver: <Truck className="text-orange-500" size={18} />,
   treballador: <User className="text-green-600" size={18} />,
-  brigada: <Users className="text-purple-600" size={18} />,
+  brigada: <Users className="text-purple-600" size={18} />
 }
 
+/* 🎨 Icona vehicle */
 function VehicleIcon({ type }: { type?: string }) {
   if (!type) return null
-  switch (type.toLowerCase()) {
-    case 'camiogran':
-      return <Truck className="w-4 h-4 text-blue-800" title="Camió gran" />
-    case 'camiopetit':
-      return <Truck className="w-4 h-4 text-green-700" title="Camió petit" />
-    case 'furgoneta':
-      return <Car className="w-4 h-4 text-orange-600" title="Furgoneta" />
-    default:
-      return <Truck className="w-4 h-4 text-gray-500" title={type} />
-  }
+  const t = type.toLowerCase()
+
+  if (t === 'camiogran')
+    return <Truck className="w-4 h-4 text-blue-800" title="Camió gran" />
+
+  if (t === 'camiopetit')
+    return <Truck className="w-4 h-4 text-green-700" title="Camió petit" />
+
+  if (t === 'furgoneta')
+    return <Car className="w-4 h-4 text-orange-600" title="Furgoneta" />
+
+  return <Truck className="w-4 h-4 text-gray-500" title={type} />
 }
 
-/* ──────────────────────────────
-   Component principal
-────────────────────────────── */
+/* 🎨 Colors franja departament */
+const deptColor = (dept?: string) => {
+  const d = (dept || '').toLowerCase()
+  if (d.includes('log')) return 'bg-blue-500'
+  if (d.includes('cuina')) return 'bg-green-500'
+  if (d.includes('serve')) return 'bg-purple-500'
+  if (d.includes('food')) return 'bg-pink-500'
+  return 'bg-gray-300'
+}
+
 type Props = {
   personnel: Personnel[]
   mutate: () => void
@@ -51,9 +62,10 @@ type Props = {
 }
 
 export default function PersonnelList({ personnel, mutate, onEdit }: Props) {
-  const { deletePersonnel } = usePersonnel()
+  const { deletePersonnel, requestUser } = usePersonnel()
   const [loadingMap, setLoadingMap] = React.useState<Record<string, boolean>>({})
 
+  // 🔥 Accions
   async function handleDelete(p: Personnel) {
     if (!confirm(`Segur que vols eliminar ${p.name || p.id}?`)) return
     try {
@@ -65,59 +77,52 @@ export default function PersonnelList({ personnel, mutate, onEdit }: Props) {
     }
   }
 
-  if (!personnel?.length) {
-    return <div className="text-gray-500 text-center py-6">No hi ha personal per mostrar.</div>
+  async function handleRequestUser(p: Personnel) {
+    try {
+      setLoadingMap((m) => ({ ...m, [p.id]: true }))
+      await requestUser(p.id)
+      mutate()
+    } finally {
+      setLoadingMap((m) => ({ ...m, [p.id]: false }))
+    }
   }
 
-  const deptBorder = (dept?: string) => {
-    const d = (dept || '').toLowerCase()
-    if (d.includes('log')) return 'border-blue-200'
-    if (d.includes('cuina')) return 'border-green-200'
-    if (d.includes('serve')) return 'border-purple-200'
-    if (d.includes('food')) return 'border-pink-200'
-    return 'border-gray-200'
+  if (!personnel?.length) {
+    return <p className="text-gray-500 text-center py-6">No hi ha personal.</p>
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4 w-full">
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
       {personnel.map((p) => {
         const isLoading = !!loadingMap[p.id]
-        const available = p.available
         const role = (p.role || '').toLowerCase()
+
         return (
           <div
             key={p.id}
-            className={cn(
-              'w-full rounded-2xl border bg-white p-3 shadow-sm hover:shadow-md transition-all',
-              deptBorder(p.department)
-            )}
+            className="relative rounded-xl bg-white shadow-sm hover:shadow-md transition border border-gray-200 p-3"
           >
-            {/* ─────────── Línia 1 ─────────── */}
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex flex-wrap items-center gap-2">
-                {/* Inicial + Nom */}
-                <div className="flex items-center gap-2">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 border border-gray-300 text-gray-700 font-semibold">
-                    {p.name?.[0]?.toUpperCase() || <User className="h-4 w-4" />}
-                  </div>
-                  <span className="font-semibold text-gray-900 text-sm truncate max-w-[140px]">
-                    {p.name}
-                  </span>
+            {/* Franja superior */}
+            <div className={cn('absolute top-0 left-0 w-full h-1 rounded-t-xl', deptColor(p.department))} />
+
+            {/* Línia superior */}
+            <div className="flex items-center justify-between mt-2">
+              {/* Identitat */}
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-full bg-gray-100 border flex items-center justify-center text-gray-700 font-semibold">
+                  {p.name?.[0]?.toUpperCase() || <User size={14} />}
                 </div>
 
-                {/* Departament */}
-                {p.department && (
-                  <span className="text-xs text-gray-600 truncate max-w-[80px]">
-                    {p.department}
-                  </span>
-                )}
+                <div className="flex flex-col">
+                  <span className="font-semibold text-sm text-gray-900">{p.name}</span>
+                  <span className="text-xs text-gray-500">{p.department}</span>
+                </div>
 
-                {/* Icona rol */}
                 {roleIcon[role] || roleIcon['treballador']}
               </div>
 
-              {/* Accions */}
-              <div className="flex gap-1">
+              {/* Botons */}
+              <div className="flex items-center gap-1">
                 {onEdit && (
                   <Button
                     variant="ghost"
@@ -125,9 +130,10 @@ export default function PersonnelList({ personnel, mutate, onEdit }: Props) {
                     onClick={() => onEdit(p)}
                     className="text-orange-600 hover:bg-orange-50 rounded-full"
                   >
-                    <Pencil className="h-4 w-4" />
+                    <Pencil size={15} />
                   </Button>
                 )}
+
                 <Button
                   variant="ghost"
                   size="icon"
@@ -135,38 +141,76 @@ export default function PersonnelList({ personnel, mutate, onEdit }: Props) {
                   disabled={isLoading}
                   className="text-red-600 hover:bg-red-50 rounded-full"
                 >
-                  <Trash2 className="h-4 w-4" />
+                  <Trash2 size={15} />
                 </Button>
               </div>
             </div>
 
-            {/* ─────────── Línia 2 ─────────── */}
-            <div className="flex flex-wrap items-center gap-2 text-xs text-gray-700">
-              {/* Punt de disponibilitat */}
+            {/* Línia info */}
+            <div className="flex items-center gap-3 text-xs text-gray-700 mt-2">
               <span
                 className={cn(
                   'inline-block w-2.5 h-2.5 rounded-full',
-                  available ? 'bg-green-500' : 'bg-red-500'
+                  p.available ? 'bg-green-500' : 'bg-red-500'
                 )}
-                title={available ? 'Disponible' : 'No disponible'}
               />
 
-              {/* Vehicle */}
-              {p.driver?.isDriver && <VehicleIcon type={p.driver.vehicleType || (p.driver.camioGran ? 'camioGran' : p.driver.camioPetit ? 'camioPetit' : 'furgoneta')} />}
+              {p.driver?.isDriver && (
+                <VehicleIcon
+                  type={
+                    p.driver.camioGran
+                      ? 'camioGran'
+                      : p.driver.camioPetit
+                      ? 'camioPetit'
+                      : 'furgoneta'
+                  }
+                />
+              )}
 
-              {/* Telèfon */}
               {p.phone && (
                 <span className="flex items-center gap-1 text-gray-600">
-                  <Phone className="h-3 w-3" /> {p.phone}
+                  <Phone size={12} /> {p.phone}
                 </span>
               )}
 
-              {/* Email */}
               {p.email && (
-                <span className="flex items-center gap-1 text-gray-600 truncate max-w-[130px]">
-                  <AtSign className="h-3 w-3" />
+                <span className="flex items-center gap-1 text-gray-600 truncate max-w-[120px]">
+                  <AtSign size={12} />
                   <span className="truncate">{p.email}</span>
                 </span>
+              )}
+            </div>
+
+            {/* Estat usuari */}
+            <div className="mt-3">
+              {p.hasUser && (
+                <div className="flex items-center gap-2 text-green-600 text-xs font-medium">
+                  <CheckCircle2 size={16} /> Usuari creat
+                </div>
+              )}
+
+              {!p.hasUser && p.requestStatus === 'pending' && (
+                <div className="flex items-center gap-2 text-blue-600 text-xs font-medium">
+                  <Clock size={16} /> Sol·licitud pendent
+                </div>
+              )}
+
+              {!p.hasUser && p.requestStatus === 'rejected' && (
+                <div className="flex items-center gap-2 text-red-600 text-xs font-medium">
+                  <XCircle size={16} /> Sol·licitud rebutjada
+                </div>
+              )}
+
+              {!p.hasUser && p.requestStatus === 'none' && (
+                <Button
+                  size="sm"
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 mt-1"
+                  disabled={isLoading}
+                  onClick={() => handleRequestUser(p)}
+                >
+                  <UserPlus size={16} />
+                  Sol·licitar usuari
+                </Button>
               )}
             </div>
           </div>

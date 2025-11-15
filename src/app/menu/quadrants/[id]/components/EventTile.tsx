@@ -14,40 +14,36 @@ interface QuadrantEvent {
   start?: string
   end?: string
   location?: string
-  state?: 'pending' | 'draft' | 'confirmed'
-  lnLabel?: string
-  commercial?: string
+  numPax?: number
   service?: string
-  numPax?: string | number
+  commercial?: string
   code?: string
-  locationShort?: string
-  mapsUrl?: string
+  lnLabel?: string
   HoraInici?: string
 }
 
-/* 🔹 Color d’estat visual segons quadrant real */
 function getQuadrantColor(status?: string | null) {
-  if (!status) return 'bg-amber-400' // pendent
-  if (status === 'draft') return 'bg-blue-400' // esborrany
-  if (status === 'confirmed') return 'bg-green-500' // confirmat
+  if (!status) return 'bg-amber-400'        // pendent
+  if (status === 'draft') return 'bg-blue-500' // esborrany
+  if (status === 'confirmed') return 'bg-green-500'
   return 'bg-gray-300'
 }
 
-export default function EventTile({
-  event,
-  onClick,
-}: {
+export default function EventTile({ event, onClick }: {
   event: QuadrantEvent
   onClick: (ev: QuadrantEvent) => void
 }) {
+
+  // 🔵 AQUI LA CLAU → l’estat real enviat des de CalendarView
+  const quadrantStatus = (event as any).quadrantStatus || null
+
+  // Color LN
   const lnColor = colorByLN(event.lnLabel)
-  const stateColor = getQuadrantColor((event as any).quadrantStatus)
+  const stateColor = getQuadrantColor(quadrantStatus)
 
   const loc =
-    event.locationShort ||
-    (event.location ? event.location.split(/[|,\.]/)[0].trim() : '')
+    (event.location?.split(/[|,\.]/)[0]?.trim()) || ''
 
-  // 🕒 Només mostrem l'hora d'inici real si ve de Firestore
   const startTime =
     (event as any).HoraInici || (event as any).horaInici || null
 
@@ -58,12 +54,12 @@ export default function EventTile({
           layout
           whileHover={{ scale: 1.02 }}
           onClick={() => onClick(event)}
-          className={`cursor-pointer rounded-2xl bg-white shadow-md hover:shadow-lg transition-all 
-            border-l-4 ${stateColor}`}
+          className={`cursor-pointer rounded-2xl bg-white shadow-md hover:shadow-lg transition-all border-l-4 ${stateColor}`}
         >
           <Card className="border-none bg-transparent rounded-2xl">
             <CardContent className="px-3 py-2 flex flex-col gap-1.5">
-              {/* 🔹 Capçalera: nom + hora + punt */}
+
+              {/* Títol + punt */}
               <div className="flex items-start justify-between">
                 <div className="flex flex-col flex-1">
                   <h3 className="text-[15px] font-semibold text-gray-900 leading-tight truncate">
@@ -78,19 +74,19 @@ export default function EventTile({
                   )}
                 </div>
 
+                {/* 🔵 Punt segons ESTAT REAL */}
                 <span
                   className={`h-3.5 w-3.5 rounded-full shadow-inner ${stateColor}`}
-                  title={event.state || 'pendent'}
+                  title={quadrantStatus || 'pendent'}
                 />
               </div>
 
-              {/* 🔹 Bloc 2: Línia negoci + Comercial */}
+              {/* LN + Comercial */}
               <div className="flex flex-wrap items-center gap-2 text-xs mt-1">
-                <span
-                  className={`px-2 py-[1px] rounded-full font-medium ${lnColor}`}
-                >
+                <span className={`px-2 py-[1px] rounded-full font-medium ${lnColor}`}>
                   {event.lnLabel || 'Altres'}
                 </span>
+
                 {event.commercial && (
                   <span className="flex items-center gap-1 text-gray-700">
                     <User className="w-3.5 h-3.5" />
@@ -99,7 +95,7 @@ export default function EventTile({
                 )}
               </div>
 
-              {/* 🔹 Bloc 3: Servei + Pax + Codi */}
+              {/* Servei + Pax + Codi */}
               <div className="flex flex-wrap gap-2 items-center text-[12px] text-gray-600 mt-0.5">
                 {event.service && (
                   <span className="flex items-center gap-1">
@@ -107,15 +103,15 @@ export default function EventTile({
                     <span>{event.service}</span>
                   </span>
                 )}
+
                 {event.numPax && <span>· {event.numPax} pax</span>}
+
                 {event.code && (
-                  <span>
-                    · <strong className="text-gray-800">{event.code}</strong>
-                  </span>
+                  <span>· <strong>{event.code}</strong></span>
                 )}
               </div>
 
-              {/* 🔹 Bloc 4: Ubicació */}
+              {/* Ubicació */}
               {loc && (
                 <div className="flex items-center gap-1.5 text-[11px] text-gray-500 mt-1.5">
                   <MapPin className="w-3.5 h-3.5 text-gray-400" />
@@ -126,8 +122,6 @@ export default function EventTile({
           </Card>
         </motion.div>
       </TooltipTrigger>
-
-      
     </Tooltip>
   )
 }

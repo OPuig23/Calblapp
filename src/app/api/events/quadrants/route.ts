@@ -1,4 +1,4 @@
-//file:src\app\api\events\quadrants\route.ts
+// file: src/app/api/events/quadrants/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/firebaseAdmin'
 
@@ -14,18 +14,22 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Falten start i end' }, { status: 400 })
     }
 
-    console.log(`[events/quadrants] 🔍 Llegint Firestore: stage_verd`)
+    console.log(`[events/quadrants] 🔍 Llegint Firestore: stage_verd`, { start, end })
 
     const snap = await db.collection('stage_verd').get()
 
     const events = (snap.docs || [])
       .map((doc) => {
         const d = doc.data() as any
-console.log(`[events/quadrants] CODE → ${d?.code || d?.C_digo || '(sense codi)'} | NomEvent: ${d?.NomEvent}`)
+
+        console.log(
+          `[events/quadrants] CODE → ${d?.code || d?.C_digo || '(sense codi)'} | NomEvent: ${d?.NomEvent}`
+        )
 
         // 📅 Dates
         const startISO = d?.DataInici ? `${d.DataInici}T00:00:00.000Z` : null
         const endISO = d?.DataFi ? `${d.DataFi}T00:00:00.000Z` : startISO
+        const day = startISO ? startISO.slice(0, 10) : ''
 
         // 📍 Ubicació neta
         const rawLocation = d?.Ubicacio || ''
@@ -41,7 +45,7 @@ console.log(`[events/quadrants] CODE → ${d?.code || d?.C_digo || '(sense codi)
           summary: d?.NomEvent || '(Sense títol)',
           start: startISO,
           end: endISO,
-          day: startISO ? startISO.slice(0, 10) : '',
+          day,
           location,
           lnKey: (d?.LN || 'Altres').toLowerCase(),
           lnLabel: d?.LN || 'Altres',
@@ -50,17 +54,23 @@ console.log(`[events/quadrants] CODE → ${d?.code || d?.C_digo || '(sense codi)
           numPax: d?.NumPax || '',
           code: d?.code || d?.C_digo || '',
           status: d?.StageGroup?.toLowerCase().includes('confirmat')
-  ? 'confirmed'
-  : d?.StageGroup?.toLowerCase().includes('proposta')
-  ? 'draft'
-  : 'pending',
-
+            ? 'confirmed'
+            : d?.StageGroup?.toLowerCase().includes('proposta')
+            ? 'draft'
+            : 'pending',
         }
       })
-      // 🎯 Només esdeveniments amb codi
-      .filter((ev) => ev.code && ev.code.trim() !== '')
+      .filter((ev) => {
+        // 🎯 Ha de tenir codi
+        if (!ev.code || !ev.code.trim()) return false
+        // 🎯 Ha de tenir data d'inici
+        if (!ev.start || !ev.day) return false
 
-    console.log(`[events/quadrants] 📦 Total trobats: ${events.length}`)
+        // 🎯 Filtre pel rang [start, end] (YYYY-MM-DD)
+        return ev.day >= start && ev.day <= end
+      })
+
+    console.log(`[events/quadrants] 📦 Total trobats dins rang: ${events.length}`)
 
     return NextResponse.json({ events }, { status: 200 })
   } catch (err: unknown) {

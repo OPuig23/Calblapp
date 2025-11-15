@@ -1,7 +1,6 @@
-// file: src/app/menu/quadrants/[id]/components/CalendarView.tsx
 'use client'
 
-import React, { useMemo } from 'react'
+import React, { useMemo, useEffect } from 'react'
 import { Users, Calendar } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { ca } from 'date-fns/locale'
@@ -13,31 +12,53 @@ interface CalendarViewProps {
   date: string
   events: QuadrantEvent[]
   onEventClick?: (ev: QuadrantEvent) => void
-  department?: string // 👈 afegim el departament per saber quina col·lecció mirar
+  department: string
+  start: string
+  end: string
 }
 
 export default function CalendarView({
   date,
   events,
   onEventClick,
-  department = 'logistica',
+  department,
+  start,
+  end,
 }: CalendarViewProps) {
-  // 📅 Carreguem quadrants del departament per al rang de dates
-  const { quadrants, loading: loadingQuadrants } = useQuadrants(department)
 
-  // ✅ Creuem events amb quadrants per saber estat
+  // 📅 Carrega quadrants del rang correcte
+  const { quadrants, loading: loadingQuadrants, reload } = useQuadrants(
+    department,
+    start,
+    end
+  )
+
+  // 🔄 Recarrega quadrants quan el modal crea un borrador
+  useEffect(() => {
+    const handler = () => {
+      reload() // refresca quadrants immediatament
+    }
+
+    window.addEventListener('quadrant:created', handler)
+    return () => window.removeEventListener('quadrant:created', handler)
+  }, [reload])
+
+  // 🟦 Assigna quadrantStatus a cada event
   const enrichedEvents = useMemo(() => {
     return events.map((ev) => {
-      // 🧩 Normalitza codis per evitar problemes amb #, espais o majúscules
-const normalizeCode = (val?: string) =>
-  (val || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase()
+      const normalizeCode = (val?: string) =>
+        (val || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase()
 
-const match = quadrants.find(
-  (q) => normalizeCode(q.code) === normalizeCode(ev.code)
-)
+      const match = quadrants.find(
+        (q) => normalizeCode(q.code) === normalizeCode(ev.code)
+      )
 
-const quadrantStatus: 'confirmed' | 'draft' | null = match ? match.status : null
-
+      const quadrantStatus: 'confirmed' | 'draft' | null =
+        match?.status === 'confirmed'
+          ? 'confirmed'
+          : match?.status === 'draft'
+          ? 'draft'
+          : null
 
       return {
         ...ev,
@@ -46,7 +67,7 @@ const quadrantStatus: 'confirmed' | 'draft' | null = match ? match.status : null
     })
   }, [events, quadrants])
 
-  // ✅ Comptem total de persones
+  // 👥 Comptem persones
   const totalWorkers = useMemo(() => {
     const people = new Set<string>()
     for (const e of events) {
