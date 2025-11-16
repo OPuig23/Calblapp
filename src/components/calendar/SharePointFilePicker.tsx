@@ -1,131 +1,156 @@
-//file: src/components/calendar/SharePointFilePicker.tsx
+// file: src/components/shared/SharePointFilePicker.tsx
 'use client'
-import { useEffect, useState } from 'react'
+
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { ChevronLeft, Folder, FileText, ExternalLink } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { Card, CardContent } from '@/components/ui/card'
+import { Folder, FileText, ArrowLeft, Loader2 } from 'lucide-react'
 
-type Item = { id: string; name: string; webUrl: string; folder?: any; file?: { mimeType: string } }
+type SharePointItem = {
+  id: string
+  name: string
+  webUrl: string
+  folder?: { childCount: number }
+  file?: { mimeType: string }
+}
 
-interface Props {
+interface SharePointFilePickerProps {
   open: boolean
-  onOpenChange: (v: boolean) => void
-  basePath?: string // default /Esdeveniments
+  onOpenChange: (open: boolean) => void
   onSelected: (item: { id: string; name: string; url: string }) => void
 }
 
-export default function SharePointPicker({ open, onOpenChange, basePath = '/Esdeveniments', onSelected }: Props) {
-  const [path, setPath] = useState(basePath)
-  const [items, setItems] = useState<Item[]>([])
+export default function SharePointFilePicker({
+  open,
+  onOpenChange,
+  onSelected,
+}: SharePointFilePickerProps) {
+  const [path, setPath] = useState('/Esdeveniments')
+  const [items, setItems] = useState<SharePointItem[]>([])
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [breadcrumbs, setBreadcrumbs] = useState<string[]>([])
+  const [stack, setStack] = useState<string[]>([]) // Per "Enrere"
 
+  /* ─────────────────────────────────────────────
+     GET → Carrega contingut de la carpeta
+  ───────────────────────────────────────────── */
   useEffect(() => {
     if (!open) return
-    void load(path)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    setLoading(true)
+
+    fetch(`/api/sharepoint/browse?path=${encodeURIComponent(path)}`)
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`Resposta ${r.status}`)
+        const text = await r.text()
+        if (!text) return { items: [] }
+        try {
+          return JSON.parse(text)
+        } catch {
+          console.error('❌ JSON invàlid rebut de SharePoint:', text)
+          return { items: [] }
+        }
+      })
+      .then((data) => setItems(data.items ?? []))
+      .catch((err) => console.error('❌ Error carregant SharePoint:', err))
+      .finally(() => setLoading(false))
   }, [open, path])
 
-  async function load(p: string) {
-    try {
-      setLoading(true); setError(null)
-      const url = `/api/sharepoint/browse?path=${encodeURIComponent(p)}`
-      const res = await fetch(url)
-      const data = await res.json()
-      setItems(data.items || [])
-      // bres
-      const parts = p.split('/').filter(Boolean)
-      const idx = parts.findIndex(seg => seg.toLowerCase() === 'esdeveniments')
-      setBreadcrumbs(parts.slice(idx)) // mostrar des d'Esdeveniments
-    } catch (e: any) {
-      setError(e.message)
-    } finally {
-      setLoading(false)
+  /* ─────────────────────────────────────────────
+     Quan l’usuari fa clic a un element
+  ───────────────────────────────────────────── */
+  const handleClick = (item: SharePointItem) => {
+    if (item.folder) {
+      // Obrir carpeta
+      setStack((prev) => [...prev, path])
+      setPath(`${path}/${item.name}`)
+      return
+    }
+
+    if (item.file) {
+      // 🔥 URL 100% pública via proxy → sense login Microsoft
+      const publicUrl = `/api/sharepoint/file?itemId=${encodeURIComponent(
+        item.id
+      )}`
+
+      onSelected({
+        id: item.id,
+        name: item.name,
+        url: publicUrl,
+      })
+
+      onOpenChange(false)
     }
   }
 
-  function goUp() {
-    const parts = path.split('/').filter(Boolean)
-    if (parts.length <= 1) return
-    setPath('/' + parts.slice(0, -1).join('/'))
+  /* ─────────────────────────────────────────────
+     Enrere
+  ───────────────────────────────────────────── */
+  const goBack = () => {
+    const prev = [...stack]
+    const last = prev.pop()
+    setStack(prev)
+    if (last) setPath(last)
   }
 
-  async function selectFile(item: Item) {
-    // demanem un link anònim view
-    const res = await fetch('/api/sharepoint/browse', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ itemId: item.id })
-    })
-    const data = await res.json()
-    if (!data?.url) return
-onSelected({
-  id: item.id,
-  name: item.name,
-  url: data.url,   // ✔️ DIRECTE, és el que retorna l’API
-})
-
-
-    onOpenChange(false)
-  }
+  if (!open) return null
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg w-[95vw] p-0">
-        <DialogHeader className="p-4 pb-0">
-          <DialogTitle className="text-lg">Selecciona un fitxer (SharePoint)</DialogTitle>
-        </DialogHeader>
-
-        <div className="p-4">
-          <div className="flex items-center gap-2 text-sm">
-            <Button variant="ghost" size="sm" onClick={goUp} className="h-8 px-2" aria-label="Amunt">
-              <ChevronLeft className="h-4 w-4" />
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40">
+      <Card className="w-11/12 max-w-md rounded-2xl shadow-xl">
+        <CardContent className="p-4">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-base font-semibold text-gray-800">
+              Navega per SharePoint
+            </h2>
+            <Button size="sm" variant="outline" onClick={() => onOpenChange(false)}>
+              Tanca
             </Button>
-            <div className="flex-1 truncate">
-              <span className="text-muted-foreground">/</span>
-              {breadcrumbs.map((b, i) => (
-                <span key={i} className="text-muted-foreground">
-                  {b}{i < breadcrumbs.length - 1 ? ' / ' : ''}
-                </span>
-              ))}
-            </div>
           </div>
 
-          <div className="mt-3 rounded-lg border">
-            {loading && <div className="p-4 text-sm">Carregant…</div>}
-            {error && <div className="p-4 text-sm text-red-600">Error: {error}</div>}
-            {!loading && !error && (
-              <ul className="max-h-[50vh] overflow-auto divide-y">
-                {items.map(it => {
-                  const isFolder = !!it.folder
-                  return (
-                    <li key={it.id} className="flex items-center justify-between p-3">
-                      <button
-                        className={cn("flex items-center gap-3 text-left w-full", !isFolder && "hover:opacity-80")}
-                        onClick={() => isFolder ? setPath(path.replace(/\/$/, '') + '/' + it.name) : selectFile(it)}
-                      >
-                        {isFolder ? <Folder className="h-5 w-5" /> : <FileText className="h-5 w-5" />}
-                        <div className="flex-1 min-w-0">
-                          <div className="truncate">{it.name}</div>
-                          <div className="text-xs text-muted-foreground truncate">{isFolder ? 'Carpeta' : (it.file?.mimeType || '')}</div>
-                        </div>
-                        {!isFolder && <ExternalLink className="h-4 w-4 text-muted-foreground" />}
-                      </button>
-                    </li>
-                  )
-                })}
-              </ul>
+          {/* Path */}
+          <div className="flex items-center mb-2">
+            {stack.length > 0 && (
+              <Button size="icon" variant="ghost" onClick={goBack} className="mr-2">
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
             )}
+            <p className="text-xs text-gray-500 truncate">{path}</p>
           </div>
-        </div>
 
-        <DialogFooter className="p-4 pt-0">
-          <Input readOnly value={path} className="text-xs" />
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          {/* Llistat */}
+          {loading ? (
+            <div className="flex justify-center py-6">
+              <Loader2 className="animate-spin h-6 w-6 text-gray-500" />
+            </div>
+          ) : (
+            <ul className="divide-y divide-gray-100 max-h-[60vh] overflow-y-auto">
+              {items.map((item) => (
+                <li
+                  key={item.id}
+                  onClick={() => handleClick(item)}
+                  className="flex items-center justify-between px-2 py-2 cursor-pointer hover:bg-blue-50 rounded-md transition"
+                >
+                  <div className="flex items-center gap-2">
+                    {item.folder ? (
+                      <Folder className="h-4 w-4 text-blue-600" />
+                    ) : (
+                      <FileText className="h-4 w-4 text-gray-600" />
+                    )}
+                    <span className="text-sm text-gray-800">{item.name}</span>
+                  </div>
+                  {item.folder ? (
+                    <span className="text-xs text-gray-400">
+                      {item.folder.childCount ?? 0}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-blue-600">Obrir</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   )
 }

@@ -96,10 +96,12 @@ export async function listChildren(path: string) {
     folder?: { childCount: number }
     file?: { mimeType: string }
   }
+  
 
   const data = await graphFetch<{ value: Item[] }>(
     `/drives/${driveId}/root:${encoded}:/children`
   )
+  
 
   return data.value
 }
@@ -123,6 +125,30 @@ export async function createAnonymousViewLink(
       body: JSON.stringify(body),
     }
   )
+  
 
   return data.link.webUrl
 }
+  export async function downloadFileContent(itemId: string) {
+  const { driveId } = await getSiteAndDrive()
+  const { access_token } = await getGraphToken()
+
+  const res = await fetch(
+    `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/content`,
+    {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${access_token}` },
+      cache: 'no-store',
+    }
+  )
+
+  if (!res.ok) {
+    const text = await res.text()
+    console.error('❌ Graph download error:', text)
+    throw new Error(`Graph download error ${res.status}: ${text}`)
+  }
+
+  return res
+}
+
+
