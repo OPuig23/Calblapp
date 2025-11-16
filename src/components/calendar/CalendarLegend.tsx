@@ -2,20 +2,24 @@
 'use client'
 
 import React from 'react'
+import { COLORS_LN, COLORS_STAGE } from '@/lib/colors'
 
 export default function CalendarLegend() {
-  const items = [
-    { label: 'Empresa', color: 'bg-blue-100 border border-blue-300 text-blue-700' },
-    { label: 'Casaments', color: 'bg-green-100 border border-green-300 text-green-700' },
-    { label: 'Grups Restaurants', color: 'bg-yellow-100 border border-yellow-300 text-yellow-700' },
-    { label: 'Foodlovers', color: 'bg-pink-100 border border-pink-300 text-pink-700' },
-    { label: 'Agenda', color: 'bg-orange-100 border border-orange-300 text-orange-700' },
+  // Línies de negoci (etiqueta visible → clau a COLORS_LN)
+  const lnItems: { label: string; key: string }[] = [
+    { label: 'Empresa', key: 'empresa' },
+    { label: 'Casaments', key: 'casaments' },
+    { label: 'Grups Restaurants', key: 'grups restaurants' },
+    { label: 'Foodlovers', key: 'foodlovers' },
+    { label: 'Agenda', key: 'agenda' },
+    { label: 'Altres', key: 'altres' },
   ]
 
-  const stages = [
-    { label: 'Prereserva / Calentet', dot: 'bg-blue-400' },
-    { label: 'Proposta / Pendent signar', dot: 'bg-orange-400' },
-    { label: 'Confirmat / Cerrada ganada', dot: 'bg-green-500' },
+  // Etapes (etiqueta visible → clau a COLORS_STAGE)
+  const stageItems: { label: string; key: string }[] = [
+    { label: 'Prereserva / Calentet', key: 'prereserva' },
+    { label: 'Proposta / Pendent signar', key: 'pendent' },
+    { label: 'Confirmat / Cerrada ganada', key: 'confirmat' },
   ]
 
   return (
@@ -23,10 +27,10 @@ export default function CalendarLegend() {
       {/* Línies de negoci */}
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="font-medium text-gray-500">LN:</span>
-        {items.map((it) => (
+        {lnItems.map((it) => (
           <span
-            key={it.label}
-            className={`px-2 py-[1px] rounded-full border ${it.color} leading-tight`}
+            key={it.key}
+            className={`px-2 py-[1px] rounded-full border ${COLORS_LN[it.key]}`}
           >
             {it.label}
           </span>
@@ -36,9 +40,11 @@ export default function CalendarLegend() {
       {/* Etapes */}
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-medium text-gray-500">Etapes:</span>
-        {stages.map((st) => (
-          <div key={st.label} className="flex items-center gap-1">
-            <span className={`w-2 h-2 rounded-full ${st.dot}`} />
+        {stageItems.map((st) => (
+          <div key={st.key} className="flex items-center gap-1">
+            <span
+              className={`w-2 h-2 rounded-full ${COLORS_STAGE[st.key]}`}
+            />
             <span>{st.label}</span>
           </div>
         ))}

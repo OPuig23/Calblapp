@@ -9,32 +9,24 @@ interface Props {
 }
 
 export default function DocumentViewer({ url, title }: Props) {
-  const isSharePoint = url.includes('calblayrest.sharepoint.com')
-  const iframeSrc = isSharePoint
-    ? `/api/sharepoint/proxy?fileUrl=${encodeURIComponent(url)}`
-    : url
-
   return (
     <div className="mt-4">
       <h3 className="font-semibold mb-2">{title}</h3>
 
-      <div className="border rounded-md overflow-hidden mb-3">
-        <iframe
-          src={iframeSrc}
-          width="100%"
-          height={500}
-          className="w-full"
-        />
+      {/* 🚫 Eliminat iframe (SharePoint no permet vista) */}
+
+      <div className="p-4 text-center text-gray-500 border rounded-md bg-gray-50 mb-3">
+        La previsualització no està disponible.
       </div>
 
-      {/* 👇 Per descàrrega, podem mantenir la URL original de SharePoint */}
+      {/* ✔️ Obrir / Descarregar – funciona amb enllaços públics de SharePoint */}
       <a
         href={url}
         target="_blank"
         rel="noreferrer"
         className="inline-block bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700 transition"
       >
-        Descarrega PDF
+        Obrir document
       </a>
     </div>
   )

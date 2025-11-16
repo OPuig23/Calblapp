@@ -33,6 +33,8 @@ interface Props {
 export default function CalendarNewEventModal({ date, trigger, onSaved }: Props) {
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [createdId, setCreatedId] = useState<string | null>(null)
+
 interface EventFormData {
   code: string
   LN: string
@@ -127,6 +129,10 @@ await ensureExists('serveis', serveiValue)
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }
+// ➕ Afegir tots els fitxers adjunts al payload com file1, file2, ...
+files.forEach((f) => {
+  payload[f.key] = f.url;
+});
 
     console.log('🧾 enviant payload:', payload)
 
@@ -138,6 +144,30 @@ await ensureExists('serveis', serveiValue)
 
     const data = await res.json()
     console.log('📩 resposta backend:', data)
+    if (data.id) {
+  setCreatedId(data.id)  // ← ja tenim ID real de Firestore
+}
+
+    // 🔹 Si hi ha fitxers, guardar-los al document nou
+if (files.length > 0) {
+  const filePayload: Record<string, string> = {};
+
+  files.forEach((f) => {
+    filePayload[f.key] = f.url;
+  });
+
+  await fetch(`/api/calendar/manual/${data.id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      ...filePayload,
+      collection: 'stage_verd',
+    }),
+  });
+
+  console.log('📎 Fitxers desats correctament en el document:', data.id);
+}
+
 
     if (!res.ok) throw new Error(data.error || 'Error backend')
 
@@ -369,17 +399,24 @@ const handleDeleteFile = async (key: string) => {
 
   {/* Botó per adjuntar fitxer */}
   <div className="mt-2">
-    <AttachFileButton
+   {!createdId && (
+  <p className="text-xs text-gray-500">
+    🔒 Desa l’esdeveniment abans d’adjuntar documents
+  </p>
+)}
+ 
+<AttachFileButton
   collection="stage_verd"
-  docId={`temp-${Date.now()}`}
+  docId={createdId || ''}   // ← mentre no hi ha ID real, desactivarem el botó
+  disabled={!createdId}     // ← NO permet adjuntar abans de guardar
   onAdded={(att) => {
-    setFiles((prev) => {
-      const jaExisteix = prev.some((f) => f.url === att.url)
-      if (jaExisteix) return prev
-      return [...prev, { key: `file${prev.length + 1}`, url: att.url }]
-    })
+    setFiles((prev) => [...prev, {
+      key: `file${prev.length + 1}`,
+      url: att.url
+    }])
   }}
 />
+
 
   </div>
 

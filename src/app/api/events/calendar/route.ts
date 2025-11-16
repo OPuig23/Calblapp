@@ -42,8 +42,20 @@ export async function GET(req: NextRequest) {
           .trim()
         const lnValue = typeof d.LN === 'string' ? d.LN : 'Altres'
 
-   base.push({
+        // 🗂️ Extreure tots els fileN del document
+const fileFields: Record<string, string> = {};
+Object.entries(d).forEach(([k, v]) => {
+  if (k.toLowerCase().startsWith("file") && typeof v === "string" && v.length > 0) {
+    fileFields[k] = v;
+  }
+});
+
+// AFEGIR TOTS ELS CAMPS DEL DOCUMENT ORIGINAL
+base.push({
   id: doc.id,
+  ...fileFields,
+
+  // Camps normalitzats que ja tenies
   summary,
   start: startISO,
   end: endISO,
@@ -53,15 +65,13 @@ export async function GET(req: NextRequest) {
   lnLabel: lnValue,
   collection: coll,
 
-  // 🆕 Camps addicionals
   comercial: d.Comercial || d.comercial || '',
   servei: d.Servei || d.servei || '',
   numPax: d.NumPax || d.numPax || 0,
   stageGroup: d.StageGroup || d.stageGroup || '',
-
-  // 🕒 Afegim hora d'inici
   HoraInici: d.HoraInici || d.horaInici || '',
 })
+
 if (d.HoraInici) console.log(`[${coll}] 🕒 HoraInici detectada:`, d.HoraInici)
 
       })

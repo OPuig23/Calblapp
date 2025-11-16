@@ -1,13 +1,12 @@
 //filename:src\components\events\EventDocumentsSheet.tsx
 'use client'
 
-import React, { useMemo, useState } from 'react'
+import React from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { ExternalLink, Eye, FileText, FileSpreadsheet, Presentation, File, Image as ImgIcon, X } 
- from 'lucide-react'
+import { ExternalLink, FileText, FileSpreadsheet, Presentation, File, Image as ImgIcon, X } 
+  from 'lucide-react'
 import useEventDocuments, { EventDoc } from '@/hooks/events/useEventDocuments'
-import DocumentViewer from '@/components/events/DocumentViewer'
 
 function DocIcon({ d }: { d: EventDoc }) {
   switch (d.icon) {
@@ -22,7 +21,7 @@ function DocIcon({ d }: { d: EventDoc }) {
 
 /**
  * Drawer mòbil-first sense dependències shadcn/ui Sheet.
- * Mostra llista d’adjunts i previsualització si hi ha previewUrl.
+ * Mostra llista d’adjunts
  */
 export default function EventDocumentsSheet({
   eventId,
@@ -34,8 +33,6 @@ export default function EventDocumentsSheet({
   onOpenChange: (v: boolean) => void
 }) {
   const { docs, loading, error } = useEventDocuments(eventId)
-  const [selected, setSelected] = useState<EventDoc | null>(null)
-  const hasPreview = useMemo(() => !!selected?.previewUrl, [selected])
 
   if (!open) return null
 
@@ -83,16 +80,9 @@ export default function EventDocumentsSheet({
                   {d.source.replace('-', ' ')}
                 </div>
               </div>
-              {d.previewUrl && (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => setSelected(d)}
-                  className="rounded-lg"
-                >
-                  <Eye className="h-4 w-4 mr-1" /> Vista
-                </Button>
-              )}
+
+              {/* ❌ Eliminat botó Vista */}
+
               <a href={d.url} target="_blank" rel="noreferrer" className="ml-2">
                 <Badge variant="outline" className="rounded-lg">Obrir</Badge>
               </a>
@@ -100,34 +90,7 @@ export default function EventDocumentsSheet({
           ))}
         </div>
 
-        {/* Previsualització */}
-        {selected && (
-          <div className="border-t p-3">
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <div className="font-semibold text-sm truncate">{selected.title}</div>
-              <div className="flex items-center gap-2">
-                <a
-                  href={selected.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-xs text-blue-600 underline"
-                >
-                  Obre a Google
-                </a>
-                <Button size="sm" variant="ghost" onClick={() => setSelected(null)} className="rounded-lg">
-                  Tancar vista
-                </Button>
-              </div>
-            </div>
-            {hasPreview ? (
-              <DocumentViewer url={selected.previewUrl!} title={selected.title} />
-            ) : (
-              <p className="text-sm text-gray-600">
-                Aquest document no admet previsualització. Fes clic a “Obrir”.
-              </p>
-            )}
-          </div>
-        )}
+        {/* ❌ Eliminada tota la secció de previsualització */}
       </div>
     </div>
   )

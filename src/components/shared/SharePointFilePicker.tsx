@@ -47,33 +47,28 @@ export default function SharePointFilePicker({
       .finally(() => setLoading(false))
   }, [path, open])
 
-  /** Gestiona clic sobre una carpeta o fitxer */
-  const handleClick = async (item: SharePointItem) => {
-    if (item.folder) {
-      // 📂 Obrir subcarpeta
-      setStack((prev) => [...prev, path])
-      setPath(`${path}/${item.name}`)
-    } else if (item.file) {
-      // 📄 Fitxer seleccionat → demanem link públic
-      setLoading(true)
-      try {
-        const res = await fetch('/api/sharepoint/browse', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ itemId: item.id, scope: 'anonymous' }),
-        })
-        const data = await res.json()
-        if (!res.ok) throw new Error(data.error || 'Error obtenint link')
-        onSelected({ id: item.id, name: item.name, url: data.url })
-        onOpenChange(false)
-      } catch (err) {
-        alert('❌ Error creant l’enllaç públic.')
-        console.error(err)
-      } finally {
-        setLoading(false)
-      }
+ /** Gestiona clic sobre una carpeta o fitxer */
+const handleClick = async (item: SharePointItem) => {
+  if (item.folder) {
+    // 📂 Obrir subcarpeta
+    setStack((prev) => [...prev, path])
+    setPath(`${path}/${item.name}`)
+  } else if (item.file) {
+    // 📄 Fitxer seleccionat → retornem l’enllaç natural de SharePoint
+    if (!item.webUrl) {
+      alert('❌ No s’ha pogut obtenir l’enllaç del fitxer.')
+      return
     }
+
+    onSelected({
+      id: item.id,
+      name: item.name,
+      url: item.webUrl, // 👉 Enllaç real, funcional i sense login
+    })
+
+    onOpenChange(false)
   }
+}
 
   /** Tornar enrere */
   const goBack = () => {

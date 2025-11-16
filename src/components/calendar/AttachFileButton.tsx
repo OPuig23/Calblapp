@@ -1,5 +1,6 @@
-//file: src/components/calendar/AttachFileButton.tsx
+// file: src/components/calendar/AttachFileButton.tsx
 'use client'
+
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import SharePointPicker from './SharePointFilePicker'
@@ -8,35 +9,56 @@ import { Paperclip } from 'lucide-react'
 type Props = {
   collection: 'stage_verd' | 'stage_taronja' | 'stage_blau'
   docId: string
-  fieldBase?: string // p.ex. "file"
+  fieldBase?: string
   onAdded?: (att: { name: string; url: string }) => void
+  disabled?: boolean  // ← afegit!
 }
 
+
 /**
- * 📎 AttachFileButton
- * - Permet seleccionar fitxers del SharePoint mitjançant el FilePicker
- * - Desa automàticament l’enllaç (file1, file2, ...) a Firestore
- * - Notifica el parent (CalendarModal o NewEventModal) perquè actualitzi la llista visual
+ * 🔗 Converteix qualsevol URL de SharePoint en un enllaç públic vàlid.
+ * Garantim que el document s’obrirà en mòbil sense login.
  */
+function toPublicSharePointLink(originalUrl: string): string {
+  if (!originalUrl) return ''
+
+  // Si ja és un link públic, no fem res
+  if (originalUrl.includes('/:b:/')) return originalUrl
+
+  try {
+    const url = new URL(originalUrl)
+
+    // Extreu la ruta després de /sites/EsdevenimentsCalBlay/
+    const parts = url.pathname.split('/sites/EsdevenimentsCalBlay/')
+    if (parts.length < 2) return originalUrl
+
+    const rel = parts[1] // ruta relativa al fitxer
+    return `https://calblayrest.sharepoint.com/:b:/s/EsdevenimentsCalBlay/${rel}`
+  } catch {
+    return originalUrl
+  }
+}
+
 export default function AttachFileButton({
   collection,
   docId,
   fieldBase = 'file',
   onAdded,
-}: Props) {
+  disabled,
+  }: Props) {
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [attachments, setAttachments] = useState<{ name: string; url: string }[]>([])
+  const [attachments] = useState<{ name: string; url: string }[]>([])
 
   /**
-   * Troba el proper camp lliure (file1, file2, file3, ...)
+   * Troba el proper fileN
    */
   const findNextFileKey = (currentKeys: string[]) => {
     const used = new Set(
       currentKeys
         .filter((k) => k.startsWith(fieldBase))
         .map((k) => parseInt(k.replace(fieldBase, ''), 10))
-        .filter((n) => !Number.isNaN(n))
+        .filter((n) => !Number.isNaN(n)),
     )
     let i = 1
     while (used.has(i)) i++
@@ -44,34 +66,35 @@ export default function AttachFileButton({
   }
 
   /**
-   * Quan l’usuari selecciona un fitxer al SharePointPicker
+   * Quan s’ha seleccionat un fitxer del SharePointPicker
    */
   async function handleSelected(item: { id: string; name: string; url: string }) {
     setSaving(true)
     try {
+      // Convertir a enllaç públic
+      const publicUrl = item.url
+
+
+      // Assignar proper camp: file1, file2...
       const nextKey = findNextFileKey(attachments.map((_, i) => `${fieldBase}${i + 1}`))
 
       // Desa a Firestore
-      // Desa al Firestore mitjançant l'endpoint nou (App Router)
-await fetch(`/api/calendar/manual/${docId}`, {
+   await fetch(`/api/calendar/manual/${docId}`, {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
-    collection,
+    collection: `stage_verd`, // 🔥 Sempre en aquesta col·lecció
     field: nextKey,
-    url: item.url, // només la URL, no l’objecte sencer
+    url: publicUrl,
   }),
 })
 
 
-      // ✅ Actualitza estat local sense duplicar si ja existeix
-// ✅ Només notifica el parent (CalendarModal), no dupliquem estat
-onAdded?.({ name: item.name, url: item.url })
-
-
+      // Notifica el parent
+      onAdded?.({ name: item.name, url: publicUrl })
     } catch (err) {
       console.error('❌ Error desant fitxer:', err)
-      alert('❌ No s’ha pogut desar el fitxer a Firestore.')
+      alert('❌ No s’ha pogut desar el fitxer.')
     } finally {
       setSaving(false)
     }
@@ -80,20 +103,17 @@ onAdded?.({ name: item.name, url: item.url })
   return (
     <>
       <Button
-        size="sm"
-        className="bg-blue-600 hover:bg-blue-700 text-white font-medium w-full sm:w-auto shadow-sm"
-        onClick={() => setOpen(true)}
-        disabled={saving}
-      >
+  size="sm"
+  className="bg-blue-600 hover:bg-blue-700 text-white font-medium w-full sm:w-auto shadow-sm"
+  onClick={() => setOpen(true)}
+  disabled={saving || disabled}   // 👈 CORRECTE
+>
+
         <Paperclip className="h-4 w-4 mr-2" />
         Adjuntar fitxer (SharePoint)
       </Button>
 
-      {/* Selector SharePoint */}
       <SharePointPicker open={open} onOpenChange={setOpen} onSelected={handleSelected} />
-
-      {/* Fitxers afegits (només visuals locals) */}
-      
     </>
   )
 }

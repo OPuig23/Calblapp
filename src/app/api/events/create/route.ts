@@ -1,7 +1,6 @@
 // ✅ file: src/app/api/events/create/route.ts
 import { NextResponse } from 'next/server'
-import { db } from '@/lib/firebaseAdmin'
-
+import { firestoreAdmin } from '@/lib/firebaseAdmin'
 
 export const runtime = 'nodejs'
 
@@ -20,8 +19,10 @@ export async function POST(req: Request) {
       )
     }
 
-    // 🧠 Prepara l’objecte a desar
+    // 🆔 ID segur i consistent
     const id = `manual_${Date.now()}`
+
+    // 🧠 Prepara el payload final
     const payload = {
       id,
       NomEvent: data.NomEvent,
@@ -31,27 +32,24 @@ export async function POST(req: Request) {
       StageGroup: 'Confirmat',
       collection: 'stage_verd',
       origen: 'manual',
-      DataInici: data.DataInici || data.Data || new Date().toISOString(),
-      DataFi: data.DataFi || data.DataInici || data.Data || new Date().toISOString(),
+      DataInici: data.DataInici,
+      DataFi: data.DataFi || data.DataInici,
+      HoraInici: data.HoraInici || null,
       Ubicacio: data.Ubicacio || '',
       NumPax: data.NumPax ? Number(data.NumPax) : null,
+      code: data.code || '',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }
 
-    // 🪵 Log per verificar que el LN arriba correctament
-    console.log('🔥 Event creat →', {
-      id: payload.id,
-      NomEvent: payload.NomEvent,
-      LN: payload.LN,
-      DataInici: payload.DataInici,
-      StageGroup: payload.StageGroup,
-    })
+    console.log('🔥 Event manual creat:', payload)
 
-    // 🔥 Desa a Firestore
+    // 🔥 Desa al Firestore amb docId personalitzat
     await firestoreAdmin.collection('stage_verd').doc(id).set(payload)
 
-    return NextResponse.json({ ok: true, id }, { status: 200 })
+    // 🟢 IMPORTANT — Retornem ID perquè CalendarNewEventModal pugui adjuntar fitxers
+    return NextResponse.json({ success: true, id }, { status: 200 })
+
   } catch (err: any) {
     console.error('❌ Error creant esdeveniment manual:', err)
     return NextResponse.json(
