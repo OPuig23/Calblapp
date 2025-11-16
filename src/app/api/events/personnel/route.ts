@@ -1,13 +1,12 @@
 // src/app/api/events/personnel/route.ts
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/firebaseAdmin'
-import { fetchGoogleEventById } from '@/services/googleCalendar'
 import { firestoreAdmin } from '@/lib/firebaseAdmin'
-
 
 export const runtime = 'nodejs'
 
-const unaccent = (s?: string | null) => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+// Helpers
+const unaccent = (s?: string | null) =>
+  (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 const norm = (s?: string | null) => unaccent(String(s || '')).toLowerCase().trim()
 const dayKey = (iso?: string | null) => (iso || '').slice(0, 10)
 const uniqBy = <T, K extends string | number>(arr: T[], key: (x: T) => K) => {
@@ -21,7 +20,7 @@ const chunk = <T>(arr: T[], size = 10) => {
   return out
 }
 
-// Tipos
+// Tipus
 type QRow = {
   department?: string
   code?: string
@@ -38,15 +37,6 @@ type QRow = {
   workers?: Array<{ name?: string; meetingPoint?: string; time?: string; hour?: string }>
 }
 
-type PersonDTO = {
-  name: string
-  role: 'responsable' | 'conductor' | 'treballador'
-  department?: string
-  meetingPoint?: string
-  time?: string
-  phone?: string
-}
-
 type PersonnelDoc = {
   name?: string
   phone?: string
@@ -55,75 +45,97 @@ type PersonnelDoc = {
   telephone?: string
 }
 
-// ⚡️ Tipo auxiliar para snapshots seguros
-type SafeSnap<T> =
-  | FirebaseFirestore.QuerySnapshot<T>
-  | { empty: true; forEach: (cb: (d: { data: () => T }) => void) => void }
-  | null
-
 export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url)
     const eventId = url.searchParams.get('eventId')
-    if (!eventId) return NextResponse.json({ error: 'Falta eventId' }, { status: 400 })
+    if (!eventId) {
+      return NextResponse.json({ error: 'Falta eventId' }, { status: 400 })
+    }
 
-    const ev = await fetchGoogleEventById(eventId)
-    if (!ev) return NextResponse.json({ error: 'Esdeveniment no trobat' }, { status: 404 })
+    /* ────────────────────────────────────────────────
+       1) BUSCAR L’ESDEVENIMENT A FIRESTORE (3 col·leccions)
+       stage_verd / stage_taronja / stage_blau
+    ──────────────────────────────────────────────── */
+    const eventCollections = ['stage_verd', 'stage_taronja', 'stage_blau']
 
-    const summary = ev.summary || ''
-    const [beforeHash, codePart] = summary.split('#')
-    const code = (codePart || '').trim()
-    const dateKey = dayKey(ev.start?.dateTime || ev.start?.date || null)
-    const eventNameNorm = norm(beforeHash)
+    let eventData: any = null
+    for (const coll of eventCollections) {
+      const snap = await firestoreAdmin.collection(coll).doc(eventId).get()
+      if (snap.exists) {
+        eventData = snap.data()
+        break
+      }
+    }
 
-    const colls = [
+    if (!eventData) {
+      return NextResponse.json(
+        { error: 'Esdeveniment no trobat al Firestore' },
+        { status: 404 }
+      )
+    }
+
+    // Normalitzar camps per evitar NaN o undefined
+    const code = eventData.code || ''
+    const name = eventData.name || eventData.eventName || ''
+    const dateKeyValue = dayKey(eventData.startDate || null)
+    const eventNameNorm = norm(name)
+
+    /* ────────────────────────────────────────────────
+       2) LLEGIR QUADRANTS DE TOTS ELS DEPARTAMENTS
+    ──────────────────────────────────────────────── */
+    const quadrantCollections = [
       'quadrantsServeis',
       'quadrantsLogistica',
       'quadrantsCuina',
       'quadrantsProduccio',
       'quadrantsComercial',
     ]
+
     const rows: QRow[] = []
 
-    for (const coll of colls) {
-      const ref = db.collection(coll)
+    for (const coll of quadrantCollections) {
+      const ref = firestoreAdmin.collection(coll)
 
-      const emptySnap: SafeSnap<Record<string, unknown>> = {
-        empty: true,
-        forEach: () => {}
-      }
-
-      const [byId, byCode, byDate] = await Promise.all([
-        ref.where('eventId', '==', eventId).get().catch(() => emptySnap),
+      const byId = await ref.where('eventId', '==', eventId).get().catch(() => null)
+      const byCode =
         code
-          ? ref.where('code', '==', code).get().catch(() => emptySnap)
-          : Promise.resolve(emptySnap),
-        dateKey
-          ? ref.where('startDate', '==', dateKey).get().catch(() => emptySnap)
-          : Promise.resolve(emptySnap),
-      ])
+          ? await ref.where('code', '==', code).get().catch(() => null)
+          : null
+      const byDate =
+        dateKeyValue
+          ? await ref.where('startDate', '==', dateKeyValue).get().catch(() => null)
+          : null
 
-      const push = (snap: SafeSnap<Record<string, unknown>>) => {
-        if (!snap || snap.empty) return
-        snap.forEach((d) => rows.push(d.data() as unknown as QRow))
+      const push = (snap: any) => {
+        if (snap && !snap.empty) {
+          snap.forEach((d: any) => rows.push(d.data() as QRow))
+        }
       }
 
-      push(byId as SafeSnap<Record<string, unknown>>)
-      push(byCode as SafeSnap<Record<string, unknown>>)
-      push(byDate as SafeSnap<Record<string, unknown>>)
+      push(byId)
+      push(byCode)
+      push(byDate)
     }
 
+    /* ────────────────────────────────────────────────
+       3) FILTRAR QUADRANTS COINCIDENTS AMB L’ESDEVENIMENT
+    ──────────────────────────────────────────────── */
     const normCode = (s?: string | null) =>
       (s ? unaccent(String(s)).toLowerCase().trim().replace(/\s+/g, '') : '')
 
     const filtered = rows.filter((r) => {
-      if (r.eventId && r.eventId === eventId) return true
+      if (r.eventId === eventId) return true
       if (code && r.code && normCode(r.code) === normCode(code)) return true
       if (r.eventName && norm(r.eventName) === eventNameNorm) return true
       return false
     })
 
-    const people: PersonDTO[] = []
+    /* ────────────────────────────────────────────────
+       4) GENERAR PERSONES (responsables / conductors / treballadors)
+    ──────────────────────────────────────────────── */
+    const people: any[] = []
+
     for (const q of filtered) {
       const dept = q.department
       const qMeeting = q.meetingPoint
@@ -135,13 +147,13 @@ export async function GET(req: NextRequest) {
           role: 'responsable',
           department: dept,
           meetingPoint: qMeeting,
-          time: qTime
+          time: qTime,
         })
       }
 
       const each = (
         arr: Array<{ name?: string; meetingPoint?: string; time?: string; hour?: string }> | undefined,
-        role: PersonDTO['role']
+        role: string
       ) => {
         if (!Array.isArray(arr)) return
         for (const p of arr) {
@@ -164,28 +176,42 @@ export async function GET(req: NextRequest) {
 
     const dedup = uniqBy(people, (p) => `${p.name}|${p.role}`)
 
+    /* ────────────────────────────────────────────────
+       5) OBTENIR TELÈFONS (personnel > users)
+    ──────────────────────────────────────────────── */
     const names = Array.from(new Set(dedup.map((p) => p.name)))
     const nameChunks = chunk(names, 10)
     const phoneMap = new Map<string, string>()
 
-    for (const c of nameChunks) {
-      const snap = await db.collection('personnel').where('name', 'in', c).get().catch(() => null)
+    for (const chunkGroup of nameChunks) {
+      const snap = await firestoreAdmin
+        .collection('personnel')
+        .where('name', 'in', chunkGroup)
+        .get()
+        .catch(() => null)
+
       if (snap && !snap.empty) {
         snap.forEach((doc) => {
-          const d = doc.data() as unknown as PersonnelDoc
+          const d = doc.data() as PersonnelDoc
           const phone = d.phone || d.mobile || d.tel || d.telephone
           if (d.name && phone) phoneMap.set(String(d.name), String(phone))
         })
       }
     }
 
-    for (const c of nameChunks) {
-      const missing = c.filter((n) => !phoneMap.has(n))
+    for (const chunkGroup of nameChunks) {
+      const missing = chunkGroup.filter((n) => !phoneMap.has(n))
       if (missing.length === 0) continue
-      const snap = await db.collection('users').where('name', 'in', missing).get().catch(() => null)
+
+      const snap = await firestoreAdmin
+        .collection('users')
+        .where('name', 'in', missing)
+        .get()
+        .catch(() => null)
+
       if (snap && !snap.empty) {
         snap.forEach((doc) => {
-          const d = doc.data() as unknown as PersonnelDoc
+          const d = doc.data() as PersonnelDoc
           const phone = d.phone || d.mobile || d.tel || d.telephone
           if (d.name && phone) phoneMap.set(String(d.name), String(phone))
         })
@@ -193,19 +219,27 @@ export async function GET(req: NextRequest) {
     }
 
     const withPhones = dedup.map((p) => ({ ...p, phone: phoneMap.get(p.name) }))
-    const responsables = withPhones.filter((p) => p.role === 'responsable')
-    const conductors   = withPhones.filter((p) => p.role === 'conductor')
-    const treballadors = withPhones.filter((p) => p.role === 'treballador')
 
+    /* ────────────────────────────────────────────────
+       6) RETORN FINAL
+    ──────────────────────────────────────────────── */
     return NextResponse.json({
-      event: { id: eventId, code, name: beforeHash.trim(), date: dateKey, location: ev.location || '' },
-      responsables, conductors, treballadors,
+      event: {
+        id: eventId,
+        code,
+        name,
+        date: dateKeyValue,
+        location: eventData.location || '',
+      },
+      responsables: withPhones.filter((p) => p.role === 'responsable'),
+      conductors: withPhones.filter((p) => p.role === 'conductor'),
+      treballadors: withPhones.filter((p) => p.role === 'treballador'),
     })
-  } catch (err: unknown) {
+  } catch (err: any) {
     console.error('[api/events/personnel] error', err)
-    if (err instanceof Error) {
-      return NextResponse.json({ error: err.message }, { status: 500 })
-    }
-    return NextResponse.json({ error: 'Internal Error' }, { status: 500 })
+    return NextResponse.json(
+      { error: err.message || 'Internal error' },
+      { status: 500 }
+    )
   }
 }

@@ -15,6 +15,8 @@ export interface PissarraItem {
   servei?: string
   comercial?: string
   responsableName?: string
+  HoraInici?: string   // ← afegim el camp opcional
+  horaInici?: string
 }
 
 export default function usePissarra(weekStart: string, weekEnd: string, role?: string, department?: string) {

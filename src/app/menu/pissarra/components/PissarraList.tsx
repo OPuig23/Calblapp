@@ -11,28 +11,21 @@ interface Props {
   dataByDay: Record<string, PissarraItem[]>
   canEdit: boolean
   onUpdate: (id: string, payload: Partial<PissarraItem>) => Promise<void>
-
-  /** 👉 Setmana seleccionada des del SmartFilters */
   weekStart: Date
 }
 
-/**
- * 📅 PissarraList — Graella setmanal fixa (Dll → Dg)
- */
 export default function PissarraList({ dataByDay, canEdit, onUpdate, weekStart }: Props) {
-  // 🔹 Generem setmana segons el filtre
   const start = startOfWeek(weekStart, { weekStartsOn: 1 })
   const end = endOfWeek(weekStart, { weekStartsOn: 1 })
   const days = eachDayOfInterval({ start, end })
 
   return (
-   
-  <div
-    key={weekStart.toISOString()}
-    className="relative w-full overflow-x-auto"
-  >
+    <div
+      key={weekStart.toISOString()}
+      className="relative w-full overflow-x-auto"
+    >
 
-      {/* 🧱 Capçalera fixa */}
+      {/* Header */}
       <div className="grid grid-cols-7 min-w-[950px] bg-white sticky top-0 z-20 border-b">
         {days.map((day) => (
           <div
@@ -45,11 +38,25 @@ export default function PissarraList({ dataByDay, canEdit, onUpdate, weekStart }
         ))}
       </div>
 
-      {/* 🔹 Contingut scrollable */}
+      {/* Content */}
       <div className="grid grid-cols-7 min-w-[950px] max-h-[80vh] overflow-y-auto">
         {days.map((day) => {
           const key = format(day, 'yyyy-MM-dd')
-          const events = dataByDay[key] || []
+          let events = dataByDay[key] || []
+
+          // 🔢 Ordenació per hora d’inici (hh:mm)
+     events = [...events].sort((a, b) => {
+  const hA = (a.startTime || '').trim()
+  const hB = (b.startTime || '').trim()
+
+  // Si falten hores, posa-les al final
+  if (!hA && !hB) return 0
+  if (!hA) return 1
+  if (!hB) return -1
+
+  return hA.localeCompare(hB)
+})
+
 
           return (
             <div

@@ -235,35 +235,28 @@ const handleDeleteFile = async (key: string) => {
     w-full 
     max-w-lg 
 
-    /* 📱 Mòbil: modal fullscreen */
-    h-[95dvh]
+    /* 📱 Mòbil: modal fullscreen vertical */
+    h-[92dvh]                   
+    max-h-[92dvh]
     overflow-y-auto 
     rounded-none
+    pt-10
 
-    /* 🖥 Desktop: modal centrat clàssic */
-    sm:h-auto
+    /* 🖥 Desktop */
     sm:rounded-lg
-    sm:fixed
-    sm:top-[50%]
-    sm:left-[50%]
-    sm:-translate-x-1/2
-    sm:-translate-y-1/2
+    sm:h-auto
+    sm:max-h-[85vh]
+    sm:pt-6
   "
   onClick={(e) => e.stopPropagation()}
 >
+  <DialogHeader>
+    <DialogTitle className="text-base font-semibold">
+      🆕 Nou esdeveniment
+    </DialogTitle>
+  </DialogHeader>
 
 
-        <DialogHeader>
-          <DialogTitle className="text-base font-semibold">
-            🆕 Nou esdeveniment
-          </DialogTitle>
-        </DialogHeader>
-<button
-  onClick={() => setOpen(false)}
-  className="absolute right-3 top-3 text-gray-500 hover:text-gray-700 sm:hidden"
->
-  ✕
-</button>
 
         <div className="space-y-3 text-sm text-gray-700">
           {/* Línia de negoci */}

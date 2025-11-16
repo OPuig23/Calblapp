@@ -251,9 +251,10 @@ function InnerLayout({ children }: PropsWithChildren) {
 
       </header>
 
-      <main className="flex-1 w-full px-2 sm:px-4 pb-6 sm:max-w-7xl sm:mx-auto">
-        {children}
-      </main>
+      <main className="w-full px-2 sm:px-4 pb-6 sm:max-w-7xl sm:mx-auto overflow-visible">
+  {children}
+</main>
+
     </div>
   )
 }

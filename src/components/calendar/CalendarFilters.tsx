@@ -1,9 +1,9 @@
-// ✅ file: src/components/calendar/CalendarFilters.tsx
+// file: src/components/calendar/CalendarFilters.tsx
 'use client'
 
 import React, { useEffect, useMemo, useState, useRef } from 'react'
 import { Button } from '@/components/ui/button'
-import { CalendarDays, ChevronLeft, ChevronRight, Filter } from 'lucide-react'
+import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react'
 import {
   Select,
   SelectTrigger,
@@ -20,9 +20,8 @@ import {
   startOfMonth,
   startOfWeek,
 } from 'date-fns'
-import { es } from 'date-fns/locale'
 
-export type Mode = 'month' | 'week'
+export type Mode = 'month' | 'week' | 'list'
 
 export type CalendarFilterChange = {
   mode: Mode
@@ -50,20 +49,25 @@ export default function CalendarFilters({
   const [ln, setLn] = useState<string>('Tots')
   const [stage, setStage] = useState<string>('Tots')
 
-  /* ─── Mesos i anys ─── */
-  const years = useMemo(() => {
-    const currentYear = new Date().getFullYear()
-    return Array.from({ length: 8 }, (_, i) => currentYear - 2 + i)
-  }, [])
-
-  const months = [
-    'Gener', 'Febrer', 'Març', 'Abril', 'Maig', 'Juny',
-    'Juliol', 'Agost', 'Setembre', 'Octubre', 'Novembre', 'Desembre',
+  /* ────────────────────────────────────────────────
+     OPCIONS
+  ───────────────────────────────────────────────── */
+  const lnOptions = [
+    'Tots',
+    'Empresa',
+    'Casaments',
+    'Grups Restaurants',
+    'Foodlovers',
+    'Agenda',
+    'Altres',
   ]
 
-  /* ─── Opcions de filtres ─── */
-  const lnOptions = ['Tots', 'Empresa', 'Casaments', 'Grups Restaurants', 'Foodlovers', 'Agenda', 'Altres']
-  const stageOptions = ['Tots', 'Confirmat', 'Proposta / Pendent signar', 'Prereserva / Calentet']
+  const stageOptions = [
+    'Tots',
+    'Confirmat',
+    'Proposta / Pendent signar',
+    'Prereserva / Calentet',
+  ]
 
   const stagesByLN: Record<string, string[]> = {
     Empresa: ['Confirmat', 'Proposta / Pendent signar'],
@@ -71,34 +75,45 @@ export default function CalendarFilters({
     'Grups Restaurants': ['Confirmat'],
     Foodlovers: ['Confirmat'],
     Agenda: ['Confirmat'],
-    Altres: ['Confirmat', 'Proposta / Pendent signar', 'Prereserva / Calentet'],
+    Altres: stageOptions,
     Tots: stageOptions,
   }
 
-  /* ─── Sincronització entre LN i Stage ─── */
+  /* ────────────────────────────────────────────────
+     ADAPTACIÓ ENTRE LN i Etapa
+  ───────────────────────────────────────────────── */
   useEffect(() => {
-    if (ln !== 'Tots' && !stagesByLN[ln]?.includes(stage)) {
+    if (ln !== 'Tots' && !stagesByLN[ln].includes(stage)) {
       setStage('Tots')
     }
   }, [ln])
 
-/* ─── Rang de dates actual (mes o setmana) ─── */
-const range = useMemo(() => {
-  if (mode === 'week') {
-    const from = startOfWeek(anchor, { weekStartsOn: 1 })
-    const to = endOfWeek(anchor, { weekStartsOn: 1 })
-    return { start: toIso(from), end: toIso(to) }
-  }
+  /* ────────────────────────────────────────────────
+     RANGE DE DATES DINÀMIC (Setmana o Mes)
+  ───────────────────────────────────────────────── */
+  const range = useMemo(() => {
+    if (mode === 'week') {
+      const from = startOfWeek(anchor, { weekStartsOn: 1 })
+      const to = endOfWeek(anchor, { weekStartsOn: 1 })
+      return { start: toIso(from), end: toIso(to) }
+    }
 
-  // ✅ Mostra tot el mes complet, no només a partir d'avui
-  const current = new Date(anchor.getFullYear(), anchor.getMonth(), 1)
-  const from = startOfMonth(current)
-  const to = endOfMonth(current)
-  return { start: toIso(from), end: toIso(to) }
-}, [mode, anchor])
+    if (mode === 'list') {
+      const from = startOfWeek(anchor, { weekStartsOn: 1 })
+      const to = addWeeks(from, 1)
+      return { start: toIso(from), end: toIso(to) }
+    }
 
+    const current = new Date(anchor.getFullYear(), anchor.getMonth(), 1)
+    return {
+      start: toIso(startOfMonth(current)),
+      end: toIso(endOfMonth(current)),
+    }
+  }, [mode, anchor])
 
-  /* ─── Notifica canvis a CalendarPage ─── */
+  /* ────────────────────────────────────────────────
+     NOTIFICAR CANVIS A PAGE.TSX
+  ───────────────────────────────────────────────── */
   const lastPayload = useRef<string>('')
 
   useEffect(() => {
@@ -110,7 +125,6 @@ const range = useMemo(() => {
       stage,
     })
 
-    // Evita bucles infinits
     if (payload !== lastPayload.current) {
       lastPayload.current = payload
       onChange({
@@ -121,124 +135,131 @@ const range = useMemo(() => {
         stage,
       })
     }
-  }, [mode, range.start, range.end, ln, stage, onChange])
+  }, [mode, range.start, range.end, ln, stage])
 
-  /* ─── Navegació temporal ─── */
-  const prev = () => setAnchor(a => (mode === 'week' ? addWeeks(a, -1) : addMonths(a, -1)))
-  const next = () => setAnchor(a => (mode === 'week' ? addWeeks(a, 1) : addMonths(a, 1)))
+  /* ────────────────────────────────────────────────
+     NAVEGACIÓ TEMPORAL
+  ───────────────────────────────────────────────── */
+  const prev = () =>
+    setAnchor((a) => (mode === 'week' || mode === 'list' ? addWeeks(a, -1) : addMonths(a, -1)))
 
-  const handleMonthChange = (mIndex: number) => {
-    const newDate = new Date(anchor)
-    newDate.setMonth(mIndex)
-    setAnchor(newDate)
-  }
+  const next = () =>
+    setAnchor((a) => (mode === 'week' || mode === 'list' ? addWeeks(a, 1) : addMonths(a, 1)))
 
-  const handleYearChange = (y: number) => {
-    const newDate = new Date(anchor)
-    newDate.setFullYear(y)
-    setAnchor(newDate)
-  }
+  /* ────────────────────────────────────────────────
+     RENDER — DUAL: DESKTOP + MOBILE
+  ───────────────────────────────────────────────── */
 
-  /* ─── RENDER ─── */
   return (
-    <div className="flex flex-col sm:flex-row flex-wrap items-center justify-between gap-2 bg-white/70 p-3 rounded-2xl border border-gray-200 shadow-sm">
-      {/* 🔹 Navegació temporal */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <CalendarDays className="text-blue-600" size={20} />
-        <Button size="icon" variant="ghost" onClick={prev} className="h-8 w-8 text-gray-600">
+    <div className="flex flex-col gap-4 w-full">
+
+      {/* ╔════════════════════════════════╗ */}
+      {/*     NAV TEMPORAL + MES / ANY      */}
+      {/* ╚════════════════════════════════╝ */}
+      <div className="flex items-center justify-between gap-3 py-1">
+        <Button size="icon" variant="ghost" onClick={prev} className="h-8 w-8">
           <ChevronLeft className="h-4 w-4" />
         </Button>
 
-        <Select value={String(anchor.getMonth())} onValueChange={(v) => handleMonthChange(Number(v))}>
-          <SelectTrigger className="w-[110px] text-xs sm:text-sm">
-            <SelectValue>{months[anchor.getMonth()]}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {months.map((m, i) => (
-              <SelectItem key={i} value={String(i)}>
-                {m}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {/* MES / ANY */}
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold capitalize">
+            {anchor.toLocaleDateString('ca-ES', {
+              month: 'long',
+              year: 'numeric',
+            })}
+          </span>
+        </div>
 
-        <Select value={String(anchor.getFullYear())} onValueChange={(v) => handleYearChange(Number(v))}>
-          <SelectTrigger className="w-[90px] text-xs sm:text-sm">
-            <SelectValue>{anchor.getFullYear()}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {years.map((y) => (
-              <SelectItem key={y} value={String(y)}>
-                {y}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Button size="icon" variant="ghost" onClick={next} className="h-8 w-8 text-gray-600">
+        <Button size="icon" variant="ghost" onClick={next} className="h-8 w-8">
           <ChevronRight className="h-4 w-4" />
         </Button>
       </div>
 
-      {/* 🔹 Filtres LN i Stage */}
-      <div className="flex items-center gap-2 flex-wrap justify-center">
-        <Filter size={16} className="text-gray-500" />
-        <Select value={ln} onValueChange={(v) => setLn(v)}>
-          <SelectTrigger className="w-[130px] text-xs sm:text-sm">
-            <SelectValue>{ln}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {lnOptions.map((o) => (
-              <SelectItem key={o} value={o}>
-                {o}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      {/* ╔════════════════════════════════╗ */}
+      {/*           FILTRES LN i Etapes     */}
+      {/* ╚════════════════════════════════╝ */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {/* LN */}
+        <div>
+          <label className="text-[11px] text-gray-500">Línia de negoci</label>
+          <Select value={ln} onValueChange={(v) => setLn(v)}>
+            <SelectTrigger className="w-full h-9">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {lnOptions.map((o) => (
+                <SelectItem key={o} value={o}>
+                  {o}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-        <Select value={stage} onValueChange={(v) => setStage(v)}>
-          <SelectTrigger className="w-[150px] text-xs sm:text-sm">
-            <SelectValue>{stage}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {stagesByLN[ln]?.map((o) => (
-              <SelectItem key={o} value={o}>
-                {o}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {/* Etapes */}
+        <div>
+          <label className="text-[11px] text-gray-500">Estat</label>
+          <Select value={stage} onValueChange={(v) => setStage(v)}>
+            <SelectTrigger className="w-full h-9">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {stagesByLN[ln].map((o) => (
+                <SelectItem key={o} value={o}>
+                  {o}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
-      {/* 🔹 Mode i Reset */}
-      <div className="flex items-center gap-2">
-        <Select value={mode} onValueChange={(v: Mode) => setMode(v)}>
-          <SelectTrigger className="w-[140px] text-xs sm:text-sm">
-            <SelectValue placeholder="Vista" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="month">Vista mensual</SelectItem>
-            <SelectItem value="week">Vista setmanal</SelectItem>
-          </SelectContent>
-        </Select>
-
-        {onReset && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-gray-600"
-            onClick={() => {
-              setMode('month')
-              setAnchor(new Date())
-              setLn('Tots')
-              setStage('Tots')
-              onReset()
-            }}
-          >
-            Reiniciar
-          </Button>
-        )}
+      {/* ╔════════════════════════════════╗ */}
+      {/*             MODE DE VISTA         */}
+      {/* ╚════════════════════════════════╝ */}
+      <div className="grid grid-cols-3 gap-2">
+        <Button
+          variant={mode === 'month' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setMode('month')}
+        >
+          Mes
+        </Button>
+        <Button
+          variant={mode === 'week' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setMode('week')}
+        >
+          Setmana
+        </Button>
+        <Button
+          variant={mode === 'list' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setMode('list')}
+        >
+          Llista
+        </Button>
       </div>
+
+      {/* ╔════════════════════════════════╗ */}
+      {/*                RESET              */}
+      {/* ╚════════════════════════════════╝ */}
+      {onReset && (
+        <Button
+          onClick={() => {
+            setAnchor(new Date())
+            setLn('Tots')
+            setStage('Tots')
+            setMode('month')
+            onReset()
+          }}
+          variant="ghost"
+          className="text-gray-600 justify-center mt-1"
+        >
+          Reiniciar filtres
+        </Button>
+      )}
     </div>
   )
 }
