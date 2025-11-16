@@ -62,7 +62,13 @@ export default function SharePointPicker({ open, onOpenChange, basePath = '/Esde
     })
     const data = await res.json()
     if (!data?.url) return
-    onSelected({ id: item.id, name: item.name, url: data.url })
+onSelected({
+  id: item.id,
+  name: item.name,
+  url: data.url,   // ✔️ DIRECTE, és el que retorna l’API
+})
+
+
     onOpenChange(false)
   }
 

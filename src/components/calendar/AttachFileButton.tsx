@@ -72,7 +72,8 @@ export default function AttachFileButton({
     setSaving(true)
     try {
       // Convertir a enllaç públic
-      const publicUrl = item.url
+      const publicUrl = toPublicSharePointLink(item.url)
+
 
 
       // Assignar proper camp: file1, file2...
