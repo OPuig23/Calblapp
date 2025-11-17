@@ -127,7 +127,12 @@ export async function POST(req: NextRequest) {
     const pushBody = `${eventName} – ${prev?.startDate} ${prev?.startTime}`
 
     for (const u of validUsers) {
-      await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/push/send`, {
+      const baseUrl = process.env.VERCEL_URL
+  ? `https://${process.env.VERCEL_URL}`
+  : 'http://localhost:3000'
+
+await fetch(`${baseUrl}/api/push/send`, {
+
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
