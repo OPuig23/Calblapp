@@ -1,4 +1,3 @@
-//filename: src/components/personnel/NewPersonnelModal.tsx
 'use client'
 
 import React, { useState, useEffect, FormEvent } from 'react'
@@ -12,20 +11,21 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useCreatePersonnel, NewPerson } from '@/hooks/useCreatePersonnel'
+import { checkNameExists, generateSuggestions } from '@/lib/validateName'
 
 // Opcions de rol permeses
 const ROLE_OPTIONS = [
-  { value: 'soldat',      label: 'Soldat' },
+  { value: 'soldat', label: 'Soldat' },
   { value: 'responsable', label: 'Responsable' },
 ]
 
-// Normalitza/valida rol
+// Normalització rol
 function normalizeRoleLocal(r?: string) {
   const v = (r || '').toLowerCase()
   return v === 'responsable' ? 'responsable' : 'soldat'
 }
 
-// Slug senzill (sense accents, minúscules, guions)
+// Slug senzill
 function slugify(s: string) {
   return s
     .normalize('NFD')
@@ -36,15 +36,13 @@ function slugify(s: string) {
     .replace(/(^-|-$)/g, '')
 }
 
-// Sufix curt aleatori per evitar col·lisions
+// ID auto
 function randSuffix(len = 4) {
   return Math.random().toString(36).slice(2, 2 + len)
 }
-
-// Genera ID a partir del nom + sufix
 function generateIdFromName(name: string) {
   const base = slugify(name) || 'persona'
-  return `${base}-${randSuffix()}` // p.ex. 'luis-3f2a'
+  return `${base}-${randSuffix()}`
 }
 
 interface NewPersonnelModalProps {
@@ -62,50 +60,66 @@ export default function NewPersonnelModal({
 }: NewPersonnelModalProps) {
   const { mutateAsync, loading: isCreating, error } = useCreatePersonnel()
 
-  // Mode auto-ID (per defecte true)
   const [autoId, setAutoId] = useState(true)
 
- const [form, setForm] = useState<NewPerson>({
-  id: '',
-  name: '',
-  role: 'soldat',
-  department: defaultDepartment,
-  driver: { isDriver: false, camioGran: false, camioPetit: false }, // 👈 important!
-  available: true,
-  email: '',
-  phone: '',
-  maxHoursWeek: 40,
-})
+  const [form, setForm] = useState<NewPerson>({
+    id: '',
+    name: '',
+    role: 'soldat',
+    department: defaultDepartment,
+    driver: { isDriver: false, camioGran: false, camioPetit: false },
+    available: true,
+    email: '',
+    phone: '',
+    maxHoursWeek: 40,
+  })
 
+  const [nameError, setNameError] = useState(false)
+  const [suggestions, setSuggestions] = useState<string[]>([])
 
-  // Quan obrim el modal, preparem l’esborrany
+  // Reinici al obrir modal
   useEffect(() => {
     if (isOpen) {
       setAutoId(true)
       setForm({
-        id:         '',
-        name:       '',
-        role:       'soldat',
-        department: defaultDepartment || '',
+        id: '',
+        name: '',
+        role: 'soldat',
+        department: defaultDepartment,
         driver: { isDriver: false, camioGran: false, camioPetit: false },
-        available:  true,
-        email:      '',
-        phone:      '',
+        available: true,
+        email: '',
+        phone: '',
         maxHoursWeek: 40,
       })
+      setNameError(false)
+      setSuggestions([])
     }
   }, [isOpen, defaultDepartment])
 
-  // Si estem en autoId, quan canvia el nom tornem a calcular l’ID
+  // Actualitza ID automàticament
   useEffect(() => {
-    if (!autoId) return
-    const newId = generateIdFromName(form.name)
-    setForm(prev => ({ ...prev, id: newId }))
+    if (autoId) {
+      setForm(prev => ({ ...prev, id: generateIdFromName(prev.name) }))
+    }
   }, [form.name, autoId])
 
-  // Re-generar l’ID manualment
-  const regenerateId = () => {
-    setForm(prev => ({ ...prev, id: generateIdFromName(prev.name) }))
+  // Validar nom
+  const validateName = async (v: string) => {
+    if (!v.trim()) {
+      setNameError(false)
+      setSuggestions([])
+      return
+    }
+
+    const exists = await checkNameExists(v)
+    setNameError(exists)
+
+    if (exists) {
+      setSuggestions(generateSuggestions(v))
+    } else {
+      setSuggestions([])
+    }
   }
 
   const handleChange = <K extends keyof NewPerson>(field: K, value: NewPerson[K]) => {
@@ -114,25 +128,21 @@ export default function NewPersonnelModal({
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
+    if (nameError) return
 
     const payload: NewPerson = {
       ...form,
-      id:         (form.id || '').trim(),
-      name:       (form.name || '').trim(),
-      role:       normalizeRoleLocal(form.role),
-      department: (form.department || '').trim(),
-      email:      (form.email || '').trim(),
-      phone:      (form.phone || '').trim(),
-      maxHoursWeek: form.maxHoursWeek ?? 40,
+      id: form.id.trim(),
+      name: form.name.trim(),
+      role: normalizeRoleLocal(form.role),
+      department: form.department.trim(),
+      email: form.email.trim(),
+      phone: form.phone.trim(),
     }
-
-    // Validació mínima
-    if (!payload.name) return
-    if (!payload.id)   return
-    if (!payload.department) return
 
     await mutateAsync(payload)
     onCreated()
+    onOpenChange(false)
   }
 
   return (
@@ -143,19 +153,45 @@ export default function NewPersonnelModal({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Nom complet */}
+
+          {/* NOM */}
           <div>
             <Label htmlFor="name">Nom complet</Label>
             <Input
               id="name"
               value={form.name}
-              onChange={e => handleChange('name', e.target.value)}
-              placeholder="Ex: Luis García"
+              onChange={async (e) => {
+                const v = e.target.value
+                handleChange('name', v)
+                await validateName(v)
+              }}
               required
+              className={nameError ? 'border-red-500' : ''}
             />
+
+            {nameError && (
+              <div className="mt-1 text-red-600 text-sm flex flex-col gap-2">
+                <div>⚠️ El nom ja existeix.</div>
+                <div className="flex gap-2 flex-wrap">
+                  {suggestions.map(s => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={async () => {
+                        handleChange('name', s)
+                        await validateName(s)
+                      }}
+                      className="px-2 py-1 bg-gray-100 rounded-lg text-xs border hover:bg-gray-200"
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* ID (auto) */}
+          {/* ID AUTO */}
           <div>
             <div className="flex items-center justify-between">
               <Label htmlFor="id">ID (auto)</Label>
@@ -163,60 +199,43 @@ export default function NewPersonnelModal({
                 type="button"
                 variant="ghost"
                 className="h-7 px-2 text-xs"
-                onClick={regenerateId}
+                onClick={() => setForm(prev => ({ ...prev, id: generateIdFromName(prev.name) }))}
               >
                 Regenera
               </Button>
             </div>
-            <Input
-              id="id"
-              value={form.id}
-              disabled
-              className="bg-gray-100"
-            />
-            <p className="mt-1 text-xs text-gray-500">
-              Aquest ID s’utilitzarà també per crear l’usuari (coincidència 1:1).
-            </p>
+            <Input id="id" value={form.id} disabled className="bg-gray-100" />
+            <p className="text-xs text-gray-500">L’ID també s’utilitzarà per crear l’usuari.</p>
           </div>
 
-          {/* Rol */}
+          {/* ROL */}
           <div>
-            <Label htmlFor="role">Rol</Label>
+            <Label>Rol</Label>
             <select
-              id="role"
               value={form.role}
               onChange={e => handleChange('role', e.target.value)}
-              required
               className="border rounded px-2 py-1 w-full"
             >
               {ROLE_OPTIONS.map(opt => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
             </select>
           </div>
 
-          {/* Departament */}
+          {/* DEPARTAMENT */}
           <div>
-            <Label htmlFor="department">Departament</Label>
-            <Input
-              id="department"
-              value={form.department}
-              disabled
-              className="bg-gray-100"
-            />
+            <Label>Departament</Label>
+            <Input value={form.department} disabled className="bg-gray-100" />
           </div>
 
-          {/* Conductor */}
+          {/* CONDUCTOR */}
           <div>
-            <Label htmlFor="isDriver">És conductor?</Label>
+            <Label>És conductor?</Label>
             <select
-              id="isDriver"
               value={form.driver?.isDriver ? 'si' : 'no'}
-              onChange={e =>
+              onChange={(e) =>
                 handleChange('driver', {
-                  ...(form.driver ?? {}),
+                  ...form.driver,
                   isDriver: e.target.value === 'si'
                 })
               }
@@ -227,7 +246,7 @@ export default function NewPersonnelModal({
             </select>
           </div>
 
-          {/* Tipus de vehicle (només si és conductor) */}
+          {/* TIPUS VEHICLE */}
           {form.driver?.isDriver && (
             <div>
               <Label>Tipus de vehicle</Label>
@@ -235,18 +254,19 @@ export default function NewPersonnelModal({
                 <label className="flex items-center gap-2">
                   <input
                     type="checkbox"
-                    checked={form.driver?.camioGran || false}
-                    onChange={e =>
+                    checked={form.driver.camioGran}
+                    onChange={(e) =>
                       handleChange('driver', { ...form.driver, camioGran: e.target.checked })
                     }
                   />
                   Camió gran
                 </label>
+
                 <label className="flex items-center gap-2">
                   <input
                     type="checkbox"
-                    checked={form.driver?.camioPetit || false}
-                    onChange={e =>
+                    checked={form.driver.camioPetit}
+                    onChange={(e) =>
                       handleChange('driver', { ...form.driver, camioPetit: e.target.checked })
                     }
                   />
@@ -256,11 +276,10 @@ export default function NewPersonnelModal({
             </div>
           )}
 
-          {/* Disponible */}
+          {/* DISPONIBLE */}
           <div>
-            <Label htmlFor="available">Disponible</Label>
+            <Label>Disponible</Label>
             <select
-              id="available"
               value={form.available ? 'si' : 'no'}
               onChange={e => handleChange('available', e.target.value === 'si')}
               className="border rounded px-2 py-1 w-full"
@@ -270,50 +289,43 @@ export default function NewPersonnelModal({
             </select>
           </div>
 
-          {/* Contacte */}
+          {/* CONTACTE */}
           <div>
-            <Label htmlFor="email">Email</Label>
+            <Label>Email</Label>
             <Input
-              id="email"
               type="email"
               value={form.email}
               onChange={e => handleChange('email', e.target.value)}
             />
           </div>
+
           <div>
-            <Label htmlFor="phone">Telèfon</Label>
+            <Label>Telèfon</Label>
             <Input
-              id="phone"
               type="tel"
               value={form.phone}
               onChange={e => handleChange('phone', e.target.value)}
             />
           </div>
 
-          {/* Hores màximes setmanals */}
+          {/* HORES SETMANALS */}
           <div>
-            <Label htmlFor="maxHoursWeek">Hores màximes per setmana</Label>
+            <Label>Hores màximes per setmana</Label>
             <Input
-              id="maxHoursWeek"
               type="number"
               min={0}
               value={form.maxHoursWeek}
               onChange={e => handleChange('maxHoursWeek', Number(e.target.value))}
-              required
             />
           </div>
 
-          {/* Accions */}
+          {/* BOTONS */}
           <div className="flex justify-end space-x-2 pt-4">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => onOpenChange(false)}
-              disabled={isCreating}
-            >
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
               Cancel·lar
             </Button>
-            <Button type="submit" variant="primary" disabled={isCreating}>
+
+            <Button type="submit" disabled={isCreating || nameError}>
               {isCreating ? 'Creant…' : 'Crear'}
             </Button>
           </div>

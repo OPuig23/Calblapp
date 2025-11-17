@@ -14,6 +14,8 @@ export interface Personnel {
     camioGran: boolean 
     camioPetit: boolean
   }
+  maxHoursWeek?: number
+
   department: string
   email?:     string | null
   phone?:     string | null

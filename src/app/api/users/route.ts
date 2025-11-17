@@ -1,4 +1,4 @@
-// ✅ file: src/app/api/users/route.ts
+// file: src/app/api/users/route.ts
 export const runtime = 'nodejs'
 
 import { NextResponse } from 'next/server'
@@ -7,8 +7,12 @@ import { db } from '@/lib/firebaseAdmin'
 // ──────────────────────────────────────────────────────────────
 // Helpers
 // ──────────────────────────────────────────────────────────────
-const unaccent = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-const normLower = (s?: string) => unaccent((s || '').toString().trim()).toLowerCase()
+const unaccent = (s: string) =>
+  s.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+
+const normLower = (s?: string) =>
+  unaccent((s || '').toString().trim()).toLowerCase()
+
 const isTreballador = (role?: string) => normLower(role) === 'treballador'
 
 // ──────────────────────────────────────────────────────────────
@@ -25,6 +29,7 @@ interface UserPayload {
   available?: boolean
   isDriver?: boolean
   workerRank?: string
+  pushEnabled?: boolean
   createdAt: number
   updatedAt: number
 }
@@ -35,9 +40,9 @@ interface UserPayload {
 export async function GET() {
   try {
     const snap = await db.collection('users').get()
-    const users = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+    const users = snap.docs.map(d => ({ id: d.id, ...d.data() }))
     return NextResponse.json(users)
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('🛑 GET /api/users failed:', error)
     const message = error instanceof Error ? error.message : String(error)
     return NextResponse.json({ error: message }, { status: 500 })
@@ -60,6 +65,7 @@ export async function POST(req: Request) {
       available?: boolean
       isDriver?: boolean
       workerRank?: string
+      pushEnabled?: boolean
     }
 
     const {
@@ -73,6 +79,7 @@ export async function POST(req: Request) {
       available,
       isDriver,
       workerRank,
+      pushEnabled,
     } = body
 
     // 🔹 Construir payload base
@@ -87,31 +94,30 @@ export async function POST(req: Request) {
       available: isTreballador(role) ? (available ?? true) : undefined,
       isDriver: isTreballador(role) ? (isDriver ?? false) : undefined,
       workerRank: isTreballador(role) ? (workerRank || 'soldat') : undefined,
+      pushEnabled: pushEnabled ?? false, // per defecte FALSE si no s’envia
       createdAt: Date.now(),
       updatedAt: Date.now(),
     }
 
     // ✅ Eliminar valors undefined del payload
     userPayload = Object.fromEntries(
-      Object.entries(userPayload).filter(([_, v]) => v !== undefined)
+      Object.entries(userPayload).filter(([, v]) => v !== undefined)
     ) as UserPayload
 
-    // 🔹 Crear o actualitzar usuari
+    // 🔹 Crear o actualitzar usuari a `users`
     let userId: string
 
     if (id) {
-      // Cas: actualització o sol·licitud amb ID
       const ref = db.collection('users').doc(id)
       await ref.set({ ...userPayload, userId: id }, { merge: true })
       userId = id
     } else {
-      // Cas: nou usuari
       const ref = await db.collection('users').add(userPayload)
       await ref.set({ userId: ref.id }, { merge: true })
       userId = ref.id
     }
 
-    // 🔹 Si és treballador → sincronitza col·lecció personnel
+    // 🔹 Si és treballador → sincronitza col·lecció `personnel`
     if (isTreballador(role)) {
       const personRef = db.collection('personnel').doc(userId)
       const snap = await personRef.get()
@@ -127,7 +133,9 @@ export async function POST(req: Request) {
         workerRank: userPayload.workerRank || 'soldat',
         email: userPayload.email,
         phone: userPayload.phone,
-        createdAt: Date.now(),
+        // mantenim mateix flag també a `personnel`
+        pushEnabled: userPayload.pushEnabled ?? false,
+        createdAt: snap.exists ? (snap.data() as any).createdAt ?? Date.now() : Date.now(),
         updatedAt: Date.now(),
       }
 
@@ -137,7 +145,7 @@ export async function POST(req: Request) {
 
     // 🔹 Retornar resultat
     return NextResponse.json({ id: userId, ...userPayload }, { status: 201 })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('🛑 POST /api/users failed:', error)
     const message = error instanceof Error ? error.message : String(error)
     return NextResponse.json({ error: message }, { status: 500 })

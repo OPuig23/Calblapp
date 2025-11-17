@@ -1,21 +1,24 @@
-// src/app/api/users/[id]/route.ts
+// file: src/app/api/users/[id]/route.ts
 export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
-import { db } from '@/lib/firebaseAdmin'
 import { NextResponse } from 'next/server'
+import { db } from '@/lib/firebaseAdmin'
 
+// ──────────────────────────────────────────────────────────────
+// Helpers
+// ──────────────────────────────────────────────────────────────
+const unaccent = (s: string) =>
+  s.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 
-const unaccent = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-const normLower = (s?: string) => unaccent((s || '').toString().trim()).toLowerCase()
+const normLower = (s?: string) =>
+  unaccent((s || '').toString().trim()).toLowerCase()
+
 const isTreballador = (role?: string) => normLower(role) === 'treballador'
 
-function pruneUndefined<T extends Record<string, unknown>>(obj: T): T {
-  Object.keys(obj).forEach((k) => {
-    if (obj[k] === undefined) delete obj[k]
-  })
-  return obj
-}
-
+// ──────────────────────────────────────────────────────────────
+// Tipus
+// ──────────────────────────────────────────────────────────────
 interface UserUpdate {
   name?: string
   role?: string
@@ -26,93 +29,129 @@ interface UserUpdate {
   workerRank?: string
   email?: string | null
   phone?: string | null
+  pushEnabled?: boolean
   updatedAt?: number
   createdAt?: number
   userId?: string
 }
 
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+// ──────────────────────────────────────────────────────────────
+// GET: obtenir usuari per ID
+// ──────────────────────────────────────────────────────────────
+export async function GET(
+  _req: Request,
+  context: { params: Promise<{ id: string }> }
+) {
   try {
-    const snap = await db.collection('users').doc(params.id).get()
-    if (!snap.exists) return NextResponse.json({ error: 'Not Found' }, { status: 404 })
+    const { id } = await context.params
+
+    const snap = await db.collection('users').doc(id).get()
+    if (!snap.exists) {
+      return NextResponse.json({ error: 'Not Found' }, { status: 404 })
+    }
+
     return NextResponse.json({ id: snap.id, ...snap.data() })
   } catch (error: unknown) {
-    console.error(`🛑 GET /api/users/${params.id} failed:`, error)
     const message = error instanceof Error ? error.message : String(error)
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }
 
-export async function PUT(req: Request, { params }: { params: { id: string } }) {
+// ──────────────────────────────────────────────────────────────
+// PUT: modificar usuari
+// ──────────────────────────────────────────────────────────────
+export async function PUT(
+  req: Request,
+  context: { params: Promise<{ id: string }> }
+) {
   try {
-    const id = params.id
+    const { id } = await context.params
     const data = (await req.json()) as Partial<UserUpdate>
 
-    const update: UserUpdate = {
+    // 🔹 Construir objecte base d'actualització
+    const rawUpdate: UserUpdate = {
       ...data,
       userId: undefined, // no permetre canviar
       updatedAt: Date.now(),
     }
 
-    if (typeof update.department === 'string') {
-      update.department = update.department.trim()
-      update.departmentLower = normLower(update.department)
+    // 🔹 Normalitzar departament
+    if (typeof rawUpdate.department === 'string') {
+      rawUpdate.department = rawUpdate.department.trim()
+      rawUpdate.departmentLower = normLower(rawUpdate.department)
     }
 
-    // si el rol NO és Treballador, ignorem extres
-    if (!isTreballador(update.role)) {
-      update.available = undefined
-      update.isDriver = undefined
-      update.workerRank = undefined
+    // 🔹 Si NO és treballador → netegem camps específics de torns
+    if (!isTreballador(rawUpdate.role)) {
+      rawUpdate.available = undefined
+      rawUpdate.isDriver = undefined
+      rawUpdate.workerRank = undefined
     }
 
-    function pruneUndefined<T extends Record<string, unknown>>(obj: T): asserts obj is T {
-  Object.keys(obj).forEach((k) => {
-    if (obj[k] === undefined) delete obj[k]
-  })
-}
+    // 🔹 Eliminar propietats undefined
+    const update = Object.fromEntries(
+      Object.entries(rawUpdate).filter(([, v]) => v !== undefined)
+    ) as UserUpdate
 
-   await db.collection('users').doc(id).set(
-  { ...update, userId: id },
-  { merge: true }
-)
+    // 🔹 Guardar usuari a `users`
+    await db
+      .collection('users')
+      .doc(id)
+      .set({ ...update, userId: id }, { merge: true })
 
-
+    // 🔹 Si és treballador → sincronitzar col·lecció `personnel`
     if (isTreballador(update.role)) {
       const personRef = db.collection('personnel').doc(id)
       const snap = await personRef.get()
+      const snapData = snap.data() || {}
+
       const body = {
         id,
-        name: update.name ?? snap.data()?.name ?? '',
-        department: update.department ?? snap.data()?.department ?? '',
-        departmentLower: update.departmentLower ?? snap.data()?.departmentLower ?? '',
+        name: update.name ?? snapData.name ?? '',
+        department: update.department ?? snapData.department ?? '',
+        departmentLower:
+          update.departmentLower ?? snapData.departmentLower ?? '',
         role: 'treballador',
-        available: update.available ?? snap.data()?.available ?? true,
-        isDriver: update.isDriver ?? snap.data()?.isDriver ?? false,
-        workerRank: update.workerRank ?? snap.data()?.workerRank ?? 'soldat',
-        email: update.email ?? snap.data()?.email ?? null,
-        phone: update.phone ?? snap.data()?.phone ?? null,
+        available: update.available ?? snapData.available ?? true,
+        isDriver: update.isDriver ?? snapData.isDriver ?? false,
+        workerRank: update.workerRank ?? snapData.workerRank ?? 'soldat',
+        email: update.email ?? snapData.email ?? null,
+        phone: update.phone ?? snapData.phone ?? null,
+        // 🔔 FIX: mantenim pushEnabled també a `personnel`
+        pushEnabled: update.pushEnabled ?? snapData.pushEnabled ?? false,
         updatedAt: Date.now(),
-        createdAt: snap.exists ? (snap.data()?.createdAt ?? Date.now()) : Date.now(),
+        createdAt: snap.exists
+          ? snapData.createdAt ?? Date.now()
+          : Date.now(),
       }
+
       await personRef.set(body, { merge: true })
     }
 
+    // 🔹 Retornar document final
     const final = await db.collection('users').doc(id).get()
     return NextResponse.json({ id, ...final.data() })
   } catch (error: unknown) {
-    console.error(`🛑 PUT /api/users/${params.id} failed:`, error)
     const message = error instanceof Error ? error.message : String(error)
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }
 
-export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+// ──────────────────────────────────────────────────────────────
+// DELETE: eliminar usuari
+// ──────────────────────────────────────────────────────────────
+export async function DELETE(
+  _req: Request,
+  context: { params: Promise<{ id: string }> }
+) {
   try {
-    await db.collection('users').doc(params.id).delete()
+    const { id } = await context.params
+
+    await db.collection('users').doc(id).delete()
+    await db.collection('personnel').doc(id).delete().catch(() => {})
+
     return new NextResponse(null, { status: 204 })
   } catch (error: unknown) {
-    console.error(`🛑 DELETE /api/users/${params.id} failed:`, error)
     const message = error instanceof Error ? error.message : String(error)
     return NextResponse.json({ error: message }, { status: 500 })
   }

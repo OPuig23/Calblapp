@@ -6,7 +6,7 @@ import {
   Dialog,
   DialogContent,
   DialogHeader,
-  DialogTitle
+  DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -14,6 +14,18 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { useUpdatePersonnel } from '@/hooks/useUpdatePersonnel'
 import { usePersonnel, Personnel } from '@/hooks/usePersonnel'
+import { checkNameExists, generateSuggestions } from '@/lib/validateName'
+
+// Opcions de rol
+const ROLE_OPTIONS = [
+  { value: 'soldat', label: 'Soldat' },
+  { value: 'responsable', label: 'Responsable' },
+]
+
+function normalizeRoleLocal(r?: string) {
+  const v = (r || '').toLowerCase()
+  return v === 'responsable' ? 'responsable' : 'soldat'
+}
 
 interface EditPersonnelModalProps {
   isOpen: boolean
@@ -22,66 +34,107 @@ interface EditPersonnelModalProps {
   person: Personnel
 }
 
-// Opcions de rol permeses
-const ROLE_OPTIONS = [
-  { value: 'soldat',      label: 'Soldat' },
-  { value: 'responsable', label: 'Responsable' },
-]
-
-// Normalització/validació del rol
-function normalizeRoleLocal(r?: string) {
-  const v = (r || '').toLowerCase()
-  return v === 'responsable' ? 'responsable' : 'soldat'
-}
-
 export default function EditPersonnelModal({
   isOpen,
   onOpenChange,
   onSaved,
-  person
+  person,
 }: EditPersonnelModalProps) {
   const { mutateAsync, loading: isSaving, error } = useUpdatePersonnel()
-  usePersonnel() // per mantenir coherència d’estat global
+  usePersonnel() // manté estat global en sincronització
 
-  // Estat del formulari
-  const [form, setForm] = useState<Personnel>({
+  // Formulari
+  const [form, setForm] = useState<Personnel>(() => ({
     ...person,
     role: normalizeRoleLocal(person.role),
     maxHoursWeek: person.maxHoursWeek ?? 40,
-    driver: person.driver ?? { isDriver: false, camioGran: false, camioPetit: false },
+    driver: person.driver ?? {
+      isDriver: false,
+      camioGran: false,
+      camioPetit: false,
+    },
     available: person.available ?? true,
-  })
+  }))
 
-  // Sincronitza quan s’obre o canvia el person
+  // Estat validació nom
+  const [nameError, setNameError] = useState(false)
+  const [suggestions, setSuggestions] = useState<string[]>([])
+
+  // Reset al obrir / canviar persona
   useEffect(() => {
-    if (isOpen) {
-      setForm({
-        ...person,
-        role: normalizeRoleLocal(person.role),
-        maxHoursWeek: person.maxHoursWeek ?? 40,
-        driver: person.driver ?? { isDriver: false, camioGran: false, camioPetit: false },
-        available: person.available ?? true,
-      })
-    }
+    if (!isOpen) return
+
+    setForm({
+      ...person,
+      role: normalizeRoleLocal(person.role),
+      maxHoursWeek: person.maxHoursWeek ?? 40,
+      driver: person.driver ?? {
+        isDriver: false,
+        camioGran: false,
+        camioPetit: false,
+      },
+      available: person.available ?? true,
+    })
+    setNameError(false)
+    setSuggestions([])
   }, [isOpen, person])
 
-  const handleChange = <K extends keyof Personnel>(field: K, value: Personnel[K]) => {
-    setForm(prev => ({ ...prev, [field]: value }))
+  const handleChange = <K extends keyof Personnel>(
+    field: K,
+    value: Personnel[K],
+  ) => {
+    setForm((prev) => ({ ...prev, [field]: value }))
+  }
+
+  // ✅ Validació de nom (igual que NewPersonnel, però permet mantenir el seu)
+  const validateName = async (newName: string) => {
+    const trimmed = newName.trim()
+    if (!trimmed) {
+      setNameError(false)
+      setSuggestions([])
+      return
+    }
+
+    // Si és exactament el mateix nom (ignorant majúscules/minúscules) -> OK
+    if (trimmed.toLowerCase() === (person.name || '').trim().toLowerCase()) {
+      setNameError(false)
+      setSuggestions([])
+      return
+    }
+
+    const exists = await checkNameExists(trimmed, person.id)
+    setNameError(exists)
+
+    if (exists) {
+      setSuggestions(generateSuggestions(trimmed))
+    } else {
+      setSuggestions([])
+    }
   }
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    try {
-      const payload: Personnel = {
-        ...form,
-        role: normalizeRoleLocal(form.role),
-      }
-      await mutateAsync(payload)
-      onSaved()
-      onOpenChange(false)
-    } catch (err) {
-      console.error('Error actualitzant personal:', err)
-    }
+    if (nameError) return
+
+// 🔵 Construïm objecte segons el tipus UpdatePerson (no Personnel!)
+const payload = {
+  id: form.id,
+  name: form.name?.trim(),
+  role: normalizeRoleLocal(form.role),
+  department: form.department,
+  available: form.available ?? true,
+  isDriver: form.driver?.isDriver ?? false,
+  email: form.email || null,
+  phone: form.phone || null,
+  updatedAt: Date.now(),
+}
+
+// 🔵 Enviar al backend
+await mutateAsync(payload as any)
+
+
+    onSaved()
+    onOpenChange(false)
   }
 
   return (
@@ -94,38 +147,67 @@ export default function EditPersonnelModal({
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* ID (no editable) */}
           <div>
-            <Label htmlFor="id">ID (Nom)</Label>
+            <Label htmlFor="id">ID</Label>
             <Input id="id" value={form.id} disabled className="bg-gray-100" />
           </div>
 
-          {/* Nom complet */}
+          {/* NOM + validació duplicats */}
           <div>
             <Label htmlFor="name">Nom complet</Label>
             <Input
               id="name"
               value={form.name}
-              onChange={e => handleChange('name', e.target.value)}
+              onChange={async (e) => {
+                const v = e.target.value
+                handleChange('name', v)
+                await validateName(v)
+              }}
               required
+              className={nameError ? 'border-red-500' : ''}
             />
+
+            {nameError && (
+              <div className="mt-1 text-red-600 text-sm flex flex-col gap-2">
+                <div>⚠️ Ja existeix un treballador amb aquest nom.</div>
+
+                {suggestions.length > 0 && (
+                  <div className="flex gap-2 flex-wrap">
+                    {suggestions.map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={async () => {
+                          handleChange('name', s)
+                          await validateName(s)
+                        }}
+                        className="px-2 py-1 bg-gray-100 rounded-lg text-xs border hover:bg-gray-200"
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Rol */}
           <div>
             <Label htmlFor="role">Rol</Label>
             <select
-  id="role"
-  value={normalizeRoleLocal(form.role)}
-  onChange={(e) => handleChange('role', e.target.value as Personnel['role'])}
-  required
-  className="border rounded px-2 py-1 w-full"
->
-  {ROLE_OPTIONS.map(opt => (
-    <option key={opt.value} value={opt.value}>
-      {opt.label}
-    </option>
-  ))}
-</select>
-
+              id="role"
+              value={normalizeRoleLocal(form.role)}
+              onChange={(e) =>
+                handleChange('role', e.target.value as Personnel['role'])
+              }
+              className="border rounded px-2 py-1 w-full"
+            >
+              {ROLE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Departament (no editable) */}
@@ -139,7 +221,7 @@ export default function EditPersonnelModal({
             />
           </div>
 
-          {/* ✅ Disponible / No disponible */}
+          {/* Disponible */}
           <div className="flex items-center justify-between">
             <Label htmlFor="available">Disponible</Label>
             <Switch
@@ -149,16 +231,18 @@ export default function EditPersonnelModal({
             />
           </div>
 
-          {/* És conductor */}
+          {/* Conductor */}
           <div>
-            <Label htmlFor="isDriver">És conductor?</Label>
+            <Label>És conductor?</Label>
             <select
-              id="isDriver"
               value={form.driver?.isDriver ? 'si' : 'no'}
-              onChange={e =>
+              onChange={(e) =>
                 handleChange('driver', {
-                  ...form.driver,
-                  isDriver: e.target.value === 'si'
+                  ...(form.driver ?? {
+                    camioGran: false,
+                    camioPetit: false,
+                  }),
+                  isDriver: e.target.value === 'si',
                 })
               }
               className="border rounded px-2 py-1 w-full"
@@ -168,7 +252,7 @@ export default function EditPersonnelModal({
             </select>
           </div>
 
-          {/* Tipus de vehicle */}
+          {/* Tipus vehicle */}
           {form.driver?.isDriver && (
             <div>
               <Label>Tipus de vehicle</Label>
@@ -177,18 +261,27 @@ export default function EditPersonnelModal({
                   <input
                     type="checkbox"
                     checked={form.driver?.camioGran || false}
-                    onChange={e =>
-                      handleChange('driver', { ...form.driver, camioGran: e.target.checked })
+                    onChange={(e) =>
+                      handleChange('driver', {
+                       ...(form.driver ?? { isDriver: true, camioGran: false, camioPetit: false }),
+camioGran: e.target.checked,
+
+                      })
                     }
                   />
                   Camió gran
                 </label>
+
                 <label className="flex items-center gap-2">
                   <input
                     type="checkbox"
                     checked={form.driver?.camioPetit || false}
-                    onChange={e =>
-                      handleChange('driver', { ...form.driver, camioPetit: e.target.checked })
+                    onChange={(e) =>
+                      handleChange('driver', {
+                      ...(form.driver ?? { isDriver: true, camioGran: false, camioPetit: false }),
+camioPetit: e.target.checked,
+
+                      })
                     }
                   />
                   Camió petit
@@ -204,7 +297,7 @@ export default function EditPersonnelModal({
               id="email"
               type="email"
               value={form.email || ''}
-              onChange={e => handleChange('email', e.target.value)}
+              onChange={(e) => handleChange('email', e.target.value)}
             />
           </div>
 
@@ -215,11 +308,11 @@ export default function EditPersonnelModal({
               id="phone"
               type="tel"
               value={form.phone || ''}
-              onChange={e => handleChange('phone', e.target.value)}
+              onChange={(e) => handleChange('phone', e.target.value)}
             />
           </div>
 
-          {/* Hores màximes setmanals */}
+          {/* Hores màximes setmana */}
           <div>
             <Label htmlFor="maxHoursWeek">Hores màximes per setmana</Label>
             <Input
@@ -227,17 +320,23 @@ export default function EditPersonnelModal({
               type="number"
               min={0}
               value={form.maxHoursWeek ?? 40}
-              onChange={e => handleChange('maxHoursWeek', Number(e.target.value))}
-              required
+              onChange={(e) =>
+                handleChange('maxHoursWeek', Number(e.target.value) || 0)
+              }
             />
           </div>
 
           {/* Botons */}
           <div className="flex justify-end space-x-2 pt-4">
-            <Button variant="ghost" type="button" onClick={() => onOpenChange(false)} disabled={isSaving}>
+            <Button
+              variant="ghost"
+              type="button"
+              onClick={() => onOpenChange(false)}
+              disabled={isSaving}
+            >
               Cancel·lar
             </Button>
-            <Button type="submit" variant="primary" disabled={isSaving}>
+            <Button type="submit" disabled={isSaving || nameError}>
               {isSaving ? 'Guardant…' : 'Guardar'}
             </Button>
           </div>

@@ -14,6 +14,7 @@ export type User = {
   available?: boolean
   isDriver?: boolean
   workerRank?: 'soldat' | 'responsable'
+  pushEnabled?: boolean
 }
 
 export function useUsers() {
@@ -43,7 +44,8 @@ export function useUsers() {
 
   useEffect(() => { fetchUsers() }, [])
 
-  async function saveUser(id: string | null, data: Omit<User, 'id'>) {
+ async function saveUser(id: string | undefined, data: any) {
+
     const payload: Partial<User> = {
       name:       data.name,
       password:   data.password,
@@ -54,6 +56,7 @@ export function useUsers() {
       available:  data.available,
       isDriver:   data.isDriver,
       workerRank: data.workerRank,
+      pushEnabled: (data as any).pushEnabled,
     }
 
     let res: Response

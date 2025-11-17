@@ -13,11 +13,15 @@ import { normalizeRole, type Role } from '@/lib/roles'
 import { NotificationsProvider } from '@/context/NotificationsContext'
 import './globals.css'
 
+
+// ------------ Tipus d'usuari de sessió ----------
 type SessionUser = {
+  id?: string
   role?: string
   department?: string
   name?: string
   email?: string
+  pushEnabled?: boolean
 }
 
 /* ================= NAV ITEMS ================== */
@@ -69,9 +73,10 @@ const ROLE_BADGE_CLASS: Record<Role, string> = {
 function InnerLayout({ children }: PropsWithChildren) {
   const router = useRouter()
   const pathname = usePathname() ?? ''
-
   const { data: session, status } = useSession()
+  const user = session?.user as SessionUser | undefined
 
+  // ---------- Logout ----------
   const handleSignOut = async () => {
     try {
       await signOut({ redirect: false })
@@ -80,6 +85,7 @@ function InnerLayout({ children }: PropsWithChildren) {
     }
   }
 
+  // ---------- Redirigir si no hi ha sessió ----------
   useEffect(() => {
     if (status !== 'loading' && !session && !pathname.startsWith('/login')) {
       router.replace('/login')
@@ -88,7 +94,7 @@ function InnerLayout({ children }: PropsWithChildren) {
 
   const [mobileOpen, setMobileOpen] = React.useState(false)
 
-  // Layout especial login
+  // ---------- Layout especial login ----------
   if (pathname.startsWith('/login')) {
     return (
       <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-gray-50">
@@ -98,24 +104,24 @@ function InnerLayout({ children }: PropsWithChildren) {
     )
   }
 
-  const username = session?.user?.name || session?.user?.email || 'Usuari'
+  // ---------- Informació usuari ----------
+  const username = user?.name || user?.email || 'Usuari'
   const avatarLetter = (username[0] || 'U').toUpperCase()
-  const role = normalizeRole(((session?.user as SessionUser)?.role) || '')
+  const role = normalizeRole(user?.role || '')
   const roleLabel = ROLE_LABEL[role]
   const roleBadgeClass = ROLE_BADGE_CLASS[role]
-  const dept = ((session?.user as SessionUser)?.department || '').toLowerCase()
+  const dept = (user?.department || '').toLowerCase()
 
   const navItemsByRole = NAV_ITEMS.filter(item => {
     if (!item.roles.includes(role)) return false
 
-    if (item.path === '/menu/modifications' && role === 'cap') {
+    if (item.path === '/menu/modifications' && role === 'cap')
       return ['produccio', 'cuina', 'logistica'].includes(dept)
-    }
 
     if (role === 'cap' && item.department) {
-      if (Array.isArray(item.department)) {
+      if (Array.isArray(item.department))
         return item.department.map(d => d.toLowerCase()).includes(dept)
-      }
+
       return item.department.toLowerCase() === dept
     }
 
@@ -124,6 +130,7 @@ function InnerLayout({ children }: PropsWithChildren) {
 
   const isMenuHome = pathname === '/menu'
 
+  // ---------- RETURN LAYOUT ----------
   return (
     <div className="flex flex-col min-h-[100dvh] bg-gray-50 text-gray-800">
       <header className="sticky top-0 z-50 bg-white/75 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b">
@@ -141,18 +148,14 @@ function InnerLayout({ children }: PropsWithChildren) {
               <Image src="/logo.png" alt="Cal Blay" width={200} height={96} className="h-20 w-auto object-contain" priority />
             </Link>
 
-            <button
-              onClick={handleSignOut}
-              aria-label="Tancar sessió"
-              className="p-1 rounded hover:bg-gray-100 active:scale-95"
-            >
+            <button onClick={handleSignOut} aria-label="Tancar sessió" className="p-1 rounded hover:bg-gray-100 active:scale-95">
               <LogOut className="w-5 h-5 text-gray-600" />
             </button>
           </div>
         ) : (
-          <div className="max-w-7xl mx-auto w-full px-4 md:px-8">
-            {/* ===== MOBILE HEADER (hamburguesa) ===== */}
-            <div className="md:hidden h-14 relative flex items-center justify-between">
+          <>
+            {/* ≣≣≣ MOBILE HEADER ≣≣≣ */}
+            <div className="md:hidden h-14 relative flex items-center justify-between px-4">
               <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold uppercase border border-blue-200">
                 {avatarLetter}
               </div>
@@ -172,8 +175,8 @@ function InnerLayout({ children }: PropsWithChildren) {
               </button>
             </div>
 
-            {/* ===== DESKTOP HEADER ===== */}
-            <div className="hidden md:flex items-center justify-between py-2">
+            {/* ≣≣≣ DESKTOP HEADER ≣≣≣ */}
+            <div className="hidden md:flex items-center justify-between py-2 px-4 md:px-8 max-w-7xl mx-auto w-full">
               <Link href="/menu" className="flex-shrink-0 flex items-center py-2">
                 <Image src="/logo.png" alt="Cal Blay" width={130} height={60} className="object-contain" />
               </Link>
@@ -199,7 +202,9 @@ function InnerLayout({ children }: PropsWithChildren) {
               </nav>
 
               <div className="flex items-center gap-3">
-                <span className={`px-3 py-1 rounded-full text-sm ring-1 ${roleBadgeClass}`}>{roleLabel}</span>
+                <span className={`px-3 py-1 rounded-full text-sm ring-1 ${roleBadgeClass}`}>
+                  {roleLabel}
+                </span>
                 <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold uppercase border border-blue-200">
                   {avatarLetter}
                 </div>
@@ -208,10 +213,10 @@ function InnerLayout({ children }: PropsWithChildren) {
                 </button>
               </div>
             </div>
-          </div>
+          </>
         )}
 
-        {/* ========== SLIDE OVER MENU MOBILE ========== */}
+        {/* ≣≣≣ SLIDE OVER MENU MOBILE ≣≣≣ */}
         {mobileOpen && (
           <div className="fixed inset-0 z-50 bg-black/50" onClick={() => setMobileOpen(false)}>
             <div
@@ -220,9 +225,7 @@ function InnerLayout({ children }: PropsWithChildren) {
             >
               <div className="flex items-center justify-between">
                 <span className="font-semibold text-lg">Menú</span>
-                <button onClick={() => setMobileOpen(false)} className="p-1">
-                  ✕
-                </button>
+                <button onClick={() => setMobileOpen(false)} className="p-1">✕</button>
               </div>
 
               <nav className="flex flex-col gap-2">
@@ -247,6 +250,7 @@ function InnerLayout({ children }: PropsWithChildren) {
             </div>
           </div>
         )}
+
       </header>
 
       <main className="w-full px-2 sm:px-4 pb-6 sm:max-w-7xl sm:mx-auto overflow-visible">
@@ -258,13 +262,11 @@ function InnerLayout({ children }: PropsWithChildren) {
 
 /* ================== ROOT LAYOUT ================== */
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  // 🔹 Registre global del Service Worker per a PWA + push
+  // 🔹 Registre general SW (PWA + Push)
   useEffect(() => {
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker
-        .register('/sw.js')
-        .then(() => console.log('Service Worker registrat'))
-        .catch((err) => console.error('SW Error:', err))
+      navigator.serviceWorker.register('/sw.js')
+      navigator.serviceWorker.register('/firebase-messaging-sw.js')
     }
   }, [])
 
@@ -278,8 +280,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="manifest" href="/manifest.json" />
         <link rel="icon" href="/icons/icon-192.png" />
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
-
       </head>
+
       <body suppressHydrationWarning={true}>
         <Providers>
           <TooltipProvider delayDuration={200}>
@@ -288,18 +290,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </NotificationsProvider>
           </TooltipProvider>
         </Providers>
-        <script
-  dangerouslySetInnerHTML={{
-    __html: `
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js')
-          .then(() => console.log('Service Worker registrat'))
-          .catch((err) => console.error('SW Error:', err));
-      }
-    `
-  }}
-/>
-
       </body>
     </html>
   )

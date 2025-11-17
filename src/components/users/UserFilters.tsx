@@ -1,8 +1,14 @@
 // file: src/components/users/UserFilters.tsx
+// file: src/components/users/UserFilters.tsx
 'use client'
 
 import React, { useMemo } from 'react'
-import { UserFiltersState } from '@/app/menu/users/page'
+
+// ❗ Tipus definit aquí (no importem de page.tsx)
+export interface UserFiltersState {
+  department?: string
+  role?: string
+}
 
 type Props = {
   filters: UserFiltersState
@@ -19,30 +25,34 @@ export default function UserFilters({
   roleOptions,
   users,
 }: Props) {
-  // 🔒 Memoize users para evitar re-crear arrays en cada render
+  // 🔒 Evitar recrear arrays
   const safeUsers = useMemo(() => users || [], [users])
 
-  // 🔽 Rols dinàmics amb fallback
+  // 🔽 Rols dinàmics filtrats
   const dynamicRoles = useMemo(() => {
     let base = safeUsers
     if (filters.department && filters.department !== '__all__') {
       base = base.filter((u) => u.department === filters.department)
     }
+
     const roles = base.map((u) => u.role).filter(Boolean) as string[]
     return roles.length ? Array.from(new Set(roles)) : roleOptions
   }, [filters.department, safeUsers, roleOptions])
 
-  // 🔽 Departaments dinàmics amb fallback
+  // 🔽 Departaments dinàmics filtrats
   const dynamicDepartments = useMemo(() => {
     let base = safeUsers
     if (filters.role && filters.role !== '__all__') {
       base = base.filter((u) => u.role === filters.role)
     }
+
     const depts = base.map((u) => u.department).filter(Boolean) as string[]
-    return depts.length ? Array.from(new Set(depts)) : departmentOptions
+    return depts.length
+      ? Array.from(new Set(depts))
+      : departmentOptions
   }, [filters.role, safeUsers, departmentOptions])
 
-  // 🔽 Handler neteja
+  // Reset
   const clearFilters = () => {
     setFilters({ department: '__all__', role: '__all__' })
   }

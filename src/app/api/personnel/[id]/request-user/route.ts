@@ -200,6 +200,34 @@ export async function POST(
       `${requesterName} demana crear usuari per a ${p.name || personId} (${p.department || ''}).`,
       personId
     )
+    // 🔵 Enviar PUSH als Admins
+try {
+  const adminsSnap = await firestoreAdmin.collection('users').get()
+  const admins = adminsSnap.docs.filter(d => {
+    const data = d.data() as any
+    return normalizeRole(String(data.role || '')) === 'admin'
+  })
+
+  for (const admin of admins) {
+    const adminId = admin.id
+
+    await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/push/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: adminId,
+        title: 'Nova sol·licitud d’usuari',
+        body: `${requesterName} demana usuari per a ${p.name}`,
+        url: '/menu/admin/user-requests'
+      })
+    })
+  }
+
+  console.log('📲 Push enviat als admins')
+} catch (err) {
+  console.error('❌ Error enviant push a admins:', err)
+}
+
 
     console.log('✅ Sol·licitud guardada correctament per:', personId)
     return NextResponse.json({ success: true, status: 'pending' })

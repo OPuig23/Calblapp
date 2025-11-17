@@ -19,6 +19,7 @@ interface FirestoreUser {
   password?: string
   role?: string
   department?: string
+  pushEnabled?: boolean
 }
 
 // 🔹 Extendemos JWT y Session para evitar any
@@ -27,6 +28,8 @@ declare module 'next-auth/jwt' {
     role?: string
     department?: string
     deptLower?: string
+    pushEnabled?: boolean
+
   }
 }
 
@@ -92,6 +95,7 @@ export const authOptions = {
         role: roleNorm,
         department,
         departmentLower: normLower(department),
+        pushEnabled: data.pushEnabled ?? false,
       }
     } else {
       console.log("❌ Password incorrecte. Input:", passInput, "Doc:", passDoc)
@@ -106,13 +110,21 @@ export const authOptions = {
   session: { strategy: 'jwt' as const },
   callbacks: {
     async jwt({ token, user }: { token: JWT; user?: AdapterUser | User }) {
-      if (user) {
-        const u = user as User & { id: string; role?: string; department?: string }
-        token.sub = u.id
-        token.role = normalizeRole(u.role)
-        token.department = u.department || ''
-        token.deptLower = normLower(token.department)
-      }
+   if (user) {
+  const u = user as User & {
+    id: string
+    role?: string
+    department?: string
+    pushEnabled?: boolean
+  }
+
+  token.sub = u.id
+  token.role = normalizeRole(u.role)
+  token.department = u.department || ''
+  token.deptLower = normLower(token.department)
+  token.pushEnabled = u.pushEnabled ?? false        // 👈 AFEGIT
+}
+
 
       if (token.role) {
         token.role = normalizeRole(String(token.role))
@@ -133,6 +145,7 @@ export const authOptions = {
           role: token.role,
           department: token.department,
           deptLower: token.deptLower,
+          pushEnabled: token.pushEnabled ?? false,
         },
         accessToken: token,
       }

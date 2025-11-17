@@ -22,10 +22,17 @@ interface NotificationDoc {
 }
 
 export async function GET(req: Request) {
-  const session = await getServerSession(authOptions)
-  if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+const session = await getServerSession(authOptions)
+
+// 1️⃣ Primer: si NO hi ha sessió → 401
+if (!session) {
+  return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+}
+
+// 2️⃣ Després: si la sessió existeix però encara no té user.id → retornar count=0
+if (!(session.user as SessionUser)?.id) {
+  return NextResponse.json({ count: 0 })
+}
 
   const userId = (session.user as SessionUser)?.id
   if (!userId) {
@@ -70,6 +77,7 @@ export async function GET(req: Request) {
 
 export async function PATCH(req: Request) {
   const session = await getServerSession(authOptions)
+
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
