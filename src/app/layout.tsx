@@ -86,8 +86,9 @@ function InnerLayout({ children }: PropsWithChildren) {
     }
   }, [status, session, pathname, router])
 
+  const [mobileOpen, setMobileOpen] = React.useState(false)
+
   // Layout especial login
-   const [mobileOpen, setMobileOpen] = React.useState(false)
   if (pathname.startsWith('/login')) {
     return (
       <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-gray-50">
@@ -121,7 +122,6 @@ function InnerLayout({ children }: PropsWithChildren) {
     return true
   })
 
- 
   const isMenuHome = pathname === '/menu'
 
   return (
@@ -151,7 +151,6 @@ function InnerLayout({ children }: PropsWithChildren) {
           </div>
         ) : (
           <div className="max-w-7xl mx-auto w-full px-4 md:px-8">
-
             {/* ===== MOBILE HEADER (hamburguesa) ===== */}
             <div className="md:hidden h-14 relative flex items-center justify-between">
               <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold uppercase border border-blue-200">
@@ -167,8 +166,7 @@ function InnerLayout({ children }: PropsWithChildren) {
                 className="p-2 rounded hover:bg-gray-100 active:scale-95"
                 aria-label="Obrir menú"
               >
-                <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" strokeWidth="2"
-                  viewBox="0 0 24 24">
+                <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
               </button>
@@ -186,7 +184,6 @@ function InnerLayout({ children }: PropsWithChildren) {
                     const isActive = pathname.startsWith(item.path)
                     return (
                       <li key={`${item.path}-${item.label}`}>
-
                         <Link
                           href={item.path}
                           aria-current={isActive ? 'page' : undefined}
@@ -223,7 +220,9 @@ function InnerLayout({ children }: PropsWithChildren) {
             >
               <div className="flex items-center justify-between">
                 <span className="font-semibold text-lg">Menú</span>
-                <button onClick={() => setMobileOpen(false)} className="p-1">✕</button>
+                <button onClick={() => setMobileOpen(false)} className="p-1">
+                  ✕
+                </button>
               </div>
 
               <nav className="flex flex-col gap-2">
@@ -248,25 +247,38 @@ function InnerLayout({ children }: PropsWithChildren) {
             </div>
           </div>
         )}
-
       </header>
 
       <main className="w-full px-2 sm:px-4 pb-6 sm:max-w-7xl sm:mx-auto overflow-visible">
-  {children}
-</main>
-
+        {children}
+      </main>
     </div>
   )
 }
 
 /* ================== ROOT LAYOUT ================== */
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  // 🔹 Registre global del Service Worker per a PWA + push
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker
+        .register('/sw.js')
+        .then(() => console.log('Service Worker registrat'))
+        .catch((err) => console.error('SW Error:', err))
+    }
+  }, [])
+
   return (
     <html lang="ca">
       <head>
         <title>Cal Blay</title>
         <meta name="description" content="WebApp Cal Blay" />
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+        <meta name="theme-color" content="#1e293b" />
+        <link rel="manifest" href="/manifest.json" />
+        <link rel="icon" href="/icons/icon-192.png" />
+        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+
       </head>
       <body suppressHydrationWarning={true}>
         <Providers>
@@ -276,6 +288,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </NotificationsProvider>
           </TooltipProvider>
         </Providers>
+        <script
+  dangerouslySetInnerHTML={{
+    __html: `
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js')
+          .then(() => console.log('Service Worker registrat'))
+          .catch((err) => console.error('SW Error:', err));
+      }
+    `
+  }}
+/>
+
       </body>
     </html>
   )
