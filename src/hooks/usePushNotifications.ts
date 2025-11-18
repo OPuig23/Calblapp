@@ -1,4 +1,4 @@
-// filename: src/hooks/usePushNotifications.ts
+// file: src/hooks/usePushNotifications.ts
 'use client'
 
 import { useState } from 'react'
@@ -31,10 +31,13 @@ export function usePushNotifications() {
 
       const registration = await navigator.serviceWorker.ready
 
-      // Clau pública que generarem després (PAS 4)
-      const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+      // ❗ Fem servir la variable que ja tens: NEXT_PUBLIC_FIREBASE_VAPID_KEY
+      const VAPID_PUBLIC_KEY =
+        process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY ||
+        process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+
       if (!VAPID_PUBLIC_KEY) {
-        throw new Error('Falta NEXT_PUBLIC_VAPID_PUBLIC_KEY')
+        throw new Error('Falta NEXT_PUBLIC_FIREBASE_VAPID_KEY o NEXT_PUBLIC_VAPID_PUBLIC_KEY')
       }
 
       const convertedKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
@@ -47,7 +50,6 @@ export function usePushNotifications() {
       console.log('[CalBlay] Subscripció WebPush creada:', sub)
       setSubscription(sub)
 
-      // 🔹 Enviar al backend perquè es guardi al Firestore
       const res = await fetch('/api/push/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
