@@ -260,15 +260,12 @@ function InnerLayout({ children }: PropsWithChildren) {
   )
 }
 
-/* ================== ROOT LAYOUT ================== */
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  // 🔹 Registre general SW (PWA + Push)
-  useEffect(() => {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js')
-         }
-  }, [])
-
+useEffect(() => {
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/service-worker.js')
+  }
+}, [])
   return (
     <html lang="ca">
       <head>
