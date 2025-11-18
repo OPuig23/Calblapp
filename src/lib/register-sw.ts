@@ -8,7 +8,7 @@ export function registerServiceWorker() {
 
   window.addEventListener('load', () => {
     navigator.serviceWorker
-      .register('/sw.js')
+      .register('/service-worker.js')
       .then((reg) => {
         console.log('[CalBlay] Service Worker registrat correctament:', reg)
       })

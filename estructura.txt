@@ -46909,8 +46909,8 @@ estore
 �   �   �   �       �       index.js
 �   �   �   �       �       index.js.map
 �   �   �   �       �       msw.d.ts
-�   �   �   �       �       msw.js
-�   �   �   �       �       msw.js.map
+�   �   �   �       �       mservice-worker.js
+�   �   �   �       �       mservice-worker.js.map
 �   �   �   �       �       next-fixture.d.ts
 �   �   �   �       �       next-fixture.js
 �   �   �   �       �       next-fixture.js.map
@@ -49168,7 +49168,7 @@ estore
 �   �   �       �   
 �   �   �       +---playwright
 �   �   �               msw.d.ts
-�   �   �               msw.js
+�   �   �               mservice-worker.js
 �   �   �               
 �   �   +---font
 �   �   �   �   index.d.ts

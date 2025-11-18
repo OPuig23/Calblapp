@@ -265,8 +265,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   // 🔹 Registre general SW (PWA + Push)
   useEffect(() => {
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js')
-      navigator.serviceWorker.register('/firebase-messaging-sw.js')
+      navigator.serviceWorker.register('/service-worker.js')
+      navigator.serviceWorker.register('/firebase-messaging-service-worker.js')
     }
   }, [])
 
