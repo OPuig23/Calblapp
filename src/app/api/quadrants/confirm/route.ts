@@ -127,21 +127,17 @@ export async function POST(req: NextRequest) {
     const pushBody = `${eventName} – ${prev?.startDate} ${prev?.startTime}`
 
     for (const u of validUsers) {
-      const baseUrl = process.env.VERCEL_URL
-  ? `https://${process.env.VERCEL_URL}`
-  : 'http://localhost:3000'
+await fetch(`${req.nextUrl.origin}/api/push/send`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    userId: u.userId,
+    title: pushTitle,
+    body: pushBody,
+    url: `/menu/torns?open=${eventId}`, // enllaç directe
+  }),
+})
 
-await fetch(`${baseUrl}/api/push/send`, {
-
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: u.userId,
-          title: pushTitle,
-          body: pushBody,
-          url: `/menu/torns?open=${eventId}`, // 🔗 enllaç directe
-        }),
-      })
     }
 
     console.log('📣 PUSH enviat!')

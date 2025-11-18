@@ -208,27 +208,23 @@ try {
     return normalizeRole(String(data.role || '')) === 'admin'
   })
 
-  for (const admin of admins) {
-    const adminId = admin.id
+for (const admin of admins) {
+  const adminId = admin.id
 
-    const baseUrl = process.env.VERCEL_URL
-  ? `https://${process.env.VERCEL_URL}`
-  : 'http://localhost:3000'
+  await fetch(`${req.nextUrl.origin}/api/push/send`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      userId: adminId,
+      title: 'Nova sol·licitud d’usuari',
+      body: `${requesterName} demana usuari per a ${p.name}`,
+      url: '/menu/admin/user-requests',
+    }),
+  })
+}
 
-await fetch(`${baseUrl}/api/push/send`, {
+console.log('📲 Push enviat als admins')
 
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        userId: adminId,
-        title: 'Nova sol·licitud d’usuari',
-        body: `${requesterName} demana usuari per a ${p.name}`,
-        url: '/menu/admin/user-requests'
-      })
-    })
-  }
-
-  console.log('📲 Push enviat als admins')
 } catch (err) {
   console.error('❌ Error enviant push a admins:', err)
 }
