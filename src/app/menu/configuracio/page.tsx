@@ -1,4 +1,4 @@
-//file:src\app\menu\configuracio\page.tsx
+// file: src/app/menu/configuracio/page.tsx
 'use client'
 
 import { useSession, signOut } from 'next-auth/react'
@@ -6,22 +6,27 @@ import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
-import { useFCMToken } from '@/hooks/useFCMToken'
 import { Sun, Moon, Languages, Bell, LogOut } from 'lucide-react'
+
+// 👉 ARA FEM SERVIR EL SISTEMA WEBPUSH
+import { usePushNotifications } from '@/hooks/usePushNotifications'
 
 export default function ConfiguracioPage() {
   const { data: session, status } = useSession()
-  const { requestToken } = useFCMToken()
+  const {
+    permission,
+    error: pushError,
+    subscribeUser,
+    requestPermission,
+  } = usePushNotifications()
 
   const user = session?.user as {
     id: string
     name?: string
-    pushEnabled?: boolean
   }
 
   const [hasDevicePush, setHasDevicePush] = useState<boolean>(false)
   const [loadingPush, setLoadingPush] = useState(false)
-
   const [darkMode, setDarkMode] = useState<boolean>(false)
 
   // ──────────────────────────────────────────────────────────────
@@ -42,20 +47,25 @@ export default function ConfiguracioPage() {
   if (!user) return <p className="p-4">No autoritzat.</p>
 
   // ──────────────────────────────────────────────────────────────
-  // 2) Funcions push
+  // 2) Funcions push (WebPush)
   // ──────────────────────────────────────────────────────────────
   const enablePush = async () => {
+    if (!user?.id) return
     try {
       setLoadingPush(true)
-      const token = await requestToken()
-      if (!token) return
 
-      await fetch(`/api/users/${user.id}/push-token`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token }),
-      })
+      // 2.1 Demanem permís al navegador
+      const perm = await requestPermission()
+      if (perm !== 'granted') {
+        console.warn('[CalBlay] Permís notificacions no concedit:', perm)
+        return
+      }
 
+      // 2.2 Creem subscripció WebPush i la guardem a Firestore
+      const ok = await subscribeUser(user.id)
+      if (!ok) return
+
+      // 2.3 Marquem al dispositiu que ja està activat
       localStorage.setItem(`cb_push_activated_${user.id}`, '1')
       setHasDevicePush(true)
     } finally {
@@ -65,6 +75,7 @@ export default function ConfiguracioPage() {
 
   const disablePush = () => {
     if (!user?.id) return
+    // (Opcional: aquí podríem afegir /api/push/unsubscribe en el futur)
     localStorage.removeItem(`cb_push_activated_${user.id}`)
     setHasDevicePush(false)
   }
@@ -81,9 +92,8 @@ export default function ConfiguracioPage() {
   }
 
   // ──────────────────────────────────────────────────────────────
-  // 4) UI — Amb Framer Motion + targetes netes
+  // 4) UI
   // ──────────────────────────────────────────────────────────────
-
   return (
     <section className="w-full max-w-md mx-auto p-4 space-y-6">
       <h1 className="text-2xl font-bold text-center mb-4">Configuració</h1>
@@ -107,7 +117,7 @@ export default function ConfiguracioPage() {
             disabled={loadingPush}
             onCheckedChange={(val) => {
               if (loadingPush) return
-              if (val) enablePush()
+              if (val) void enablePush()
               else disablePush()
             }}
           />
@@ -115,6 +125,18 @@ export default function ConfiguracioPage() {
 
         {loadingPush && (
           <p className="text-sm text-blue-600">Activant…</p>
+        )}
+
+        {pushError && (
+          <p className="text-xs text-red-600">
+            Error notificacions: {pushError}
+          </p>
+        )}
+
+        {permission === 'denied' && (
+          <p className="text-xs text-amber-600">
+            Has bloquejat les notificacions al navegador. Caldrà activar-les als ajustos de Chrome.
+          </p>
         )}
       </motion.div>
 
