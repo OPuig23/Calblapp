@@ -1,5 +1,9 @@
 // file: src/app/api/push/send/route.ts
+
+// ❗ IMPRESCINDIBLE per evitar cache 401 a Vercel
 export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/firebaseAdmin'
@@ -75,6 +79,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true, sent })
   } catch (err) {
     console.error('❌ Error /api/push/send', err)
-    return NextResponse.json({ error: 'Internal error' }, { status: 500 })
+    return NextResponse.json(
+      { error: 'Internal error' },
+      { status: 500 }
+    )
   }
 }

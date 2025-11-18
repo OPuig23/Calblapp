@@ -1,5 +1,9 @@
 // file: src/app/api/push/subscribe/route.ts
+
+// ❗ OBLIGATORI per evitar 401 i cache a Vercel
 export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/firebaseAdmin'
@@ -15,7 +19,7 @@ export async function POST(req: Request) {
       )
     }
 
-    // 📌 Guardem les subscripcions dins:
+    // 📌 Guardem la subscripció al subdocument:
     // users/{userId}/pushSubscriptions/{autoId}
     await db
       .collection('users')
@@ -26,7 +30,8 @@ export async function POST(req: Request) {
         createdAt: Date.now(),
       })
 
-    console.log(`🔔 Subscripció guardada per usuari ${userId}`)
+    console.log(`🔔 Subscripció guardada correctament per user ${userId}`)
+
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('❌ Error guardant subscripció push:', error)
