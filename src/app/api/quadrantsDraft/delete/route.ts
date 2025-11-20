@@ -1,7 +1,7 @@
 // File: src/app/api/quadrantsDraft/delete/route.ts
 import { NextResponse } from 'next/server'
 import { getToken } from 'next-auth/jwt'
-import { db } from '@/lib/firebaseAdmin'
+import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
 
 export const runtime = 'nodejs'
 

@@ -1,6 +1,6 @@
 // ✅ src/app/api/transports/available/route.ts
 import { NextResponse } from 'next/server'
-import { db } from '@/lib/firebaseAdmin'
+import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
 
 const toDateTime = (date: string, time: string) =>
   new Date(`${date}T${time}:00`)

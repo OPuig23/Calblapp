@@ -1,6 +1,6 @@
 // file: src/pages/api/dev/backfillUserNameFold.ts
 import type { NextApiRequest, NextApiResponse } from 'next'
-import { db } from '@/lib/firebaseAdmin'
+import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
 
 const normalize = (s?: string) =>
   String(s ?? '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim()

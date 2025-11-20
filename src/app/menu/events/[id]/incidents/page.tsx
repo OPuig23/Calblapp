@@ -1,6 +1,6 @@
 // File: src/app/menu/events/[id]/incidents/page.tsx
 import React from 'react'
-import { db } from '@/lib/firebaseAdmin'
+import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
 
 import Link from 'next/link'
 import { format } from 'date-fns'

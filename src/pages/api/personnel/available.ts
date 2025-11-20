@@ -1,6 +1,6 @@
 // ✅ file: src/pages/api/personnel/available.ts
 import type { NextApiRequest, NextApiResponse } from 'next'
-import { db } from '@/lib/firebaseAdmin'
+import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
 
 /** Tipus del personal */
 type Personnel = {

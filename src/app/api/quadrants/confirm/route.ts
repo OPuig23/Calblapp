@@ -1,6 +1,6 @@
 // file: src/app/api/quadrants/confirm/route.ts
 import { NextResponse, type NextRequest } from 'next/server'
-import { db } from '@/lib/firebaseAdmin'
+import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
 import { getToken } from 'next-auth/jwt'
 import { Timestamp } from 'firebase-admin/firestore'
 

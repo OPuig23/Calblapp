@@ -1,5 +1,5 @@
 // ✅ file: src/services/spaces/spaces.ts
-import { db } from '@/lib/firebaseAdmin'
+import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
 import { AlertTriangle } from 'lucide-react'
 import {
   startOfWeek,

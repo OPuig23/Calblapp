@@ -1,6 +1,6 @@
 // file: src/app/api/quadrantsDraft/confirm/route.ts
 import { NextResponse, type NextRequest } from 'next/server'
-import { db } from '@/lib/firebaseAdmin'
+import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
 import { getToken } from 'next-auth/jwt'
 import { createNotificationsForQuadrant } from '@/services/notifications'
 

@@ -1,5 +1,5 @@
 // filename: src/services/workloadLedger.ts
-import { db } from '@/lib/firebaseAdmin'
+import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
 
 
 export interface BusyAssignment {

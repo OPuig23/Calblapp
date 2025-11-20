@@ -1,7 +1,7 @@
 //filename: src/app/api/pissarra/update/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { getToken } from 'next-auth/jwt'
-import { db } from '@/lib/firebaseAdmin'
+import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
 import { normalizeRole } from '@/lib/roles'
 
 // “La Bíblia” §3 Rols i Permisos — només Admin o Producció poden editar

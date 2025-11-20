@@ -1,6 +1,6 @@
 // file: src/app/api/events/quadrants/route.ts
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/firebaseAdmin'
+import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
 
 export const runtime = 'nodejs'
 

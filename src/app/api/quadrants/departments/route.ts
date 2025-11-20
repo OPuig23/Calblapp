@@ -1,6 +1,6 @@
 // file: src/app/api/quadrants/departments/route.ts
 import { NextResponse } from 'next/server'
-import { db } from '@/lib/firebaseAdmin'
+import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
 
 const unaccent = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 const toSuffix = (id: string) =>

@@ -1,6 +1,6 @@
 // file: src/app/api/personnel/check-name/route.ts
 import { NextResponse } from 'next/server'
-import { db } from '@/lib/firebaseAdmin'
+import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
 
 const norm = (v?: string) =>
   (v || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim()

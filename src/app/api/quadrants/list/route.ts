@@ -1,7 +1,7 @@
 // ✅ file: src/app/api/quadrants/list/route.ts
 import { NextResponse, type NextRequest } from 'next/server'
 import { getToken } from 'next-auth/jwt'
-import { db } from '@/lib/firebaseAdmin'
+import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
 import { normalizeRole as normalizeRoleCore } from '@/lib/roles'
 
 /* ──────────────────────────────────────────────────────────────────────────

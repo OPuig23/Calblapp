@@ -1,6 +1,6 @@
 // file: src/app/api/events/[id]/documents/route.ts
 import { NextResponse } from 'next/server'
-import { db } from '@/lib/firebaseAdmin'
+import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
 
 /**
  * Tipus retornats a la UI

@@ -1,29 +1,27 @@
-// ✅ file: src/lib/firebaseAdmin.ts
-import { getApps, initializeApp, cert } from 'firebase-admin/app'
+// file: src/lib/firebaseAdmin.ts
+import { getApps, getApp, initializeApp, cert } from 'firebase-admin/app'
 import { getFirestore } from 'firebase-admin/firestore'
-import { getStorage } from 'firebase-admin/storage'
+import admin from 'firebase-admin'
 
-let app
+function getAdminApp() {
+  if (getApps().length > 0) return getApp()
 
-if (!getApps().length) {
   const projectId = process.env.FIREBASE_PROJECT_ID
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL
-  const rawKey = process.env.FIREBASE_PRIVATE_KEY
-  const privateKey = rawKey?.replace(/\\n/g, '\n')
+  const privateKey = (process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n')
 
   if (!projectId || !clientEmail || !privateKey) {
     throw new Error('❌ Falten variables FIREBASE_* a .env')
   }
 
-  app = initializeApp({
+  return initializeApp({
     credential: cert({ projectId, clientEmail, privateKey }),
     storageBucket: 'cal-blay-webapp.firebasestorage.app',
   })
-
-  console.log('[firebaseAdmin] ✅ Inicialitzat Firebase Admin')
-} else {
-  app = getApps()[0]
 }
 
-export const firestoreAdmin = getFirestore(app)
-export const storageAdmin = getStorage(app)
+const app = getAdminApp()
+const firestoreAdmin = getFirestore(app)
+const storageAdmin = admin.storage()
+
+export { app, firestoreAdmin, storageAdmin }

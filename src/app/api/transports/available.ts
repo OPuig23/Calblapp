@@ -1,6 +1,6 @@
 // src/pages/api/transports/available.ts
 import type { NextApiRequest, NextApiResponse } from 'next'
-import { db } from '@/lib/firebaseAdmin'
+import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
 
 // Helpers
 const toDateTime = (date: string, time: string) => 
