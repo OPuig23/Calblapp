@@ -15,21 +15,67 @@ export interface Draft {
   id: string
   code: string
   eventName: string
-  department?: string
+
+  // Dates
   startDate: string
-  startTime?: string
   endDate?: string
+  startTime?: string
   endTime?: string
+
+  // Localització
   location?: string | { [key: string]: unknown }
-  totalWorkers?: number
-  numDrivers?: number
+
+  // Departament
+  department?: string
+
+  // Responsables
   responsableId?: string
   responsableName?: string | { [key: string]: unknown }
-  conductors?: Array<string | { [key: string]: unknown }>
-  treballadors?: Array<string | { [key: string]: unknown }>
+  responsable?: {
+    id?: string
+    name?: string
+    meetingPoint?: string
+    plate?: string
+    vehicleType?: string
+  }
+
+  // Conductors
+  conductors?: Array<{
+    id?: string
+    name: string
+    meetingPoint?: string
+    plate?: string
+    vehicleType?: string
+  }>
+
+  // Treballadors
+  treballadors?: Array<{
+    id?: string
+    name: string
+    meetingPoint?: string
+  }>
+
+  // Brigades
+  brigades?: Array<{
+    id?: string
+    name?: string
+    workers?: number
+    startDate?: string
+    endDate?: string
+    startTime?: string
+    endTime?: string
+  }>
+
+  // Comptadors requerits
+  responsablesNeeded?: number
+  numDrivers?: number
+  totalWorkers?: number
+
+  // Sistema
   updatedAt?: string
   status?: 'draft' | 'confirmed'
 }
+
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s)
@@ -84,19 +130,20 @@ const locationTag = (v: unknown): string => {
 ────────────────────────────── */
 export default function DraftsPage() {
   const router = useRouter()
-  const { data: session } = useSession()
-  const searchParams = useSearchParams()
+const searchParams = useSearchParams() as URLSearchParams
 
-  // 🔹 Llegeix els paràmetres de la URL i inicialitza el rang de dates
-  const params = new URLSearchParams(searchParams.toString())
-  const startParam = params.get('start')
-  const endParam = params.get('end')
 
-  const [dateRange, setDateRange] = useState<[string, string]>(() => {
-    if (startParam && endParam) return [startParam, endParam]
-    const today = format(new Date(), 'yyyy-MM-dd')
-    return [today, today]
-  })
+const startParam = searchParams.get('start')
+const endParam = searchParams.get('end')
+
+const [dateRange, setDateRange] = useState<[string, string]>(() => {
+  if (startParam && endParam)
+    return [startParam as string, endParam as string]  // ✔ solucionat
+
+  const today = format(new Date(), 'yyyy-MM-dd')
+  return [today, today]
+})
+
 
   const norm = (s: unknown) =>
     (s ?? '')
@@ -105,6 +152,7 @@ export default function DraftsPage() {
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .trim()
+  const { data: session } = useSession()
 
   const role = norm(session?.user?.role)
   const userDept = norm(session?.user?.department)
@@ -249,7 +297,7 @@ export default function DraftsPage() {
         <div className="space-y-6">
           {drafts.map((d) => (
             <QuadrantsDayGroup
-              key={d.startDate}
+              key={`${d.startDate}-${d.code}`}
               date={d.startDate}
               quadrants={[d]}
             />

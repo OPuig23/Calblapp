@@ -1,3 +1,4 @@
+// file: src/types/next-auth.d.ts
 import NextAuth, { DefaultSession } from "next-auth"
 import { DefaultJWT } from "next-auth/jwt"
 
@@ -6,11 +7,14 @@ declare module "next-auth" {
   interface Session extends DefaultSession {
     accessToken?: string
     user?: {
-      id: string
+      id?: string
+      name?: string
+      email?: string
+
       role?: string
       department?: string
       deptLower?: string
-      pushEnabled?: boolean   // 👈 AQUEST
+      pushEnabled?: boolean
     } & DefaultSession["user"]
   }
 }
@@ -22,8 +26,8 @@ declare module "next-auth/jwt" {
     role?: string
     department?: string
     deptLower?: string
-    pushEnabled?: boolean     // 👈 AQUEST
+    pushEnabled?: boolean
   }
 }
 
-export {}   // 👈 OBLIGATORI
+export {} // OBLIGATORI

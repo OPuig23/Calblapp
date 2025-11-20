@@ -35,6 +35,7 @@ export type FiltersState = {
 type FilterKey = 'ln' | 'responsable' | 'location'
 
 export type FiltersBarProps = {
+  id?: string
   filters: FiltersState
   setFilters: (f: Partial<FiltersState>) => void
   onReset?: () => void

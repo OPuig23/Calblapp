@@ -120,12 +120,15 @@ export default function QuadrantsPage() {
         subtitle="Gestió setmanal per departament"
       />
 
-      <FiltersBar
-        filters={range}
-        setFilters={(f) => {
-          if (f.start && f.end) setRange({ start: f.start, end: f.end })
-        }}
-      />
+ <FiltersBar
+  id="filters-bar"
+  filters={range}
+  setFilters={(f) => {
+    if (f.start && f.end) setRange({ start: f.start, end: f.end })
+  }}
+/>
+
+
 
       {/* 🔵 Comptadors */}
       <div className="flex justify-around sm:justify-center sm:gap-10 bg-gradient-to-r from-indigo-50 to-blue-50 border rounded-2xl p-3 shadow-sm text-sm font-medium">
@@ -198,6 +201,10 @@ export default function QuadrantsPage() {
           🗂 Veure tots els quadrants
         </button>
       </div>
+
+
+
+
     </main>
   )
 }

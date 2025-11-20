@@ -1,33 +1,29 @@
 // ✅ file: src/lib/firebaseAdmin.ts
-import { getApps, getApp, initializeApp, cert, App } from 'firebase-admin/app'
-import { getFirestore, Firestore } from 'firebase-admin/firestore'
+import { getApps, initializeApp, cert } from 'firebase-admin/app'
+import { getFirestore } from 'firebase-admin/firestore'
+import { getStorage } from 'firebase-admin/storage'
 
-function getAdminApp(): App {
-  if (getApps().length) {
-    console.log('[firebaseAdmin] 🔄 Reutilitzant app Firebase Admin existent')
-    return getApp()
-  }
+let app
 
+if (!getApps().length) {
   const projectId = process.env.FIREBASE_PROJECT_ID
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL
   const rawKey = process.env.FIREBASE_PRIVATE_KEY
-  const privateKey = (rawKey || '').replace(/\\n/g, '\n')
+  const privateKey = rawKey?.replace(/\\n/g, '\n')
 
   if (!projectId || !clientEmail || !privateKey) {
     throw new Error('❌ Falten variables FIREBASE_* a .env')
   }
 
-  const app = initializeApp({
+  app = initializeApp({
     credential: cert({ projectId, clientEmail, privateKey }),
-    projectId,
+    storageBucket: 'cal-blay-webapp.firebasestorage.app',
   })
 
-  console.log('[firebaseAdmin] ✅ Firebase Admin inicialitzat amb projecte:', projectId)
-  return app
+  console.log('[firebaseAdmin] ✅ Inicialitzat Firebase Admin')
+} else {
+  app = getApps()[0]
 }
 
-const app: App = getAdminApp()
-const db: Firestore = getFirestore(app)
-
-export const firestoreAdmin = db  // 👈 Nom exacte i coherent amb l'import
-export { app, db }
+export const firestoreAdmin = getFirestore(app)
+export const storageAdmin = getStorage(app)

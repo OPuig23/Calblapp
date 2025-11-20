@@ -13,18 +13,17 @@ const roleIcon: Record<'responsable'|'conductor'|'treballador'|'brigada', React.
   brigada:     <Users className="text-purple-600" size={18} />,
 }
 
-// Helper: icona per tipus de vehicle
 function VehicleIcon({ type }: { type?: string }) {
   if (!type) return null
   switch (type.toLowerCase()) {
     case 'camiogran':
-      return <Truck className="w-5 h-5 text-blue-800" title="Camió gran" />
+      return <Truck className="w-5 h-5 text-blue-800" />
     case 'camiopetit':
-      return <Truck className="w-4 h-4 text-green-700" title="Camió petit" />
+      return <Truck className="w-4 h-4 text-green-700" />
     case 'furgoneta':
-      return <Car className="w-5 h-5 text-orange-600" title="Furgoneta" />
+      return <Car className="w-5 h-5 text-orange-600" />
     default:
-      return <Truck className="w-5 h-5 text-gray-500" title={type} />
+      return <Truck className="w-5 h-5 text-gray-500" />
   }
 }
 
@@ -39,47 +38,82 @@ export default function DraftRow({
   onEdit: () => void
   onDelete: () => void
 }) {
-  const formatDate = (d: string) => d ? d.split('-').slice(1).reverse().join('/') : '--/--'
-  const formatTime = (t?: string) => t ? t.substring(0, 5) : '--:--'
+  const formatDate = (d: string) =>
+    d ? d.split('-').slice(1).reverse().join('/') : '--/--'
+
+  const formatTime = (t?: string) =>
+    t ? t.substring(0, 5) : '--:--'
 
   return (
-    <div
-      className="relative grid items-center border-b px-1 py-2 hover:bg-gray-50 sm:px-2"
-      style={{
-        gridTemplateColumns:
-          '32px 1fr 5.5rem 5.5rem minmax(10rem,1fr) minmax(10rem,1fr) 3.5rem'
-      }}
-    >
-      {/* Icona rol */}
-      <div className="flex items-center justify-center">{roleIcon[row.role]}</div>
+    <div className="
+      border-b px-2 py-3 hover:bg-gray-50
+      grid gap-2
+      grid-cols-1
+      sm:grid-cols-[32px_1fr_5.5rem_5.5rem_minmax(10rem,1fr)_minmax(10rem,1fr)_3.5rem]
+      items-center
+    ">
+      
+      {/* MOBILE LAYOUT */}
+      <div className="flex items-start gap-2 sm:hidden">
+        <div>{roleIcon[row.role]}</div>
+        <div className="flex-1">
+          <div className="font-semibold text-gray-800">{row.name}</div>
 
-      {/* Nom */}
-      <div className="min-w-0 truncate font-medium">
+          <div className="text-xs text-gray-600 mt-0.5">
+            {formatDate(row.startDate)} · {formatTime(row.startTime)}
+          </div>
+
+          {row.meetingPoint && (
+            <div className="text-xs text-gray-700 truncate">
+              📍 {row.meetingPoint}
+            </div>
+          )}
+
+          {row.role === 'conductor' && (
+            <div className="text-xs flex items-center gap-1 text-gray-700">
+              {row.plate || '—'} <VehicleIcon type={row.vehicleType} />
+            </div>
+          )}
+
+          {row.role === 'brigada' && (
+            <div className="text-xs text-purple-700">
+              {row.workers || 0} persones
+            </div>
+          )}
+        </div>
+
+        {/* Accions mòbil */}
+        <RowActions onEdit={onEdit} onDelete={onDelete} disabled={isLocked} />
+      </div>
+
+      {/* DESKTOP LAYOUT */}
+      <div className="hidden sm:flex items-center justify-center">
+        {roleIcon[row.role]}
+      </div>
+
+      <div className="hidden sm:block truncate font-medium">
         {row.role === 'brigada' ? (
           <span className="text-purple-700 font-semibold">
-            {row.name || 'Brigada sense nom'}{' '}
-            {row.workers ? <span className="ml-1 text-xs text-gray-500">(+{row.workers})</span> : null}
+            {row.name} {row.workers ? `(+${row.workers})` : ''}
           </span>
         ) : (
           row.name || <span className="italic text-gray-400">Sense nom</span>
         )}
       </div>
 
-      {/* Data i hora */}
-      <div className="w-[5.5rem] tabular-nums text-left font-mono text-sm">
+      <div className="hidden sm:block w-[5.5rem] tabular-nums">
         {formatDate(row.startDate)}
       </div>
-      <div className="w-[5.5rem] tabular-nums text-left font-mono text-sm">
+
+      <div className="hidden sm:block w-[5.5rem] tabular-nums">
         {formatTime(row.startTime)}
       </div>
 
-      {/* Meeting point */}
-      <div className="min-w-0 truncate text-xs text-gray-700">
+      <div className="hidden sm:block truncate text-xs text-gray-700">
         {row.meetingPoint || <span className="text-gray-400">—</span>}
       </div>
 
-      {/* Vehicle o nº persones de brigada */}
-      <div className="flex items-center gap-2 text-xs font-medium text-gray-800">
+      <div className="hidden sm:flex items-center gap-2 text-xs font-medium text-gray-800">
         {row.role === 'conductor' ? (
           <>
             <span>{row.plate || '—'}</span>
@@ -92,8 +126,9 @@ export default function DraftRow({
         )}
       </div>
 
-      {/* Accions */}
-      <RowActions onEdit={onEdit} onDelete={onDelete} disabled={isLocked} />
+      <div className="hidden sm:block">
+        <RowActions onEdit={onEdit} onDelete={onDelete} disabled={isLocked} />
+      </div>
     </div>
   )
 }

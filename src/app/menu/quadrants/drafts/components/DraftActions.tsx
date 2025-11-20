@@ -23,10 +23,11 @@ export default function DraftActions({
   onDelete: () => void
 }) {
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+
       {/* Confirmar */}
       <Button
-        size="icon"
+        size="sm"
         className={`rounded-full ${
           confirmed ? 'bg-emerald-600' : 'bg-emerald-500 hover:bg-emerald-600'
         } text-white shadow`}
@@ -34,12 +35,13 @@ export default function DraftActions({
         disabled={confirming || confirmed}
         title={confirmed ? 'Quadrant confirmat' : 'Confirmar quadrant'}
       >
-        <CheckCircle2 size={18} />
+       <CheckCircle2 className="w-5 h-5" />
+
       </Button>
 
       {/* Reobrir */}
       <Button
-        size="icon"
+        size="sm"
         className="rounded-full bg-amber-500 hover:bg-amber-600 text-white shadow"
         onClick={onUnconfirm}
         disabled={!confirmed || confirming}
@@ -50,7 +52,7 @@ export default function DraftActions({
 
       {/* Desa */}
       <Button
-        size="icon"
+        size="sm"
         className={`rounded-full ${
           dirty && !confirmed
             ? 'bg-blue-600 hover:bg-blue-700 text-white shadow'
@@ -65,7 +67,7 @@ export default function DraftActions({
 
       {/* Eliminar */}
       <Button
-        size="icon"
+        size="sm"
         className="rounded-full bg-red-600 hover:bg-red-700 text-white shadow"
         onClick={onDelete}
         title="Elimina quadrant"

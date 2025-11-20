@@ -8,6 +8,8 @@ import ModuleHeader from '@/components/layout/ModuleHeader'
 import WeeklyFilters from '@/components/quadrants/WeeklyFilters'
 import WeeklyTable from '@/components/quadrants/WeeklyTable'
 import { ClipboardList } from 'lucide-react'
+import { SlidersHorizontal } from 'lucide-react'
+
 
 export default function QuadrantsOperativaPage() {
   // 🧩 Sessió usuari i departament
@@ -117,14 +119,21 @@ export default function QuadrantsOperativaPage() {
         subtitle={`Consulta per període – ${departament}`}
       />
 
-      {/* Botó flotant per filtres */}
-      <button
-        onClick={() => setFiltersOpen(true)}
-        className="fixed top-[4.5rem] left-3 z-50 bg-white/95 rounded-full shadow-md px-3 py-1 text-2xl active:scale-95 transition"
-        title="Obrir filtres"
-      >
-        ≡
-      </button>
+     
+            {/* Botó de filtres (clarament diferent del menú) */}
+      <div className="flex justify-end px-4 mt-2">
+        <button
+          onClick={() => setFiltersOpen(true)}
+          aria-label="Obrir filtres"
+          className="inline-flex items-center gap-2 rounded-full bg-emerald-600 text-white px-3 py-1 text-xs sm:text-sm shadow-md active:scale-95 transition"
+        >
+          <SlidersHorizontal className="w-4 h-4" />
+          <span>Filtres</span>
+        </button>
+      </div>
+
+
+
 
       {/* Panell de filtres per Responsable / Finca */}
       <WeeklyFilters

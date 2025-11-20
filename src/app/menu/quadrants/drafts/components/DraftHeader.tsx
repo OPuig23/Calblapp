@@ -55,67 +55,73 @@ export default function DraftHeader({
   const deptConf = deptStyles[department] || deptStyles.default
   const tone = (a: number, r: number) =>
     a >= r
-      ? 'border-emerald-200 text-emerald-700'
-      : 'border-amber-200 text-amber-700'
+      ? 'border-emerald-200 text-emerald-700 bg-emerald-50'
+      : 'border-amber-200 text-amber-700 bg-amber-50'
 
   return (
-    <div className="mb-3 flex items-start justify-between gap-3">
-      <div className="min-w-0">
-        <h2 className="truncate text-lg font-bold">
-          {draft.code} – {draft.eventName}
-        </h2>
+    <div className="mb-4 w-full space-y-2 rounded-xl bg-white p-3 shadow-sm md:p-4">
+      
+      {/* CODE + EVENT NAME */}
+      <div className="flex flex-col">
+        <span className="text-sm font-semibold text-gray-700">
+          {draft.code}
+        </span>
+        <span className="text-base font-bold text-gray-900 leading-tight">
+          {draft.eventName}
+        </span>
         {draft.location && (
-          <p className="truncate text-xs text-blue-700">{draft.location}</p>
+          <span className="text-xs text-blue-700">{draft.location}</span>
+        )}
+      </div>
+
+      {/* BADGES */}
+      <div className="flex flex-wrap gap-2 pt-2">
+        {/* Departament */}
+        <Badge
+          variant="outline"
+          className={`inline-flex items-center gap-1 border ${deptConf.className}`}
+        >
+          <deptConf.Icon size={16} /> {deptConf.label}
+        </Badge>
+
+        {/* Confirmat */}
+        {confirmed && (
+          <Badge
+            variant="outline"
+            className="inline-flex items-center gap-1 border bg-green-50 text-green-700 border-green-200"
+          >
+            <CheckCircle size={16} /> Confirmat
+          </Badge>
         )}
 
-        {/* Departament + Comptadors + Estat */}
-        <div className="mt-1 flex flex-wrap items-center gap-2">
-          <Badge
-            variant="outline"
-            className={`inline-flex items-center gap-1 border ${deptConf.className}`}
-          >
-            <deptConf.Icon size={14} /> {deptConf.label}
-          </Badge>
+        {/* Comptadors */}
+        <Badge
+          className={`flex items-center gap-1 rounded-lg ${tone(
+            assigned.responsables,
+            requested.responsables
+          )}`}
+        >
+          <GraduationCap size={16} /> {assigned.responsables}/
+          {requested.responsables}
+        </Badge>
 
-          {confirmed && (
-            <Badge
-              variant="outline"
-              className="inline-flex items-center gap-1 border bg-green-50 text-green-700 border-green-200"
-            >
-              <CheckCircle size={14} /> Confirmat
-            </Badge>
-          )}
+        <Badge
+          className={`flex items-center gap-1 rounded-lg ${tone(
+            assigned.conductors,
+            requested.conductors
+          )}`}
+        >
+          <Truck size={16} /> {assigned.conductors}/{requested.conductors}
+        </Badge>
 
-          <Badge
-            variant="outline"
-            className={`flex items-center gap-1 rounded-lg ${tone(
-              assigned.responsables,
-              requested.responsables
-            )}`}
-          >
-            <GraduationCap size={14} /> {assigned.responsables}/
-            {requested.responsables}
-          </Badge>
-          <Badge
-            variant="outline"
-            className={`flex items-center gap-1 rounded-lg ${tone(
-              assigned.conductors,
-              requested.conductors
-            )}`}
-          >
-            <Truck size={14} /> {assigned.conductors}/{requested.conductors}
-          </Badge>
-          <Badge
-            variant="outline"
-            className={`flex items-center gap-1 rounded-lg ${tone(
-              assigned.treballadors,
-              requested.treballadors
-            )}`}
-          >
-            <User size={14} /> {assigned.treballadors}/
-            {requested.treballadors}
-          </Badge>
-        </div>
+        <Badge
+          className={`flex items-center gap-1 rounded-lg ${tone(
+            assigned.treballadors,
+            requested.treballadors
+          )}`}
+        >
+          <User size={16} /> {assigned.treballadors}/{requested.treballadors}
+        </Badge>
       </div>
     </div>
   )

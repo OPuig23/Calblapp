@@ -1,3 +1,4 @@
+//file: src/lib/accessControl.ts
 import { type Role } from '@/lib/roles'
 
 // Definim quins rols tenen accés a cada mòdul
