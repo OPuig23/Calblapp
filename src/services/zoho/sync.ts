@@ -1,6 +1,5 @@
 //file: src/services/zoho/sync.ts
 import { firestoreAdmin as firestore } from '@/lib/firebaseAdmin'
-
 import { zohoFetch } from '@/services/zoho/auth'
 
 interface ZohoOwner {
@@ -41,7 +40,12 @@ interface NormalizedDeal {
   DataFi: string | null
   HoraInici?: string | null
   NumPax: number | string | null
+
   Ubicacio: string
+  FincaId?: string
+  FincaCode?: string
+  FincaLN?: string
+
   Color: string
   StageDot: string
   StageGroup: string
@@ -52,6 +56,16 @@ interface NormalizedDeal {
   DataPeticio?: string | null
   PreuMenu?: number | string | null
   Import?: number | string | null
+}
+
+function cleanUndefined<T extends Record<string, any>>(obj: T): T {
+  const clean: any = {}
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      clean[key] = value
+    }
+  }
+  return clean
 }
 
 // ─────────────────────────────
@@ -158,6 +172,7 @@ export async function syncZohoDealsToFirestore(): Promise<{
     return eventDate >= today
   })
 
+
   // 3️⃣ Funció per determinar LN segons propietari
   const getLN = async (ownerId?: string): Promise<string> => {
     if (!ownerId) return 'Altres'
@@ -175,6 +190,58 @@ export async function syncZohoDealsToFirestore(): Promise<{
       return 'Agenda'
     }
   }
+    // 3️⃣ bis — Carregar totes les finques per fer matching pel nom
+  const finquesMatchSnap = await firestore.collection('finques').get()
+
+  type FincaIndexEntry = {
+    id: string
+    code: string
+    nom: string
+    ln?: string
+    norm: string
+  }
+
+  const finquesIndex: FincaIndexEntry[] = finquesMatchSnap.docs.map((doc) => {
+    const d = doc.data() as any
+    const nom = (d.nom || '').toString()
+    return {
+      id: doc.id,
+      code: (d.code || '').toString(),
+      nom,
+      ln: (d.ln || d.LN || '') as string,
+      norm: normalizeName(nom),
+    }
+  })
+
+  function findFincaForUbicacio(ubicacions: (string | null | undefined)[]): FincaIndexEntry | null {
+    const candidates = ubicacions
+      .filter(Boolean)
+      .map((u) => u!.toString().trim())
+      .filter(Boolean)
+
+    if (candidates.length === 0) return null
+
+    for (const raw of candidates) {
+      // treiem parèntesi tipus "(CCE00004)"
+      const senseCodi = raw.replace(/\(.*?\)/g, '').trim()
+      const normZoho = normalizeName(senseCodi)
+
+      for (const finca of finquesIndex) {
+        if (!finca.norm) continue
+
+        // 1) Igualtat directa del nom normalitzat
+        if (finca.norm === normZoho) return finca
+
+        // 2) Match tolerant pel nostre helper
+        if (matchExcelZoho(finca.nom, raw) || matchExcelZoho(raw, finca.nom)) {
+          return finca
+        }
+      }
+    }
+
+    return null
+  }
+
 
   // 4️⃣ Classifica etapes (Stage) — incloent 'RQ' com a verd
   const classifyStage = (stage: string): 'blau' | 'taronja' | 'verd' | null => {
@@ -201,23 +268,38 @@ export async function syncZohoDealsToFirestore(): Promise<{
       hora = parts[1]?.slice(0, 5) || null
     }
 
-// ⏱️ Calcula DataFi segons duració
-let dataFiISO = dateISO
-const duracio = Number(d.Durac_n_del_evento ?? 1)
+    // ⏱️ Calcula DataFi segons duració
+    let dataFiISO = dateISO
+    const duracio = Number(d.Durac_n_del_evento ?? 1)
 
-if (dateISO && !isNaN(duracio) && duracio > 1) {
-  const fi = new Date(dateISO)
-  fi.setDate(fi.getDate() + (duracio - 1))
-  dataFiISO = fi.toISOString().slice(0, 10)
-}
+    if (dateISO && !isNaN(duracio) && duracio > 1) {
+      const fi = new Date(dateISO)
+      fi.setDate(fi.getDate() + (duracio - 1))
+      dataFiISO = fi.toISOString().slice(0, 10)
+    }
 
-
+    // LN base segons Owner
     let LN = await getLN(d.Owner?.id)
 
-    // Si la finca conté “restaurant” → Grups Restaurants
-    const ubicacions = [...(d.Finca_2 || []), ...(d.Espai_2 || [])]
-    const teRestaurant = ubicacions.some((u) => u?.toLowerCase().includes('restaurant'))
-    if (teRestaurant) LN = 'Grups Restaurants'
+    // 🔎 Candidats d’ubicació: primer Espai_2, després Finca_2
+    const ubicacions = [...(d.Espai_2 || []), ...(d.Finca_2 || [])]
+
+    // 🏡 Intentem fer match amb una finca existent
+    const fincaMatch = findFincaForUbicacio(ubicacions)
+
+    // Si la finca té LN definit, fem servir el de la finca
+    if (fincaMatch?.ln) {
+      LN = fincaMatch.ln
+    } else {
+      // Si no hi ha match, mantenim la lògica de "restaurant" → Grups Restaurants
+      const teRestaurant = ubicacions.some((u) =>
+        u?.toLowerCase().includes('restaurant')
+      )
+      if (teRestaurant) LN = 'Grups Restaurants'
+    }
+
+    const ubicacioLabel =
+      fincaMatch?.nom || d.Finca_2?.[0] || d.Espai_2?.[0] || ''
 
     normalized.push({
       idZoho: String(d.id),
@@ -230,7 +312,12 @@ if (dateISO && !isNaN(duracio) && duracio > 1) {
       DataFi: dataFiISO,
       HoraInici: hora,
       NumPax: d.N_mero_de_invitados || d.N_mero_de_personas_del_evento || null,
-      Ubicacio: d.Finca_2?.[0] || d.Espai_2?.[0] || '',
+
+      Ubicacio: ubicacioLabel,
+      FincaId: fincaMatch?.id,
+      FincaCode: fincaMatch?.code,
+      FincaLN: fincaMatch?.ln || LN,
+
       Color:
         group === 'blau'
           ? 'border-blue-300 bg-blue-50 text-blue-800'
@@ -258,6 +345,7 @@ if (dateISO && !isNaN(duracio) && duracio > 1) {
       Import: d.Amount || null,
     })
   }
+
 
   console.info(`✅ Oportunitats vàlides: ${normalized.length}`)
 
@@ -302,10 +390,12 @@ for (const deal of normalized) {
   if (deal.collection !== 'verd') continue;
 
   const ref = firestore.collection('stage_verd').doc(deal.idZoho);
-  batchVerd.set(ref, deal, { merge: true });
+  const dataToSave = cleanUndefined(deal)
+  batchVerd.set(ref, dataToSave, { merge: true });
 }
 
 await batchVerd.commit();
+
 console.info(`🟢 stage_verd actualitzat: ${idsVerd.size} deals`);
 
 
@@ -318,21 +408,23 @@ const batchOthers = firestore.batch();
 for (const deal of normalized) {
   const id = deal.idZoho;
 
-  // No escriure mai res que sigui verd
   if (idsVerd.has(id)) continue;
+
+  const dataToSave = cleanUndefined(deal)
 
   if (deal.collection === 'taronja') {
     const ref = firestore.collection('stage_taronja').doc(id);
-    batchOthers.set(ref, deal, { merge: true });
+    batchOthers.set(ref, dataToSave, { merge: true });
   }
 
   if (deal.collection === 'blau') {
     const ref = firestore.collection('stage_blau').doc(id);
-    batchOthers.set(ref, deal, { merge: true });
+    batchOthers.set(ref, dataToSave, { merge: true });
   }
 }
 
 await batchOthers.commit();
+
 console.info(`🟠🔵 Taronja/blau escrits respectant la prioritat de verd`);
 
 

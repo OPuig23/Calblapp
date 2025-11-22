@@ -29,77 +29,80 @@ const weekdayLong = (iso: string) => {
   return isNaN(d.getTime()) ? '' : arr[d.getDay()]
 }
 
-const norm = (s?: string | null) =>
-  String(s ?? '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim()
-
 function mergeGroup(arr: TornCardItem[]): TornCardItem {
   const base = arr[0]
   const baseId = (base.id || '').split(':')[0] || base.id
 
-  const byKey = new Map<
-    string,
-    { id?: string; name?: string; role?: string; startTime?: string; endTime?: string; meetingPoint?: string }
-  >()
+  type MergeWorker = {
+    id?: string
+    name: string
+    role: 'responsable' | 'conductor' | 'treballador'
+    startTime?: string
+    endTime?: string
+    meetingPoint?: string
+    department?: string
+  }
 
-  const push = (w?: {
-  id?: string
-  name?: string
-  role?: string
-  startTime?: string
-  endTime?: string
-  meetingPoint?: string
-}) => {
-  if (!w) return
-  const key = w.id ? String(w.id) : norm(w.name)
-  if (!key) return
-  const existing = byKey.get(key)
+  const byKey = new Map<string, MergeWorker>()
 
-  if (!existing) {
-    byKey.set(key, {
+  const pushWorker = (w?: any) => {
+    if (!w) return
+    const key = w.id ? String(w.id) : (w.name ? w.name.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '') : '')
+    if (!key) return
+
+    const roleNorm = (w.role || 'treballador') as MergeWorker['role']
+    const nw: MergeWorker = {
       id: w.id,
       name: w.name,
-      role: w.role,
+      role: roleNorm,
       startTime: w.startTime,
       endTime: w.endTime,
       meetingPoint: w.meetingPoint,
-    })
-  } else {
-    // ✅ respectem la prioritat: responsable > conductor > treballador
-    const priority = { responsable: 3, conductor: 2, treballador: 1, null: 0 }
-    const newPriority = priority[w.role as keyof typeof priority] || 0
-    const oldPriority = priority[existing.role as keyof typeof priority] || 0
+      department: w.department,
+    }
 
-    if (newPriority > oldPriority) {
-      byKey.set(key, { ...existing, role: w.role })
+    const existing = byKey.get(key)
+    if (!existing) {
+      byKey.set(key, nw)
+    } else {
+      const priority = { responsable: 3, conductor: 2, treballador: 1 }
+      if (priority[nw.role] > priority[existing.role]) {
+        byKey.set(key, nw)
+      }
     }
   }
-}
-
 
   for (const t of arr) {
-    t.__rawWorkers?.forEach(push)
-    if (t.workerName) push({ id: t as any as string, name: t.workerName, role: t.workerRole })
+    t.__rawWorkers?.forEach(pushWorker)
+
+    if (t.workerName) {
+      pushWorker({
+        id: t.id,
+        name: t.workerName,
+        role: t.workerRole ?? 'treballador',
+        meetingPoint: t.meetingPoint,
+        department: t.department,
+      })
+    }
   }
 
   const workers = Array.from(byKey.values())
 
-  console.log('[mergeGroup result]', {
-    event: base.eventName,
-    workers,
-  })
-
   const parseStart = (s?: string) => (s || '').split('-')[0]?.trim() || ''
   const parseEnd = (s?: string) => (s || '').split('-')[1]?.trim() || ''
+
   const starts = arr.map((t) => parseStart(t.time)).filter(Boolean).sort()
   const ends = arr.map((t) => parseEnd(t.time)).filter(Boolean).sort()
-  const aggTime = starts.length && ends.length ? `${starts[0]} - ${ends[ends.length - 1]}` : base.time
+
+  const aggTime =
+    starts.length && ends.length ? `${starts[0]} - ${ends[ends.length - 1]}` : base.time
 
   return {
     ...base,
     id: baseId,
     time: aggTime,
     workerName: workers.length === 1 ? workers[0].name : undefined,
-    workerRole: workers.length === 1 ? workers[0].role || null : null,  // 👈 ara conserva el rol si només hi ha un
+    workerRole: workers.length === 1 ? workers[0].role : null,
     __rawWorkers: workers,
   }
 }
@@ -113,6 +116,7 @@ export default function TornsList({
 }: Props) {
   const grouped = React.useMemo(() => {
     const map = new Map<string, TornCardItem[]>()
+
     for (const it of items) {
       const k = (it.date || '').slice(0, 10)
       if (!map.has(k)) map.set(k, [])
@@ -124,13 +128,15 @@ export default function TornsList({
 
       if (groupByEvent) {
         const byEvent = new Map<string, TornCardItem[]>()
+
         for (const t of arr) {
           const key =
-  t.eventId || `${t.code || ''}|${t.eventName || ''}|${t.location || ''}`
+            (t as any).eventId || `${t.code || ''}|${t.eventName || ''}|${t.location || ''}`
 
           if (!byEvent.has(key)) byEvent.set(key, [])
           byEvent.get(key)!.push(t)
         }
+
         const merged = Array.from(byEvent.values()).map(mergeGroup)
         map.set(k, merged)
       }
@@ -162,54 +168,60 @@ export default function TornsList({
                 </span>
               </h2>
               <span className="flex items-center gap-1 text-pink-600 font-bold">
-                <Users className="w-4 w-4" />
+                <Users className="w-4 h-4" />
                 {total}
               </span>
             </header>
 
             <div className="flex flex-col gap-3">
-              {dayItems.map((t) => {
-                const showWorkerView =
-                  role === 'Treballador' ||
-                  (!!filters?.workerName && filters?.workerName !== '__all__') ||
-                  (!!filters?.roleType && filters?.roleType !== 'all')
+         {dayItems.map((t, index) => {
+  const showWorkerView =
+    role === 'Treballador' ||
+    (!!filters?.workerName && filters?.workerName !== '__all__') ||
+    (!!filters?.roleType && filters?.roleType !== 'all')
 
-                return (
-                  <div
-                    key={t.id}
-                    className="relative"
-                    onClick={() => onTornClick?.(t)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault()
-                        onTornClick?.(t)
-                      }
-                    }}
-                    role="button"
-                    tabIndex={0}
-                  >
-                    {showWorkerView ? (
-                      <>
-                        {console.log('[RENDER] TornCardWorker', {
-                          id: t.id,
-                          workerName: t.workerName,
-                          workerRole: t.workerRole,
-                          eventName: t.eventName,
-                        })}
-                        <TornCardWorker item={t} />
-                      </>
-                    ) : (
-                      <>
-                        {console.log('[RENDER] TornCard', {
-                          id: t.id,
-                          eventName: t.eventName,
-                        })}
-                        <TornCard item={t} />
-                      </>
-                    )}
-                  </div>
-                )
-              })}
+  const safeKey = `${t.id || 'torn'}-${index}`
+
+  return (
+    <div
+      key={safeKey}
+      className="relative"
+      onClick={() => onTornClick?.(t)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onTornClick?.(t)
+        }
+      }}
+      role="button"
+      tabIndex={0}
+    >
+{showWorkerView ? (
+  <>
+    {console.log('[RENDER] TornCardWorker', {
+      id: t.id,
+      workerName: t.workerName,
+      workerRole: t.workerRole,
+      eventName: t.eventName,
+    })}
+    <TornCardWorker item={t} />
+  </>
+) : (
+  <>
+    {console.log('[RENDER] TornCard', {
+      id: t.id,
+      eventName: t.eventName,
+    })}
+    <TornCard item={t} />
+  </>
+)}
+
+
+
+    </div>
+  )
+})}
+
             </div>
           </section>
         )

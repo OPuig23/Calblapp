@@ -3,50 +3,58 @@ import ModuleHeader from '@/components/layout/ModuleHeader'
 import { firestoreAdmin } from '@/lib/firebaseAdmin'
 import SpacesInfoClient from './SpacesInfoClient'
 
-// Tipus bàsic d'espai (ajustarem després si cal)
-export type Espai = {
-  id: string
-  code?: string
-  nom: string
-  ln?: string
-  LN?: string
-  tipus: 'Propi' | 'Extern'
-  comercial?: unknown
-  produccio?: unknown
-}
-
 export default async function SpacesInfoPage() {
-  // 🔹 Llegeix la col·lecció "finques" amb l'ADMIN SDK (server-side)
+  // Llegim totes les finques de Firestore
   const snap = await firestoreAdmin.collection('finques').get()
 
-  const espais: Espai[] = snap.docs.map((doc) => {
+  // Normalitzem dades base
+  const espais = snap.docs.map((doc) => {
     const d = doc.data() as any
-
-    const code: string = d.code || ''
-    const ln: string = d.ln || d.LN || ''
-    const nom: string = d.nom || doc.id
-
-    // CCxxxxx = finca pròpia
-    const tipus: 'Propi' | 'Extern' = code.startsWith('CC') ? 'Propi' : 'Extern'
-
     return {
       id: doc.id,
-      code,
-      nom,
-      ln,
-      tipus,
-      comercial: d.comercial,
-      produccio: d.produccio,
+      code: d.code || '',
+      nom: d.nom || doc.id,
+      ln: d.ln || d.LN || '',
+      tipus: (d.code || '').startsWith('CC') ? 'Propi' : 'Extern',
+      comercial: d.comercial || {},
+      produccio: d.produccio || {},
     }
   })
 
+  // ────────────────────────────────────────────────
+  // NORMALITZADOR GENERAL (igual que fem amb Departaments)
+  // ────────────────────────────────────────────────
+  const normalizeLN = (ln?: string) =>
+    (ln || '')
+      .toString()
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+
+  // ────────────────────────────────────────────────
+  // GENERAR LN ÚNICS, NETS I REALS
+  // ────────────────────────────────────────────────
+  const lnMap = new Map<string, string>() // norm → original
+
+  for (const e of espais) {
+    const raw = e.ln || ''
+    const norm = normalizeLN(raw)
+
+    if (norm) {
+      lnMap.set(norm, raw.trim())
+    }
+  }
+
+  const lnOptions = Array.from(lnMap.values()).sort()
+
+  // ────────────────────────────────────────────────
+  // RENDER (Server → Client component)
+  // ────────────────────────────────────────────────
   return (
     <>
-      {/* Capçalera verda general del mòdul */}
       <ModuleHeader />
 
-      {/* Component client amb filtres i UI */}
-      <SpacesInfoClient espais={espais} />
+      <SpacesInfoClient espais={espais} lnOptions={lnOptions} />
     </>
   )
 }

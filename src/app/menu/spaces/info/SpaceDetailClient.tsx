@@ -38,6 +38,7 @@ export type EspaiDetall = {
 
 type Props = {
   espai: EspaiDetall
+  lnOptions: string[]
   onClose?: () => void
   onSave?: (data: EspaiDetall) => Promise<void> | void
 }
@@ -347,16 +348,18 @@ const handleSave = async () => {
                   LN
                 </label>
                 <select
-                  value={ln}
-                  onChange={(e) => setLn(e.target.value)}
-                  className="w-full border rounded-lg px-2 py-1.5 text-sm"
-                >
-                  <option value="">—</option>
-                  <option value="Empresa">Empresa</option>
-                  <option value="Casaments">Casaments</option>
-                  <option value="Grups Restaurants">Grups Restaurants</option>
-                  <option value="Altres">Altres</option>
-                </select>
+  value={ln}
+  onChange={(e) => setLn(e.target.value)}
+  className="w-full border rounded-lg px-2 py-1.5 text-sm"
+>
+  <option value="">—</option>
+  <option value="Empresa">Empresa</option>
+  <option value="Casaments">Casaments</option>
+  <option value="Grups Restaurants">Grups Restaurants</option>
+  <option value="Foodlovers">Foodlovers</option>
+  <option value="Altres">Altres</option>
+</select>
+
               </div>
 
               <div className="flex-1">
@@ -544,11 +547,14 @@ const handleSave = async () => {
                 className="w-24 h-24 rounded-lg border overflow-hidden relative bg-gray-100"
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={url}
-                  alt={`img-${idx}`}
-                  className="w-full h-full object-cover"
-                />
+               <a href={url} target="_blank" rel="noopener noreferrer">
+  <img
+    src={url}
+    alt=""
+    className="w-full h-full object-cover cursor-zoom-in"
+  />
+</a>
+
                 <button
                   type="button"
                   onClick={() => removeImage(idx)}
@@ -567,32 +573,32 @@ const handleSave = async () => {
             )}
           </div>
 
-          <div className="flex gap-2">
-            <input
-              value={newImageUrl}
-              onChange={(e) => setNewImageUrl(e.target.value)}
-              placeholder="Enganxa aquí una URL d’imatge..."
-              className="flex-1 border rounded-lg px-2 py-1.5 text-sm"
-            />
-            <button
-              type="button"
-              onClick={addImage}
-              className="px-3 py-1.5 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700"
-            >
-              Afegir
-            </button>
-          </div>
-          <input
+{/* DROPZONE/PASTEZONE MODERN */}
+<div
+  className="mt-4 w-full flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-xl p-6 text-gray-500 text-sm cursor-pointer hover:border-blue-400 transition"
+  onClick={() => document.getElementById('fileInput')?.click()}
+  onDragOver={(e) => e.preventDefault()}
+  onDrop={async (e) => {
+    e.preventDefault()
+    const file = e.dataTransfer.files?.[0]
+    if (file) await uploadImage(file)
+  }}
+>
+  📸 <span className="font-medium text-gray-600">Arrossega, clica o enganxa una imatge</span>
+  <p className="text-xs mt-1 text-gray-400">També pots fer Ctrl+V</p>
+</div>
+
+<input
+  id="fileInput"
   type="file"
   accept="image/*"
+  className="hidden"
   onChange={async (e) => {
     const file = e.target.files?.[0]
-    if (file) {
-      await uploadImage(file)
-    }
+    if (file) await uploadImage(file)
   }}
-  className="mt-3 border rounded-lg px-2 py-1.5 text-sm"
 />
+
 
         </motion.div>
       </div>

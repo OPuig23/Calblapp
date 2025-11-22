@@ -1,5 +1,7 @@
 // filename: src/services/tornsService.ts
 
+import { normalizeTornWorker, type NormalizedWorker } from '@/utils/normalizeTornWorker'
+
 export type Torn = {
   id: string
   code?: string
@@ -13,24 +15,16 @@ export type Torn = {
   meetingPoint?: string
   location?: string
   department: string
-  __rawWorkers?: Array<{
-    id?: string
-    name?: string
-    role?: string
-    startTime?: string
-    endTime?: string
-    meetingPoint?: string
-    department?: string
-  }>
+  // Workers normalitzats
+  __rawWorkers?: NormalizedWorker[]
   // Camps que omplim quan filtrem per treballador
   workerName?: string
-  workerRole?: string
+  workerRole?: string | null
 }
 
 // Tipus genèric per documents de Firestore
 export type FirestoreData = Record<string, unknown>
 
-// Per tipar els treballadors que arriben dins dels documents
 export interface RawWorker {
   id?: string
   workerId?: string
@@ -42,10 +36,10 @@ export interface RawWorker {
   startTime?: string
   endTime?: string
   meetingPoint?: string
+  department?: string
 }
 
-// ────────────────────────────────────────────────
-// Helpers bàsics
+// ───────────────── Helpers bàsics ─────────────────
 
 function toISODate(d: Date): string {
   const y = d.getFullYear()
@@ -97,7 +91,7 @@ function toTimeHHmm(
   }
   const d = new Date(str)
   return isNaN(d.getTime())
-    ? str
+    ? ''
     : `${pad2(d.getHours())}:${pad2(d.getMinutes())}`
 }
 
@@ -122,25 +116,7 @@ function rangesOverlap(
   return aStart <= bEnd && bStart <= aEnd
 }
 
-function coerceWorker(
-  val: string | RawWorker | null | undefined,
-  role?: 'treballador' | 'conductor' | 'responsable'
-) {
-  if (!val) return role ? { role } : {}
-  if (typeof val === 'object') {
-    const id = val.id ?? val.workerId ?? val.uid ?? val.email ?? undefined
-    const name = val.name ?? val.nom ?? val.displayName ?? undefined
-    return {
-      id: id ? String(id) : undefined,
-      name: name ? String(name) : undefined,
-      ...(role ? { role } : {}),
-    }
-  }
-  return { name: String(val), ...(role ? { role } : {}) }
-}
-
-// ────────────────────────────────────────────────
-// Mapping Firestore → Torn
+// ───────────────── Mapping Firestore → Torn ─────────────────
 
 type TornDoc = {
   eventId?: string
@@ -160,6 +136,28 @@ type TornDoc = {
   responsable?: RawWorker
   responsableId?: string
   responsableName?: string
+  status?: string
+  estat?: string
+  confirmedAt?: unknown
+  confirmada?: unknown
+  confirmed?: unknown
+}
+
+function isConfirmed(data: FirestoreData): boolean {
+  const st = String((data as any)?.status ?? (data as any)?.estat ?? '')
+    .toLowerCase()
+    .trim()
+  const hasMark =
+    !!(data as any)?.['confirmedAt'] ||
+    !!(data as any)?.['confirmada'] ||
+    !!(data as any)?.['confirmed']
+  return (
+    st === 'confirmed' ||
+    st === 'confirmada' ||
+    st === 'confirmat' ||
+    st === 'ok' ||
+    hasMark
+  )
 }
 
 function mapDocToTorn(
@@ -167,7 +165,6 @@ function mapDocToTorn(
   d: FirestoreData,
   fallbackDept: string | null
 ): Torn {
-  // Fem un cast controlat a un tipus amb els camps que esperem
   const doc = d as TornDoc
 
   const eventId = String(doc?.eventId ?? doc?.code ?? '')
@@ -182,7 +179,6 @@ function mapDocToTorn(
     : fallbackDept
     ? norm(fallbackDept)
     : 'sense departament'
-
   const location = doc?.location ? String(doc.location) : undefined
 
   const arrTreballadors = Array.isArray(doc?.treballadors) ? doc.treballadors : []
@@ -193,39 +189,42 @@ function mapDocToTorn(
       ? { id: doc.responsableId as string, name: doc.responsableName as string }
       : undefined)
 
-  const unified: Torn['__rawWorkers'] = []
+  const unified: NormalizedWorker[] = []
 
   for (const w of arrTreballadors) {
-    const worker = w // RawWorker
-    unified.push({
-      ...coerceWorker(worker, 'treballador'),
-      startTime: toTimeHHmm(worker.startTime ?? doc?.startTime),
-      endTime: toTimeHHmm(worker.endTime ?? doc?.endTime),
-      meetingPoint: worker.meetingPoint ?? meetingPoint,
+    const nw = normalizeTornWorker({
+      ...w,
+      role: 'treballador',
+      startTime: w.startTime ?? doc.startTime,
+      endTime: w.endTime ?? doc.endTime,
+      meetingPoint: w.meetingPoint ?? meetingPoint,
       department,
     })
+    unified.push(nw)
   }
 
   for (const w of arrConductors) {
-    const worker = w // RawWorker
-    unified.push({
-      ...coerceWorker(worker, 'conductor'),
-      startTime: toTimeHHmm(worker.startTime ?? doc?.startTime),
-      endTime: toTimeHHmm(worker.endTime ?? doc?.endTime),
-      meetingPoint: worker.meetingPoint ?? meetingPoint,
+    const nw = normalizeTornWorker({
+      ...w,
+      role: 'conductor',
+      startTime: w.startTime ?? doc.startTime,
+      endTime: w.endTime ?? doc.endTime,
+      meetingPoint: w.meetingPoint ?? meetingPoint,
       department,
     })
+    unified.push(nw)
   }
 
   if (responsableObj) {
-    const coerced = coerceWorker(responsableObj, 'responsable')
-    unified.push({
-      ...coerced,
-      startTime: toTimeHHmm(responsableObj.startTime ?? doc?.startTime),
-      endTime: toTimeHHmm(responsableObj.endTime ?? doc?.endTime),
-      meetingPoint: responsableObj.meetingPoint ?? meetingPoint,
+    const nw = normalizeTornWorker({
+      ...responsableObj,
+      role: 'responsable',
+      startTime: (responsableObj as any).startTime ?? doc.startTime,
+      endTime: (responsableObj as any).endTime ?? doc.endTime,
+      meetingPoint: (responsableObj as any).meetingPoint ?? meetingPoint,
       department,
     })
+    unified.push(nw)
   }
 
   return {
@@ -245,30 +244,9 @@ function mapDocToTorn(
   }
 }
 
-// ────────────────────────────────────────────────
-// Helpers de confirmació i departaments
+// ───────────────── Fetchs Firestore ─────────────────
 
 const KNOWN_DEPARTMENTS = ['logistica', 'serveis', 'cuina']
-
-function isConfirmed(data: FirestoreData): boolean {
-  const st = String((data as Record<string, unknown>)?.status ?? (data as Record<string, unknown>)?.estat ?? '')
-    .toLowerCase()
-    .trim()
-  const hasMark =
-    !!(data as Record<string, unknown>)?.['confirmedAt'] ||
-    !!(data as Record<string, unknown>)?.['confirmada'] ||
-    !!(data as Record<string, unknown>)?.['confirmed']
-  return (
-    st === 'confirmed' ||
-    st === 'confirmada' ||
-    st === 'confirmat' ||
-    st === 'ok' ||
-    hasMark
-  )
-}
-
-// ────────────────────────────────────────────────
-// Fetchs
 
 async function fetchDeptCollectionRange(
   db: FirebaseFirestore.Firestore,
@@ -300,7 +278,7 @@ async function fetchDeptCollectionRange(
     if (!t.startDate && !t.endDate) return
 
     if (rangesOverlap(t.startDate || t.endDate, t.endDate || t.startDate, startISO, endISO)) {
-      const cur = new Date(t.startDate) // const (no reassignem la referència)
+      const cur = new Date(t.startDate)
       const realEnd = new Date(t.endDate)
       while (cur <= realEnd) {
         const iso = toISODate(cur)
@@ -329,7 +307,7 @@ export async function fetchAllTorns(
 
     const out: Torn[] = []
 
-    // ── 1. Treballador
+    // Treballador
     if (role === 'Treballador') {
       if (dep) {
         await fetchDeptCollectionRange(db, dep, startISO, endISO, out)
@@ -349,7 +327,7 @@ export async function fetchAllTorns(
       return []
     }
 
-    // ── 2. Cap Departament
+    // Cap Departament
     if (role === 'Cap Departament') {
       if (dep) {
         await fetchDeptCollectionRange(db, dep, startISO, endISO, out)
@@ -358,7 +336,7 @@ export async function fetchAllTorns(
       return []
     }
 
-    // ── 3. Admin / Direcció
+    // Admin / Direcció
     if (role === 'Admin' || role === 'Direcció') {
       if (dep) {
         await fetchDeptCollectionRange(db, dep, startISO, endISO, out)
@@ -382,7 +360,7 @@ export async function fetchAllTorns(
         if (!t.startDate && !t.endDate) return
 
         if (rangesOverlap(t.startDate || t.endDate, t.endDate || t.startDate, startISO, endISO)) {
-          const cur = new Date(t.startDate) // const
+          const cur = new Date(t.startDate)
           const realEnd = new Date(t.endDate)
           while (cur <= realEnd) {
             const iso = toISODate(cur)

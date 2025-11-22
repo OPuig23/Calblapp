@@ -3,69 +3,41 @@
 
 import React, { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
+import ModuleHeader from '@/components/layout/ModuleHeader'
+import { CalendarDays } from 'lucide-react'
 import { TornNotificationsList } from '@/components/torns/TornNotificationsList'
 import SmartFilters, { SmartFiltersChange } from '@/components/filters/SmartFilters'
 import TornsList from './components/TornsList'
-import { CalendarDays, RotateCcw, SlidersHorizontal } from 'lucide-react'
-import ModuleHeader from '@/components/layout/ModuleHeader'
 import TornDetailModal from './components/TornDetailModal'
-import { startOfWeek, endOfWeek, format } from 'date-fns'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog'
+import FilterButton from '@/components/ui/filter-button'
+import { useFilters } from '@/context/FiltersContext'
+import TornFilters from './components/TornFilters'
+import { format, startOfWeek, endOfWeek } from 'date-fns'
 
-type ApiWorker = {
-  id?: string
-  name?: string
-  role?: string
-  startTime?: string
-  endTime?: string
-  meetingPoint?: string
-  department?: string
-  finalDept?: string
-}
-
+type ApiWorker = { id?: string; name?: string }
 type ApiTorn = {
   id: string
   code: string
   eventName: string
   date: string
-  time?: string
-  department?: string
-  workerRole?: 'responsable' | 'conductor' | 'treballador' | null
-  meetingPoint?: string
-  location?: string
   __rawWorkers?: ApiWorker[]
 }
 
-type ApiResp = { 
+type ApiResp = {
   ok: boolean
   data: ApiTorn[]
   meta?: {
-    departments: string[]
-    workers: { id?: string; name: string }[]
+    departments?: string[]
+    workers?: { id?: string; name: string }[]
   }
 }
 
 const norm = (s?: string | null) =>
-  String(s ?? '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim()
-
-// Helpers dates locals
-const pad = (n: number) => (n < 10 ? `0${n}` : `${n}`)
-const toLocalISODate = (d: Date) =>
-  `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-
-const getCurrentWeekRange = () => {
-  const now = new Date()
-  const dow = now.getDay() === 0 ? 7 : now.getDay()
-  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (dow - 1))
-  const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6)
-  return { start: toLocalISODate(monday), end: toLocalISODate(sunday) }
-}
+  String(s ?? '')
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .trim()
 
 export default function TornsPage() {
   const { data: session, status } = useSession()
@@ -76,34 +48,60 @@ export default function TornsPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Estat modal
   const [selectedTorn, setSelectedTorn] = useState<ApiTorn | null>(null)
   const [detail, setDetail] = useState<ApiTorn | null>(null)
 
   const userName = session?.user?.name || ''
   const rawRole = norm(session?.user?.role)
-  const role: 'Admin' | 'Direcció' | 'Cap Departament' | 'Treballador' =
-    rawRole?.startsWith('admin') ? 'Admin'
-    : rawRole?.includes('dire') ? 'Direcció'
-    : rawRole?.includes('cap') ? 'Cap Departament'
-    : 'Treballador'
-
   const sessionDept = norm(session?.user?.department)
+
+  const role: 'Admin' | 'Direcció' | 'Cap Departament' | 'Treballador' =
+    rawRole.startsWith('admin')
+      ? 'Admin'
+      : rawRole.includes('dire')
+      ? 'Direcció'
+      : rawRole.includes('cap')
+      ? 'Cap Departament'
+      : 'Treballador'
+
   const isAdminOrDireccio = role === 'Admin' || role === 'Direcció'
   const isWorker = role === 'Treballador'
 
-  // Inicialització setmana actual
-  const defaultWeek = getCurrentWeekRange()
+  // ============================
+  // 📅 Dates per defecte
+  // ============================
+  const today = new Date()
+  const defaultStart = format(startOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd')
+  const defaultEnd = format(endOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd')
+
   const [filters, setFilters] = useState<SmartFiltersChange>({
     mode: 'week',
-    start: defaultWeek.start,
-    end: defaultWeek.end,
+    start: defaultStart,
+    end: defaultEnd,
+    roleType: 'all' as any,
   })
 
-  // Fetch API → llista bàsica de torns
+  // ============================
+  // 🟦 CONTEXT SLIDE FILTERS
+  // ============================
+  const { setOpen, setContent } = useFilters()
+
+  // ============================
+  // 🔵 FETCH TURNS
+  // ============================
   useEffect(() => {
     if (status !== 'authenticated') return
-    if (!filters.start || !filters.end) return
+
+    // ❗ No fer fetch fins tenir dates correctes
+    if (
+      !filters.start ||
+      !filters.end ||
+      filters.start.length !== 10 ||
+      filters.end.length !== 10
+    ) {
+      return
+    }
+
     const controller = new AbortController()
 
     const run = async () => {
@@ -116,15 +114,12 @@ export default function TornsPage() {
         params.set('start', filters.start!)
         params.set('end', filters.end!)
 
-        if (filters.department && filters.department !== 'tots') {
-          params.set('department', filters.department)
-        }
+        if (filters.roleType) params.set('roleType', filters.roleType)
         if (filters.workerId) params.set('workerId', filters.workerId)
-        if (filters.workerName) params.set('workerName', filters.workerName) 
-        if (filters.roleType) params.set('roleType', filters.roleType)   
+        if (filters.workerName) params.set('workerName', filters.workerName)
+        if (filters.department) params.set('department', filters.department)
 
-        console.log('[TornsPage] Fetch params', Object.fromEntries(params.entries()))
-        const res = await fetch(`/api/torns/getTorns?${params.toString()}`, {
+        const res = await fetch(`/api/torns/getTorns?${params}`, {
           signal: controller.signal,
         })
         const json = (await res.json()) as ApiResp
@@ -140,12 +135,16 @@ export default function TornsPage() {
         setItems(json.data || [])
         const depts = json.meta?.departments || []
         setDeptOptions(isAdminOrDireccio ? ['tots', ...depts] : depts)
-        setWorkerOptions(json.meta?.workers || [])
-      } catch (err) {
-        if ((err as Error).name === 'AbortError') {
-          console.log('[TornsPage] Fetch abortat (canvi de filtres o desmontatge)')
-          return
-        }
+
+        const rawWorkers = Array.isArray(json.meta?.workers)
+          ? json.meta.workers
+          : []
+        const workers = rawWorkers.map((w) => ({
+          id: w.id || '',
+          name: w.name || '',
+        }))
+        setWorkerOptions(workers)
+      } catch {
         setError('Error de connexió')
       } finally {
         setLoading(false)
@@ -154,21 +153,14 @@ export default function TornsPage() {
 
     run()
     return () => controller.abort()
-  }, [filters, status, isAdminOrDireccio])
+  }, [filters, isAdminOrDireccio, status])
 
-  // ✅ Obre detall torn
-  const openTornDetail = (t: ApiTorn) => {
+  // ============================
+  // DETALL
+  // ============================
+  const openDetail = (t: ApiTorn) => {
     setSelectedTorn(t)
-
-    const enrichedWorkers: ApiWorker[] = (t.__rawWorkers || []).map((w) => ({
-      ...w,
-      department: w.finalDept || w.department || 'Sense departament',
-    }))
-
-    setDetail({
-      ...t,
-      __rawWorkers: enrichedWorkers,
-    })
+    setDetail(t)
   }
 
   const closeDetail = () => {
@@ -178,6 +170,9 @@ export default function TornsPage() {
 
   if (status === 'loading') return <p className="p-6">Carregant sessió…</p>
 
+  // ============================
+  // RENDER
+  // ============================
   return (
     <div className="p-4">
       <ModuleHeader
@@ -188,89 +183,66 @@ export default function TornsPage() {
 
       <TornNotificationsList />
 
-      {/* Barra de filtres estil FilterBar */}
+      {/* SMART FILTERS */}
       <div className="w-full px-3 py-2 sm:px-4 sm:py-3 mb-6">
-        <div className="w-full">
-          <div className="rounded-2xl border border-gray-200 bg-white p-3 shadow-sm flex flex-wrap items-center gap-3">
-            <SmartFilters
-              modeDefault="week"
-              role={role}
-              departmentOptions={deptOptions}
-              workerOptions={workerOptions}
-              fixedDepartment={!isAdminOrDireccio ? sessionDept : null}
-              lockedWorkerName={isWorker ? userName : undefined}
-              showDepartment={isAdminOrDireccio}
-              showStatus={false}
-              onChange={setFilters}
-            />
-
-            {/* 🔘 Reset compacte */}
-            <div className="flex-1 sm:flex-none min-w-[50px]">
-              <button
-                onClick={() => {
-                  const monday = startOfWeek(new Date(), { weekStartsOn: 1 })
-                  const sunday = endOfWeek(new Date(), { weekStartsOn: 1 })
-                  setFilters({
-                    start: format(monday, 'yyyy-MM-dd'),
-                    end: format(sunday, 'yyyy-MM-dd'),
-                    mode: 'week',
-                  })
-                }}
-                className="w-full sm:w-auto p-2 rounded-xl border text-sm text-gray-600 hover:bg-gray-50 transition flex items-center justify-center"
-                title="Reset"
-              >
-                <RotateCcw className="h-5 w-5" />
-              </button>
-            </div>
-
-            {/* 🔘 Botó més filtres compacte */}
-            <Dialog>
-              <DialogTrigger asChild>
-                <button
-                  className="px-2 py-2 rounded-xl border text-sm text-gray-700 hover:bg-gray-50 flex items-center justify-center"
-                  title="Filtres addicionals"
-                >
-                  <SlidersHorizontal className="h-5 w-5" />
-                </button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-md">
-                <DialogHeader>
-                  <DialogTitle>Filtres addicionals</DialogTitle>
-                </DialogHeader>
-                <div className="flex flex-col gap-3 mt-3">
-                  {/* 🔽 Select Rol → NOMÉS aquí dins */}
-                  <select
-                    className="h-10 rounded-xl border bg-white text-gray-900 px-2"
-                    value={filters.roleType || 'all'}
-                    onChange={(e) => setFilters({ roleType: e.target.value })}
-                  >
-                    <option value="all">🌐 Tots</option>
-                    <option value="treballador">Treballador</option>
-                    <option value="conductor">Conductor</option>
-                    <option value="responsable">Responsable</option>
-                  </select>
-                </div>
-              </DialogContent>
-            </Dialog>
-          </div>
+        <div className="rounded-2xl border border-gray-200 bg-white p-3 shadow-sm flex flex-wrap items-center gap-3">
+          <SmartFilters
+            modeDefault="week"
+            role={role}
+            departmentOptions={deptOptions}
+            workerOptions={workerOptions}
+            fixedDepartment={!isAdminOrDireccio ? sessionDept : null}
+            lockedWorkerName={isWorker ? userName : undefined}
+            showDepartment={false}
+            showStatus={false}
+            showLocation={false}
+            showWorker={false}
+            showImportance={false}
+            onChange={(f) => setFilters(f)}
+          />
         </div>
       </div>
 
-      {/* Llistat */}
+      {/* BOTÓ FILTRES AVANÇATS */}
+      <FilterButton
+        onClick={() => {
+          setContent(
+            <TornFilters
+              setFilters={setFilters}
+              deptOptions={deptOptions}
+              workerOptions={workerOptions}
+              role={role}
+              sessionDept={sessionDept}
+              userName={userName}
+              isAdminOrDireccio={isAdminOrDireccio}
+              isWorker={isWorker}
+            />
+          )
+          setOpen(true)
+        }}
+      />
+
+      {/* LLISTAT */}
       {loading ? (
         <p className="text-center py-10">Carregant torns…</p>
-      ) : error ? (
+      ) : error && filters.start && filters.end ? (
         <p className="text-center py-10 text-red-500">{error}</p>
+      ) : items.length === 0 && filters.start && filters.end ? (
+        <p className="text-center py-10 text-gray-500">
+          No hi ha torns assignats en aquest període
+        </p>
       ) : (
         <TornsList
           items={items}
-          onTornClick={openTornDetail}
-          groupByEvent={!isWorker && !filters.workerId && !filters.workerName}
+          onTornClick={openDetail}
+          groupByEvent={
+            !isWorker && !(filters.workerId) && !(filters.workerName)
+          }
           role={role}
         />
       )}
 
-      {/* Modal detall */}
+      {/* MODAL DETALL */}
       <TornDetailModal
         open={!!selectedTorn}
         onClose={closeDetail}

@@ -3,20 +3,7 @@
 
 import React from 'react'
 import { MapPin, Tag } from 'lucide-react'
-
-export type TornCardWorkerItem = {
-  id: string
-  code: string
-  eventName: string
-  date: string
-  startTime?: string
-  endTime?: string
-  location?: string
-  mapsUrl?: string
-  meetingPoint?: string
-  workerRole: 'responsable' | 'conductor' | 'treballador' | null
-  workerName: string
-}
+import { TornCardItem } from './TornCard'
 
 /* Helpers */
 function shortLocation(s?: string) {
@@ -38,7 +25,7 @@ function detectLN(code?: string): string {
 
 function cleanEventName(s?: string) {
   if (!s) return ''
- const t = s.replace(/^\s*[A-Z]\s*-\s*/i, '').trim()
+  const t = s.replace(/^\s*[A-Z]\s*-\s*/i, '').trim()
   const STOP = [
     'FC','SOPAR','DINAR','BRUNCH','CERIMONIA','CERIMÒNIA',
     'BANQUET','COCTEL','CÒCTEL','PAX'
@@ -58,10 +45,8 @@ function cleanEventName(s?: string) {
 }
 
 /* UI Pills */
-function RolePill({ role }: { role: TornCardWorkerItem['workerRole'] }) {
+function RolePill({ role }: { role: TornCardItem['workerRole'] }) {
   const r = (role ?? '').toLowerCase().trim()
-
-  console.log('[RolePill]', { original: role, normalized: r })
 
   const label =
     r === 'responsable' ? 'Responsable'
@@ -82,7 +67,6 @@ function RolePill({ role }: { role: TornCardWorkerItem['workerRole'] }) {
   )
 }
 
-
 function LnBadge({ ln }: { ln: string }) {
   const cls =
     ln === 'empresa'
@@ -101,7 +85,7 @@ function LnBadge({ ln }: { ln: string }) {
   )
 }
 
-type Props = { item: TornCardWorkerItem; onClick?: () => void }
+type Props = { item: TornCardItem; onClick?: () => void }
 
 export default function TornCardWorker({ item, onClick }: Props) {
   if (!item) return null
@@ -109,21 +93,10 @@ export default function TornCardWorker({ item, onClick }: Props) {
   const ln = detectLN(item.code)
   const eventClean = cleanEventName(item.eventName)
   const placeShort = shortLocation(item.location)
+
   const mapsUrl =
     item.mapsUrl ||
     (item.location ? `https://www.google.com/maps?q=${encodeURIComponent(item.location)}` : null)
-
-  // 🔎 Log quirúrgic per traçar què rebem
-console.log('[TornCardWorker] item', {
-  id: item.id,
-  workerName: item.workerName,
-  workerRole: item.workerRole,
-  startTime: item.startTime,
-  endTime: item.endTime,
-  meetingPoint: item.meetingPoint,
-  code: item.code,
-  eventName: item.eventName,
-})
 
   return (
     <article
@@ -177,10 +150,7 @@ console.log('[TornCardWorker] item', {
       {/* Nom esdeveniment + Codi */}
       {eventClean && (
         <div className="mt-1 flex items-center justify-between">
-          <div
-            className="text-sm font-medium text-gray-900 truncate"
-            title={eventClean}
-          >
+          <div className="text-sm font-medium text-gray-900 truncate" title={eventClean}>
             {eventClean}
           </div>
           {item.code && (

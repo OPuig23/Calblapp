@@ -1,0 +1,80 @@
+// filename: src/utils/normalizeTornWorker.ts
+
+export type NormalizedRole = 'responsable' | 'conductor' | 'treballador'
+
+export interface NormalizedWorker {
+  key: string
+  id?: string
+  name: string
+  role: NormalizedRole
+  startTime: string
+  endTime: string
+  meetingPoint: string
+  department: string
+}
+
+const norm = (s?: string | null): string =>
+  String(s ?? '')
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .trim()
+
+const pad2 = (n: number) => (n < 10 ? `0${n}` : `${n}`)
+
+function toHHMM(input?: string | number | Date | null): string {
+  if (!input) return ''
+  const str = String(input)
+
+  if (/^\d{2}:\d{2}$/.test(str)) return str
+  if (/^\d{4}$/.test(str)) return `${str.slice(0, 2)}:${str.slice(2)}`
+
+  const d = new Date(str)
+  if (!isNaN(d.getTime())) {
+    return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`
+  }
+  return ''
+}
+
+function normalizeRole(r?: string): NormalizedRole {
+  const x = norm(r)
+  if (x.startsWith('res')) return 'responsable'
+  if (x.startsWith('con')) return 'conductor'
+  return 'treballador'
+}
+
+export function normalizeTornWorker(w: any): NormalizedWorker {
+  const id =
+    w?.id ||
+    w?.workerId ||
+    w?.uid ||
+    w?.email ||
+    undefined
+
+  const name =
+    w?.name ||
+    w?.nom ||
+    w?.displayName ||
+    ''
+
+  const role = normalizeRole(w?.role)
+
+  const startTime = toHHMM(w?.startTime)
+  const endTime = toHHMM(w?.endTime)
+
+  const meetingPoint = String(w?.meetingPoint || '').trim()
+  const dept = norm(w?.department || '')
+
+  const key = id ? String(id) : norm(name)
+
+  return {
+    key,
+    id: id ? String(id) : undefined,
+    name: String(name),
+    role,
+    startTime,
+    endTime,
+    meetingPoint,
+    department: dept || 'sense departament',
+  }
+}

@@ -1,89 +1,135 @@
 // file: src/app/menu/personnel/list/page.tsx
 'use client'
 
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
-import PersonnelFilters from '@/components/personnel/PersonnelFilters'
 import PersonnelList from '@/components/personnel/PersonnelList'
 import NewPersonnelModal from '@/components/personnel/NewPersonnelModal'
 import EditPersonnelModal from '@/components/personnel/EditPersonnelModal'
+import FloatingAddButton from '@/components/ui/floating-add-button'
+import FilterButton from '@/components/ui/filter-button'
+import PersonnelFilters from '@/components/personnel/PersonnelFilters'
 import { usePersonnel, Personnel } from '@/hooks/usePersonnel'
+import { useFilters } from '@/context/FiltersContext'
 
 type SessionUser = {
-  role?: string
   department?: string
 }
 
 export default function PersonnelListPage() {
-  const { data: session, status } = useSession()
+  const { data: session } = useSession()
+  const { data: allPersonnel = [], isLoading, isError, refetch } = usePersonnel()
+
   const [modalOpen, setModalOpen] = useState(false)
   const [editingPerson, setEditingPerson] = useState<Personnel | null>(null)
 
-  // 🔹 Dades del personal
-  const { data: allPersonnel = [], isLoading, isError, refetch } = usePersonnel()
-
-  // 🔹 Estat del filtre de cerca
+  // 🔍 Cerca
   const [searchTerm, setSearchTerm] = useState('')
 
-  // 🔹 Filtrat per nom
+  // 🎛 Estat dels filtres del slide-over
+  const [filters, setFilters] = useState({
+    roleType: '',
+    isDriver: 'all' as 'all' | 'yes' | 'no',
+    department: ''
+  })
+
+  // SlideOver global: injectar els filtres de Personal
+  const { setContent } = useFilters()
+
+  useEffect(() => {
+    setContent(
+      <PersonnelFilters 
+        filters={filters}
+        onFiltersChange={setFilters}
+      />
+    )
+  }, [filters, setContent])
+
+  // 🧮 FILTRAT FINAL
   const filteredPersonnel = useMemo(() => {
     const term = searchTerm.toLowerCase()
-    return allPersonnel.filter((p) => p.name?.toLowerCase().includes(term))
-  }, [allPersonnel, searchTerm])
 
-  // 🔹 Control d’estat de sessió
-  if (status === 'loading') return <p>Carregant sessió…</p>
-  if (status !== 'authenticated') return <p className="text-red-600">Accés no autoritzat.</p>
+    return allPersonnel.filter((p) => {
+
+      // 🔍 Filtre per nom
+      if (!p.name?.toLowerCase().includes(term)) return false
+
+      // 🔹 Filtre per rol
+      if (filters.roleType && p.role?.toLowerCase() !== filters.roleType)
+        return false
+
+      // 🔹 Filtre per conductor
+   const isDriver = p.driver?.isDriver ?? false
+
+if (filters.isDriver !== 'all') {
+  if (filters.isDriver === 'yes' && !isDriver) return false
+  if (filters.isDriver === 'no'  &&  isDriver) return false
+}
+
+
+      // 🔹 Filtre per departament
+      if (filters.department && p.department?.toLowerCase() !== filters.department)
+        return false
+
+      return true
+    })
+  }, [allPersonnel, searchTerm, filters])
+
   if (isLoading) return <p>Carregant personal…</p>
   if (isError) return <p className="text-red-600">Error carregant personal.</p>
 
-  // 🔹 Handlers de modals
-  const handleCreated = () => {
-    refetch()
-    setModalOpen(false)
-  }
-
-  const handleSaved = () => {
-    refetch()
-    setEditingPerson(null)
-  }
-
-  const handleEdit = (person: Personnel) => setEditingPerson(person)
-
   return (
-    <section className="p-0 space-y-6">
-      {/* 🔹 Barra superior de filtres (com a Esdeveniments) */}
-      <PersonnelFilters
-        search={searchTerm}
-        onSearchChange={setSearchTerm}
-        onNewWorker={() => setModalOpen(true)}
-      />
+    <section className="p-0 space-y-4">
 
-      {/* 🔹 Llista de personal filtrada */}
+      {/* 🔍 Barra de cerca */}
+      <div className="px-1 pt-2">
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Cerca per nom..."
+          className="w-full h-10 rounded-xl border border-gray-300 bg-white px-3 text-sm"
+        />
+      </div>
+
+      {/* 📋 Llista de personal */}
       <div className="p-6">
         <PersonnelList
           personnel={filteredPersonnel}
           mutate={refetch}
-          onEdit={handleEdit}
+          onEdit={setEditingPerson}
         />
       </div>
 
-      {/* 🔹 Modals */}
+      {/* ➕ Crear nou */}
       <NewPersonnelModal
         isOpen={modalOpen}
         onOpenChange={setModalOpen}
-        onCreated={handleCreated}
+        onCreated={() => {
+          refetch()
+          setModalOpen(false)
+        }}
         defaultDepartment={(session?.user as SessionUser)?.department}
       />
 
+      {/* ✏️ Editar */}
       {editingPerson && (
         <EditPersonnelModal
           isOpen={true}
           onOpenChange={() => setEditingPerson(null)}
-          onSaved={handleSaved}
+          onSaved={() => {
+            refetch()
+            setEditingPerson(null)
+          }}
           person={editingPerson}
         />
       )}
+
+      {/* ➕ Botó flotant “Afegir nou” */}
+      <FloatingAddButton onClick={() => setModalOpen(true)} />
+
+      {/* 🎛 Botó universal de filtres */}
+      <FilterButton />
     </section>
   )
 }

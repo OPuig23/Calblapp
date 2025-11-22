@@ -7,31 +7,27 @@ import { useSession, signOut } from 'next-auth/react'
 import { useRouter, usePathname } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
-import { LogOut } from 'lucide-react'
+import { LogOut, Settings } from 'lucide-react'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { normalizeRole, type Role } from '@/lib/roles'
+import { normalizeRole } from '@/lib/roles'
 import { NotificationsProvider } from '@/context/NotificationsContext'
 import './globals.css'
-import { Settings } from 'lucide-react'
-
+import { FiltersProvider } from '@/context/FiltersContext'
+import FilterSlideOver from '@/components/ui/filter-slide-over'
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ca">
-      <head>
-        <title>Cal Blay</title>
-        <meta name="description" content="WebApp Cal Blay" />
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-        <link rel="manifest" href="/manifest.json" />
-        <link rel="icon" href="/icons/icon-192.png" />
-        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
-      </head>
-
+      <head>{/* ... */}</head>
       <body suppressHydrationWarning={true}>
         <Providers>
           <TooltipProvider>
             <NotificationsProvider>
-              <InnerLayout>{children}</InnerLayout>
+              <FiltersProvider>
+                <InnerLayout>{children}</InnerLayout>
+                {/* Slide over de filtres global */}
+                <FilterSlideOver />
+              </FiltersProvider>
             </NotificationsProvider>
           </TooltipProvider>
         </Providers>
@@ -41,15 +37,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 }
 
 /* ----------------------------------------------------------
-   INNER LAYOUT — CAPÇALERA UNIVERSAL + MENÚ LATERAL
+   INNER LAYOUT — CAPÇALERA UNIVERSAL + MENÚ + PANEL FILTRES
 ----------------------------------------------------------- */
 
 function InnerLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname() ?? ''
   const { data: session, status } = useSession()
-  const user = session?.user
 
+  const user = session?.user
   const [menuOpen, setMenuOpen] = useState(false)
 
   // Protecció de sessió
@@ -59,6 +55,7 @@ function InnerLayout({ children }: { children: React.ReactNode }) {
     }
   }, [status, session, pathname, router])
 
+  // Pàgina login → sense layout
   if (pathname.startsWith('/login')) {
     return (
       <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-gray-50">
@@ -70,10 +67,9 @@ function InnerLayout({ children }: { children: React.ReactNode }) {
 
   const username = user?.name || user?.email || 'Usuari'
   const avatarLetter = username[0]?.toUpperCase() ?? 'U'
-
   const role = normalizeRole(user?.role || '')
-  const dept = (user?.department || '').toLowerCase()
 
+  // Menú segons rol
   const NAV_ITEMS = [
     { label: 'Torns', path: '/menu/torns', roles: ['admin','direccio','cap','treballador'] },
     { label: 'Esdeveniments', path: '/menu/events', roles: ['admin','direccio','cap','treballador','comercial','usuari'] },
@@ -81,10 +77,13 @@ function InnerLayout({ children }: { children: React.ReactNode }) {
     { label: 'Personal', path: '/menu/personnel', roles: ['admin','direccio','cap'] },
     { label: 'Quadrants', path: '/menu/quadrants', roles: ['admin','direccio','cap'] },
     { label: 'Incidències', path: '/menu/incidents', roles: ['admin','direccio','cap'] },
+    { label: 'Modificacions', path: '/menu/modifications', roles: ['admin','direccio','cap'] },
     { label: 'Informes', path: '/menu/reports', roles: ['admin','direccio'] },
     { label: 'Usuaris', path: '/menu/users', roles: ['admin'] },
     { label: 'Transports', path: '/menu/transports', roles: ['admin','direccio','cap'] },
+    { label: 'Preparació Logistica', path: '/menu/logistics', roles: ['admin','direccio','cap'] },
     { label: 'Calendar', path: '/menu/calendar', roles: ['admin','direccio','comercial'] },
+    { label: 'Espais', path: '/menu/spaces', roles: ['admin','direccio','cap','treballador','comercial'] },
   ]
 
   const navItemsByRole = NAV_ITEMS.filter(item => item.roles.includes(role))
@@ -108,16 +107,15 @@ function InnerLayout({ children }: { children: React.ReactNode }) {
 
           {/* Logo */}
           <Link href="/menu">
-  <Image
-    src="/logo.png"
-    alt="Cal Blay"
-    width={120}
-    height={50}
-    className="object-contain"
-    priority
-  />
-</Link>
-
+            <Image
+              src="/logo.png"
+              alt="Cal Blay"
+              width={120}
+              height={50}
+              className="object-contain"
+              priority
+            />
+          </Link>
 
           {/* Avatar + Logout */}
           <div className="flex items-center gap-3">
@@ -151,38 +149,37 @@ function InnerLayout({ children }: { children: React.ReactNode }) {
               <button onClick={() => setMenuOpen(false)} className="p-1">✕</button>
             </div>
 
-           <nav className="flex flex-col gap-2">
-  {navItemsByRole.map(item => (
-    <Link
-      key={item.path}
-      href={item.path}
-      onClick={() => setMenuOpen(false)}
-      className="px-3 py-2 rounded-md hover:bg-gray-100 text-gray-800"
-    >
-      {item.label}
-    </Link>
-  ))}
+            <nav className="flex flex-col gap-2">
+              {navItemsByRole.map(item => (
+                <Link
+                  key={item.path}
+                  href={item.path}
+                  onClick={() => setMenuOpen(false)}
+                  className="px-3 py-2 rounded-md hover:bg-gray-100 text-gray-800"
+                >
+                  {item.label}
+                </Link>
+              ))}
 
-  {/* Botó configuració */}
-<Link
-  href="/menu/configuracio"
-  onClick={() => setMenuOpen(false)}
-  className="px-3 py-2 rounded-md hover:bg-gray-100 text-gray-800 flex items-center gap-2"
->
-  <Settings className="w-5 h-5" />
-  <span></span>
-</Link>
-
-</nav>
+              {/* Botó configuració */}
+              <Link
+                href="/menu/configuracio"
+                onClick={() => setMenuOpen(false)}
+                className="px-3 py-2 rounded-md hover:bg-gray-100 text-gray-800 flex items-center gap-2"
+              >
+                <Settings className="w-5 h-5" />
+              </Link>
+            </nav>
 
           </div>
         </div>
       )}
 
-      {/* --------------------------- CONTINGUT --------------------------- */}
+          {/* --------------------------- CONTINGUT --------------------------- */}
       <main className="px-2 sm:px-4 pb-6 max-w-7xl mx-auto overflow-x-hidden overflow-y-auto">
         {children}
       </main>
+
     </div>
   )
 }

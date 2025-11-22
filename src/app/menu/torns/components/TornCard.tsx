@@ -4,6 +4,16 @@
 import React from 'react'
 import { MapPin, Users, Tag } from 'lucide-react'
 
+type WorkerLite = {
+  id?: string
+  name?: string
+  role?: 'responsable' | 'conductor' | 'treballador' | null
+  startTime?: string
+  endTime?: string
+  meetingPoint?: string
+  department?: string
+}
+
 export type TornCardItem = {
   id: string
   code: string
@@ -16,17 +26,13 @@ export type TornCardItem = {
   department?: string
   workerRole?: 'responsable' | 'conductor' | 'treballador' | null
   workerName?: string
-  __rawWorkers?: Array<{
-    id?: string
-    name?: string
-    role?: string
-    startTime?: string
-    endTime?: string
-    meetingPoint?: string
-  }>
+  __rawWorkers?: WorkerLite[]
+  startTime?: string
+endTime?: string
+
+
 }
 
-/* Helpers */
 function shortLocation(s?: string) {
   if (!s) return ''
   return s.split(',')[0]?.trim() || s
@@ -65,7 +71,7 @@ function cleanEventName(s?: string) {
   return out.join(' - ').trim() || t
 }
 
-function uniqueWorkerNames(arr?: Array<{ id?: string; name?: string; role?: string }>) {
+function uniqueWorkerNames(arr?: WorkerLite[]) {
   const set = new Set<string>()
   const out: string[] = []
   arr?.forEach(w => {
@@ -79,8 +85,7 @@ function uniqueWorkerNames(arr?: Array<{ id?: string; name?: string; role?: stri
   return out
 }
 
-/* UI Pills */
-function RolePill({ role }: { role?: TornCardItem['workerRole'] }) {
+function RolePill({ role }: { role?: 'responsable' | 'conductor' | 'treballador' | null }) {
   if (!role) return null
   const label =
     role === 'responsable' ? 'Responsable'
@@ -129,7 +134,6 @@ export default function TornCard({ item, onClick }: Props) {
     item.mapsUrl ||
     (item.location ? `https://www.google.com/maps?q=${encodeURIComponent(item.location)}` : null)
 
-  // Grupem workers
   const grouped: Record<string, string[]> = {}
   item.__rawWorkers?.forEach((w) => {
     const r = (w.role || 'altres').toLowerCase()
@@ -138,31 +142,20 @@ export default function TornCard({ item, onClick }: Props) {
   })
   const totalAssignats = Object.values(grouped).reduce((a, n) => a + n.length, 0)
 
-  // Resum de noms si no hi ha workerName principal
   const names = uniqueWorkerNames(item.__rawWorkers)
   const namesPreview = names.slice(0, 3).join(', ')
   const rest = Math.max(0, names.length - 3)
 
-  // 👇 Calcular rol efectiu
-  const effectiveRole =
+  const effectiveRole: 'responsable' | 'conductor' | 'treballador' | null | undefined =
     item.workerRole ||
     item.__rawWorkers?.find(w => w.name === item.workerName)?.role ||
     null
-
-  console.log('[TornCard] Render', {
-    id: item.id,
-    workerName: item.workerName,
-    workerRole: item.workerRole,
-    effectiveRole,
-    __rawWorkers: item.__rawWorkers,
-  })
 
   return (
     <article
       className="rounded-2xl border border-border p-4 shadow-sm bg-white cursor-pointer hover:shadow-md transition"
       onClick={onClick}
     >
-      {/* Header compacte */}
       <div className="flex items-center justify-between mb-2">
         <div className="flex gap-2">
           {effectiveRole && <RolePill role={effectiveRole} />}
@@ -175,7 +168,6 @@ export default function TornCard({ item, onClick }: Props) {
         )}
       </div>
 
-      {/* Nom treballador(s) + Hora + Meeting point */}
       <div className="text-base font-semibold text-gray-900 mb-2 flex flex-wrap items-center gap-2">
         {item.workerName ? (
           <span className="text-lg font-bold text-gray-800">{item.workerName}</span>
@@ -195,7 +187,6 @@ export default function TornCard({ item, onClick }: Props) {
         )}
       </div>
 
-      {/* Ubicació curta amb enllaç */}
       {item.location && (
         <div className="text-sm text-gray-700 mb-2 flex items-center gap-1">
           <MapPin className="h-4 w-4 text-gray-500 shrink-0" />
@@ -216,7 +207,6 @@ export default function TornCard({ item, onClick }: Props) {
         </div>
       )}
 
-      {/* Nom esdeveniment + Codi en línia */}
       {eventClean && (
         <div className="mt-1 flex items-center justify-between">
           <div

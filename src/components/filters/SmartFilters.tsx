@@ -247,6 +247,16 @@ useEffect(() => {
   () => `${format(weekStart, 'd MMM', { locale: es })} – ${format(weekEnd, 'd MMM', { locale: es })}`,
   [weekStart, weekEnd]
 )
+useEffect(() => {
+  const start = toIso(weekStart)
+  const end = toIso(weekEnd)
+
+  onChange({
+    mode: 'week',
+    start,
+    end
+  })
+}, []) 
 
 
   const headerLabel = useMemo(() => {
@@ -317,13 +327,22 @@ useEffect(() => {
     }
 
     const key = JSON.stringify(payload)
-    if (key !== lastPayloadRef.current) {
-      lastPayloadRef.current = key
-      if (start && end) {
-        onChange(payload)
-        if (typeof onLabelChange === 'function') onLabelChange(headerLabel)
-      }
-    }
+// 🚫 NO enviïs res si les dates no són vàlides
+if (!start || !end || start.length !== 10 || end.length !== 10) {
+  return
+}
+
+// 🚫 NO enviïs res si les dates no són vàlides
+if (!start || !end || start.length !== 10 || end.length !== 10) {
+  return
+}
+
+if (key !== lastPayloadRef.current) {
+  lastPayloadRef.current = key
+  onChange(payload)
+  if (typeof onLabelChange === 'function') onLabelChange(headerLabel)
+}
+
   }, [
     mode,
     weekStart,
