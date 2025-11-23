@@ -1,11 +1,14 @@
-//field: src/hooks/spaces/useSpaces.ts
+// file: src/hooks/spaces/useSpaces.ts
 'use client'
+
 import { useEffect, useState } from 'react'
 import { SpacesFilterState } from '@/components/spaces/SpacesFilters'
 
-export function useSpaces(filters: SpacesFilterState) {
+export function useSpaces(filters: SpacesFilterState & { baseDate: string }) {
   const [spaces, setSpaces] = useState<any[]>([])
   const [totals, setTotals] = useState<number[]>([])
+  const [fincas, setFincas] = useState<string[]>([])
+  const [comercials, setComercials] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -13,31 +16,94 @@ export function useSpaces(filters: SpacesFilterState) {
     const fetchData = async () => {
       setLoading(true)
       setError(null)
+
       try {
+        // ---------------------------
+        // Build API params
+        // ---------------------------
         const params = new URLSearchParams()
-        if (filters.month !== undefined) params.append('month', String(filters.month))
-        if (filters.year !== undefined) params.append('year', String(filters.year))
+        if (filters.stage) params.append('stage', filters.stage)
         if (filters.finca) params.append('finca', filters.finca)
         if (filters.comercial) params.append('comercial', filters.comercial)
-        if (filters.baseDate) params.append('baseDate', filters.baseDate) // 👈 afegit
+        if (filters.baseDate) params.append('baseDate', filters.baseDate)
 
         const res = await fetch(`/api/spaces?${params.toString()}`)
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        const data = await res.json()
 
-        setSpaces(data.data || [])
-        setTotals(data.totalPaxPerDia || [])
+        const json = await res.json()
+
+        const rows: any[] = Array.isArray(json.data) ? json.data : []
+        const totalsArr: number[] = Array.isArray(json.totalPaxPerDia)
+          ? json.totalPaxPerDia
+          : []
+
+        setSpaces(rows)
+        setTotals(totalsArr)
+
+        // ---------------------------
+        // 🟩 Build FINCAS list
+        // ---------------------------
+        const fincasSet = new Set<string>()
+
+        rows.forEach((row) => {
+          if (typeof row.finca === 'string' && row.finca.trim() !== '') {
+            fincasSet.add(row.finca.trim())
+          }
+        })
+
+        setFincas(
+          Array.from(fincasSet).sort((a, b) =>
+            a.localeCompare(b, 'ca', { sensitivity: 'base' })
+          )
+        )
+
+        // ---------------------------
+        // 🟦 Build COMERCIALS list
+        // ---------------------------
+        const comercialsSet = new Set<string>()
+
+        rows.forEach((row) => {
+          const dies = Array.isArray(row.dies) ? row.dies : []
+
+          dies.forEach((day) => {
+            const events = Array.isArray(day?.events) ? day.events : []
+
+            events.forEach((ev) => {
+              const c = ev?.commercial ?? ev?.Comercial
+              if (typeof c === 'string' && c.trim() !== '') {
+                comercialsSet.add(c.trim())
+              }
+            })
+          })
+        })
+
+        setComercials(
+          Array.from(comercialsSet).sort((a, b) =>
+            a.localeCompare(b, 'ca', { sensitivity: 'base' })
+          )
+        )
       } catch (err: any) {
         console.error('Error carregant espais:', err)
         setError('No s’han pogut carregar les dades')
         setSpaces([])
         setTotals([])
+        setFincas([])
+        setComercials([])
       } finally {
         setLoading(false)
       }
     }
-    fetchData()
-  }, [JSON.stringify(filters)]) // 👈 assegura trigger només quan realment canvien
 
-  return { spaces, totals, loading, error }
+    fetchData()
+    // Trigger NOMÉS quan realment canvien filtres
+  }, [JSON.stringify(filters)])
+
+  return {
+    spaces,
+    totals,
+    fincas,
+    comercials,
+    loading,
+    error,
+  }
 }

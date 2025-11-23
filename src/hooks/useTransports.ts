@@ -1,46 +1,100 @@
-//filename:src\hooks\useTransports.ts
+// file: src/hooks/useTransports.ts
 'use client'
-import useSWR from 'swr'
+
+import { useEffect, useState, useCallback } from 'react'
+
+export type TransportType = 'camioPetit' | 'camioGran' | 'furgoneta'
 
 export interface Transport {
   id: string
   plate: string
-  type: 'camioGran' | 'camioPetit' | 'furgoneta'
+  type: TransportType
   conductorId?: string | null
   available: boolean
+
+  // 🔹 Camps nous de manteniment / documentació
+  itvDate?: string | null          // Data ITV feta
+  itvExpiry?: string | null        // Caducitat ITV
+  lastService?: string | null      // Última revisió
+  nextService?: string | null      // Properà revisió
+
+  documents?: Array<{
+    id: string
+    name: string
+    url: string
+    uploadedAt: string
+  }>
 }
 
-async function fetcher(url: string) {
-  const res = await fetch(url)
-  if (!res.ok) throw new Error('Error carregant dades')
-  return res.json() as Promise<Transport[]>
+interface UseTransportsResult {
+  data: Transport[]
+  loading: boolean
+  error: string | null
+  refetch: () => Promise<void>
 }
 
-export function useTransports() {
-  const { data, error, mutate } = useSWR<Transport[]>('/api/transports', fetcher)
+/**
+ * 🔹 Hook per carregar / refrescar els transports des de l’API
+ *    GET /api/transports
+ */
+export function useTransports(): UseTransportsResult {
+  const [data, setData] = useState<Transport[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  // 🔀 Ordenem: disponibles primer, després no disponibles
-  const sorted = data
-    ? [...data].sort((a, b) => {
-        if (a.available === b.available) return a.plate.localeCompare(b.plate)
-        return a.available ? -1 : 1
-      })
-    : []
+  const fetchTransports = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      const res = await fetch('/api/transports')
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`)
+      }
+
+      const json = await res.json()
+
+      // Acceptem formats flexibles: { data: [...] } o directament [...]
+      const list: any[] = Array.isArray(json)
+        ? json
+        : Array.isArray(json?.data)
+        ? json.data
+        : []
+
+      const mapped: Transport[] = list.map((t: any) => ({
+        id: t.id,
+        plate: t.plate,
+        type: t.type,
+        conductorId: t.conductorId ?? null,
+        available: typeof t.available === 'boolean' ? t.available : true,
+        itvDate: t.itvDate ?? null,
+        itvExpiry: t.itvExpiry ?? null,
+        lastService: t.lastService ?? null,
+        nextService: t.nextService ?? null,
+        documents: Array.isArray(t.documents) ? t.documents : [],
+      }))
+
+      setData(mapped)
+    } catch (err: any) {
+      console.error('[useTransports] Error carregant transports:', err)
+      setError('No s’han pogut carregar els transports')
+      setData([])
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchTransports()
+  }, [fetchTransports])
 
   return {
-    data: sorted,
-    isLoading: !data && !error,
+    data,
+    loading,
     error,
-    refetch: mutate,
+    refetch: fetchTransports,
   }
 }
 
-export async function createTransport(newTransport: Omit<Transport, 'id'>) {
-  const res = await fetch('/api/transports', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(newTransport),
-  })
-  if (!res.ok) throw new Error('Error afegint transport')
-  return res.json()
-}
+// 🔁 També el deixem com a export per defecte (per si algun lloc l’importa així)
+export default useTransports

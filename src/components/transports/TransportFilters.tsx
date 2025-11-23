@@ -1,0 +1,96 @@
+'use client'
+
+import React from 'react'
+import ResetFilterButton from '@/components/ui/ResetFilterButton'
+
+export type TransportFiltersState = {
+  type: 'all' | 'camioPetit' | 'camioGran' | 'furgoneta'
+  availability: 'all' | 'available' | 'unavailable'
+  driver: 'all' | 'assigned' | 'unassigned'
+}
+
+interface Props {
+  filters: TransportFiltersState
+  setFilters: (f: TransportFiltersState) => void
+}
+
+export default function TransportFilters({ filters, setFilters }: Props) {
+  const handleChange = <K extends keyof TransportFiltersState>(
+    key: K,
+    value: TransportFiltersState[K]
+  ) => {
+    setFilters({ ...filters, [key]: value })
+  }
+
+  return (
+    <div className="p-4 space-y-4 text-sm">
+      {/* Tipus */}
+      <div className="space-y-1">
+        <div className="font-medium text-gray-700">Tipus de vehicle</div>
+        <select
+          value={filters.type}
+          onChange={(e) =>
+            handleChange('type', e.target.value as TransportFiltersState['type'])
+          }
+          className="w-full border rounded-md px-2 py-1 bg-white"
+        >
+          <option value="all">Tots</option>
+          <option value="camioPetit">Camió petit</option>
+          <option value="camioGran">Camió gran</option>
+          <option value="furgoneta">Furgoneta</option>
+        </select>
+      </div>
+
+      {/* Disponibilitat */}
+      <div className="space-y-1">
+        <div className="font-medium text-gray-700">Disponibilitat</div>
+        <select
+          value={filters.availability}
+          onChange={(e) =>
+            handleChange(
+              'availability',
+              e.target.value as TransportFiltersState['availability']
+            )
+          }
+          className="w-full border rounded-md px-2 py-1 bg-white"
+        >
+          <option value="all">Tots</option>
+          <option value="available">Només disponibles</option>
+          <option value="unavailable">Només no disponibles</option>
+        </select>
+      </div>
+
+      {/* Conductor */}
+      <div className="space-y-1">
+        <div className="font-medium text-gray-700">Conductor</div>
+        <select
+          value={filters.driver}
+          onChange={(e) =>
+            handleChange(
+              'driver',
+              e.target.value as TransportFiltersState['driver']
+            )
+          }
+          className="w-full border rounded-md px-2 py-1 bg-white"
+        >
+          <option value="all">Tots</option>
+          <option value="assigned">Amb conductor assignat</option>
+          <option value="unassigned">Sense conductor</option>
+        </select>
+      </div>
+
+      {/* Botó reset */}
+      <div className="flex justify-end pt-2">
+        <ResetFilterButton
+          onClick={() =>
+            setFilters({
+              type: 'all',
+              availability: 'all',
+              driver: 'all',
+            })
+          }
+        />
+      </div>
+    </div>
+  )
+}

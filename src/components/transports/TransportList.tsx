@@ -12,7 +12,11 @@ interface Props {
   onDelete: (t: Transport) => void
 }
 
-export default function TransportList({ transports, onEdit, onDelete }: Props) {
+export default function TransportList({
+  transports,
+  onEdit,
+  onDelete,
+}: Props) {
   const { data: personnel } = usePersonnel()
 
   const getDriverName = (id?: string | null) => {
@@ -22,14 +26,14 @@ export default function TransportList({ transports, onEdit, onDelete }: Props) {
 
   if (!transports?.length) {
     return (
-      <div className="text-gray-500 italic text-center py-8">
-        No hi ha transports registrats.
+      <div className="text-gray-500 italic text-center py-12 text-sm">
+        No hi ha transports registrats per als filtres seleccionats.
       </div>
     )
   }
 
   return (
-    <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+    <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {transports.map((t) => (
         <TransportCard
           key={t.id}

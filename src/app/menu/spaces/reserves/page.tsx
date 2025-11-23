@@ -3,76 +3,139 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
+
 import { useSpaces } from '@/hooks/spaces/useSpaces'
 import SpaceGrid from '@/components/spaces/SpaceGrid'
-import SidePanel from '@/components/spaces/SidePanel'
-import { SpacesFilterState } from '@/components/spaces/SpacesFilters'
 import ModuleHeader from '@/components/layout/ModuleHeader'
 
+import FilterButton from '@/components/ui/filter-button'
+import { useFilters } from '@/context/FiltersContext'
+import SpacesFilters from '@/components/spaces/SpacesFilters'
+
 export default function SpacesPage() {
-  const [isPanelOpen, setPanelOpen] = useState(false)
-  const [filters, setFilters] = useState<SpacesFilterState>({
+
+  // -------------------------------
+  // 🔹 Estat de filtres
+  // -------------------------------
+  const [filters, setFilters] = useState({
     stage: 'all',
     finca: '',
     comercial: '',
-    baseDate: new Date().toISOString().split('T')[0],
-    month: new Date().getMonth(),
-    year: new Date().getFullYear(),
+    baseDate: new Date().toISOString().split('T')[0],  // Setmana inicial
   })
 
-  const { spaces, totals, loading } = useSpaces(filters)
+  // -------------------------------
+  // 🔹 Carrega dades segons filtres
+  // -------------------------------
+  const {
+    spaces,
+    totals,
+    fincas,
+    comercials,
+    loading
+  } = useSpaces(filters)
 
+  // -------------------------------
+  // 🔹 Control del panell de filtres
+  // -------------------------------
+  const { setOpen: openFilters, setContent: setFiltersContent } = useFilters()
+
+  // -------------------------------
+  // 🔹 Canvi de setmana
+  // -------------------------------
   const shiftWeek = (direction: 'prev' | 'next') => {
-    const base = new Date(filters.baseDate || new Date())
+    const base = new Date(filters.baseDate)
     base.setDate(base.getDate() + (direction === 'next' ? 7 : -7))
+
     setFilters(prev => ({
       ...prev,
-      baseDate: base.toISOString().split('T')[0],
-      month: base.getMonth(),
-      year: base.getFullYear(),
+      baseDate: base.toISOString().split('T')[0]
     }))
   }
 
+  // -------------------------------
+  // 🔹 Etiqueta setmana
+  // -------------------------------
   const weekLabel = (() => {
-    const base = new Date(filters.baseDate || new Date())
+    const base = new Date(filters.baseDate)
     const monday = new Date(base)
     const dow = monday.getDay() || 7
     if (dow !== 1) monday.setDate(monday.getDate() - (dow - 1))
     const sunday = new Date(monday)
     sunday.setDate(monday.getDate() + 6)
-    const f = (d: Date) => d.toLocaleDateString('ca-ES', { day: '2-digit', month: '2-digit' })
+
+    const f = (d: Date) =>
+      d.toLocaleDateString('ca-ES', {
+        day: '2-digit',
+        month: '2-digit'
+      })
+
     return `${f(monday)} — ${f(sunday)}`
   })()
 
+  // -------------------------------
+  // 🔹 Render
+  // -------------------------------
   return (
     <>
-      {/* 🔹 Capçalera automàtica del mòdul */}
-      <ModuleHeader />
+      {/* Capçalera general */}
+      <ModuleHeader
+        title="Espais / Reserves"
+        subtitle="Disponibilitat setmanal de finques"
+      />
 
       <section className="relative w-full h-full bg-white">
-        {/* Botó menú lateral */}
-        <button
-          onClick={() => setPanelOpen(true)}
-          className="fixed top-[4.5rem] left-3 z-50 bg-white/95 rounded-full shadow-md px-3 py-1 text-2xl sm:text-xl active:scale-95 transition"
-          title="Obrir filtres i opcions"
-        >
-          ≡
-        </button>
 
-        <SidePanel
-          open={isPanelOpen}
-          onClose={() => setPanelOpen(false)}
-          onApply={(newFilters) => {
-            setFilters(prev => ({
-              ...prev,
-              ...newFilters,
-              finca: newFilters.finca?.split('(')[0].trim() || '',
-            }))
-            setPanelOpen(false)
-          }}
-        />
+        {/* ───────────────────────────────
+             📅 Controls de setmana + Filtres
+           ─────────────────────────────── */}
+        <div className="flex items-center justify-between mt-4 mb-2 px-4">
 
-        {loading ? (
+          {/* Controls esquerra */}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => shiftWeek('prev')}
+              className="px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 text-sm"
+            >
+              ◀
+            </button>
+
+            <span className="font-semibold text-gray-700 text-sm sm:text-base">
+              Setmana: {weekLabel}
+            </span>
+
+            <button
+              onClick={() => shiftWeek('next')}
+              className="px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 text-sm"
+            >
+              ▶
+            </button>
+          </div>
+
+          {/* Botó filtres */}
+          <FilterButton
+            onClick={() => {
+              setFiltersContent(
+                <SpacesFilters
+                  fincas={fincas}
+                  comercials={comercials}
+                  onChange={(patch) =>
+                    setFilters(prev => ({
+                      ...prev,
+                      ...patch
+                    }))
+                  }
+                />
+              )
+              openFilters(true)
+            }}
+          />
+        </div>
+
+        {/* ───────────────────────────────
+             ⏳ Loading
+           ─────────────────────────────── */}
+        {loading && (
           <motion.div
             className="mt-10 flex flex-col gap-3 items-center"
             initial={{ opacity: 0.3 }}
@@ -82,29 +145,19 @@ export default function SpacesPage() {
             <div className="h-6 w-40 bg-gray-200 rounded" />
             <div className="h-4 w-60 bg-gray-100 rounded" />
           </motion.div>
-        ) : (
-          <>
-            <div className="flex items-center justify-center gap-3 mt-4 mb-2">
-              <button
-                onClick={() => shiftWeek('prev')}
-                className="px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 text-sm"
-              >
-                ◀
-              </button>
-              <span className="font-semibold text-gray-700 text-sm sm:text-base">
-                Setmana: {weekLabel}
-              </span>
-              <button
-                onClick={() => shiftWeek('next')}
-                className="px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 text-sm"
-              >
-                ▶
-              </button>
-            </div>
-
-            <SpaceGrid data={spaces} totals={totals} baseDate={filters.baseDate} />
-          </>
         )}
+
+        {/* ───────────────────────────────
+             🧩 Taula de dades
+           ─────────────────────────────── */}
+        {!loading && (
+          <SpaceGrid
+            data={spaces}
+            totals={totals}
+            baseDate={filters.baseDate}
+          />
+        )}
+
       </section>
     </>
   )

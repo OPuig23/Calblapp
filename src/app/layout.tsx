@@ -80,8 +80,7 @@ function InnerLayout({ children }: { children: React.ReactNode }) {
     { label: 'Modificacions', path: '/menu/modifications', roles: ['admin','direccio','cap'] },
     { label: 'Informes', path: '/menu/reports', roles: ['admin','direccio'] },
     { label: 'Usuaris', path: '/menu/users', roles: ['admin'] },
-    { label: 'Transports', path: '/menu/transports', roles: ['admin','direccio','cap'] },
-    { label: 'Preparació Logistica', path: '/menu/Logistics', roles: ['admin','direccio','cap'] },
+    { label: 'Logistica', path: '/menu/logistica', roles: ['admin','direccio','cap'] },
     { label: 'Calendar', path: '/menu/calendar', roles: ['admin','direccio','comercial'] },
     { label: 'Espais', path: '/menu/spaces', roles: ['admin','direccio','cap','treballador','comercial'] },
   ]

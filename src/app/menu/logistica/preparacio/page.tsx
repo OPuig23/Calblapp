@@ -1,4 +1,4 @@
-// file: src/app/menu/Logistics/page.tsx
+//file: src/app/menu/logistica/preparacio/page.tsx
 'use client'
 
 import { RoleGuard } from '@/lib/withRoleGuard'
@@ -12,6 +12,11 @@ export default function LogisticsPage() {
         icon="🛠️"
         title="PREPARACIÓ LOGÍSTICA"
         subtitle="Planificació de dates i hores de preparació dels esdeveniments"
+      />
+           <ModuleHeader
+        icon="📦"
+        title="Preparació logística"
+        subtitle="Gestió de comandes i esdeveniments"
       />
 
       <RoleGuard allowedRoles={['admin', 'direccio', 'cap', 'treballador']}>

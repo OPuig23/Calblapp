@@ -1,3 +1,4 @@
+// src/app/api/spaces/fincas/route.ts
 import { NextResponse } from 'next/server'
 import { getSpacesByWeek } from '@/services/spaces/spaces'
 

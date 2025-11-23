@@ -1,3 +1,4 @@
+//file: src/app/api/spaces/comercials/route.ts
 import { NextResponse } from 'next/server'
 import { getSpacesByWeek } from '@/services/spaces/spaces'
 

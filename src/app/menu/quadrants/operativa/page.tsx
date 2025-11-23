@@ -132,9 +132,6 @@ export default function QuadrantsOperativaPage() {
         </button>
       </div>
 
-
-
-
       {/* Panell de filtres per Responsable / Finca */}
       <WeeklyFilters
         open={filtersOpen}
