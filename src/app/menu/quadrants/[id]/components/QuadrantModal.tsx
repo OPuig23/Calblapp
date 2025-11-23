@@ -26,19 +26,24 @@ import QuadrantFieldsCuina from './QuadrantFieldsCuina'
 interface QuadrantModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  event: {
-    id: string
-    summary?: string
-    title?: string
-    start: string
-    startTime?: string
-    endTime?: string
-    location?: string
-    eventLocation?: string
-    totalWorkers?: number
-    numDrivers?: number
-    meetingPoint?: string
-  }
+event: {
+  id: string
+  summary?: string
+  title?: string
+  start: string
+  startTime?: string
+  endTime?: string
+  location?: string
+  eventLocation?: string
+  totalWorkers?: number
+  numDrivers?: number
+  meetingPoint?: string
+
+  // 🔵 AFEGIT
+  service?: string
+  numPax?: number
+  commercial?: string
+}
 }
 
 type AvailableVehicle = {
@@ -185,12 +190,19 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
         endDate,
         endTime,
         manualResponsibleId: manualResp || null,
+        service: event.service || null,
+        numPax: event.numPax || null,
+        commercial: event.commercial || null,
       }
 
       if (department.toLowerCase() === 'serveis') {
         payload.totalWorkers = serveisData.workers
         payload.numDrivers   = serveisData.drivers
         payload.brigades     = serveisData.brigades
+        payload.service = event.service || null     
+        payload.numPax = event.numPax || null
+        payload.commercial = event.commercial || null
+
       } else {
         const canonicalType = (t?: string) => {
           const x = (t || '').trim()

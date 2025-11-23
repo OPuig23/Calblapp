@@ -380,7 +380,8 @@ if (key !== lastPayloadRef.current) {
   return (
     <div className="flex flex-col md:flex-row md:flex-wrap gap-2 w-full">
       {/* 🔹 Barra superior del filtre de dates – una sola línia, amb selector únic i rang automàtic */}
-<div className="flex items-center justify-between w-full gap-1.5 py-1.5 px-1.5 overflow-x-hidden whitespace-nowrap">
+<div className="flex items-center gap-2 flex-shrink-0 py-1.5 px-1.5 whitespace-nowrap">
+
 
 
 {/* 🔹 Navegació compacta amb fletxes (mostra en Setmana i Dia, amaga en Rang) */}

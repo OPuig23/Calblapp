@@ -87,6 +87,8 @@ export async function POST(req: NextRequest) {
           (token as TokenLike)?.user?.email ||
           (token as TokenLike)?.email ||
           'system',
+        service: body.service,
+  
       },
       { merge: true }
     )

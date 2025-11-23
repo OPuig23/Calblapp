@@ -34,7 +34,8 @@ export default function PersonnelListPage() {
   })
 
   // SlideOver global: injectar els filtres de Personal
-  const { setContent } = useFilters()
+ const { setContent, setOpen } = useFilters()
+
 
   useEffect(() => {
     setContent(
@@ -82,15 +83,25 @@ if (filters.isDriver !== 'all') {
     <section className="p-0 space-y-4">
 
       {/* 🔍 Barra de cerca */}
-      <div className="px-1 pt-2">
-        <input
-          type="text"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          placeholder="Cerca per nom..."
-          className="w-full h-10 rounded-xl border border-gray-300 bg-white px-3 text-sm"
-        />
-      </div>
+<div className="px-1 pt-2 flex items-center gap-2 relative z-40">
+
+
+
+  
+  {/* 🔍 Input de cerca */}
+  <input
+    type="text"
+    value={searchTerm}
+    onChange={(e) => setSearchTerm(e.target.value)}
+    placeholder="Cerca per nom..."
+    className="flex-1 h-10 rounded-xl border border-gray-300 bg-white px-3 text-sm"
+  />
+
+  {/* 🎛 Botó de filtres (mateix estil que Events/Torns) */}
+  <FilterButton onClick={() => setOpen(true)} />
+
+</div>
+
 
       {/* 📋 Llista de personal */}
       <div className="p-6">
@@ -128,8 +139,6 @@ if (filters.isDriver !== 'all') {
       {/* ➕ Botó flotant “Afegir nou” */}
       <FloatingAddButton onClick={() => setModalOpen(true)} />
 
-      {/* 🎛 Botó universal de filtres */}
-      <FilterButton />
     </section>
   )
 }

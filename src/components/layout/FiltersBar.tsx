@@ -2,23 +2,12 @@
 'use client'
 
 import React, { useState, useCallback, memo } from 'react'
-import { useRouter, usePathname } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import SmartFilters, { SmartFiltersChange } from '@/components/filters/SmartFilters'
-import { SlidersHorizontal } from 'lucide-react'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { ClipboardList } from 'lucide-react'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { startOfWeek, endOfWeek, format } from 'date-fns'
-
-
-
+import { useFilters } from '@/context/FiltersContext'
+import ResetFilterButton from '@/components/ui/ResetFilterButton'
+import FilterButton from '@/components/ui/filter-button'
 
 /* ──────────────────────────────
    Tipus i props
@@ -30,6 +19,7 @@ export type FiltersState = {
   ln?: string
   responsable?: string
   location?: string
+  status?: string // nou: estat (pending / draft / confirmed)
 }
 
 type FilterKey = 'ln' | 'responsable' | 'location'
@@ -59,72 +49,30 @@ export default function FiltersBar({
   responsables = [],
   locations = [],
 }: FiltersBarProps) {
-  const router = useRouter()
   const pathname = usePathname()
-  const isQuadrants = pathname?.startsWith('/menu/quadrants') // 🔹 Detecta si és el mòdul Quadrants
+  const isQuadrants = pathname?.startsWith('/menu/quadrants')
+  const { setOpen, setContent } = useFilters()
 
   const [resetSignal, setResetSignal] = useState(0)
-  const [isModalOpen, setIsModalOpen] = useState(false)
 
-  /* ─── Gestors ───────────────────── */
-  const handleClearAll = useCallback(() => {
-    setFilters({})
-    setResetSignal((n) => n + 1)
-    onReset?.()
-  }, [setFilters, onReset])
+  /* ─── Gestor dates (SmartFilters compacte de setmana) ───────────── */
+  const handleDatesChange = useCallback(
+    (f: SmartFiltersChange) => {
+      if (f.start) {
+        const base = new Date(f.start)
+        const weekStart = startOfWeek(base, { weekStartsOn: 1 })
+        const weekEnd = endOfWeek(base, { weekStartsOn: 1 })
+        setFilters({
+          start: format(weekStart, 'yyyy-MM-dd'),
+          end: format(weekEnd, 'yyyy-MM-dd'),
+          mode: 'week',
+        })
+      }
+    },
+    [setFilters]
+  )
 
-
-const handleDatesChange = useCallback(
-  (f: SmartFiltersChange) => {
-    if (f.start) {
-      const base = new Date(f.start)
-      const weekStart = startOfWeek(base, { weekStartsOn: 1 })
-      const weekEnd = endOfWeek(base, { weekStartsOn: 1 })
-      setFilters({
-        start: format(weekStart, 'yyyy-MM-dd'),
-        end: format(weekEnd, 'yyyy-MM-dd'),
-        mode: 'week',
-      })
-    }
-  },
-  [setFilters]
-)
-
-
-  const handleApplyFilters = () => {
-    setFilters({
-      ln: filters.ln ?? '__all__',
-      responsable: filters.responsable ?? '__all__',
-      location: filters.location ?? '__all__',
-    })
-    setIsModalOpen(false)
-  }
-
-  const handleResetAndClose = () => {
-    const today = new Date()
-    const first = new Date(today)
-    first.setDate(today.getDate() - today.getDay() + 1) // dilluns
-    const last = new Date(first)
-    last.setDate(first.getDate() + 6) // diumenge
-
-    const isoStart = first.toISOString().slice(0, 10)
-    const isoEnd = last.toISOString().slice(0, 10)
-
-    setFilters({
-      start: isoStart,
-      end: isoEnd,
-      mode: 'week',
-      ln: '',
-      responsable: '',
-      location: '',
-    })
-
-    setResetSignal((n) => n + 1)
-    onReset?.()
-    setTimeout(() => setIsModalOpen(false), 150)
-  }
-
-  /* ─── Selects inline ─────────────── */
+  /* ─── Selects inline (si algun mòdul els vol mostrar) ───────────── */
   const SelectsInline = memo(() => {
     const base = 'h-10 rounded-xl border bg-white text-gray-900 px-3'
     return (
@@ -134,11 +82,12 @@ const handleDatesChange = useCallback(
             className={`${base} w-[150px]`}
             value={filters.ln ?? '__all__'}
             onChange={(e) => setFilters({ ln: e.target.value })}
-            aria-label="Línia de negoci"
           >
             <option value="__all__">LN: Totes</option>
             {lnOptions.map((o) => (
-              <option key={o} value={o}>{o}</option>
+              <option key={o} value={o}>
+                {o}
+              </option>
             ))}
           </select>
         )}
@@ -148,11 +97,12 @@ const handleDatesChange = useCallback(
             className={`${base} w-[180px]`}
             value={filters.responsable ?? '__all__'}
             onChange={(e) => setFilters({ responsable: e.target.value })}
-            aria-label="Responsable"
           >
             <option value="__all__">Resp: Tots</option>
             {responsables.map((o) => (
-              <option key={o} value={o}>{o}</option>
+              <option key={o} value={o}>
+                {o}
+              </option>
             ))}
           </select>
         )}
@@ -162,11 +112,12 @@ const handleDatesChange = useCallback(
             className={`${base} w-[170px]`}
             value={filters.location ?? '__all__'}
             onChange={(e) => setFilters({ location: e.target.value })}
-            aria-label="Ubicació"
           >
             <option value="__all__">Ubicació: Totes</option>
             {locations.map((o) => (
-              <option key={o} value={o}>{o}</option>
+              <option key={o} value={o}>
+                {o}
+              </option>
             ))}
           </select>
         )}
@@ -174,11 +125,11 @@ const handleDatesChange = useCallback(
     )
   })
 
-  /* ─── Render principal ───────────── */
+  /* ─── PANTALLA ───────────── */
   return (
     <div className="sticky top-[56px] z-40 border-b border-gray-200 bg-white/90 backdrop-blur-sm">
       <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-2 overflow-x-auto whitespace-nowrap px-2 py-[3px] sm:flex-nowrap">
-        {/* 📅 Filtres de data */}
+        {/* 📅 Selector compacte de Setmana (només dates) */}
         <SmartFilters
           modeDefault="week"
           role="Treballador"
@@ -190,176 +141,111 @@ const handleDatesChange = useCallback(
           resetSignal={resetSignal}
         />
 
-        {/* Selects visibles */}
-        <SelectsInline />
+        {/* Selects inline opcionals */}
+        
 
-        {/* 🔘 Diferència entre mòduls */}
-       {isQuadrants ? (
-  <div className="flex items-center gap-2">
-    {/* 🔵 Veure quadrants */}
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            size="icon"
-            variant="default"
-            className="h-10 w-10 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-sm flex items-center justify-center"
-            onClick={() => {
-              const start = filters.start
-              const end = filters.end
-              if (start && end) {
-                const url = `/menu/quadrants/drafts?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`
-                router.push(url)
-              } else {
-                router.push('/menu/quadrants/drafts')
-              }
-            }}
-          >
-            <ClipboardList className="h-5 w-5" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent side="bottom" className="text-sm">
-          Veure quadrants
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-
-    {/* 🟢 Vista setmanal operativa */}
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            size="icon"
-            variant="default"
-            className="h-10 w-10 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full shadow-sm flex items-center justify-center"
-            onClick={() => {
-              const start = filters.start
-              const end = filters.end
-              if (start && end) {
-                const url = `/menu/quadrants/operativa?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`
-                router.push(url)
-              } else {
-                router.push('/menu/quadrants/operativa')
-              }
-            }}
-          >
-            {/* 🗓 Icona de llista per vista operativa */}
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={2}
-              stroke="currentColor"
-              className="h-5 w-5"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M9 12h6m-6 4h6m-2-8h2m2 10a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2h12z"
-              />
-            </svg>
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent side="bottom" className="text-sm">
-          Vista setmanal operativa
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  </div>
-) : (
-
-          // ⚙️ Altres mòduls → Filtres avançats (sense canvis)
-          hiddenFilters.length > 0 && (
-            <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-              <DialogTrigger asChild>
-                <Button
-                  size="icon"
-                  variant="outline"
-                  className="h-10 w-10 shrink-0 rounded-xl border-gray-300 hover:bg-gray-100"
-                  title="Filtres avançats"
-                >
-                  <SlidersHorizontal className="h-5 w-5 text-gray-700" />
-                </Button>
-              </DialogTrigger>
-
-              {/* 📱 Modal centrat i responsive */}
-              <DialogContent key={resetSignal} className="max-w-lg w-[92vw] rounded-2xl">
-                <DialogHeader>
-                  <DialogTitle className="text-base font-semibold text-gray-800 text-center">
-                    Filtres avançats
-                  </DialogTitle>
-                </DialogHeader>
-
-                <div className="mt-3 flex flex-col gap-3 pb-6 w-full">
-                  {hiddenFilters.includes('ln') && (
-                    <div className="flex flex-col gap-1">
-                      <label className="text-sm text-gray-600">🌐 LN</label>
-                      <select
-                        className="h-10 rounded-xl border bg-white px-3"
-                        value={filters.ln ?? '__all__'}
-                        onChange={(e) => setFilters({ ln: e.target.value })}
-                      >
-                        <option value="__all__">Totes</option>
-                        {lnOptions.map((o) => (
-                          <option key={o} value={o}>{o}</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-
-                  {hiddenFilters.includes('responsable') && (
-                    <div className="flex flex-col gap-1">
-                      <label className="text-sm text-gray-600">👤 Responsable</label>
-                      <select
-                        className="h-10 rounded-xl border bg-white px-3"
-                        value={filters.responsable ?? '__all__'}
-                        onChange={(e) => setFilters({ responsable: e.target.value })}
-                      >
-                        <option value="__all__">Tots</option>
-                        {responsables.map((o) => (
-                          <option key={o} value={o}>{o}</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-
-                  {hiddenFilters.includes('location') && (
-                    <div className="flex flex-col gap-1">
-                      <label className="text-sm text-gray-600">📍 Ubicació</label>
-                      <select
-                        className="h-10 rounded-xl border bg-white px-3"
-                        value={filters.location ?? '__all__'}
-                        onChange={(e) => setFilters({ location: e.target.value })}
-                      >
-                        <option value="__all__">Totes</option>
-                        {locations.map((o) => (
-                          <option key={o} value={o}>{o}</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-
-                  <div className="flex gap-2 mt-4">
-                    <Button
-                      variant="outline"
-                      className="flex-1 text-gray-700 border-gray-300"
-                      onClick={handleResetAndClose}
+        {/* 🔘 Botó de filtres (slide lateral) */}
+        <FilterButton
+          onClick={() => {
+            setContent(
+              <div className="p-4 flex flex-col gap-4">
+                {/* 🌐 LN */}
+                {lnOptions?.length > 0 && (
+                  <div className="flex flex-col gap-1">
+                    <label className="text-sm text-gray-600">
+                      🌐 Línia de Negoci
+                    </label>
+                    <select
+                      className="h-10 rounded-xl border bg-white px-3"
+                      value={filters.ln ?? '__all__'}
+                      onChange={(e) => setFilters({ ln: e.target.value })}
                     >
-                      ↻ Reiniciar filtres
-                    </Button>
-                    <Button
-                      variant="default"
-                      className="flex-1 bg-blue-600 text-white hover:bg-blue-700"
-                      onClick={handleApplyFilters}
-                    >
-                      ✅ Aplica filtres
-                    </Button>
+                      <option value="__all__">Totes</option>
+                      {lnOptions.map((o) => (
+                        <option key={o} value={o}>
+                          {o}
+                        </option>
+                      ))}
+                    </select>
                   </div>
+                )}
+
+                {/* 📌 Estat – NOMÉS a Quadrants */}
+                {isQuadrants && (
+                  <div className="flex flex-col gap-1">
+                    <label className="text-sm text-gray-600">📌 Estat</label>
+                    <select
+                      className="h-10 rounded-xl border bg-white px-3"
+                      value={filters.status ?? '__all__'}
+                      onChange={(e) => setFilters({ status: e.target.value })}
+                    >
+                      <option value="__all__">Tots</option>
+                      <option value="pending">Pendents</option>
+                      <option value="draft">Esborranys</option>
+                      <option value="confirmed">Confirmats</option>
+                    </select>
+                  </div>
+                )}
+
+                {/* 👤 Responsable */}
+                {responsables && responsables.length > 0 && (
+                  <div className="flex flex-col gap-1">
+                    <label className="text-sm text-gray-600">👤 Responsable</label>
+                    <select
+                      className="h-10 rounded-xl border bg-white px-3"
+                      value={filters.responsable ?? '__all__'}
+                      onChange={(e) => setFilters({ responsable: e.target.value })}
+                    >
+                      <option value="__all__">Tots</option>
+                      {responsables.map((o) => (
+                        <option key={o} value={o}>
+                          {o}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* 📍 Ubicació */}
+                {locations?.length > 0 && (
+                  <div className="flex flex-col gap-1">
+                    <label className="text-sm text-gray-600">📍 Ubicació</label>
+                    <select
+                    
+  className="h-10 rounded-xl border bg-white px-3"
+  value={filters.location ?? '__all__'}
+  onChange={(e) => setFilters({ location: e.target.value })} 
+>
+  <option value="__all__">Totes</option>
+  {locations.map((o) => (
+    <option key={o} value={o}>{o}</option>
+  ))}
+</select>
+
+                  </div>
+                )}
+
+                {/* 🔄 Botó reset */}
+                <div className="flex gap-2 pt-4">
+                  <ResetFilterButton
+                    onClick={() => {
+                      setFilters({
+                        ln: '__all__',
+                        responsable: '__all__',
+                        location: '__all__',
+                        status: '__all__',
+                      })
+                      setResetSignal((v) => v + 1)
+                      onReset?.()
+                    }}
+                  />
                 </div>
-              </DialogContent>
-            </Dialog>
-          )
-        )}
+              </div>
+            )
+
+            setOpen(true)
+          }}
+        />
       </div>
     </div>
   )

@@ -9,6 +9,7 @@ import EventsDayGroup from '@/components/events/EventsDayGroup'
 import EventMenuModal from '@/components/events/EventMenuModal'
 import ModuleHeader from '@/components/layout/ModuleHeader'
 import FiltersBar, { FiltersState } from '@/components/layout/FiltersBar'
+import { useFilters } from '@/context/FiltersContext'
 
 /* ================= Utils ================= */
 const normalize = (s?: string | null) =>
@@ -35,7 +36,9 @@ type SessionUser = {
 export default function EventsPage() {
   const { data: session } = useSession()
   const role = String(session?.user?.role || '').toLowerCase()
-  const userDept = String((session?.user as SessionUser)?.department || '').toLowerCase()
+ const userDept = String((session?.user as SessionUser)?.department || 'total').toLowerCase()
+
+
   const scope: 'all' | 'mine' = role === 'treballador' ? 'mine' : 'all'
   const includeQuadrants = role === 'treballador'
 
@@ -116,7 +119,7 @@ export default function EventsPage() {
   /* ================= Modal ================= */
   const [isMenuOpen, setMenuOpen] = useState(false)
   const [selectedEvent, setSelectedEvent] = useState<Partial<ExtendedEventData> | null>(null)
-
+console.log("🔍 RESPONSABLES DETECTATS AL MÒDUL:", scopedResponsables)
   const openMenu = (ev: ExtendedEventData) => {
     setSelectedEvent({
       id: ev.id,

@@ -6,11 +6,23 @@ import useSWR from 'swr'
 import { useSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { format } from 'date-fns'
+import { ArrowLeft, Loader2 } from 'lucide-react'
+import React from 'react'
 import ModuleHeader from '@/components/layout/ModuleHeader'
 import FiltersBar from '@/components/layout/FiltersBar'
-import QuadrantsDayGroup from './components/QuadrantsDayGroup'
-import { ArrowLeft } from 'lucide-react'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import QuadrantCard from './components/QuadrantCard'
 
+/* ──────────────────────────────
+   Tipus de dades
+────────────────────────────── */
 export interface Draft {
   id: string
   code: string
@@ -74,33 +86,16 @@ export interface Draft {
   // Sistema
   updatedAt?: string
   status?: 'draft' | 'confirmed'
+  service?: string | null
+  numPax?: number | null
+  commercial?: string | null  
 }
-
-
-const fetcher = (url: string) => fetch(url).then((r) => r.json())
-const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s)
 
 /* ──────────────────────────────
    Helpers
 ────────────────────────────── */
-const normalizeName = (v: unknown): string => {
-  if (typeof v === 'string') return v
-  if (v && typeof v === 'object') {
-    const candidate =
-      (v as Record<string, unknown>).name ??
-      (v as Record<string, unknown>).fullName ??
-      (v as Record<string, unknown>).displayName ??
-      (v as Record<string, unknown>).label ??
-      (v as Record<string, unknown>).text
-    if (typeof candidate === 'string') return candidate
-  }
-  return ''
-}
-
-const sameName = (a: unknown, bLC: string) => {
-  const n = normalizeName(a).trim().toLowerCase()
-  return !!n && n === bLC
-}
+const fetcher = (url: string) => fetch(url).then((r) => r.json())
+const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s)
 
 const normalizeLocation = (v: unknown): string => {
   if (typeof v === 'string') return v
@@ -116,34 +111,24 @@ const normalizeLocation = (v: unknown): string => {
   return ''
 }
 
-const locationTag = (v: unknown): string => {
-  const raw = normalizeLocation(v).trim()
-  if (!raw) return ''
-  const comma = raw.indexOf(',')
-  let end = comma >= 0 ? comma : raw.length
-  if (end > 20) end = 20
-  return raw.slice(0, end).trim()
-}
-
 /* ──────────────────────────────
    Component principal
 ────────────────────────────── */
 export default function DraftsPage() {
   const router = useRouter()
-const searchParams = useSearchParams() as URLSearchParams
+  const searchParams = useSearchParams()
 
+  // 📅 Rang inicial (ve de la pantalla de Quadrants)
+  const startParam = searchParams.get('start')
+  const endParam = searchParams.get('end')
 
-const startParam = searchParams.get('start')
-const endParam = searchParams.get('end')
-
-const [dateRange, setDateRange] = useState<[string, string]>(() => {
-  if (startParam && endParam)
-    return [startParam as string, endParam as string]  // ✔ solucionat
-
-  const today = format(new Date(), 'yyyy-MM-dd')
-  return [today, today]
-})
-
+  const [dateRange, setDateRange] = useState<[string, string]>(() => {
+    if (startParam && endParam) {
+      return [startParam as string, endParam as string]
+    }
+    const today = format(new Date(), 'yyyy-MM-dd')
+    return [today, today]
+  })
 
   const norm = (s: unknown) =>
     (s ?? '')
@@ -152,8 +137,8 @@ const [dateRange, setDateRange] = useState<[string, string]>(() => {
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .trim()
-  const { data: session } = useSession()
 
+  const { data: session } = useSession()
   const role = norm(session?.user?.role)
   const userDept = norm(session?.user?.department)
   const canSelectDepartment = ['admin', 'direccio', 'direccion'].includes(role)
@@ -161,9 +146,8 @@ const [dateRange, setDateRange] = useState<[string, string]>(() => {
   const [department, setDepartment] = useState<string>(
     canSelectDepartment ? '' : userDept || ''
   )
-  const [person, setPerson] = useState<string>('')
-  const [location, setLocation] = useState<string>('')
   const [status, setStatus] = useState<'all' | 'draft' | 'confirmed'>('all')
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   /* ──────────────────────────────
      API i dades
@@ -185,6 +169,7 @@ const [dateRange, setDateRange] = useState<[string, string]>(() => {
   /* ──────────────────────────────
      Agrupacions i opcions
   ─────────────────────────────── */
+  // 🔹 Opcions d'estat per al selector (per si un dia es volen mostrar)
   const statusOptions = useMemo(() => {
     const s = new Set<'draft' | 'confirmed'>()
     drafts.forEach((d) => {
@@ -196,56 +181,20 @@ const [dateRange, setDateRange] = useState<[string, string]>(() => {
       : (['draft', 'confirmed'] as Array<'draft' | 'confirmed'>)
   }, [drafts])
 
-  const personnelOptions = useMemo(() => {
-    const names: string[] = []
-    for (const d of drafts) {
-      const resp = normalizeName(d.responsableName).trim()
-      if (resp) names.push(resp)
-      if (Array.isArray(d.conductors))
-        d.conductors.forEach((x) => {
-          const n = normalizeName(x).trim()
-          if (n) names.push(n)
-        })
-      if (Array.isArray(d.treballadors))
-        d.treballadors.forEach((x) => {
-          const n = normalizeName(x).trim()
-          if (n) names.push(n)
-        })
-    }
-    return Array.from(new Set(names.map((n) => n.toLowerCase()))).map(
-      (n) => names.find((orig) => orig.toLowerCase() === n)!
-    )
-  }, [drafts])
-
-  const locationOptions = useMemo(() => {
-    const tags: string[] = []
+  // 🔹 Agrupació per dia (vista tipus "operativa / Excel")
+  const groupedByDate = useMemo(() => {
+    const groups: Record<string, Draft[]> = {}
     drafts.forEach((d) => {
-      const t = locationTag(d.location)
-      if (t) tags.push(t)
+      const key = d.startDate || 'Sense data'
+      if (!groups[key]) groups[key] = []
+      groups[key].push(d)
     })
-    return Array.from(new Set(tags.map((t) => t.toLowerCase()))).map(
-      (n) => tags.find((orig) => orig.toLowerCase() === n)!
-    )
+    return groups
   }, [drafts])
 
   /* ──────────────────────────────
-     Filtres i canvis
+     Filtres i etiquetes
   ─────────────────────────────── */
-  const onFilter = (f: {
-    dateRange?: [string, string]
-    department?: string | null
-    person?: string | null
-    location?: string | null
-    status?: 'all' | 'draft' | 'confirmed'
-  }) => {
-    if (f.dateRange) setDateRange(f.dateRange)
-    if (typeof f.department !== 'undefined')
-      setDepartment((f.department || '').trim().toLowerCase())
-    if (typeof f.person !== 'undefined') setPerson(f.person || '')
-    if (typeof f.location !== 'undefined') setLocation(f.location || '')
-    if (typeof f.status !== 'undefined') setStatus(f.status)
-  }
-
   const headerDept = canSelectDepartment
     ? department
       ? cap(department)
@@ -259,6 +208,7 @@ const [dateRange, setDateRange] = useState<[string, string]>(() => {
   ─────────────────────────────── */
   return (
     <div className="p-4 space-y-6">
+      {/* 🔙 Enllaç de retorn */}
       <div className="flex items-center gap-3">
         <button
           onClick={() => router.push('/menu/quadrants')}
@@ -268,40 +218,188 @@ const [dateRange, setDateRange] = useState<[string, string]>(() => {
         </button>
       </div>
 
+      {/* 🧩 Capçalera del mòdul */}
       <ModuleHeader
         icon="📋"
         title="EDICIÓ DE QUADRANTS"
         subtitle={`Consulta i gestiona els quadrants – ${headerDept}`}
       />
 
-      {/* 🔹 Mostra el filtre només quan hi ha rang definit */}
-      {dateRange && (
-        <FiltersBar
-          filters={{
-            start: dateRange[0],
-            end: dateRange[1],
-          }}
-          setFilters={(f) => {
-            if (f.start && f.end) setDateRange([f.start, f.end])
-          }}
-        />
-      )}
-
-      {isLoading && <p className="text-gray-500">Carregant quadrants…</p>}
-      {error && <p className="text-red-600">{String(error)}</p>}
-      {!isLoading && !error && drafts.length === 0 && (
-        <p>No hi ha quadrants per mostrar.</p>
-      )}
-
-      {!isLoading && !error && drafts.length > 0 && (
-        <div className="space-y-6">
-          {drafts.map((d) => (
-            <QuadrantsDayGroup
-              key={`${d.startDate}-${d.code}`}
-              date={d.startDate}
-              quadrants={[d]}
+      {/* 🔹 Filtres superiors: data + estat */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        {/* Rang de dates (barreta compacta) */}
+        {dateRange && (
+          <div className="max-w-md">
+            <FiltersBar
+              filters={{
+                start: dateRange[0],
+                end: dateRange[1],
+              }}
+              setFilters={(f) => {
+                if (f.start && f.end) setDateRange([f.start, f.end])
+              }}
             />
-          ))}
+          </div>
+        )}
+
+        {/* Selector d'estat (Tots / Esborrany / Confirmat) */}
+        <div className="flex items-center gap-2 justify-end">
+          <span className="text-sm text-gray-600">Estat:</span>
+          <select
+            className="h-9 rounded-xl border bg-white px-3 text-sm"
+            value={status}
+            onChange={(e) => setStatus(e.target.value as 'all' | 'draft' | 'confirmed')}
+          >
+            <option value="all">Tots</option>
+            {statusOptions.includes('draft') && (
+              <option value="draft">Esborranys</option>
+            )}
+            {statusOptions.includes('confirmed') && (
+              <option value="confirmed">Confirmats</option>
+            )}
+          </select>
+        </div>
+      </div>
+
+      {/* 🌀 Estat de càrrega */}
+      {isLoading && (
+        <div className="flex justify-center items-center py-10 text-gray-500">
+          <Loader2 className="animate-spin w-5 h-5 mr-2" /> Carregant quadrants…
+        </div>
+      )}
+
+      {/* ⚠️ Error */}
+      {error && (
+        <p className="text-red-600 text-center py-10">
+          {String(error)}
+        </p>
+      )}
+
+      {/* 📭 Sense dades */}
+      {!isLoading && !error && drafts.length === 0 && (
+        <p className="text-gray-400 text-center py-10">
+          No hi ha quadrants per mostrar.
+        </p>
+      )}
+
+      {/* 📊 Vista tipus operativa / Excel */}
+      {!isLoading && !error && drafts.length > 0 && (
+        <div className="overflow-x-auto border rounded-2xl shadow-sm bg-white">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-gradient-to-r from-emerald-50 to-emerald-100 text-emerald-900 text-sm h-8">
+                <TableHead className="py-1">Responsable</TableHead>
+                <TableHead className="py-1">Esdeveniment</TableHead>
+                <TableHead className="py-1">Finca / Ubicació</TableHead>
+                <TableHead className="py-1">Servei</TableHead>
+                <TableHead className="py-1">Personal assignat</TableHead>
+                <TableHead className="py-1">Horari</TableHead>
+               <TableHead className="text-center py-1 w-[40px]">●</TableHead>
+
+              </TableRow>
+            </TableHeader>
+
+            <TableBody>
+              {Object.entries(groupedByDate).map(([day, items]) => (
+                <React.Fragment key={day}>
+                  {/* Subheader per dia */}
+                  <TableRow className="bg-emerald-100/70 text-emerald-800 font-semibold">
+                    <TableCell colSpan={6}>{day}</TableCell>
+                  </TableRow>
+
+                  {/* Files de quadrants */}
+                  {items.map((q) => {
+                    const responsable =
+                      typeof q.responsableName === 'string'
+                        ? q.responsableName
+                        : (q.responsableName as any)?.name || '—'
+
+                    const loc = normalizeLocation(q.location)
+                    const workers = (q.treballadors || []).map((t) => t.name)
+                    const drivers = (q.conductors || []).map((c) => c.name)
+                    const people = [...workers, ...drivers]
+
+                    const labelEstat =
+                      q.status === 'confirmed' ? 'Confirmat' : 'Esborrany'
+                    const estatClass =
+                      q.status === 'confirmed'
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-amber-100 text-amber-700'
+
+                    const isExpanded = expandedId === q.id
+
+                    return (
+                      <React.Fragment key={q.id}>
+                        <TableRow
+                          className="text-xs sm:text-sm hover:bg-emerald-50 transition cursor-pointer"
+                          onClick={() =>
+                            setExpandedId(isExpanded ? null : q.id)
+                          }
+                        >
+                          {/* Responsable */}
+                          <TableCell className="font-medium text-gray-800 min-w-[130px] max-w-[160px]">
+                            {responsable || '—'}
+                          </TableCell>
+                         {/* Esdeveniment */}
+                        <TableCell>{q.eventName || '—'}</TableCell>
+
+                          {/* Ubicació */}
+                          <TableCell className="min-w-[150px] max-w-[220px] truncate">
+                            {loc || '—'}
+                          </TableCell>
+
+                          {/* Servei */}
+                          <TableCell>{q.service ?? '—'}</TableCell>
+
+
+                          {/* Personal assignat */}
+                          <TableCell className="max-w-[260px] truncate">
+                            {people.length
+                              ? people.join(', ')
+                              : '—'}
+                          </TableCell>
+
+
+                          {/* Horari */}
+                          <TableCell>
+                            {(q.startTime || '—') +
+                              ' – ' +
+                              (q.endTime || '—')}
+                          </TableCell>
+                              {/* ● Punt d’estat */}
+<TableCell className="text-center">
+<span
+  className={`inline-block w-3 h-3 rounded-full ${
+    q.status === 'confirmed'
+      ? 'bg-green-500'       // Confirmat = Verd
+      : q.status === 'draft'
+      ? 'bg-blue-500'        // Esborrany = Blau
+      : 'bg-yellow-400'      // Pending = Groc
+  }`}
+/>
+
+</TableCell>
+
+                        
+                        </TableRow>
+
+                        {/* Fila expandida: edició completa del quadrant (DraftsTable via QuadrantCard) */}
+                        {isExpanded && (
+                          <TableRow>
+                            <TableCell colSpan={6}>
+                              <div className="mt-2 mb-4">
+                                <QuadrantCard quadrant={q} />
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </React.Fragment>
+                    )
+                  })}
+                </React.Fragment>
+              ))}
+            </TableBody>
+          </Table>
         </div>
       )}
     </div>

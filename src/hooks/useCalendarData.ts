@@ -31,6 +31,7 @@ export interface Deal {
 export function useCalendarData(filters?: {
   ln?: string
   stage?: string
+  commercial?: string 
   start?: string
   end?: string
 }) {
@@ -136,6 +137,13 @@ export function useCalendarData(filters?: {
           (d.StageGroup || '').toLowerCase().includes(stageValue)
         )
       }
+      if (filters?.commercial && filters.commercial !== 'Tots') {
+  const comValue = filters.commercial.toLowerCase()
+  filtered = filtered.filter(
+    (d) => (d.Comercial || '').toLowerCase() === comValue
+  )
+}
+
 
       // Ordenació cronològica
       filtered.sort(
@@ -161,6 +169,7 @@ export function useCalendarData(filters?: {
   }, [
     filters?.ln ?? '',
     filters?.stage ?? '',
+    filters?.commercial ?? '', 
     filters?.start ?? '',
     filters?.end ?? '',
   ])

@@ -9,6 +9,9 @@ import { Button } from '@/components/ui/button'
 import { PlusCircle } from 'lucide-react'
 import { useTransports } from '@/hooks/useTransports'
 import ModuleHeader from '@/components/layout/ModuleHeader'
+import FloatingAddButton from '@/components/ui/floating-add-button'
+
+
 
 export default function TransportsPage() {
   const { data: transports, refetch } = useTransports()
@@ -61,13 +64,7 @@ export default function TransportsPage() {
       {/* Capçalera del llistat */}
       <div className="flex items-center justify-between rounded-xl bg-white shadow-sm border p-4">
         <h2 className="text-xl font-semibold text-gray-800">Llistat de vehicles</h2>
-        <Button
-          onClick={handleCreate}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-violet-600 text-white hover:bg-violet-700 transition"
-        >
-          <PlusCircle className="h-5 w-5" />
-          Nou vehicle
-        </Button>
+       
       </div>
 
       {/* Llistat de targetes de vehicle */}
@@ -84,6 +81,8 @@ export default function TransportsPage() {
         onCreated={handleSaved}
         defaultValues={editingTransport ?? undefined}
       />
+      <FloatingAddButton onClick={handleCreate} />
+
     </section>
   )
 }

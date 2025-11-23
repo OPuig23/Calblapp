@@ -185,42 +185,49 @@ export default function TornsPage() {
 
       {/* SMART FILTERS */}
       <div className="w-full px-3 py-2 sm:px-4 sm:py-3 mb-6">
-        <div className="rounded-2xl border border-gray-200 bg-white p-3 shadow-sm flex flex-wrap items-center gap-3">
-          <SmartFilters
-            modeDefault="week"
-            role={role}
-            departmentOptions={deptOptions}
-            workerOptions={workerOptions}
-            fixedDepartment={!isAdminOrDireccio ? sessionDept : null}
-            lockedWorkerName={isWorker ? userName : undefined}
-            showDepartment={false}
-            showStatus={false}
-            showLocation={false}
-            showWorker={false}
-            showImportance={false}
-            onChange={(f) => setFilters(f)}
-          />
-        </div>
+<div className="rounded-2xl border border-gray-200 bg-white p-3 shadow-sm flex items-center justify-between">
+  
+  {/* Bloc esquerra: SmartFilters */}
+  <div className="flex items-center gap-3">
+    <SmartFilters
+      modeDefault="week"
+      role={role}
+      departmentOptions={deptOptions}
+      workerOptions={workerOptions}
+      fixedDepartment={!isAdminOrDireccio ? sessionDept : null}
+      lockedWorkerName={isWorker ? userName : undefined}
+      showDepartment={false}
+      showStatus={false}
+      showLocation={false}
+      showWorker={false}
+      showImportance={false}
+      onChange={(f) => setFilters(f)}
+    />
+  </div>
+
+  {/* Bloc dreta: Botó filtres avançats */}
+  <FilterButton
+  onClick={() => {
+    setContent(
+      <TornFilters
+        setFilters={setFilters}
+        deptOptions={deptOptions}
+        workerOptions={workerOptions}
+        role={role}
+        sessionDept={sessionDept}
+        userName={userName}
+        isAdminOrDireccio={isAdminOrDireccio}
+        isWorker={isWorker}
+      />
+    )
+  }}
+/>
+
+</div>
+
       </div>
 
-      {/* BOTÓ FILTRES AVANÇATS */}
-      <FilterButton
-        onClick={() => {
-          setContent(
-            <TornFilters
-              setFilters={setFilters}
-              deptOptions={deptOptions}
-              workerOptions={workerOptions}
-              role={role}
-              sessionDept={sessionDept}
-              userName={userName}
-              isAdminOrDireccio={isAdminOrDireccio}
-              isWorker={isWorker}
-            />
-          )
-          setOpen(true)
-        }}
-      />
+
 
       {/* LLISTAT */}
       {loading ? (

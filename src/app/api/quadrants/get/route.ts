@@ -1,8 +1,4 @@
-// =============================================
-//  API: /api/quadrants/get
-//  Carrega quadrants per departament i rang
-//  Correcció final Oriol 💪
-// =============================================
+//file: src/app/api/quadrants/get/route.ts
 
 import { NextResponse } from 'next/server'
 import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
@@ -82,48 +78,52 @@ export async function GET(req: Request) {
 
     console.log('📈 [quadrants/get] Documents trobats:', snapshot.size)
 
-    const results = snapshot.docs.map(doc => {
-      const d = doc.data() as any
+const results = snapshot.docs.map(doc => {
+  const d = doc.data() as any
 
-      // 👇 Unifiquem el codi de l’esdeveniment
-      const code = d.code || d.eventCode || d.eventId || doc.id
+  const code = d.code || d.eventCode || d.eventId || doc.id
 
-      return {
-        id: doc.id,
+  return {
+    id: doc.id,
+    code,
+    eventCode: code,
 
-        // 👈 PUNT CRÍTIC QUE FALTAVA
-        code,                 // per fer match amb /menu/quadrants
-        eventCode: code,      // per compatibilitat
+    eventName: d.eventName || d.name || '',
+    location: d.location || d.finca || '',
 
-        eventName: d.eventName || d.name || '',
-        location: d.location || d.finca || '',
+    startDate: d.startDate?.toDate
+      ? d.startDate.toDate().toISOString().slice(0, 10)
+      : d.startDate || '',
 
-        startDate: d.startDate?.toDate
-          ? d.startDate.toDate().toISOString().slice(0, 10)
-          : d.startDate || '',
+    endDate: d.endDate?.toDate
+      ? d.endDate.toDate().toISOString().slice(0, 10)
+      : d.endDate || '',
 
-        endDate: d.endDate?.toDate
-          ? d.endDate.toDate().toISOString().slice(0, 10)
-          : d.endDate || '',
+    startTime: d.startTime || '',
+    endTime: d.endTime || '',
 
-        startTime: d.startTime || '',
-        endTime: d.endTime || '',
+    responsableName: d.responsableName || d.responsable?.name || '',
+    responsable: d.responsable?.name || '',
 
-        responsable: d.responsable?.name || '',
-        conductors: Array.isArray(d.conductors) ? d.conductors : [],
-        treballadors: Array.isArray(d.treballadors) ? d.treballadors : [],
+    conductors: Array.isArray(d.conductors) ? d.conductors : [],
+    treballadors: Array.isArray(d.treballadors) ? d.treballadors : [],
 
-        pax: d.pax || 0,
-        dressCode: d.dressCode || '',
-        department,
+    pax: d.pax || d.numPax || 0,
+    dressCode: d.dressCode || '',
+    department,
 
-        // ✔ Status real. Si no existeix → pendent (string buit)
-        status:
-          typeof d.status === 'string'
-            ? d.status.toLowerCase()
-            : '',
-      }
-    })
+    // ⭐⭐⭐ AQUI LA CLAU: SERVEI / SERVICE ⭐⭐⭐
+    service: d.service || d.servei || d.eventService || null,
+
+    commercial: d.commercial || null,
+
+    status:
+      typeof d.status === 'string'
+        ? d.status.toLowerCase()
+        : '',
+  }
+})
+
 
     console.log(`✅ [quadrants/get] Quadrants retornats: ${results.length}`)
     return NextResponse.json({ quadrants: results })

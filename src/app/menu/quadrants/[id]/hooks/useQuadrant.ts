@@ -28,6 +28,9 @@ export interface QuadrantDraft {
   status: QuadrantStatus;
   createdAt?: string;
   updatedAt?: string;
+  service?: string;
+  numPax?: number;
+  commercial?: string;
 }
 
 type DraftResponse = { quadrant?: QuadrantDraft };

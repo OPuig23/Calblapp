@@ -4,6 +4,7 @@
 import React, { useState } from 'react'
 import { RotateCcw } from 'lucide-react'
 import { startOfWeek, endOfWeek, format } from 'date-fns'
+import ResetFilterButton from '@/components/ui/ResetFilterButton'
 
 type Props = {
   setFilters: (f: any) => void
@@ -33,37 +34,10 @@ export default function TornFilters({
   )
   const [localWorker, setLocalWorker] = useState('')
 
-  // ─────────────────────────────────────────────
-  // APPLY FILTERS CORRECTE
-  // ─────────────────────────────────────────────
-  const applyFilters = () => {
-    const payload: any = {}
-
-    // ROLE FILTER
-    if (localRoleType !== 'all') {
-      payload.roleType = localRoleType
-    }
-
-    // DEPARTMENT FILTER
-    if (isAdminOrDireccio && localDepartment !== '') {
-      payload.department = localDepartment
-    }
-
-    // WORKER FILTER
-    if (localWorker !== '') {
-      payload.workerName = localWorker   // <── NOM, no ID inventat
-    }
-
-    setFilters(prev => ({
-      ...prev,       // NO ENS CARREGUEM EL RANG DE DATES
-      ...payload,    // NOMÉS afegim el necessari
-    }))
-  }
-
-  // ─────────────────────────────────────────────
-  // CLEAR ALL COMPLETAMENT SEGUR
-  // ─────────────────────────────────────────────
-  const clearAll = () => {
+  /* ─────────────────────────────────────────────
+     RESET (igual que Esdeveniments)
+  ───────────────────────────────────────────── */
+  const resetFilters = () => {
     const monday = startOfWeek(new Date(), { weekStartsOn: 1 })
     const sunday = endOfWeek(new Date(), { weekStartsOn: 1 })
 
@@ -71,31 +45,19 @@ export default function TornFilters({
     setLocalDepartment(isAdminOrDireccio ? '' : sessionDept || '')
     setLocalWorker('')
 
-    setFilters({
-      start: format(monday, 'yyyy-MM-dd'),
-      end: format(sunday, 'yyyy-MM-dd'),
-      // NO ENVIEM CAP FILTRE EXTRA
-    })
+    setFilters(prev => ({
+      start: prev.start,
+      end: prev.end,
+      roleType: undefined,
+      department: undefined,
+      workerName: undefined,
+      workerId: undefined,
+    }))
   }
-  const resetFilters = () => {
-  setLocalRoleType('all')
-  setLocalDepartment(isAdminOrDireccio ? '' : sessionDept || '')
-  setLocalWorker('')
 
-  setFilters(prev => ({
-    start: prev.start,
-    end: prev.end,
-    roleType: undefined,
-    department: undefined,
-    workerName: undefined,
-    workerId: undefined,
-  }))
-}
-
-
-  // ─────────────────────────────────────────────
-  // RENDER
-  // ─────────────────────────────────────────────
+  /* ─────────────────────────────────────────────
+     RENDER
+  ───────────────────────────────────────────── */
   return (
     <div className="flex flex-col gap-4 bg-white rounded-xl p-4 shadow-sm border border-gray-200">
 
@@ -106,7 +68,11 @@ export default function TornFilters({
           <select
             className="border rounded-lg p-2"
             value={localRoleType}
-            onChange={(e) => setLocalRoleType(e.target.value)}
+            onChange={(e) => {
+              const v = e.target.value
+              setLocalRoleType(v)
+              setFilters(prev => ({ ...prev, roleType: v }))
+            }}
           >
             <option value="all">Tots</option>
             <option value="treballador">Treballador</option>
@@ -123,10 +89,14 @@ export default function TornFilters({
           <select
             className="border rounded-lg p-2"
             value={localDepartment}
-            onChange={(e) => setLocalDepartment(e.target.value)}
+            onChange={(e) => {
+              const v = e.target.value
+              setLocalDepartment(v)
+              setFilters(prev => ({ ...prev, department: v }))
+            }}
           >
             <option value="">Tots</option>
-            {deptOptions.map((dep) => (
+            {deptOptions.map(dep => (
               <option key={dep} value={dep}>{dep}</option>
             ))}
           </select>
@@ -139,38 +109,23 @@ export default function TornFilters({
         <select
           className="border rounded-lg p-2"
           value={localWorker}
-          onChange={(e) => setLocalWorker(e.target.value)}
+          onChange={(e) => {
+            const v = e.target.value
+            setLocalWorker(v)
+            setFilters(prev => ({ ...prev, workerName: v }))
+          }}
         >
           <option value="">Tots</option>
-
-          {workerOptions.map((w) => (
-            <option
-              key={w.id || w.name}     // sempre consistent
-              value={w.name}           // 🔥 FILTREM PER NOM REAL
-            >
+          {workerOptions.map(w => (
+            <option key={w.id || w.name} value={w.name}>
               {w.name}
             </option>
           ))}
         </select>
       </div>
 
-      {/* BOTONS */}
-      <div className="flex gap-3 mt-2">
-        <button
-          onClick={applyFilters}
-          className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700"
-        >
-          Aplicar filtres
-        </button>
-
-        <button
-          onClick={resetFilters}
-
-          className="p-2 h-10 rounded-xl border border-gray-300 text-gray-600 hover:bg-gray-50"
-        >
-          <RotateCcw className="h-5 w-5" />
-        </button>
-      </div>
+      {/* BOTÓ RESET */}
+     <ResetFilterButton onClick={resetFilters} />
 
     </div>
   )

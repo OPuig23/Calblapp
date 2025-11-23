@@ -187,6 +187,8 @@ const flat = eventsFromPayload.map((ev) => {
       : [],
     lnKey,
     lnLabel,
+    responsableName: q?.responsableName || q?.responsable?.name || '',
+
   }
 }) as EventData[]
 

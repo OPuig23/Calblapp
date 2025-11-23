@@ -318,6 +318,9 @@ async function fetchDeptDrafts(
       status,
       confirmedAt,
       confirmed,
+      service: d.service || d.Servei || null,
+      numPax: d.numPax || d.NumPax || null,
+      commercial: d.commercial || d.Comercial || null,
     }
   })
 

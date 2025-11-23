@@ -12,6 +12,8 @@ import { UserRequestsList } from '@/components/users/UserRequestsList'
 import { Plus, UserCog } from 'lucide-react'
 import ModuleHeader from '@/components/layout/ModuleHeader'
 import UserFilters, { UserFiltersState } from '@/components/users/UserFilters'
+import FloatingAddButton from '@/components/ui/floating-add-button'
+
 
 // 🔥 Model unificat amb UserFormModal (id opcional)
 export interface AppUser {
@@ -76,25 +78,21 @@ function UsersPage() {
           users={users || []}
         />
 
-        <Button
-          size="lg"
-          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition"
-          onClick={() =>
-            setModalUser({
-              id: undefined,
-              name: '',
-              role: 'Treballador',
-              department: 'Total',
-              phone: '',
-              available: true,
-              isDriver: false,
-              workerRank: 'soldat',
-            })
-          }
-        >
-          <Plus className="w-5 h-5" />
-          Nou Usuari
-        </Button>
+   <FloatingAddButton
+  onClick={() =>
+    setModalUser({
+      id: undefined,
+      name: '',
+      role: 'Treballador',
+      department: 'Total',
+      phone: '',
+      available: true,
+      isDriver: false,
+      workerRank: 'soldat',
+    })
+  }
+/>
+
       </div>
 
       {/* Taula */}

@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 
 type FloatingAddButtonProps = {
   onClick: () => void
-  className?: string
+  className?: string 
 }
 
 export default function FloatingAddButton({ onClick, className }: FloatingAddButtonProps) {

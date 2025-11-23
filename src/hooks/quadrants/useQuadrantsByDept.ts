@@ -1,16 +1,17 @@
-//filename: src/hooks/quadrants/useQuadrantsByDept.ts
+//file: src/hooks/quadrants/useQuadrantsByDept.ts
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
 
 /**
- * 🧩 Tipus de dades — coherent amb Firestore
+ * 🧩 Tipus coherent amb el que torna Firestore
  */
 export interface QuadrantData {
   id: string
-  code?: string               // ✅ Codi Firestore real
+  code?: string
   department: string
   eventName: string
+  service?: string        // Servei
   location?: string
   startDate?: string
   endDate?: string
@@ -22,11 +23,11 @@ export interface QuadrantData {
   pax?: number
   dressCode?: string
   status?: string
-  displayDate?: string         // Data formatejada “dd/mm — Dimecres”
+  displayDate?: string
 }
 
 /**
- * 🔹 Hook per carregar quadrants setmanals segons departament i setmana
+ * 🔹 Carrega quadrants d’una setmana segons departament
  */
 export default function useQuadrantsByDept(
   departament: string,
@@ -40,6 +41,7 @@ export default function useQuadrantsByDept(
   useEffect(() => {
     const fetchData = async () => {
       if (!departament || !startDate || !endDate) return
+
       setLoading(true)
       setError(null)
 
@@ -58,23 +60,32 @@ export default function useQuadrantsByDept(
           throw new Error(json.error || 'Error desconegut')
         }
 
-        // 🗓️ Formatem la data i afegim displayDate
-        const formatted = (json.quadrants || []).map((q: any) => {
+        // -------------------------------
+        // 🧠 FORMATEM RESULTATS
+        // -------------------------------
+        const formatted: QuadrantData[] = (json.quadrants || []).map((q: any) => {
           const d = q.startDate ? new Date(q.startDate) : null
+
           const dayName = d
             ? d.toLocaleDateString('ca-ES', { weekday: 'long' })
             : ''
+
           const dayNum = d
             ? d.toLocaleDateString('ca-ES', { day: '2-digit', month: '2-digit' })
             : ''
 
           return {
             ...q,
-            code: q.code || q.eventCode || q.id, // ✅ ara usa "code" de Firestore
+
+            // 🔑 Normalització del codi
+            code: q.code || q.eventCode || q.id,
+
+            // 🍽️ Servei — accepta service o servei (Zoho / ADA)
+            service: q.service || q.servei || null,
+
+            // 📅 Etiqueta formatada
             displayDate: d
-              ? `${dayNum} — ${
-                  dayName.charAt(0).toUpperCase() + dayName.slice(1)
-                }`
+              ? `${dayNum} — ${dayName.charAt(0).toUpperCase() + dayName.slice(1)}`
               : '',
           }
         })
@@ -92,16 +103,25 @@ export default function useQuadrantsByDept(
     fetchData()
   }, [departament, startDate, endDate])
 
-  // Agrupació opcional per dia
+  // -------------------------------
+  // 🗂️ Agrupació per dia
+  // -------------------------------
   const groupedByDay = useMemo(() => {
     const groups: Record<string, QuadrantData[]> = {}
+
     data.forEach((q) => {
       const key = q.displayDate || 'Sense data'
       if (!groups[key]) groups[key] = []
       groups[key].push(q)
     })
+
     return groups
   }, [data])
 
-  return { quadrants: data, groupedByDay, loading, error }
+  return {
+    quadrants: data,
+    groupedByDay,
+    loading,
+    error,
+  }
 }

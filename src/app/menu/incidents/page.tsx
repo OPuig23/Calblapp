@@ -59,19 +59,27 @@ export default function IncidentsPage() {
         subtitle="Gestiona i consulta les incidències dels esdeveniments"
       />
 
-      {/* 🔹 Barra de filtres */}
-      <div className="rounded-2xl border border-gray-200 bg-white p-3 shadow-sm mb-6">
-        <SmartFilters
-          role="Direcció"
-          onChange={handleFilterChange}
-          showDepartment
-          showWorker={false}
-          showLocation={false}
-          showStatus={false}
-          showImportance
-          categoryOptions={categoryOptions}
-        />
-      </div>
+{/* 🔹 Barra de filtres (UNA SOLA FILERA, RESPONSIVE) */}
+<div
+  className="
+    rounded-2xl border border-gray-200 bg-white p-3 shadow-sm mb-6
+    flex flex-col gap-3
+    sm:flex-row sm:items-center sm:flex-wrap
+  "
+>
+  <SmartFilters
+    role="Direcció"
+    onChange={handleFilterChange}
+    showDepartment
+    showWorker={false}
+    showLocation={false}
+    showStatus={false}
+    showImportance
+    categoryOptions={categoryOptions}
+  />
+</div>
+
+
 
       {/* 🔹 Contingut */}
       {loading && <p className="text-center py-10">Carregant…</p>}

@@ -1,3 +1,4 @@
+//file: src/app/menu/quadrants/drafts/components/QuadrantCard.tsx
 'use client'
 
 import React, { useState, useMemo } from 'react'
@@ -7,10 +8,15 @@ import DraftsTable from './DraftsTable'
 
 interface Props {
   quadrant: Draft
+  autoExpand?: boolean       // ⭐ nova prop
 }
 
-export default function QuadrantCard({ quadrant }: Props) {
-  const [expanded, setExpanded] = useState(false)
+export default function QuadrantCard({ quadrant, autoExpand = false }: Props) {
+  const [expanded, setExpanded] = useState(autoExpand)   // ⭐ si autoExpand = true → s'obre directament
+  React.useEffect(() => {
+    if (autoExpand) setExpanded(true)
+  }, [autoExpand])
+
 
   // Comptadors assignats
   const assigned = useMemo(() => ({

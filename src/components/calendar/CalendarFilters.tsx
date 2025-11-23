@@ -1,9 +1,7 @@
-// file: src/components/calendar/CalendarFilters.tsx
+// ✅ file: src/components/calendar/CalendarFilters.tsx
 'use client'
 
-import React, { useEffect, useMemo, useState, useRef } from 'react'
-import { Button } from '@/components/ui/button'
-import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react'
+import React, { useEffect, useState } from 'react'
 import {
   Select,
   SelectTrigger,
@@ -11,47 +9,33 @@ import {
   SelectItem,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  addMonths,
-  addWeeks,
-  endOfMonth,
-  endOfWeek,
-  format,
-  startOfMonth,
-  startOfWeek,
-} from 'date-fns'
+import ResetFilterButton from '@/components/ui/ResetFilterButton'
 
-export type Mode = 'month' | 'week' | 'list'
-
-export type CalendarFilterChange = {
-  mode: Mode
-  start?: string
-  end?: string
+export interface CalendarFilterChange {
   ln?: string
   stage?: string
+  commercial?: string
 }
 
 export interface CalendarFiltersProps {
-  defaultMode?: Mode
+  ln: string
+  stage: string
+  commercial: string
+  comercialOptions: string[]
   onChange: (f: CalendarFilterChange) => void
   onReset?: () => void
 }
 
-const toIso = (d: Date) => format(d, 'yyyy-MM-dd')
 
 export default function CalendarFilters({
-  defaultMode = 'month',
   onChange,
   onReset,
+  comercialOptions = [],
 }: CalendarFiltersProps) {
-  const [mode, setMode] = useState<Mode>(defaultMode)
-  const [anchor, setAnchor] = useState<Date>(new Date())
-  const [ln, setLn] = useState<string>('Tots')
-  const [stage, setStage] = useState<string>('Tots')
+  const [ln, setLn] = useState('Tots')
+  const [stage, setStage] = useState('Tots')
+  const [commercial, setCommercial] = useState('Tots')
 
-  /* ────────────────────────────────────────────────
-     OPCIONS
-  ───────────────────────────────────────────────── */
   const lnOptions = [
     'Tots',
     'Empresa',
@@ -79,186 +63,80 @@ export default function CalendarFilters({
     Tots: stageOptions,
   }
 
-  /* ────────────────────────────────────────────────
-     ADAPTACIÓ ENTRE LN i Etapa
-  ───────────────────────────────────────────────── */
   useEffect(() => {
-    if (ln !== 'Tots' && !stagesByLN[ln].includes(stage)) {
-      setStage('Tots')
-    }
+    if (!stagesByLN[ln].includes(stage)) setStage('Tots')
   }, [ln])
 
-  /* ────────────────────────────────────────────────
-     RANGE DE DATES DINÀMIC (Setmana o Mes)
-  ───────────────────────────────────────────────── */
-  const range = useMemo(() => {
-    if (mode === 'week') {
-      const from = startOfWeek(anchor, { weekStartsOn: 1 })
-      const to = endOfWeek(anchor, { weekStartsOn: 1 })
-      return { start: toIso(from), end: toIso(to) }
-    }
-
-    if (mode === 'list') {
-      const from = startOfWeek(anchor, { weekStartsOn: 1 })
-      const to = addWeeks(from, 1)
-      return { start: toIso(from), end: toIso(to) }
-    }
-
-    const current = new Date(anchor.getFullYear(), anchor.getMonth(), 1)
-    return {
-      start: toIso(startOfMonth(current)),
-      end: toIso(endOfMonth(current)),
-    }
-  }, [mode, anchor])
-
-  /* ────────────────────────────────────────────────
-     NOTIFICAR CANVIS A PAGE.TSX
-  ───────────────────────────────────────────────── */
-  const lastPayload = useRef<string>('')
-
   useEffect(() => {
-    const payload = JSON.stringify({
-      mode,
-      start: range.start,
-      end: range.end,
-      ln,
-      stage,
-    })
-
-    if (payload !== lastPayload.current) {
-      lastPayload.current = payload
-      onChange({
-        mode,
-        start: range.start,
-        end: range.end,
-        ln,
-        stage,
-      })
-    }
-  }, [mode, range.start, range.end, ln, stage])
-
-  /* ────────────────────────────────────────────────
-     NAVEGACIÓ TEMPORAL
-  ───────────────────────────────────────────────── */
-  const prev = () =>
-    setAnchor((a) => (mode === 'week' || mode === 'list' ? addWeeks(a, -1) : addMonths(a, -1)))
-
-  const next = () =>
-    setAnchor((a) => (mode === 'week' || mode === 'list' ? addWeeks(a, 1) : addMonths(a, 1)))
-
-  /* ────────────────────────────────────────────────
-     RENDER — DUAL: DESKTOP + MOBILE
-  ───────────────────────────────────────────────── */
+    onChange({ ln, stage, commercial })
+  }, [ln, stage, commercial])
 
   return (
-    <div className="flex flex-col gap-4 w-full">
+    <div className="flex flex-col gap-4 w-full p-3">
 
-      {/* ╔════════════════════════════════╗ */}
-      {/*     NAV TEMPORAL + MES / ANY      */}
-      {/* ╚════════════════════════════════╝ */}
-      <div className="flex items-center justify-between gap-3 py-1">
-        <Button size="icon" variant="ghost" onClick={prev} className="h-8 w-8">
-          <ChevronLeft className="h-4 w-4" />
-        </Button>
-
-        {/* MES / ANY */}
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold capitalize">
-            {anchor.toLocaleDateString('ca-ES', {
-              month: 'long',
-              year: 'numeric',
-            })}
-          </span>
-        </div>
-
-        <Button size="icon" variant="ghost" onClick={next} className="h-8 w-8">
-          <ChevronRight className="h-4 w-4" />
-        </Button>
+      {/* LN */}
+      <div>
+        <label className="text-[11px] text-gray-500">Línia de negoci</label>
+        <Select value={ln} onValueChange={setLn}>
+          <SelectTrigger className="w-full h-9">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {lnOptions.map((o) => (
+              <SelectItem key={o} value={o}>
+                {o}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
-      {/* ╔════════════════════════════════╗ */}
-      {/*           FILTRES LN i Etapes     */}
-      {/* ╚════════════════════════════════╝ */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {/* LN */}
+      {/* Stage */}
+      <div>
+        <label className="text-[11px] text-gray-500">Etapa</label>
+        <Select value={stage} onValueChange={setStage}>
+          <SelectTrigger className="w-full h-9">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {stagesByLN[ln].map((o) => (
+              <SelectItem key={o} value={o}>
+                {o}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Comercial */}
+      {comercialOptions.length > 0 && (
         <div>
-          <label className="text-[11px] text-gray-500">Línia de negoci</label>
-          <Select value={ln} onValueChange={(v) => setLn(v)}>
+          <label className="text-[11px] text-gray-500">Comercial</label>
+          <Select value={commercial} onValueChange={setCommercial}>
             <SelectTrigger className="w-full h-9">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {lnOptions.map((o) => (
-                <SelectItem key={o} value={o}>
-                  {o}
+              <SelectItem value="Tots">Tots</SelectItem>
+              {comercialOptions.map((c) => (
+                <SelectItem key={c} value={c}>
+                  {c}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
+      )}
 
-        {/* Etapes */}
-        <div>
-          <label className="text-[11px] text-gray-500">Estat</label>
-          <Select value={stage} onValueChange={(v) => setStage(v)}>
-            <SelectTrigger className="w-full h-9">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {stagesByLN[ln].map((o) => (
-                <SelectItem key={o} value={o}>
-                  {o}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      {/* ╔════════════════════════════════╗ */}
-      {/*             MODE DE VISTA         */}
-      {/* ╚════════════════════════════════╝ */}
-      <div className="grid grid-cols-3 gap-2">
-        <Button
-          variant={mode === 'month' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setMode('month')}
-        >
-          Mes
-        </Button>
-        <Button
-          variant={mode === 'week' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setMode('week')}
-        >
-          Setmana
-        </Button>
-        <Button
-          variant={mode === 'list' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setMode('list')}
-        >
-          Llista
-        </Button>
-      </div>
-
-      {/* ╔════════════════════════════════╗ */}
-      {/*                RESET              */}
-      {/* ╚════════════════════════════════╝ */}
       {onReset && (
-        <Button
+        <ResetFilterButton
           onClick={() => {
-            setAnchor(new Date())
             setLn('Tots')
             setStage('Tots')
-            setMode('month')
+            setCommercial('Tots')
             onReset()
           }}
-          variant="ghost"
-          className="text-gray-600 justify-center mt-1"
-        >
-          Reiniciar filtres
-        </Button>
+        />
       )}
     </div>
   )

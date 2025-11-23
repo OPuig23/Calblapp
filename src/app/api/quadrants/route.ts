@@ -63,6 +63,8 @@ interface QuadrantSave {
   attentionNotes: string[]
   updatedAt: string
   brigades?: Brigade[]
+  service?: string | null
+
 }
 
 /* ================= Handler ================= */
@@ -110,6 +112,7 @@ export async function POST(req: NextRequest) {
       status: 'draft',
       numDrivers: Number(body.numDrivers || 0),
       totalWorkers: Number(body.totalWorkers || 0),
+      service: body.service || null,
 
       responsableName: assignment.responsible?.name || null,
       responsable: assignment.responsible
