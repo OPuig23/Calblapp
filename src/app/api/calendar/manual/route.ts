@@ -2,18 +2,15 @@
 import { NextResponse } from 'next/server'
 import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
 
-
 export const runtime = 'nodejs'
 
-/**
- * 📥 POST — Crea un nou esdeveniment manual dins la col·lecció "stage_verd"
- * (es considera confirmat per defecte)
- */
+/* ----------------------------------------------------
+   POST → Crear esdeveniment manual
+---------------------------------------------------- */
 export async function POST(req: Request) {
   try {
     const body = await req.json()
 
-    // ⚠️ Validacions mínimes
     if (!body.NomEvent || !body.DataInici) {
       return NextResponse.json(
         { error: 'Falten camps obligatoris: NomEvent o DataInici' },
@@ -21,44 +18,45 @@ export async function POST(req: Request) {
       )
     }
 
-    // 🧩 Dades de l’esdeveniment
     const id = `manual_${Date.now()}`
+
     const newEvent = {
       NomEvent: body.NomEvent,
       Servei: body.Servei || '',
       Comercial: body.Comercial || '',
       LN: body.LN || 'Altres',
-      DataInici: body.DataInici || body.Data || new Date().toISOString(),
-      DataFi: body.DataFi || body.DataInici || body.Data || new Date().toISOString(),
-      Hora: body.Hora || '',
+      DataInici: body.DataInici,
+      DataFi: body.DataFi || body.DataInici,
       NumPax: body.NumPax ? Number(body.NumPax) : null,
       Ubicacio: body.Ubicacio || '',
+      code: body.code || '',            // 🟢 IMPORTANT
+      Hora: body.Hora || '',
       StageGroup: 'Confirmat',
       origen: 'manual',
       attachments: body.attachments || [],
+      collection: 'verd',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }
 
-    // 🔥 Desa al Firestore dins stage_verd
-    await firestoreAdmin.collection('stage_verd').doc(id).set(newEvent)
+    await db.collection('stage_verd').doc(id).set(newEvent)
 
     return NextResponse.json({ ok: true, id })
-  } catch (error: any) {
-    console.error('❌ Error creant esdeveniment manual:', error)
+  } catch (err: any) {
+    console.error('❌ Error POST manual:', err)
     return NextResponse.json(
-      { error: 'Error desant a Firestore', details: error.message },
+      { error: 'Error desant a Firestore', details: err.message },
       { status: 500 }
     )
   }
 }
 
-/**
- * 📤 GET — Retorna tots els esdeveniments manuals (confirmats)
- */
+/* ----------------------------------------------------
+   GET → Llistar esdeveniments manuals
+---------------------------------------------------- */
 export async function GET() {
   try {
-    const snapshot = await firestore
+    const snapshot = await db
       .collection('stage_verd')
       .where('origen', '==', 'manual')
       .get()
@@ -69,10 +67,10 @@ export async function GET() {
     }))
 
     return NextResponse.json({ data })
-  } catch (error: any) {
-    console.error('❌ Error llegint esdeveniments manuals:', error)
+  } catch (err: any) {
+    console.error('❌ Error GET manuals:', err)
     return NextResponse.json(
-      { error: 'Error llegint de Firestore', details: error.message },
+      { error: 'Error llegint de Firestore', details: err.message },
       { status: 500 }
     )
   }

@@ -49,8 +49,7 @@ export default function CalendarModal({ deal, trigger, onSaved }: Props) {
 
   // ✅ Dades del formulari de l’esdeveniment
   const [editData, setEditData] = useState(() => ({
-    LN: get(deal, 'LN', 'ln', 'liniaNegoci') || 'Altres',
-    code: get(deal, 'code', 'C_digo', 'codi') || '',
+    code: get( 'ev.code','code', 'codi', 'eventcode', 'codigo', 'C_digo') || '',
     NomEvent: get(deal, 'NomEvent', 'nomEvent', 'summary') || '',
     DataInici: get(deal, 'DataInici', 'dataInici', 'Data', 'dateStart') || '',
     DataFi: get(deal, 'DataFi', 'dataFi', 'dateEnd') || '',

@@ -112,7 +112,8 @@ export function useCalendarData(filters?: {
           origen: 'firestore',
           updatedAt: ev.updatedAt || '',
           NumPax: ev.numPax ?? ev.NumPax ?? '',
-          code: ev.code || ev.eventCode || '',
+          code: ev.code || ev.Code || ev.Codi || ev.eventCode || '',
+
 
           // 🆕 FITXERS NETS I ORDENATS
           files: fileEntries.map((f) => ({ key: f.key, url: f.url })),

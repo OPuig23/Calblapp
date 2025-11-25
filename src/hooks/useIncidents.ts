@@ -9,101 +9,103 @@ export interface Incident {
   department: string
   description: string
   eventId: string
+  eventTitle?: string
+  eventCode?: string
+  eventLocation?: string
+  eventDate?: string
   importance: string
   status: string
   createdBy?: string
   category?: { id: string; label: string }
+  ln?: string
+  pax?: number
+  serviceType?: string
+  fincaId?: string
 }
 
-// 🔵 Cache en memòria
-const incidentsCache: Record<string, Incident[]> = {}
-
-export function useIncidents(filters: {
+export function useIncidents(_filters: {
   from?: string
   to?: string
   department?: string
-  eventId?: string
   importance?: string
   categoryLabel?: string
 }) {
   const [incidents, setIncidents] = useState<Incident[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<null | string>(null)
+  const [error, setError] = useState<string | null>(null)
 
-  // ✅ clau estable
-  const fetchKey = useMemo(() => JSON.stringify(filters), [filters])
+  // 🧠 IMPORTANT — Filtre memoitzat (evita que l'objecte canviï sempre)
+  const filters = useMemo(() => ({
+    from: _filters.from,
+    to: _filters.to,
+    department: _filters.department,
+    importance: _filters.importance,
+    categoryLabel: _filters.categoryLabel,
+  }), [
+    _filters.from,
+    _filters.to,
+    _filters.department,
+    _filters.importance,
+    _filters.categoryLabel,
+  ])
 
   useEffect(() => {
-    // 1) Si ja tenim cache
-    if (incidentsCache[fetchKey]) {
-      const raw = incidentsCache[fetchKey]
-      const filtered = raw.filter((i) => {
-        const byDept = !filters.department || i.department === filters.department
-        const byImp =
-          !filters.importance ||
-          filters.importance === 'all' ||
-          i.importance === filters.importance
-        const byCat =
-          !filters.categoryLabel || filters.categoryLabel === 'all'
-            ? true
-            : i.category?.label === filters.categoryLabel
+    let cancel = false
 
-        return byDept && byImp && byCat
-      })
-      setIncidents(filtered)
-      setLoading(false)
-      return
-    }
-
-    // 2) Fetch de l’API
-    async function fetchIncidents() {
+    async function load() {
       try {
         setLoading(true)
         setError(null)
 
-        const params = new URLSearchParams()
-        if (filters.from) params.set('from', filters.from)
-        if (filters.to) params.set('to', filters.to)
-        if (filters.eventId) params.set('eventId', filters.eventId)
-        if (filters.importance && filters.importance !== 'all') {
-          params.set('importance', filters.importance)
-        }
-        // 🔹 Categoria: no la passem al backend, es filtra al client
+        const qs = new URLSearchParams()
 
-        const res = await fetch(`/api/incidents?${params.toString()}`, {
+        if (filters.from) qs.set('from', filters.from)
+        if (filters.to) qs.set('to', filters.to)
+        if (filters.department) qs.set('department', filters.department)
+        if (filters.importance && filters.importance !== 'all')
+          qs.set('importance', filters.importance)
+        if (filters.categoryLabel && filters.categoryLabel !== 'all')
+          qs.set('categoryId', filters.categoryLabel)
+
+        const res = await fetch(`/api/incidents?${qs.toString()}`, {
           cache: 'no-store',
         })
-        if (!res.ok) throw new Error(`Error HTTP ${res.status}`)
+
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+
         const data = await res.json()
 
-        const raw = (data.incidents || []) as Incident[]
-        incidentsCache[fetchKey] = raw
+        const raw = Array.isArray(data.incidents)
+          ? data.incidents
+          : Array.isArray(data)
+          ? data
+          : []
 
-        const filtered = raw.filter((i) => {
-          const byDept = !filters.department || i.department === filters.department
-          const byImp =
-            !filters.importance ||
-            filters.importance === 'all' ||
-            i.importance === filters.importance
-          const byCat =
-            !filters.categoryLabel || filters.categoryLabel === 'all'
-              ? true
-              : i.category?.label === filters.categoryLabel
-
-          return byDept && byImp && byCat
-        })
-
-        setIncidents(filtered)
-      } catch (err) {
-        console.error('[useIncidents] Error carregant incidències:', err)
-        setError('Error carregant incidències')
+        if (!cancel) setIncidents(raw as Incident[])
+      } catch (err: any) {
+        if (!cancel) setError(err.message || 'Error carregant incidències')
       } finally {
-        setLoading(false)
+        if (!cancel) setLoading(false)
       }
     }
 
-    fetchIncidents()
-  }, [fetchKey])
+    load()
+    return () => { cancel = true }
+  }, [
+    filters.from,
+    filters.to,
+    filters.department,
+    filters.importance,
+    filters.categoryLabel,
+  ])
 
-  return { incidents, loading, error }
+  const updateIncident = async (id: string, data: Partial<Incident>) => {
+    await fetch(`/api/incidents/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
+  }
+
+  return { incidents, loading, error, updateIncident }
 }

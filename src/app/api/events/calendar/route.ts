@@ -27,12 +27,16 @@ export async function GET(req: NextRequest) {
         console.log(`[${coll}] 🔹 Comercial:`, d.Comercial, '| Servei:', d.Servei, '| NumPax:', d.NumPax)
 
 
-        const startISO =
-          typeof d.DataInici === 'string' ? `${d.DataInici}T00:00:00.000Z` : null
-        const endISO =
-          typeof d.DataFi === 'string'
-            ? `${d.DataFi}T00:00:00.000Z`
-            : startISO
+const startISO =
+  typeof d.DataInici === "string"
+    ? `${d.DataInici}T12:00:00`
+    : null;
+
+const endISO =
+  typeof d.DataFi === "string"
+    ? `${d.DataFi}T12:00:00`
+    : startISO;
+
         const rawSummary = typeof d.NomEvent === 'string' ? d.NomEvent : '(Sense títol)'
         const summary = rawSummary.split('/')[0].trim()
         const location = (d.Ubicacio ?? '')
@@ -59,12 +63,13 @@ base.push({
   summary,
   start: startISO,
   end: endISO,
-  day: startISO ? startISO.slice(0, 10) : '',
+ day: d.DataInici || '',
+
   location,
   lnKey: lnValue.toLowerCase(),
   lnLabel: lnValue,
   collection: coll,
-
+  code: d.code || d.Code || d.codi || '',
   comercial: d.Comercial || d.comercial || '',
   servei: d.Servei || d.servei || '',
   numPax: d.NumPax || d.numPax || 0,

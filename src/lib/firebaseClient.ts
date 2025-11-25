@@ -1,7 +1,8 @@
 // src/lib/firebaseClient.ts
 import { initializeApp, getApps } from 'firebase/app'
+import { getFirestore } from 'firebase/firestore'
 import { getMessaging, onMessage } from 'firebase/messaging'
-import { getStorage } from 'firebase/storage' 
+import { getStorage } from 'firebase/storage'
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -12,11 +13,17 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 }
 
+// Inicialitzar Firebase App
 export const firebaseApp =
   getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0]
 
+// 🔥 AFEGIM FIRESTORE CLIENT
+export const db = getFirestore(firebaseApp)
+
+// Storage
 export const storage = getStorage(firebaseApp)
 
+// Messaging
 export const messaging = (() => {
   if (typeof window === 'undefined') return null
   try {
