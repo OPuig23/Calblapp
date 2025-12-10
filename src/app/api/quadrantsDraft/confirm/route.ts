@@ -24,12 +24,13 @@ interface QuadrantNotification {
   userId: string
   quadrantId: string
   payload: {
-    weekStartISO: string | null
+    weekStartISO: string        // sempre string, mai null
     weekLabel: string
-    dept: string
-    countAssignments: number
+    dept?: string               // opcional
+    countAssignments?: number   // opcional
   }
 }
+
 
 type TokenLike = {
   user?: { email?: string }
@@ -44,12 +45,15 @@ const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 
 async function lookupUidByName(name: string): Promise<string | null> {
   const folded = norm(name)
-  // Primer intent: camp nameFold
+
+  // Primer intent: camp normalitzat nameFold
   let q = await db.collection('users').where('nameFold', '==', folded).limit(1).get()
   if (!q.empty) return q.docs[0].id
-  // Fallback: camp name literal
+
+  // Fallback literal
   q = await db.collection('users').where('name', '==', name).limit(1).get()
   if (!q.empty) return q.docs[0].id
+
   return null
 }
 
@@ -64,75 +68,148 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const deptRaw: string = body?.department || body?.dept
     const eventId: string = body?.eventId || body?.id
+
     if (!deptRaw || !eventId) {
-      return NextResponse.json({ ok: false, error: 'Missing department or eventId' }, { status: 400 })
+      return NextResponse.json(
+        { ok: false, error: 'Missing department or eventId' },
+        { status: 400 }
+      )
     }
 
     const dept = norm(deptRaw)
     const colName = `quadrants${capitalize(dept)}`
     const ref = db.collection(colName).doc(String(eventId))
 
-    // ── 1) llegir estat actual
+    // ── 1) Llegir estat actual
     const snap = await ref.get()
     const prev = snap.exists ? (snap.data() as QuadrantDoc) : null
     const already = prev?.status === 'confirmed'
 
-    // ── 2) confirmar (idempotent)
+    // ── 2) Confirmar (idempotent)
     const now = new Date()
-    await ref.set(
-      {
-        status: 'confirmed',
-        confirmedAt: now,
-        confirmedBy:
-          (token as TokenLike)?.user?.email ||
-          (token as TokenLike)?.email ||
-          'system',
-        service: body.service,
-  
-      },
-      { merge: true }
-    )
 
-    // ── 3) AVISOS: només si no estava confirmat abans
-    if (!already) {
-      const doc = (await ref.get()).data() as QuadrantDoc | undefined
-      if (doc) {
-        const names = new Set<string>()
-        if (doc?.responsable?.name || doc?.responsableName) {
-          names.add(doc.responsable?.name || doc.responsableName || '')
-        }
-        ;(Array.isArray(doc?.conductors) ? doc.conductors : []).forEach((c: { name?: string }) => {
-          if (c?.name) names.add(c.name)
-        })
-        ;(Array.isArray(doc?.treballadors) ? doc.treballadors : []).forEach((t: { name?: string }) => {
-          if (t?.name) names.add(t.name)
-        })
+    // Construïm payload sense camps undefined
+    const updatePayload: Record<string, any> = {
+      status: 'confirmed',
+      confirmedAt: now,
+      confirmedBy:
+        (token as TokenLike)?.user?.email ||
+        (token as TokenLike)?.email ||
+        'system',
+    }
 
-        const uids = (await Promise.all(Array.from(names).map(lookupUidByName)))
-          .filter(Boolean) as string[]
+    // Només afegim "service" si arriba i no és buit
+    if (body.service !== undefined && body.service !== '') {
+      updatePayload.service = body.service
+    }
 
-        if (uids.length) {
-          const weekStartISO = doc?.startDate || null
-          const weekLabel = weekStartISO || ''
-          const notifs: QuadrantNotification[] = uids.map(uid => ({
+    await ref.set(updatePayload, { merge: true })
+
+ // ── 3) Avisos intel·ligents
+{
+  const prevSnap = await ref.get()
+  const prev = prevSnap.data() as QuadrantDoc | undefined
+  const doc = prev as QuadrantDoc   // doc = estat actual després del set()
+
+  if (!doc) {
+    return NextResponse.json({ ok: true })
+  }
+
+  // --- Funció per extreure (nom + camps rellevants)
+  const extract = (q?: QuadrantDoc) => {
+    if (!q) return []
+    const arr: Array<any> = []
+
+    const pushUser = (name: string, src: any) => {
+      arr.push({
+        name,
+        startDate: src.startDate,
+        startTime: src.startTime,
+        endDate: src.endDate,
+        endTime: src.endTime,
+        meetingPoint: src.meetingPoint,
+        vehicleType: src.vehicleType,
+        plate: src.plate,
+      })
+    }
+
+    // responsable
+    const rName = q.responsable?.name || q.responsableName
+    if (rName) pushUser(rName, q.responsable || q)
+
+    // conductors
+    ;(q.conductors || []).forEach(c => {
+      if (c?.name) pushUser(c.name, c)
+    })
+
+    // treballadors
+    ;(q.treballadors || []).forEach(t => {
+      if (t?.name) pushUser(t.name, t)
+    })
+
+    return arr
+  }
+
+  const oldUsers = extract(prevSnap.exists ? prev : undefined)
+  const newUsers = extract(doc)
+
+  // ✨ Si és la PRIMERA confirmació → tots reben push
+  const isFirstConfirm = !prev?.status || prev?.status !== 'confirmed'
+
+  let changed = newUsers
+
+  if (!isFirstConfirm) {
+    // ✨ Reconfirmació → només nous o editats
+    changed = newUsers.filter(nu => {
+      const old = oldUsers.find(ou => ou.name === nu.name)
+      if (!old) return true // nou usuari
+      return (
+        old.startDate !== nu.startDate ||
+        old.startTime !== nu.startTime ||
+        old.endDate !== nu.endDate ||
+        old.endTime !== nu.endTime ||
+        old.meetingPoint !== nu.meetingPoint ||
+        old.vehicleType !== nu.vehicleType ||
+        old.plate !== nu.plate
+      )
+    })
+  }
+
+  if (changed.length > 0) {
+    const uids = (
+      await Promise.all(changed.map(u => lookupUidByName(u.name)))
+    ).filter(Boolean) as string[]
+
+    if (uids.length > 0) {
+      const notifs = uids.map(uid => ({
+        userId: uid,
+        quadrantId: String(eventId),
+        payload: {
+          weekStartISO: doc.startDate || '',
+          weekLabel: doc.startDate || '',
+          dept: dept,
+        },
+      }))
+
+      await createNotificationsForQuadrant(notifs)
+
+      // 🔔 Enviament PUSH real
+      for (const uid of uids) {
+        await fetch(`${process.env.NEXTAUTH_URL}/api/push/send`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
             userId: uid,
-            quadrantId: String(eventId),
-            payload: {
-              weekStartISO,
-              weekLabel,
-              dept,
-              countAssignments:
-                (doc?.numDrivers || 0) +
-                (doc?.totalWorkers || 0) +
-                (doc?.responsableId ? 1 : 0),
-            },
-          }))
-          await createNotificationsForQuadrant(notifs)
-        } else {
-          console.warn('[confirm] No destinatary UIDs resolved for event', eventId, Array.from(names))
-        }
+            title: 'Actualització de quadrant',
+            body: 'S’han modificat les teves tasques o horaris.',
+            url: `/quadrants/${eventId}`,
+          }),
+        })
       }
     }
+  }
+}
+
 
     return NextResponse.json({ ok: true, already })
   } catch (e) {

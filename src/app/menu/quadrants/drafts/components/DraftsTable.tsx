@@ -29,11 +29,12 @@ export default function DraftsTable({ draft }: { draft: DraftInput }) {
             id: draft.responsable?.id || '',
             name: draft.responsableName,
             role: 'responsable' as Role,
-            startDate: draft.startDate,
-            endDate: draft.endDate,
-            startTime: draft.startTime,
-            endTime: draft.endTime,
-            meetingPoint: draft.responsable?.meetingPoint || '',
+         startDate: draft.responsable?.startDate || draft.startDate,
+startTime: draft.responsable?.startTime || draft.startTime,
+endDate:   draft.responsable?.endDate   || draft.endDate,
+endTime:   draft.responsable?.endTime   || draft.endTime,
+meetingPoint: draft.responsable?.meetingPoint || '',
+
             plate: draft.responsable?.plate || '',
             vehicleType: draft.responsable?.vehicleType || '',
           },
@@ -43,11 +44,13 @@ export default function DraftsTable({ draft }: { draft: DraftInput }) {
       id: c.id || '',
       name: c.name,
       role: 'conductor' as Role,
-      startDate: draft.startDate,
-      endDate: draft.endDate,
-      startTime: draft.startTime,
-      endTime: draft.endTime,
-      meetingPoint: c.meetingPoint || '',
+startDate: c.startDate || draft.startDate,
+startTime: c.startTime || draft.startTime,
+endDate:   c.endDate   || draft.endDate,
+endTime:   c.endTime   || draft.endTime,
+meetingPoint: c.meetingPoint || '',
+
+
       plate: c.plate || '',
       vehicleType: c.vehicleType || '',
     })),
@@ -55,11 +58,12 @@ export default function DraftsTable({ draft }: { draft: DraftInput }) {
       id: t.id || '',
       name: t.name,
       role: 'treballador' as Role,
-      startDate: draft.startDate,
-      endDate: draft.endDate,
-      startTime: draft.startTime,
-      endTime: draft.endTime,
-      meetingPoint: t.meetingPoint || '',
+    startDate: t.startDate || draft.startDate,
+startTime: t.startTime || draft.startTime,
+endDate:   t.endDate   || draft.endDate,
+endTime:   t.endTime   || draft.endTime,
+meetingPoint: t.meetingPoint || '',
+
       plate: '',
       vehicleType: '',
     })),
@@ -67,11 +71,12 @@ export default function DraftsTable({ draft }: { draft: DraftInput }) {
       id: b.id || '',
       name: b.name || '',
       role: 'brigada' as Role,
-      startDate: b.startDate || draft.startDate,
-      endDate: b.endDate || draft.endDate,
-      startTime: b.startTime || draft.startTime,
-      endTime: b.endTime || draft.endTime,
-      meetingPoint: draft.meetingPoint || '',
+   startDate: b.startDate || draft.startDate,
+startTime: b.startTime || draft.startTime,
+endDate:   b.endDate   || draft.endDate,
+endTime:   b.endTime   || draft.endTime,
+
+      meetingPoint: b.meetingPoint || '',
       workers: b.workers || 0,
       plate: '',
       vehicleType: '',
@@ -121,25 +126,39 @@ export default function DraftsTable({ draft }: { draft: DraftInput }) {
   )
 
   // --- Callbacks (API routes)
-  const handleSaveAll = async () => {
-    try {
-      const res = await fetch('/api/quadrantsDraft/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          department: draft.department,
-          eventId: draft.id,
-          rows,
-        }),
-      })
+const handleSaveAll = async () => {
+  try {
+    // 1) Elimina files completament buides (sense nom i sense id)
+    const cleaned = rows.filter(
+      (r) => r.name?.trim() !== '' || r.id?.trim() !== ''
+    )
 
-      if (!res.ok) throw new Error('Error en desar quadrant')
-      alert('✅ Quadrant desat correctament')
-    } catch (err) {
-      console.error('Error desa quadrant', err)
-      alert('❌ Error en desar quadrant')
-    }
+    // 2) Crida a l’API amb les files netes
+    const res = await fetch('/api/quadrantsDraft/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        department: draft.department,
+        eventId: draft.id,
+        rows: cleaned,
+      }),
+    })
+
+    if (!res.ok) throw new Error('Error en desar quadrant')
+
+    alert('✅ Quadrant desat correctament')
+
+    // 3) Marquem estat com a no-dirty
+    initialRef.current = JSON.stringify(cleaned)
+
+    // 4) Notifiquem perquè la pantalla es refresqui
+    window.dispatchEvent(new Event('quadrant:updated'))
+  } catch (err) {
+    console.error('Error desa quadrant', err)
+    alert('❌ Error en desar quadrant')
   }
+}
+
 
   const handleConfirm = async () => {
     try {
@@ -156,6 +175,7 @@ export default function DraftsTable({ draft }: { draft: DraftInput }) {
       if (data.ok) {
         setConfirmed(true)
         alert('✅ Quadrant confirmat correctament i notificacions enviades')
+        window.dispatchEvent(new Event('quadrant:created'))
       } else {
         alert('⚠️ No s’ha pogut confirmar')
       }
@@ -178,6 +198,7 @@ export default function DraftsTable({ draft }: { draft: DraftInput }) {
       if (!res.ok) throw new Error('Error reobrint quadrant')
       setConfirmed(false)
       alert('🔓 Quadrant reobert')
+      window.dispatchEvent(new Event('quadrant:created'))
     } catch (err) {
       console.error('Error reobrint quadrant', err)
       alert('❌ Error reobrint quadrant')
@@ -198,9 +219,12 @@ export default function DraftsTable({ draft }: { draft: DraftInput }) {
       })
       if (!res.ok) throw new Error('Error eliminant quadrant')
       alert('🗑️ Quadrant eliminat correctament')
+    window.dispatchEvent(new Event('quadrant:updated'))
+
     } catch (err) {
       console.error('Error eliminant quadrant', err)
       alert('❌ Error eliminant quadrant')
+      window.dispatchEvent(new Event('quadrant:updated'))
     }
   }
 
@@ -316,8 +340,7 @@ export default function DraftsTable({ draft }: { draft: DraftInput }) {
         onClick={() =>
           setRows([
             ...rows,
-            {
-              id: '',
+            {id: '',
               name: '',
               role: 'responsable',
               startDate: draft.startDate,

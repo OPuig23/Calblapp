@@ -80,11 +80,18 @@ export default function QuadrantsPage() {
   )
 
   // 🔄 Auto reload quan es crea / modifica un quadrant
-  useEffect(() => {
-    const handler = () => reload()
-    window.addEventListener('quadrant:created', handler)
-    return () => window.removeEventListener('quadrant:created', handler)
-  }, [reload])
+useEffect(() => {
+  const handler = () => reload()
+
+  window.addEventListener('quadrant:created', handler)
+  window.addEventListener('quadrant:updated', handler)
+
+  return () => {
+    window.removeEventListener('quadrant:created', handler)
+    window.removeEventListener('quadrant:updated', handler)
+  }
+}, [reload])
+
 
   // 🔹 Event seleccionat per obrir el QuadrantModal (autogenerar)
   const [selected, setSelected] = useState<UnifiedEvent | null>(null)

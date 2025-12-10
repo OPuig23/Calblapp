@@ -80,6 +80,29 @@ export async function GET(req: Request) {
 
 const results = snapshot.docs.map(doc => {
   const d = doc.data() as any
+  // 🟦 Calcular hores reals a partir de les línies del quadrant
+const allRows = [
+  d.responsable ? d.responsable : null,
+  ...(Array.isArray(d.conductors) ? d.conductors : []),
+  ...(Array.isArray(d.treballadors) ? d.treballadors : []),
+  ...(Array.isArray(d.brigades) ? d.brigades : []),
+].filter(Boolean);
+
+// extreure totes les hores d'inici / fi presents
+const startTimes = allRows
+  .map(r => r.startTime)
+  .filter(Boolean)
+  .sort();
+
+const endTimes = allRows
+  .map(r => r.endTime)
+  .filter(Boolean)
+  .sort();
+
+// 🟦 RESULTAT DERIVAT DELS TREBALLADORS
+const derivedStartTime = startTimes.length > 0 ? startTimes[0] : null;
+const derivedEndTime   = endTimes.length > 0 ? endTimes[endTimes.length - 1] : null;
+
 
   const code = d.code || d.eventCode || d.eventId || doc.id
 
@@ -99,14 +122,24 @@ const results = snapshot.docs.map(doc => {
       ? d.endDate.toDate().toISOString().slice(0, 10)
       : d.endDate || '',
 
-    startTime: d.startTime || '',
-    endTime: d.endTime || '',
+    startTime: derivedStartTime || d.startTime || '',
+endTime:   derivedEndTime   || d.endTime   || '',
 
-    responsableName: d.responsableName || d.responsable?.name || '',
-    responsable: d.responsable?.name || '',
 
-    conductors: Array.isArray(d.conductors) ? d.conductors : [],
-    treballadors: Array.isArray(d.treballadors) ? d.treballadors : [],
+  // ⭐ MULTI-RESPONSABLE
+responsables: Array.isArray(d.responsables) ? d.responsables : [],
+
+// ⭐ RESTA DE ROLS
+conductors: Array.isArray(d.conductors) ? d.conductors : [],
+treballadors: Array.isArray(d.treballadors) ? d.treballadors : [],
+brigades: Array.isArray(d.brigades) ? d.brigades : [],
+
+// ⭐ CAMP DE COMPATIBILITAT ANTIC (temporal)
+responsableName:
+  Array.isArray(d.responsables) && d.responsables.length > 0
+    ? d.responsables.map(r => r.name).join(', ')
+    : d.responsableName || d.responsable?.name || '',
+
 
     pax: d.pax || d.numPax || 0,
     dressCode: d.dressCode || '',
