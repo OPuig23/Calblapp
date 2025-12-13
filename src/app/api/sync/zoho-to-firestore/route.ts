@@ -11,6 +11,15 @@ export async function GET(req: Request) {
     const url = new URL(req.url)
     const mode = url.searchParams.get('mode') || 'manual'
 
+    // ✅ CRON: validar secret i NO tocar next-auth
+    if (mode === 'cron') {
+      const secret = req.headers.get('x-cron-secret') || url.searchParams.get('secret')
+      if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
+        return NextResponse.json({ error: 'Accés denegat: CRON_SECRET incorrecte.' }, { status: 403 })
+      }
+    }
+
+    // ✅ MANUAL: només ADMIN
     if (mode === 'manual') {
       const session = await getServerSession(authOptions)
       const role = String(session?.user?.role || '').toLowerCase()
