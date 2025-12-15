@@ -74,9 +74,11 @@ interface DayOut {
 }
 
 interface SpaceRow {
-  finca: string
+  fincaId?: string        // 🔑 ID real de Firestore (finques/{id})
+  finca: string           // Nom visible
   dies: DayOut[]
 }
+
 
 export interface SpacesResult {
   data: SpaceRow[]
@@ -123,6 +125,21 @@ export async function getSpacesByWeek(
     else if (stage === 'taronja') collections = ['stage_taronja', 'stage_blau']
 
     console.log('🔍 START getSpacesByWeek', { startStr, endStr, collections })
+
+    // ──────────────────────────────────────────────
+// 🔑 Map de finques: NOM (normalitzat) → ID Firestore
+// ──────────────────────────────────────────────
+const finquesSnap = await db.collection('finques').get()
+const fincaIdMap = new Map<string, string>()
+
+finquesSnap.forEach(doc => {
+  const d = doc.data() as any
+  const nom = normalizeText(d.nom || doc.id)
+  if (nom) {
+    fincaIdMap.set(nom.toLowerCase(), doc.id)
+  }
+})
+
 
     // 3️⃣ Llegeix totes les col·leccions dins el rang
     const rawEvents: RawEvent[] = []
@@ -281,7 +298,14 @@ export async function getSpacesByWeek(
         dies[i].events = eventsOut
       }
 
-      result.push({ finca, dies })
+      const fincaId = fincaIdMap.get(finca.toLowerCase())
+
+result.push({
+  finca,
+  fincaId,
+  dies,
+})
+
     }
 
     result.sort((a, b) => a.finca.localeCompare(b.finca, 'ca', { sensitivity: 'base' }))

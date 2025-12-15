@@ -83,6 +83,7 @@ export default function useEvents(
   fromISO: string,
   toISO: string,
   scope?: 'all' | 'mine'
+  
 ) {
   const [events, setEvents] = useState<EventData[]>([])
   const [groupedEvents, setGroupedEvents] = useState<GroupedEvents>({})
@@ -146,7 +147,8 @@ const flat = eventsFromPayload.map((ev) => {
   }
 
   const location = ev.location || ''
-  let eventCode = ev.eventCode || ev.code || null
+
+  let eventCode = (ev.eventCode as any) || (ev as any).code || null
   if (!eventCode && ev.summary) {
     const cleaned = ev.summary.replace(/[#\-]/g, ' ').trim()
     const match = cleaned.match(/([A-Z]{1,3}\d{5,7})/i)
@@ -161,36 +163,48 @@ const flat = eventsFromPayload.map((ev) => {
 
   const state = normalizeStatus(
     (q?.status as string) ||
-    (ev.state as string) ||
-    (ev.status as string)
+      (ev.state as string) ||
+      (ev.status as string)
   )
 
-  // 🟢 Afegim LN (línia de negoci)
-  const lnKey = (ev.LN || ev.lnKey || '').toLowerCase() || 'altres'
-  const lnLabel = ev.LN || ev.lnLabel || 'Altres'
+  const lnKey = (String((ev as any).LN || (ev as any).lnKey || '').toLowerCase() || 'altres') as any
+  const lnLabel = String((ev as any).LN || (ev as any).lnLabel || 'Altres')
 
   return {
-    ...ev,
+    ...(ev as any),
+
     pax,
     location,
+
     day: ev.start.slice(0, 10),
     locationShort: computeLocationShort(location),
     mapsUrl: computeMapsUrl(location),
+
     state,
-    eventCode: eventCode || q?.code || null,
-    responsable: q?.responsableName || q?.responsable?.name || undefined,
-    conductors: Array.isArray(q?.conductors)
-      ? q.conductors.map((c) => c?.name).filter(Boolean) as string[]
+
+    eventCode: eventCode || (q as any)?.code || null,
+
+    responsable: (q as any)?.responsableName || (q as any)?.responsable?.name || undefined,
+
+    conductors: Array.isArray((q as any)?.conductors)
+      ? ((q as any).conductors.map((c: any) => c?.name).filter(Boolean) as string[])
       : [],
-    treballadors: Array.isArray(q?.treballadors)
-      ? q.treballadors.map((t) => t?.name).filter(Boolean) as string[]
+
+    treballadors: Array.isArray((q as any)?.treballadors)
+      ? ((q as any).treballadors.map((t: any) => t?.name).filter(Boolean) as string[])
       : [],
+
     lnKey,
     lnLabel,
-    responsableName: q?.responsableName || q?.responsable?.name || '',
 
+    responsableName: (q as any)?.responsableName || (q as any)?.responsable?.name || '',
+
+    // 🔑 CLAUS FINCA (per EventSpacesModal)
+    fincaId: (ev as any).fincaId ?? (ev as any).FincaId ?? null,
+    fincaCode: (ev as any).fincaCode ?? (ev as any).FincaCode ?? null,
   }
 }) as EventData[]
+
 
 
 

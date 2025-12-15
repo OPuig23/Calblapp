@@ -547,13 +547,12 @@ const handleSave = async () => {
                 className="w-24 h-24 rounded-lg border overflow-hidden relative bg-gray-100"
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-               <a href={url} target="_blank" rel="noopener noreferrer">
-  <img
-    src={url}
-    alt=""
-    className="w-full h-full object-cover cursor-zoom-in"
-  />
-</a>
+<img
+  src={url}
+  alt=""
+  className="w-full h-full object-cover cursor-default"
+/>
+
 
                 <button
                   type="button"

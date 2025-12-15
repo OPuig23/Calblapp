@@ -1,4 +1,3 @@
-// file: src/hooks/useIncidents.ts
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
@@ -24,6 +23,7 @@ export interface Incident {
 }
 
 export function useIncidents(_filters: {
+  eventId?: string
   from?: string
   to?: string
   department?: string
@@ -34,20 +34,25 @@ export function useIncidents(_filters: {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // 🧠 IMPORTANT — Filtre memoitzat (evita que l'objecte canviï sempre)
-  const filters = useMemo(() => ({
-    from: _filters.from,
-    to: _filters.to,
-    department: _filters.department,
-    importance: _filters.importance,
-    categoryLabel: _filters.categoryLabel,
-  }), [
-    _filters.from,
-    _filters.to,
-    _filters.department,
-    _filters.importance,
-    _filters.categoryLabel,
-  ])
+  // 🧠 IMPORTANT — Filtre memoitzat
+  const filters = useMemo(
+    () => ({
+      eventId: _filters.eventId,
+      from: _filters.from,
+      to: _filters.to,
+      department: _filters.department,
+      importance: _filters.importance,
+      categoryLabel: _filters.categoryLabel,
+    }),
+    [
+      _filters.eventId,
+      _filters.from,
+      _filters.to,
+      _filters.department,
+      _filters.importance,
+      _filters.categoryLabel,
+    ]
+  )
 
   useEffect(() => {
     let cancel = false
@@ -58,6 +63,9 @@ export function useIncidents(_filters: {
         setError(null)
 
         const qs = new URLSearchParams()
+
+        // 🔑 FILTRE CLAU PER ESDEVENIMENT
+        if (filters.eventId) qs.set('eventId', filters.eventId)
 
         if (filters.from) qs.set('from', filters.from)
         if (filters.to) qs.set('to', filters.to)
@@ -90,8 +98,11 @@ export function useIncidents(_filters: {
     }
 
     load()
-    return () => { cancel = true }
+    return () => {
+      cancel = true
+    }
   }, [
+    filters.eventId,
     filters.from,
     filters.to,
     filters.department,

@@ -1,15 +1,14 @@
-// filename: src/app/menu/events/page.tsx
 'use client'
 
-import { useSession } from 'next-auth/react'
 import React, { useMemo, useState } from 'react'
+import { useSession } from 'next-auth/react'
 import { startOfWeek, endOfWeek, format } from 'date-fns'
-import useEvents, { EventData } from '@/hooks/events/useEvents'
+
+import useEvents from '@/hooks/events/useEvents'
 import EventsDayGroup from '@/components/events/EventsDayGroup'
 import EventMenuModal from '@/components/events/EventMenuModal'
 import ModuleHeader from '@/components/layout/ModuleHeader'
 import FiltersBar, { FiltersState } from '@/components/layout/FiltersBar'
-import { useFilters } from '@/context/FiltersContext'
 
 /* ================= Utils ================= */
 const normalize = (s?: string | null) =>
@@ -19,12 +18,7 @@ const normalize = (s?: string | null) =>
     .toLowerCase()
     .trim()
 
-/* ================= Tipus auxiliars ================= */
-interface ExtendedEventData extends EventData {
-  lnKey?: string
-  isResponsible?: boolean
-}
-
+/* ================= Tipus ================= */
 type SessionUser = {
   id?: string
   role?: string
@@ -32,22 +26,34 @@ type SessionUser = {
   name?: string
 }
 
+type EventMenuData = {
+  id: string
+  summary: string
+  start: string
+  responsableName?: string
+  lnKey?: string
+  isResponsible?: boolean
+  fincaId?: string | null
+  fincaCode?: string | null
+}
+
 /* ================= Page ================= */
 export default function EventsPage() {
   const { data: session } = useSession()
-  const role = String(session?.user?.role || '').toLowerCase()
- const userDept = String((session?.user as SessionUser)?.department || 'total').toLowerCase()
 
+  const role = String(session?.user?.role || '').toLowerCase()
+  const userDept = String((session?.user as SessionUser)?.department || 'total').toLowerCase()
 
   const scope: 'all' | 'mine' = role === 'treballador' ? 'mine' : 'all'
   const includeQuadrants = role === 'treballador'
 
-  // 🔹 Setmana actual (rang per defecte)
+  /* ================= Setmana ================= */
   const initial: FiltersState = useMemo(() => {
     const s = startOfWeek(new Date(), { weekStartsOn: 1 })
     const e = endOfWeek(new Date(), { weekStartsOn: 1 })
     return { start: format(s, 'yyyy-MM-dd'), end: format(e, 'yyyy-MM-dd') }
   }, [])
+
   const [filters, setFilters] = useState<FiltersState>(initial)
 
   const fromISO = `${filters.start}T00:00:00.000Z`
@@ -69,8 +75,7 @@ export default function EventsPage() {
         .split(',')
         .map(r => normalize(r))
         .filter(Boolean)
-      const selResp = normalize(filters.responsable)
-      return evResps.includes(selResp)
+      return evResps.includes(normalize(filters.responsable))
     })
   }
 
@@ -80,47 +85,48 @@ export default function EventsPage() {
     )
   }
 
-  /* ================= Opcions derivades ================= */
-  const availableLnOptions = useMemo(() => {
-    const set = new Set<string>()
-    filteredEvents.forEach(ev => {
-      if (ev.lnKey) set.add(ev.lnKey)
-    })
-    return Array.from(set).sort()
-  }, [filteredEvents])
+  /* ================= Opcions filtres ================= */
+  const availableLnOptions = useMemo(
+    () => Array.from(new Set(filteredEvents.map(e => e.lnKey).filter(Boolean))).sort(),
+    [filteredEvents]
+  )
 
-  const availableLocations = useMemo(() => {
-    return Array.from(
-      new Set(filteredEvents.map(ev => ev.locationShort || ev.location || '').filter(Boolean))
-    ).sort((a, b) => a.localeCompare(b, 'ca'))
-  }, [filteredEvents])
+  const availableLocations = useMemo(
+    () =>
+      Array.from(
+        new Set(filteredEvents.map(e => e.locationShort || e.location).filter(Boolean))
+      ).sort((a, b) => a.localeCompare(b, 'ca')),
+    [filteredEvents]
+  )
 
   const scopedResponsables = useMemo(() => {
-    if (!responsablesDetailed || responsablesDetailed.length === 0) return []
-    let responsables: string[] = []
-    if (role === 'admin' || role === 'direccio') {
-      responsables = responsablesDetailed.map(r => r.name)
-    } else {
-      responsables = responsablesDetailed
-        .filter(r => userDept === 'total' || normalize(r.department) === userDept)
-        .map(r => r.name)
-    }
-    return Array.from(new Set(responsables)).sort((a, b) => a.localeCompare(b, 'ca'))
+    if (!responsablesDetailed?.length) return []
+
+    const resps =
+      role === 'admin' || role === 'direccio'
+        ? responsablesDetailed
+        : responsablesDetailed.filter(r =>
+            userDept === 'total' ? true : normalize(r.department) === userDept
+          )
+
+    return Array.from(new Set(resps.map(r => r.name))).sort((a, b) =>
+      a.localeCompare(b, 'ca')
+    )
   }, [role, userDept, responsablesDetailed])
 
   /* ================= Agrupació ================= */
-  const grouped = filteredEvents.reduce((acc, ev) => {
-    const dayKey = ev.start.slice(0, 10)
-    if (!acc[dayKey]) acc[dayKey] = []
-    acc[dayKey].push(ev)
+  const grouped = filteredEvents.reduce<Record<string, typeof filteredEvents>>((acc, ev) => {
+    const day = ev.start.slice(0, 10)
+    acc[day] ||= []
+    acc[day].push(ev)
     return acc
-  }, {} as Record<string, EventData[]>)
+  }, {})
 
   /* ================= Modal ================= */
   const [isMenuOpen, setMenuOpen] = useState(false)
-  const [selectedEvent, setSelectedEvent] = useState<Partial<ExtendedEventData> | null>(null)
-console.log("🔍 RESPONSABLES DETECTATS AL MÒDUL:", scopedResponsables)
-  const openMenu = (ev: ExtendedEventData) => {
+  const [selectedEvent, setSelectedEvent] = useState<EventMenuData | null>(null)
+
+  const openMenu = (ev: any) => {
     setSelectedEvent({
       id: ev.id,
       summary: ev.summary,
@@ -128,6 +134,8 @@ console.log("🔍 RESPONSABLES DETECTATS AL MÒDUL:", scopedResponsables)
       responsableName: ev.responsableName,
       lnKey: ev.lnKey,
       isResponsible: ev.isResponsible,
+      fincaId: ev.fincaId ?? ev.FincaId ?? null,
+      fincaCode: ev.fincaCode ?? ev.FincaCode ?? null,
     })
     setMenuOpen(true)
   }
@@ -142,8 +150,7 @@ console.log("🔍 RESPONSABLES DETECTATS AL MÒDUL:", scopedResponsables)
   /* ================= Render ================= */
   return (
     <div className="space-y-6">
-      {/* 🔹 Capçalera amb padding lateral */}
-      <div className="px-4 mb-2">
+      <div className="px-4">
         <ModuleHeader
           icon="📅"
           title="ESDEVENIMENTS"
@@ -151,7 +158,6 @@ console.log("🔍 RESPONSABLES DETECTATS AL MÒDUL:", scopedResponsables)
         />
       </div>
 
-      {/* 🔹 Barra de filtres a pantalla completa (sense padding) */}
       <FiltersBar
         filters={filters}
         setFilters={f => setFilters(prev => ({ ...prev, ...f }))}
@@ -162,10 +168,10 @@ console.log("🔍 RESPONSABLES DETECTATS AL MÒDUL:", scopedResponsables)
         locations={availableLocations}
       />
 
-      {/* 🔹 Contingut principal amb padding lateral */}
       <div className="px-4">
         {loading && <p className="text-gray-500">Carregant esdeveniments…</p>}
         {error && <p className="text-red-600">{String(error)}</p>}
+
         {!loading && !error && filteredEvents.length === 0 && (
           <p>No hi ha esdeveniments per mostrar.</p>
         )}
@@ -186,17 +192,9 @@ console.log("🔍 RESPONSABLES DETECTATS AL MÒDUL:", scopedResponsables)
         )}
       </div>
 
-      {/* 🔹 Modal de menú d’esdeveniment */}
       {isMenuOpen && selectedEvent && (
         <EventMenuModal
-          event={{
-            id: selectedEvent.id || '',
-            summary: selectedEvent.summary || '',
-            start: selectedEvent.start!,
-            responsableName: selectedEvent.responsableName,
-            lnKey: selectedEvent.lnKey,
-            isResponsible: selectedEvent.isResponsible,
-          }}
+          event={selectedEvent}
           user={userForModal}
           onClose={() => setMenuOpen(false)}
         />

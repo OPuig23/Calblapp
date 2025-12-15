@@ -8,7 +8,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 
-/** ───────────────── Types ───────────────── */
+/* ───────────────── Types ───────────────── */
+
 interface Person {
   id?: string
   name?: string
@@ -27,14 +28,14 @@ interface EventPersonnelModalProps {
   responsable?: Person | null
   conductors?: Person[]
   treballadors?: Person[]
-  loading?: boolean   // 👈 afegit aquí
+  loading?: boolean
 }
 
-/** ───────────────── Helpers ───────────────── */
+/* ───────────────── Helpers ───────────────── */
+
 function roleIcon(role?: string) {
-  const r = (role || '').toLowerCase()
-  if (r === 'responsable') return '🎓'
-  if (r === 'conductor') return '🚗'
+  if (role === 'responsable') return '🎓'
+  if (role === 'conductor') return '🚗'
   return '👤'
 }
 
@@ -43,16 +44,14 @@ function parseEventTitle(summary: string) {
 
   const parts = summary.split('-').map(p => p.trim())
 
-  let ln = ''
+  let ln = 'Altres'
   if (summary.startsWith('E-') || summary.startsWith('E -')) ln = 'Empresa'
   else if (summary.startsWith('C-') || summary.startsWith('C -')) ln = 'Casaments'
   else if (summary.startsWith('F-') || summary.startsWith('F -')) ln = 'Foodlovers'
   else if (summary.startsWith('PM')) ln = 'Agenda'
-  else ln = 'Altres'
 
   const name = parts.length > 1 ? parts[1] : summary
 
-  // Captura el codi darrere del "#"
   const match = summary.match(/#\s*([A-Z]\d+)/)
   const code = match ? match[1] : ''
 
@@ -61,17 +60,19 @@ function parseEventTitle(summary: string) {
 
 function groupByDepartment(workers: Person[]) {
   const map = new Map<string, Person[]>()
+
   workers.forEach(w => {
-    let dep = (w.department || '').trim()
-    if (!dep) dep = 'Sense departament'
-    const pretty = dep.charAt(0).toUpperCase() + dep.slice(1)
-    if (!map.has(pretty)) map.set(pretty, [])
-    map.get(pretty)!.push(w)
+    const depRaw = (w.department || '').trim()
+    const dep = depRaw ? depRaw.charAt(0).toUpperCase() + depRaw.slice(1) : 'Sense departament'
+    if (!map.has(dep)) map.set(dep, [])
+    map.get(dep)!.push(w)
   })
+
   return Array.from(map.entries())
 }
 
-/** ───────────────── Component ───────────────── */
+/* ───────────────── Component ───────────────── */
+
 export default function EventPersonnelModal({
   open,
   onClose,
@@ -84,6 +85,7 @@ export default function EventPersonnelModal({
 }: EventPersonnelModalProps) {
   if (!open) return null
 
+  /* ───── Loading state ───── */
   if (loading) {
     return (
       <Dialog open={open} onOpenChange={onClose}>
@@ -99,14 +101,31 @@ export default function EventPersonnelModal({
     )
   }
 
+  /* ───── Normalització segura de dades ───── */
+
+  const responsableWorker: Person[] =
+    responsable ? [{ ...responsable, role: 'responsable' }] : []
+
+  const conductorsWorkers: Person[] = conductors.map(c => ({
+    ...c,
+    role: 'conductor',
+  }))
+
+  const treballadorsWorkers: Person[] = treballadors.map(t => ({
+    ...t,
+    role: 'treballador',
+  }))
+
   const allWorkers: Person[] = [
-    ...(responsable ? [{ ...responsable, role: 'responsable' }] : []),
-    ...conductors.map(c => ({ ...c, role: 'conductor' as const })),
-    ...treballadors.map(t => ({ ...t, role: 'treballador' as const })),
+    ...responsableWorker,
+    ...conductorsWorkers,
+    ...treballadorsWorkers,
   ]
 
   const grouped = groupByDepartment(allWorkers)
   const { name, ln, code: parsedCode } = parseEventTitle(eventName)
+
+  /* ───── Render ───── */
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -134,19 +153,22 @@ export default function EventPersonnelModal({
                 <div className="text-xs font-semibold text-gray-600 uppercase mb-1">
                   {dep}
                 </div>
+
                 <ul className="divide-y divide-gray-100 border rounded-lg">
                   {list.map((w, i) => (
                     <li
                       key={w.id || `${i}-${w.name}`}
                       className="flex flex-col sm:flex-row sm:items-center justify-between py-1.5 px-2 text-xs sm:text-sm gap-1"
                     >
-                      {/* ── Esquerra: icona + nom ── */}
+                      {/* Esquerra */}
                       <div className="flex items-center gap-2 min-w-[120px]">
                         <span>{roleIcon(w.role)}</span>
-                        <span className="font-medium truncate">{w.name || '—'}</span>
+                        <span className="font-medium truncate">
+                          {w.name || '—'}
+                        </span>
                       </div>
 
-                      {/* ── Centre: meeting point + hora ── */}
+                      {/* Centre */}
                       <div className="flex flex-wrap gap-2 text-gray-600">
                         {w.meetingPoint && (
                           <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
@@ -160,7 +182,7 @@ export default function EventPersonnelModal({
                         )}
                       </div>
 
-                      {/* ── Dreta: telèfon només si és responsable ── */}
+                      {/* Dreta */}
                       {w.role === 'responsable' ? (
                         <div className="text-gray-600 min-w-[100px] text-right">
                           {w.phone || '—'}

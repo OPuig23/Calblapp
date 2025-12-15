@@ -241,6 +241,8 @@ const location = rawLocation
         htmlLink: null,
         lnKey: lnValue.toLowerCase(),
         lnLabel: lnValue,
+        fincaId: d?.FincaId ?? null,
+        fincaCode: d?.FincaCode ?? null,
       }
     })
 

@@ -298,10 +298,13 @@ export async function syncZohoDealsToFirestore(): Promise<{
     }
 
     // Ubicació que es guarda a les col·leccions stage_*
-    const ubicacioLabel =
-      d.Finca_2?.[0] ||
-      d.Espai_2?.[0] ||
-      ''
+   const ubicacioRaw =
+  d.Finca_2?.[0] ||
+  d.Espai_2?.[0] ||
+  ''
+
+const ubicacioLabel = stripZZ(stripCode(ubicacioRaw)).trim()
+
 
     // Matching de finca només per metadades (no per LN ni ubicació)
     const fincaMatch = findFincaForUbicacio(ubicacions)

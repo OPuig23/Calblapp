@@ -130,11 +130,24 @@ export default function SpaceGrid({ data, totals = [], baseDate }: SpaceGridProp
           {data.length > 0 ? (
             data.map((row, rIdx) => (
               <tr key={`row-${rIdx}`} className="border-t align-top">
-                <td className="p-2 text-left font-semibold sticky left-0 bg-white border-r-4 border-gray-100 shadow-sm z-10 align-middle">
-                  <div className="flex items-center h-full text-gray-700 font-medium tracking-tight">
-                    {row.finca}
-                  </div>
-                </td>
+               <td className="p-2 text-left font-semibold sticky left-0 bg-white border-r-4 border-gray-100 shadow-sm z-10 align-middle">
+  <button
+    type="button"
+    onClick={() => {
+      if (!row.fincaId) return
+      window.open(
+        `/menu/spaces/info/${row.fincaId}`,
+        '_blank',
+        'noopener,noreferrer'
+      )
+    }}
+    className="flex items-center h-full text-gray-700 font-medium tracking-tight hover:underline text-left"
+    title="Obrir fitxa de la finca en una pestanya nova"
+  >
+    {row.finca}
+  </button>
+</td>
+
 
                 {(row?.dies ?? []).map((cell, cIdx) => (
                   <td key={`cell-${rIdx}-${cIdx}`} className="p-1 space-y-1">
