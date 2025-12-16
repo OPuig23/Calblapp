@@ -1,8 +1,12 @@
-// file: src/hooks/events/useEvents.ts
+//file: src/hooks/events/useEvents.ts
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { normalizeStatus } from '@/utils/normalize'
+import { collection, getDocs, query, orderBy } from 'firebase/firestore'
+import { db } from '@/lib/firebaseClient'
+
+/* ───────────────────────── TIPUS ───────────────────────── */
 
 export interface EventData {
   id: string
@@ -26,6 +30,13 @@ export interface EventData {
   responsable?: string
   conductors?: string[]
   treballadors?: string[]
+
+  // 🆕 Últim avís de producció
+  lastAviso?: {
+    content: string
+    department: string
+    createdAt: string
+  } | null
 }
 
 interface EventPayload {
@@ -41,17 +52,17 @@ interface EventPayload {
   code?: string
   responsableName?: string
   responsable?: { name?: string }
-  LN?: string               // 🟢 Afegit per compatibilitat Firestore
-  lnKey?: string            // 🟢 Afegit per compatibilitat futura
-  lnLabel?: string    
+  LN?: string
+  lnKey?: string
+  lnLabel?: string
   [key: string]: unknown
-
 }
 
 interface QuadrantDraft {
   id: string
   code?: string
   eventId?: string | number
+  status?: string
   responsableName?: string
   responsable?: { name?: string }
   conductors?: { name?: string }[]
@@ -61,6 +72,13 @@ interface QuadrantDraft {
 
 type GroupedEvents = Record<string, EventData[]>
 type TotalPerDay = Record<string, number>
+
+export interface ResponsableDetailed {
+  name: string
+  department: string
+}
+
+/* ───────────────────────── HELPERS ───────────────────────── */
 
 const computeLocationShort = (full = '') => {
   if (!full) return ''
@@ -73,34 +91,34 @@ const computeMapsUrl = (location = '') =>
     ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`
     : undefined
 
-export interface ResponsableDetailed {
-  name: string
-  department: string
-}
+const normalizeCode = (raw?: string | number | null) =>
+  String(raw ?? '').replace(/^#/, '').trim().toUpperCase()
+
+/* ───────────────────────── HOOK ───────────────────────── */
 
 export default function useEvents(
   department: string,
   fromISO: string,
   toISO: string,
   scope?: 'all' | 'mine'
-  
 ) {
   const [events, setEvents] = useState<EventData[]>([])
   const [groupedEvents, setGroupedEvents] = useState<GroupedEvents>({})
   const [totalPerDay, setTotalPerDay] = useState<TotalPerDay>({})
   const [responsables, setResponsables] = useState<string[]>([])
+  const [responsablesDetailed, setResponsablesDetailed] = useState<ResponsableDetailed[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [responsablesDetailed, setResponsablesDetailed] = useState<ResponsableDetailed[]>([])
 
   const load = useCallback(
     async (signal?: AbortSignal) => {
       if (!fromISO || !toISO || !department) return
+
       setLoading(true)
       setError(null)
 
       try {
-        // 🔹 1. Carreguem esdeveniments
+        /* ───── 1. EVENTS ───── */
         const qs = new URLSearchParams({
           start: fromISO.slice(0, 10),
           end: toISO.slice(0, 10),
@@ -115,122 +133,117 @@ export default function useEvents(
         const payload = await res.json()
         const eventsFromPayload = (payload?.events || []) as EventPayload[]
 
-        // 🔹 2. Carreguem quadrants
-        const qsQ = new URLSearchParams({
-          start: fromISO.slice(0, 10),
-          end: toISO.slice(0, 10),
-          department,
-        })
-        const resQ = await fetch(`/api/quadrants/list?${qsQ.toString()}`, {
-          cache: 'no-store',
-          signal,
-        })
+        /* ───── 2. QUADRANTS ───── */
+        const resQ = await fetch(
+          `/api/quadrants/list?${qs.toString()}`,
+          { cache: 'no-store', signal }
+        )
         const payloadQ = await resQ.json()
         const drafts: QuadrantDraft[] = payloadQ?.drafts || []
 
-        const normalizeCode = (raw: string) =>
-          (raw || '').replace(/^#/, '').trim().toUpperCase()
-
         const quadrantMap = new Map<string, QuadrantDraft>()
         drafts.forEach((d) => {
-          const key = normalizeCode(d.code || d.id)
-          if (key) quadrantMap.set(key, d)
+          if (d.code) quadrantMap.set(normalizeCode(d.code), d)
           if (d.eventId) quadrantMap.set(String(d.eventId), d)
         })
 
-// 🔹 3. Merge Calendar + Firestore
-const flat = eventsFromPayload.map((ev) => {
-  let pax = Number(ev.pax ?? 0)
-  if ((!pax || Number.isNaN(pax)) && ev.summary) {
-    const match = ev.summary.match(/(\d{1,4})\s*(pax|persones?|comensals?)/i)
-    if (match) pax = parseInt(match[1].replace(/[^\d]/g, ''), 10)
-  }
+        /* ───── 3. AVISOS (últim per codi) ───── */
+        const avisosSnap = await getDocs(
+          query(collection(db, 'avisos'), orderBy('createdAt', 'desc'))
+        )
 
-  const location = ev.location || ''
+        const avisosByCode = new Map<
+          string,
+          { content: string; department: string; createdAt: string }
+        >()
 
-  let eventCode = (ev.eventCode as any) || (ev as any).code || null
-  if (!eventCode && ev.summary) {
-    const cleaned = ev.summary.replace(/[#\-]/g, ' ').trim()
-    const match = cleaned.match(/([A-Z]{1,3}\d{5,7})/i)
-    if (match) eventCode = match[1].toUpperCase()
-  }
-
-  let q = quadrantMap.get(ev.id)
-  if (!q) {
-    const key = normalizeCode(eventCode || ev.id)
-    q = quadrantMap.get(key)
-  }
-
-  const state = normalizeStatus(
-    (q?.status as string) ||
-      (ev.state as string) ||
-      (ev.status as string)
-  )
-
-  const lnKey = (String((ev as any).LN || (ev as any).lnKey || '').toLowerCase() || 'altres') as any
-  const lnLabel = String((ev as any).LN || (ev as any).lnLabel || 'Altres')
-
-  return {
-    ...(ev as any),
-
-    pax,
-    location,
-
-    day: ev.start.slice(0, 10),
-    locationShort: computeLocationShort(location),
-    mapsUrl: computeMapsUrl(location),
-
-    state,
-
-    eventCode: eventCode || (q as any)?.code || null,
-
-    responsable: (q as any)?.responsableName || (q as any)?.responsable?.name || undefined,
-
-    conductors: Array.isArray((q as any)?.conductors)
-      ? ((q as any).conductors.map((c: any) => c?.name).filter(Boolean) as string[])
-      : [],
-
-    treballadors: Array.isArray((q as any)?.treballadors)
-      ? ((q as any).treballadors.map((t: any) => t?.name).filter(Boolean) as string[])
-      : [],
-
-    lnKey,
-    lnLabel,
-
-    responsableName: (q as any)?.responsableName || (q as any)?.responsable?.name || '',
-
-    // 🔑 CLAUS FINCA (per EventSpacesModal)
-    fincaId: (ev as any).fincaId ?? (ev as any).FincaId ?? null,
-    fincaCode: (ev as any).fincaCode ?? (ev as any).FincaCode ?? null,
-  }
-}) as EventData[]
-
-
-
-
-               // 🔹 4. Comptadors totals
-        const totals: TotalPerDay = {}
-        flat.forEach(ev => {
-          const day = ev.start.slice(0, 10)
-          totals[day] = (totals[day] || 0) + (ev.pax || 0)
+        avisosSnap.forEach((doc) => {
+          const d = doc.data()
+          if (!d.code) return
+          if (!avisosByCode.has(d.code)) {
+            avisosByCode.set(d.code, {
+              content: d.content,
+              department: d.department,
+              createdAt: d.createdAt?.toDate
+                ? d.createdAt.toDate().toISOString()
+                : d.createdAt,
+            })
+          }
         })
 
-        // 🔹 5. Agrupem per dia
+        /* ───── 4. MERGE FINAL ───── */
+        const flat: EventData[] = eventsFromPayload.map((ev) => {
+          const location = ev.location || ''
+
+          // 🔑 BUSQUEM QUADRANT
+          let q =
+            quadrantMap.get(String(ev.id)) ||
+            quadrantMap.get(normalizeCode(ev.eventCode || ev.code))
+
+          // 🔑 EVENT CODE (ordre clar)
+          let eventCode =
+            ev.eventCode ||
+            q?.code ||
+            ev.code ||
+            null
+
+          if (!eventCode && ev.summary) {
+            const m = ev.summary.match(/([A-Z]{1,3}\d{5,7})/i)
+            if (m) eventCode = m[1].toUpperCase()
+          }
+
+          const lastAviso = eventCode
+            ? avisosByCode.get(eventCode) ?? null
+            : null
+
+          const pax = Number(ev.pax ?? 0)
+
+          return {
+            ...(ev as any),
+
+            pax,
+            location,
+            day: ev.start.slice(0, 10),
+            locationShort: computeLocationShort(location),
+            mapsUrl: computeMapsUrl(location),
+
+            state: normalizeStatus(q?.status || ev.state || ev.status),
+            eventCode,
+            lastAviso,
+
+            responsable: q?.responsableName || q?.responsable?.name,
+            responsableName: q?.responsableName || q?.responsable?.name || '',
+
+            conductors: q?.conductors?.map(c => c.name).filter(Boolean) || [],
+            treballadors: q?.treballadors?.map(t => t.name).filter(Boolean) || [],
+
+            lnKey: String((ev as any).LN || (ev as any).lnKey || 'altres').toLowerCase() as any,
+            lnLabel: String((ev as any).LN || (ev as any).lnLabel || 'Altres'),
+
+            fincaId: (ev as any).fincaId ?? null,
+            fincaCode: (ev as any).fincaCode ?? null,
+          }
+        })
+
+        /* ───── 5. TOTALS I GRUPS ───── */
+        const totals: TotalPerDay = {}
         const grouped: GroupedEvents = {}
-        flat.forEach(ev => {
+
+        flat.forEach((ev) => {
+          totals[ev.day] = (totals[ev.day] || 0) + (ev.pax || 0)
           if (!grouped[ev.day]) grouped[ev.day] = []
           grouped[ev.day].push(ev)
         })
 
-        // 🔹 6. Set state
+        /* ───── 6. STATE ───── */
         setEvents(flat)
         setTotalPerDay(totals)
         setGroupedEvents(grouped)
         setResponsables(payload?.responsables || [])
         setResponsablesDetailed(payload?.responsablesDetailed || [])
-      } catch (err: unknown) {
-        if (err instanceof Error && err.name !== 'AbortError') {
-          setError(err.message || 'Error carregant esdeveniments')
+      } catch (err: any) {
+        if (err?.name !== 'AbortError') {
+          setError(err?.message || 'Error carregant esdeveniments')
         }
       } finally {
         setLoading(false)
@@ -247,9 +260,7 @@ const flat = eventsFromPayload.map((ev) => {
 
   const lnOptions = useMemo(() => {
     const set = new Set<string>()
-    events.forEach(e => {
-      if (e.lnLabel) set.add(e.lnLabel)
-    })
+    events.forEach(e => e.lnLabel && set.add(e.lnLabel))
     const order = ['Empresa', 'Casaments', 'Foodlovers', 'Agenda', 'Altres']
     return Array.from(set).sort((a, b) => order.indexOf(a) - order.indexOf(b))
   }, [events])
@@ -264,5 +275,4 @@ const flat = eventsFromPayload.map((ev) => {
     responsablesDetailed,
     lnOptions,
   }
-  
 }

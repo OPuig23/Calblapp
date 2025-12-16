@@ -1,4 +1,3 @@
-// filename: src/components/events/EventsDayGroup.tsx
 'use client'
 
 import React from 'react'
@@ -7,6 +6,7 @@ import { Users, Calendar } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { ca } from 'date-fns/locale'
 
+/* ───────────────── Tipus ───────────────── */
 
 export interface EventData {
   id: string
@@ -23,16 +23,15 @@ export interface EventData {
 interface Props {
   date: string
   events: EventData[]
-  onEventClick?: (ev: EventData) => void
+
+  /**
+   * Callback únic cap al page
+   * mode = 'menu' | 'avisos'
+   */
+  onEventClick?: (ev: EventData, mode?: 'menu' | 'avisos') => void
 }
 
-const lnClasses: Record<string, string> = {
-  empresa:   'bg-blue-100 text-blue-700',
-  casaments: 'bg-orange-100 text-orange-700',
-  foodlovers:'bg-green-100 text-green-700',
-  agenda:    'bg-gray-100 text-gray-700',
-  altres:    'bg-slate-100 text-slate-700',
-}
+/* ───────────────── Component ───────────────── */
 
 export default function EventsDayGroup({ date, events, onEventClick }: Props) {
   const totalPax = events.reduce((sum, e) => sum + (Number(e.pax) || 0), 0)
@@ -40,15 +39,15 @@ export default function EventsDayGroup({ date, events, onEventClick }: Props) {
 
   return (
     <section className="mb-6">
-      {/* Capçalera de dia */}
+      {/* ───── Capçalera de dia ───── */}
       <header className="flex items-center justify-between mb-3 bg-blue-50 p-3 rounded-xl shadow-sm">
-  <h2 className="text-base font-semibold text-gray-800 flex items-center gap-2">
-    {format(parseISO(date), 'dd/MM/yyyy', { locale: ca })}
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-sm font-medium bg-purple-100 text-purple-700">
-      <Calendar className="w-3 h-3" />
-      {totalEvents} esdeveniments
-    </span>
-  </h2>
+        <h2 className="text-base font-semibold text-gray-800 flex items-center gap-2">
+          {format(parseISO(date), 'dd/MM/yyyy', { locale: ca })}
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-sm font-medium bg-purple-100 text-purple-700">
+            <Calendar className="w-3 h-3" />
+            {totalEvents} esdeveniments
+          </span>
+        </h2>
 
         <span className="flex items-center gap-1 text-pink-600 font-bold">
           <Users className="w-4 h-4" />
@@ -56,25 +55,27 @@ export default function EventsDayGroup({ date, events, onEventClick }: Props) {
         </span>
       </header>
 
-      {/* Targetes d'esdeveniment */}
+      {/* ───── Targetes ───── */}
       <div className="flex flex-col gap-3">
         {events.map(event => (
           <div
             key={event.id}
             className="relative"
-            onClick={() => onEventClick?.(event)}
+            role="button"
+            tabIndex={0}
+            onClick={() => onEventClick?.(event, 'menu')}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault()
-                onEventClick?.(event)
+                onEventClick?.(event, 'menu')
               }
             }}
-            role="button"
-            tabIndex={0}
           >
-            
-
-            <EventCard event={event} />
+            <EventCard
+              event={event}
+              onOpenMenu={() => onEventClick?.(event, 'menu')}
+              onOpenAvisos={() => onEventClick?.(event, 'avisos')}
+            />
           </div>
         ))}
       </div>

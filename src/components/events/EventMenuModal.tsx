@@ -33,6 +33,8 @@ import EventIncidentsModal from './EventIncidentsModal'
 import EventModificationsModal from './EventModificationsModal'
 import CreateModificationModal from './CreateModificationModal'
 import EventSpacesModal from './EventSpacesModal'
+import EventAvisosModal from './EventAvisosModal'
+
 
 /** ───────────────────────── Helpers ───────────────────────── */
 const norm = (s?: string | number | null) =>
@@ -56,6 +58,8 @@ interface EventMenuModalProps {
     id?: string | number
     summary: string
     start: string
+    eventCode?: string | null
+    code?: string | null
     lnKey?: LnKey
     isResponsible?: boolean
     responsable?: WorkerLite | null
@@ -68,7 +72,7 @@ interface EventMenuModalProps {
     id?: string | number
     role?: string
     department?: string
-    
+  
     name?: string
   }
   onClose: () => void
@@ -169,6 +173,8 @@ export default function EventMenuModal({ event, user, onClose }: EventMenuModalP
   const [showIncidents, setShowIncidents] = useState(false)
   const [showModifications, setShowModifications] = useState(false)
   const [showCreateModification, setShowCreateModification] = useState(false)
+  const [showAvisos, setShowAvisos] = useState(false)
+
 
   // ✅ Nou botó: Espais (placeholder fins que ens diguis on ha d'anar)
   const [showEspais, setShowEspais] = useState(false)
@@ -211,10 +217,14 @@ const treballadorsPersons =
   const roleN = norm(user?.role)
   const deptN = norm(user?.department)
   const lnKey: LnKey = event.lnKey ?? deduceLnKeyFromSummary(event.summary)
-
   const isAdmin = roleN === 'admin'
   const isDireccio = roleN === 'direccio'
   const isCapDept = roleN === 'cap' || (roleN.includes('cap') && roleN.includes('depart'))
+  const isProduccio = deptN === 'produccio'
+  const canWriteAvisos =
+  isAdmin || isDireccio || isCapDept || isProduccio
+
+
 
   const canSeeIncidents = isAdmin || isDireccio || isCapDept
 
@@ -257,54 +267,76 @@ const treballadorsPersons =
 
  
   // ✅ Seccions per ordenar i donar sentit (més “app”)
-  const operativa = useMemo(
-    () =>
-      [
-        canCreateIncident
-          ? {
-              key: 'create-incident',
-              label: 'Crear incidència',
-              badge: 'Incidències',
-              icon: AlertTriangle,
-              tone: 'warning' as const,
-              onClick: () => setShowCreateIncident(true),
-            }
-          : null,
-        canSeeIncidents
-          ? {
-              key: 'view-incidents',
-              label: 'Veure incidències',
-              badge: 'Incidències',
-              icon: Eye,
-              tone: 'warning' as const,
-              onClick: () => setShowIncidents(true),
-            }
-          : null,
-        canCreateModification
-          ? {
-              key: 'create-mod',
-              label: 'Registrar modificació',
-              badge: 'Canvis',
-              icon: Sparkles,
-              tone: 'purple' as const,
-              onClick: () => setShowCreateModification(true),
-            }
-          : null,
-        canSeeModifications
-          ? {
-              key: 'view-mod',
-              label: 'Veure modificacions',
-              badge: 'Canvis',
-              icon: Sparkles,
-              tone: 'purple' as const,
-              onClick: () => setShowModifications(true),
-            }
-          : null,
+const operativa = useMemo(
+  () =>
+    [
+      canCreateIncident
+        ? {
+            key: 'create-incident',
+            label: 'Crear incidència',
+            badge: 'Incidències',
+            icon: AlertTriangle,
+            tone: 'warning' as const,
+            onClick: () => setShowCreateIncident(true),
+          }
+        : null,
 
+      canSeeIncidents
+        ? {
+            key: 'view-incidents',
+            label: 'Veure incidències',
+            badge: 'Incidències',
+            icon: Eye,
+            tone: 'warning' as const,
+            onClick: () => setShowIncidents(true),
+          }
+        : null,
+
+      canCreateModification
+        ? {
+            key: 'create-mod',
+            label: 'Registrar modificació',
+            badge: 'Canvis',
+            icon: Sparkles,
+            tone: 'purple' as const,
+            onClick: () => setShowCreateModification(true),
+          }
+        : null,
+
+      canSeeModifications
+        ? {
+            key: 'view-mod',
+            label: 'Veure modificacions',
+            badge: 'Canvis',
+            icon: Sparkles,
+            tone: 'purple' as const,
+            onClick: () => setShowModifications(true),
+          }
+        : null,
+
+      // 🔔 Avisos de Producció (SEMPRE visible)
+      
         
-      ].filter(Boolean) as any[],
-    [canCreateIncident, canSeeIncidents, canCreateModification, canSeeModifications]
-  )
+ {
+  key: 'avisos',
+  label: 'Avisos de Producció',
+  badge: 'Info',
+  icon: FileText,
+  tone: 'info' as const,
+  onClick: () => setShowAvisos(true),
+},
+
+    ].filter(Boolean) as any[],
+  [
+    canCreateIncident,
+    canSeeIncidents,
+    canCreateModification,
+    canSeeModifications,
+    canWriteAvisos,
+    
+  ]
+)
+
 
 const recursos = useMemo(
   () => [
@@ -502,18 +534,27 @@ treballadors={treballadorsPersons}
           onClose={() => setShowCreateModification(false)}
           onCreated={() => setShowCreateModification(false)}
         />
-      )}
-
+        
+      )
+      }
       {/* ✅ Espais: placeholder (decidim ruta/sheet/modal quan ens diguis) */}
       {/* ✅ Espais: modal de consulta (mobile-first, només lectura) */}
-     
+
+     console.log('🧩 EVENT OBJECT AL MENU:', event)
+ 
+<EventAvisosModal
+  open={showAvisos}
+  onClose={() => setShowAvisos(false)}
+  eventCode={event.eventCode ?? event.code ?? null}
+
+  user={user}
+/>
       <EventSpacesModal
   open={showEspais}
   onClose={() => setShowEspais(false)}
   fincaId={event.fincaId ?? null}
   eventSummary={event.summary}
 />
-
       <EventDocumentsSheet eventId={String(event.id)} open={docsOpen} onOpenChange={setDocsOpen} />
     </>
   )

@@ -1,3 +1,4 @@
+//filename: src/app/menu/events/page.tsx
 'use client'
 
 import React, { useMemo, useState } from 'react'
@@ -7,6 +8,7 @@ import { startOfWeek, endOfWeek, format } from 'date-fns'
 import useEvents from '@/hooks/events/useEvents'
 import EventsDayGroup from '@/components/events/EventsDayGroup'
 import EventMenuModal from '@/components/events/EventMenuModal'
+import EventAvisosReadOnlyModal from '@/components/events/EventAvisosReadOnlyModal'
 import ModuleHeader from '@/components/layout/ModuleHeader'
 import FiltersBar, { FiltersState } from '@/components/layout/FiltersBar'
 
@@ -30,6 +32,7 @@ type EventMenuData = {
   id: string
   summary: string
   start: string
+  eventCode?: string | null
   responsableName?: string
   lnKey?: string
   isResponsible?: boolean
@@ -85,35 +88,6 @@ export default function EventsPage() {
     )
   }
 
-  /* ================= Opcions filtres ================= */
-  const availableLnOptions = useMemo(
-    () => Array.from(new Set(filteredEvents.map(e => e.lnKey).filter(Boolean))).sort(),
-    [filteredEvents]
-  )
-
-  const availableLocations = useMemo(
-    () =>
-      Array.from(
-        new Set(filteredEvents.map(e => e.locationShort || e.location).filter(Boolean))
-      ).sort((a, b) => a.localeCompare(b, 'ca')),
-    [filteredEvents]
-  )
-
-  const scopedResponsables = useMemo(() => {
-    if (!responsablesDetailed?.length) return []
-
-    const resps =
-      role === 'admin' || role === 'direccio'
-        ? responsablesDetailed
-        : responsablesDetailed.filter(r =>
-            userDept === 'total' ? true : normalize(r.department) === userDept
-          )
-
-    return Array.from(new Set(resps.map(r => r.name))).sort((a, b) =>
-      a.localeCompare(b, 'ca')
-    )
-  }, [role, userDept, responsablesDetailed])
-
   /* ================= Agrupació ================= */
   const grouped = filteredEvents.reduce<Record<string, typeof filteredEvents>>((acc, ev) => {
     const day = ev.start.slice(0, 10)
@@ -122,11 +96,21 @@ export default function EventsPage() {
     return acc
   }, {})
 
-  /* ================= Modal ================= */
+  /* ================= MODALS ================= */
   const [isMenuOpen, setMenuOpen] = useState(false)
   const [selectedEvent, setSelectedEvent] = useState<EventMenuData | null>(null)
 
-  const openMenu = (ev: any) => {
+  const [isAvisosOpen, setAvisosOpen] = useState(false)
+  const [avisosEventCode, setAvisosEventCode] = useState<string | null>(null)
+
+  /* ================= HANDLER CENTRAL ================= */
+  const handleEventClick = (ev: any, mode: 'menu' | 'avisos' = 'menu') => {
+    if (mode === 'avisos') {
+      setAvisosEventCode(ev.eventCode ?? null)
+      setAvisosOpen(true)
+      return
+    }
+
     setSelectedEvent({
       id: ev.id,
       summary: ev.summary,
@@ -134,9 +118,11 @@ export default function EventsPage() {
       responsableName: ev.responsableName,
       lnKey: ev.lnKey,
       isResponsible: ev.isResponsible,
-      fincaId: ev.fincaId ?? ev.FincaId ?? null,
-      fincaCode: ev.fincaCode ?? ev.FincaCode ?? null,
+      fincaId: ev.fincaId ?? null,
+      fincaCode: ev.fincaCode ?? null,
+      eventCode: ev.eventCode ?? null,
     })
+
     setMenuOpen(true)
   }
 
@@ -163,9 +149,13 @@ export default function EventsPage() {
         setFilters={f => setFilters(prev => ({ ...prev, ...f }))}
         visibleFilters={[]}
         hiddenFilters={['ln', 'responsable', 'location']}
-        lnOptions={availableLnOptions}
-        responsables={scopedResponsables}
-        locations={availableLocations}
+        lnOptions={Array.from(new Set(filteredEvents.map(e => e.lnKey).filter(Boolean))).sort()}
+        responsables={
+          responsablesDetailed?.map(r => r.name).filter(Boolean) ?? []
+        }
+        locations={Array.from(
+          new Set(filteredEvents.map(e => e.locationShort || e.location).filter(Boolean))
+        ).sort()}
       />
 
       <div className="px-4">
@@ -185,13 +175,14 @@ export default function EventsPage() {
                   key={day}
                   date={day}
                   events={evs}
-                  onEventClick={openMenu}
+                  onEventClick={handleEventClick}
                 />
               ))}
           </div>
         )}
       </div>
 
+      {/* MODAL MENU */}
       {isMenuOpen && selectedEvent && (
         <EventMenuModal
           event={selectedEvent}
@@ -199,6 +190,13 @@ export default function EventsPage() {
           onClose={() => setMenuOpen(false)}
         />
       )}
+
+      {/* MODAL AVISOS READ-ONLY */}
+      <EventAvisosReadOnlyModal
+        open={isAvisosOpen}
+        onClose={() => setAvisosOpen(false)}
+        eventCode={avisosEventCode}
+      />
     </div>
   )
 }

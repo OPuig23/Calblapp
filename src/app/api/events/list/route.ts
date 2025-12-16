@@ -209,7 +209,8 @@ export async function GET(req: NextRequest) {
       const startISO = d?.DataInici ? `${d.DataInici}T00:00:00.000Z` : null
       const endISO = d?.DataFi ? `${d.DataFi}T00:00:00.000Z` : startISO
       const pax = Number(d?.NumPax ?? 0) || 0
-      const eventCode = d?.C_digo || null
+      const eventCode = d?.code || null
+
 
       // 🟢 Nom de l’esdeveniment: només fins al primer “/”
       const rawSummary = d?.NomEvent || '(Sense títol)'

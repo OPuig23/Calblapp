@@ -1,10 +1,15 @@
-// file: src/components/events/EventCard.tsx
 'use client'
 
 import React from 'react'
 import { Card } from '@/components/ui/card'
-import { MapPin, Users, Tag } from 'lucide-react'
+import { MapPin, Users, Tag, Info } from 'lucide-react'
 import { colorByLN } from '@/lib/colors'
+
+interface LastAviso {
+  content: string
+  department: string
+  createdAt: string
+}
 
 interface EventData {
   id: string
@@ -19,6 +24,16 @@ interface EventData {
   LN?: string
   lnKey?: string
   lnLabel?: string
+
+  // Avisos
+  lastAviso?: LastAviso | null
+  avisosUnread?: number
+}
+
+interface Props {
+  event: EventData
+  onOpenMenu: () => void
+  onOpenAvisos: () => void
 }
 
 /* Helpers */
@@ -30,21 +45,27 @@ function cleanEventName(s?: string) {
   return t
 }
 
-export default function EventCard({ event }: { event: EventData }) {
-  // 🟦 Adaptació Firestore
+export default function EventCard({ event, onOpenMenu, onOpenAvisos }: Props) {
   const name = event.NomEvent || event.summary || ''
   const displaySummary = cleanEventName(name)
+
   const ln = event.LN || event.lnKey || event.lnLabel || 'altres'
   const lnColor = colorByLN(ln)
+
   const location = event.Ubicacio || event.location || ''
   const mapsUrl = location
     ? `https://www.google.com/maps?q=${encodeURIComponent(location)}`
     : null
 
+  const hasAviso = Boolean(event.lastAviso)
+
   return (
-    <Card className="rounded-xl p-3 bg-white shadow-sm hover:shadow-md transition cursor-pointer flex flex-col justify-between h-full">
+    <Card
+      onClick={onOpenMenu}
+      className="rounded-xl p-3 bg-white shadow-sm hover:shadow-md transition cursor-pointer flex flex-col gap-2"
+    >
       {/* ───── Títol + Pax + LN ───── */}
-      <div className="flex items-start justify-between gap-2 mb-1">
+      <div className="flex items-start justify-between gap-2">
         <div className="flex flex-col flex-1">
           <h3
             className="text-sm font-semibold text-gray-900 leading-snug line-clamp-2"
@@ -54,16 +75,12 @@ export default function EventCard({ event }: { event: EventData }) {
           </h3>
 
           <div className="flex flex-wrap items-center gap-1 mt-1">
-            {/* Línia de negoci */}
             {ln && (
-              <span
-                className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${lnColor}`}
-              >
+              <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${lnColor}`}>
                 {ln.charAt(0).toUpperCase() + ln.slice(1)}
               </span>
             )}
 
-            {/* Codi d’esdeveniment */}
             {event.eventCode && (
               <span className="flex items-center gap-1 text-[11px] text-gray-500">
                 <Tag className="w-3 h-3 text-gray-400" />
@@ -73,13 +90,31 @@ export default function EventCard({ event }: { event: EventData }) {
           </div>
         </div>
 
-        {/* Nombre de comensals */}
-        {event.pax && (
-          <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-pink-100 text-pink-700 shrink-0">
-            <Users className="w-3 h-3" />
-            {Number(event.pax)}
-          </span>
-        )}
+        {/* ───── ÚNICA “i” FUNCIONAL ───── */}
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            aria-label="Obrir avisos de producció"
+            onClick={(e) => {
+              e.stopPropagation()
+              onOpenAvisos()
+            }}
+          >
+            <Info
+              className={[
+                'w-4 h-4',
+                hasAviso ? 'text-blue-600' : 'text-gray-300',
+              ].join(' ')}
+            />
+          </button>
+
+          {event.pax && (
+            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-pink-100 text-pink-700">
+              <Users className="w-3 h-3" />
+              {Number(event.pax)}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* ───── Ubicació ───── */}
@@ -95,6 +130,8 @@ export default function EventCard({ event }: { event: EventData }) {
           <span className="truncate">{location}</span>
         </a>
       )}
+
+      
     </Card>
   )
 }
