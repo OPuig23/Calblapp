@@ -1,3 +1,4 @@
+//file: src/components/spaces/SpaceEventModal.tsx
 'use client'
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -25,6 +26,9 @@ export default function SpaceEventModal({ open, onOpenChange, event }: SpaceEven
 
   // Assegurem que el camp code es llegeix correctament
  const eventCode = event.code || event.Code || '-'
+ const observacions = (event.observacions || '').trim()
+
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -86,6 +90,17 @@ export default function SpaceEventModal({ open, onOpenChange, event }: SpaceEven
               {event.NumPax ?? event.numPax ?? 0}
             </span>
           </div>
+          {observacions && (
+  <div className="mt-3 rounded-md bg-yellow-50 border border-yellow-200 p-2">
+    <p className="text-[11px] font-medium text-yellow-800 mb-1">
+      Observacions
+    </p>
+    <p className="text-xs text-yellow-900 whitespace-pre-wrap">
+      {observacions}
+    </p>
+  </div>
+)}
+
         </div>
       </DialogContent>
     </Dialog>

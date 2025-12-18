@@ -1,7 +1,6 @@
-// file: src/components/calendar/CalendarModal.tsx
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -31,7 +30,7 @@ interface Props {
  * - Llista enllaços guardats i permet obrir-los / eliminar-los
  * - Manté l’edició de camps bàsics si l’esdeveniment és Confirmat o manual
  */
-export default function CalendarModal({ deal, trigger, onSaved }: Props) {
+export default function CalendarModal({ deal, trigger, onSaved, readonly }: Props) {
   console.log('🧩 Dades rebudes al modal:', deal)
 
   const [open, setOpen] = useState(false)
@@ -47,13 +46,15 @@ export default function CalendarModal({ deal, trigger, onSaved }: Props) {
     return undefined
   }
 
-  // ✅ Dades del formulari de l’esdeveniment
+  // ✅ Dades del formulari de l’esdeveniment (estat inicial)
   const [editData, setEditData] = useState(() => ({
-    code: get( 'ev.code','code', 'codi', 'eventcode', 'codigo', 'C_digo') || '',
+    // 🔧 FIX: abans hi havia get('ev.code'...) amb string literal. Ara és get(deal,...)
+    LN: get(deal, 'LN', 'ln', 'liniaNegoci') || 'Altres',
+    code: get(deal, 'code', 'codi', 'eventcode', 'codigo', 'C_digo') || '',
     NomEvent: get(deal, 'NomEvent', 'nomEvent', 'summary') || '',
     DataInici: get(deal, 'DataInici', 'dataInici', 'Data', 'dateStart') || '',
     DataFi: get(deal, 'DataFi', 'dataFi', 'dateEnd') || '',
-    NumPax: get(deal, 'NumPax', 'numPax', 'pax') || '',
+    NumPax: get(deal, 'NumPax', 'numPax', 'pax') ?? '',
     Ubicacio: get(deal, 'Ubicacio', 'ubicacio', 'location') || '',
     Servei: get(deal, 'Servei', 'servei', 'service') || '',
     Comercial: get(deal, 'Comercial', 'comercial', 'responsable') || '',
@@ -65,14 +66,47 @@ export default function CalendarModal({ deal, trigger, onSaved }: Props) {
   // Fitxers (file1, file2, ...) llegits del deal
   const [files, setFiles] = useState<{ key: string; url: string }[]>([])
 
-  // Només editable si és Confirmat o manual
+  // Només editable si és Confirmat o manual (respectant readonly si ve informat)
   const isZohoVerd =
-    ['verd', 'stage_verd'].includes(deal?.collection || '') &&
+    ['verd', 'stage_verd'].includes(String(deal?.collection || '')) &&
     deal.origen === 'zoho'
   const isManual = deal.origen !== 'zoho'
 
+  const canEdit = !readonly && (isZohoVerd || isManual)
+
   // Col·lecció: sempre guardem a stage_verd (segons decisió)
   const COLLECTION = 'stage_verd' as const
+
+  // 📝 Observacions Zoho (read-only)
+  const ObservacionsZoho = useMemo(() => {
+    return (
+      get(
+        deal,
+        'ObservacionsZoho',
+        'observacionsZoho',
+        'Observacions',
+        'observacions'
+      ) || ''
+    )
+  }, [deal])
+
+  // ✅ Pax display robust (mostra també 0)
+  const paxDisplay = useMemo(() => {
+    const raw =
+      get(
+        deal,
+        'NumPax',
+        'numPax',
+        'pax',
+        'Num_Pax',
+        'num_pax',
+        'PAX'
+      ) ?? editData.NumPax
+
+    if (raw === 0) return '0'
+    const s = String(raw ?? '').trim()
+    return s
+  }, [deal, editData.NumPax])
 
   // 🧩 Sincronitza el formulari quan canviï el deal
   useEffect(() => {
@@ -105,7 +139,7 @@ export default function CalendarModal({ deal, trigger, onSaved }: Props) {
         'Num_Pax',
         'num_pax',
         'PAX'
-      ) || ''
+      ) ?? ''
     const Ubicacio = get(deal, 'Ubicacio', 'ubicacio', 'location') || ''
     const Code = get(deal, 'code', 'C_digo', 'codi') || ''
     const DataInici =
@@ -120,6 +154,7 @@ export default function CalendarModal({ deal, trigger, onSaved }: Props) {
       LN: deal.LN,
       origen: deal.origen,
       collection: deal.collection,
+      ObservacionsZoho: (deal as any)?.ObservacionsZoho,
     })
 
     const next = {
@@ -134,16 +169,16 @@ export default function CalendarModal({ deal, trigger, onSaved }: Props) {
       Comercial,
     }
 
-    setEditData(next)
-    setInitialData(next)
+    setEditData(next as any)
+    setInitialData(next as any)
   }, [deal])
 
-  // Inicialitza llistat de fileN del deal
-// 🔄 Quan canviï el deal, carregar directament els adjunts estructurats
-useEffect(() => {
-  setFiles(Array.isArray(deal.files) ? deal.files : []);
-}, [deal]);
-
+  // 🔄 Quan canviï el deal, carregar directament els adjunts estructurats
+  useEffect(() => {
+    const anyDeal = deal as any
+    const nextFiles = Array.isArray(anyDeal?.files) ? anyDeal.files : []
+    setFiles(nextFiles)
+  }, [deal])
 
   // Helpers
   const handleChange = (field: string, value: string) =>
@@ -152,10 +187,16 @@ useEffect(() => {
   // 💾 Desa canvis generals de l’esdeveniment (sense tocar fitxers)
   const handleSave = async (e?: React.MouseEvent) => {
     e?.stopPropagation()
+    if (!canEdit) return
 
     try {
       const payload: Record<string, any> = {
         ...editData,
+        // 🔧 FIX: si ve buit, deixem null (igual que abans però més robust)
+        NumPax:
+          editData.NumPax === '' || editData.NumPax === null || editData.NumPax === undefined
+            ? null
+            : Number(editData.NumPax),
         collection: COLLECTION,
         updatedAt: new Date().toISOString(),
       }
@@ -180,6 +221,7 @@ useEffect(() => {
 
   // 🗑️ Eliminar un enllaç (fileN) de Firestore
   const handleDeleteFile = async (key: string) => {
+    if (!canEdit) return
     if (!confirm('Vols eliminar aquest enllaç del document?')) return
 
     try {
@@ -204,6 +246,7 @@ useEffect(() => {
   // 🗑️ Elimina TOT l’esdeveniment
   const handleDeleteEvent = async (e?: React.MouseEvent) => {
     e?.stopPropagation()
+    if (!canEdit) return
     if (!confirm('Vols eliminar aquest esdeveniment?')) return
 
     try {
@@ -225,6 +268,7 @@ useEffect(() => {
   // 🔁 Restaura canvis locals no desats
   const handleRestore = (e?: React.MouseEvent) => {
     e?.stopPropagation()
+    if (!canEdit) return
     setEditData(initialData)
     alert('🔁 Canvis restaurats')
   }
@@ -243,13 +287,13 @@ useEffect(() => {
 
       <DialogContent
         className="
-          w-full 
-          max-w-lg 
+          w-full
+          max-w-lg
 
           /* 📱 Mòbil: modal fullscreen vertical */
           h-[92dvh]
           max-h-[92dvh]
-          overflow-y-auto 
+          overflow-y-auto
           rounded-none
           pt-10
 
@@ -267,19 +311,31 @@ useEffect(() => {
           </DialogTitle>
         </DialogHeader>
 
-               <div className="space-y-3 text-sm text-gray-700">
+        <div className="space-y-3 text-sm text-gray-700">
           {/* Etapa */}
           <div>
             <label className="block text-xs text-gray-500 mb-1">Etapa</label>
             <span>{deal.StageGroup || '—'}</span>
           </div>
 
+          {/* 📝 Observacions Zoho */}
+          {ObservacionsZoho && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
+              <label className="block text-xs font-medium text-yellow-800 mb-1">
+                Observacions (Zoho)
+              </label>
+              <p className="text-sm text-yellow-900 whitespace-pre-wrap">
+                {ObservacionsZoho}
+              </p>
+            </div>
+          )}
+
           {/* Línia de negoci */}
           <div>
             <label className="block text-xs text-gray-500 mb-1">
               Línia de negoci
             </label>
-            {isManual ? (
+            {isManual && !readonly ? (
               <select
                 value={editData.LN}
                 onChange={(e) => handleChange('LN', e.target.value)}
@@ -293,14 +349,14 @@ useEffect(() => {
                 <option value="Altres">Altres</option>
               </select>
             ) : (
-              <p>{deal.LN || '—'}</p>
+              <p>{get(deal, 'LN', 'ln') || editData.LN || '—'}</p>
             )}
           </div>
 
           {/* Nom */}
           <div>
             <label className="block text-xs text-gray-500 mb-1">Nom</label>
-            {isManual ? (
+            {isManual && !readonly ? (
               <Input
                 value={editData.NomEvent}
                 onChange={(e) => handleChange('NomEvent', e.target.value)}
@@ -311,7 +367,7 @@ useEffect(() => {
           </div>
 
           {/* Codi */}
-          {(isZohoVerd || isManual) ? (
+          {(isZohoVerd || isManual) && !readonly ? (
             <div>
               <label className="block text-xs text-gray-500 mb-1">Codi</label>
               <Input
@@ -332,7 +388,7 @@ useEffect(() => {
           {/* Data inici */}
           <div>
             <label className="block text-xs text-gray-500 mb-1">Data</label>
-            {isManual ? (
+            {isManual && !readonly ? (
               <Input
                 type="date"
                 value={editData.DataInici}
@@ -355,10 +411,8 @@ useEffect(() => {
 
           {/* Ubicació */}
           <div>
-            <label className="block text-xs text-gray-500 mb-1">
-              Ubicació
-            </label>
-            {isManual ? (
+            <label className="block text-xs text-gray-500 mb-1">Ubicació</label>
+            {isManual && !readonly ? (
               <SearchFincaInput
                 value={editData.Ubicacio}
                 onChange={(val) => {
@@ -376,7 +430,7 @@ useEffect(() => {
             <label className="block text-xs text-gray-500 mb-1">
               Tipus de Servei
             </label>
-            {isManual ? (
+            {isManual && !readonly ? (
               <SearchServeiInput
                 value={editData.Servei}
                 onChange={(val) => handleChange('Servei', val)}
@@ -391,11 +445,11 @@ useEffect(() => {
             <label className="block text-xs text-gray-500 mb-1">
               Nombre de Pax
             </label>
-            {isManual ? (
+            {isManual && !readonly ? (
               <div className="relative">
                 <Input
                   type="number"
-                  value={editData.NumPax}
+                  value={editData.NumPax as any}
                   onChange={(e) => handleChange('NumPax', e.target.value)}
                   className="pr-12"
                 />
@@ -404,23 +458,17 @@ useEffect(() => {
                 </span>
               </div>
             ) : (
-              <p>
-                {editData.NumPax ? `${editData.NumPax} Pax` : '—'}
-              </p>
+              <p>{paxDisplay !== '' ? `${paxDisplay} Pax` : '—'}</p>
             )}
           </div>
 
           {/* Comercial */}
           <div>
-            <label className="block text-xs text-gray-500 mb-1">
-              Comercial
-            </label>
-            {isManual ? (
+            <label className="block text-xs text-gray-500 mb-1">Comercial</label>
+            {isManual && !readonly ? (
               <Input
                 value={editData.Comercial}
-                onChange={(e) =>
-                  handleChange('Comercial', e.target.value)
-                }
+                onChange={(e) => handleChange('Comercial', e.target.value)}
               />
             ) : (
               <p>{editData.Comercial || '—'}</p>
@@ -428,7 +476,7 @@ useEffect(() => {
           </div>
 
           {/* 📎 Adjuntar fitxer des de SharePoint */}
-          {(isZohoVerd || isManual) && (
+          {canEdit && (
             <div className="pt-3 border-t mt-4 space-y-3">
               <label className="block text-xs text-gray-500 mb-2">
                 📎 Documents de l’esdeveniment (SharePoint)
@@ -439,6 +487,7 @@ useEffect(() => {
                   collection={COLLECTION}
                   docId={deal.id}
                   onAdded={(att) => {
+                    // mantenim el comportament actual (crea fileN seqüencial)
                     setFiles((prev) => [
                       ...prev,
                       { key: `file${prev.length + 1}`, url: att.url },
@@ -469,19 +518,19 @@ useEffect(() => {
                       className="text-blue-600 hover:underline flex-1 break-all flex items-center gap-1"
                     >
                       <ExternalLink className="w-4 h-4 shrink-0" />
-                      {decodeURIComponent(
-                        url.split('/').pop() || url
-                      )}
+                      {decodeURIComponent(url.split('/').pop() || url)}
                     </a>
 
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="text-red-500 text-xs shrink-0"
-                      onClick={() => handleDeleteFile(key)}
-                    >
-                      🗑️
-                    </Button>
+                    {canEdit && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-red-500 text-xs shrink-0"
+                        onClick={() => handleDeleteFile(key)}
+                      >
+                        🗑️
+                      </Button>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -491,27 +540,29 @@ useEffect(() => {
 
         {/* Botons d’acció */}
         <DialogFooter className="mt-4 flex flex-col gap-2">
-          {(isZohoVerd || isManual) && (
+          {canEdit && (
             <>
               <Button onClick={handleSave} className="w-full">
                 💾 Desa canvis
               </Button>
-              <Button
-                onClick={handleRestore}
-                variant="outline"
-                className="w-full"
-              >
+              <Button onClick={handleRestore} variant="outline" className="w-full">
                 🔄 Restaurar
+              </Button>
+              <Button
+                onClick={handleDeleteEvent}
+                variant="default"
+                className="bg-red-600 hover:bg-red-700 text-white w-full"
+              >
+                🗑️ Eliminar esdeveniment
               </Button>
             </>
           )}
-          <Button
-            onClick={handleDeleteEvent}
-            variant="default"
-            className="bg-red-600 hover:bg-red-700 text-white w-full"
-          >
-            🗑️ Eliminar esdeveniment
-          </Button>
+
+          {!canEdit && (
+            <Button variant="outline" className="w-full" onClick={() => setOpen(false)}>
+              Tancar
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

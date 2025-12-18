@@ -16,11 +16,12 @@ export default function CalendarLegend() {
   ]
 
   // Etapes (etiqueta visible → clau a COLORS_STAGE)
-  const stageItems: { label: string; key: string }[] = [
-    { label: 'Prereserva / Calentet', key: 'prereserva' },
-    { label: 'Proposta / Pendent signar', key: 'pendent' },
-    { label: 'Confirmat / Cerrada ganada', key: 'confirmat' },
-  ]
+const stageItems: { label: string; key: string }[] = [
+  { label: 'Prereserva / Calentet', key: 'prereserva' },          // 🟠 taronja
+  { label: 'Pressupost / Proposta / Pendent', key: 'pendent' },  // 🟡 groc
+  { label: 'Confirmat / Cerrada ganada', key: 'confirmat' },     // 🟢 verd
+]
+
 
   return (
     <div className="w-full border border-gray-200 rounded-lg bg-white/70 backdrop-blur-sm shadow-sm px-3 py-2 flex flex-wrap items-center justify-between gap-2 text-[11px] text-gray-600">

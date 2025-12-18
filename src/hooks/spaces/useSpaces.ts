@@ -11,6 +11,8 @@ export function useSpaces(filters: SpacesFilterState & { baseDate: string }) {
   const [comercials, setComercials] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [lns, setLns] = useState<string[]>([])
+
 
   useEffect(() => {
     const fetchData = async () => {
@@ -25,6 +27,7 @@ export function useSpaces(filters: SpacesFilterState & { baseDate: string }) {
         if (filters.stage) params.append('stage', filters.stage)
         if (filters.finca) params.append('finca', filters.finca)
         if (filters.comercial) params.append('comercial', filters.comercial)
+        if (filters.ln) params.append('ln', filters.ln)  
         if (filters.baseDate) params.append('baseDate', filters.baseDate)
 
         const res = await fetch(`/api/spaces?${params.toString()}`)
@@ -82,6 +85,33 @@ export function useSpaces(filters: SpacesFilterState & { baseDate: string }) {
             a.localeCompare(b, 'ca', { sensitivity: 'base' })
           )
         )
+
+        // ---------------------------
+// 🟨 Build LN list
+// ---------------------------
+const lnSet = new Set<string>()
+
+rows.forEach((row) => {
+  const dies = Array.isArray(row.dies) ? row.dies : []
+
+  dies.forEach((day) => {
+    const events = Array.isArray(day?.events) ? day.events : []
+
+    events.forEach((ev) => {
+      const ln = ev?.LN ?? ev?.ln
+      if (typeof ln === 'string' && ln.trim() !== '') {
+        lnSet.add(ln.trim())
+      }
+    })
+  })
+})
+
+setLns(
+  Array.from(lnSet).sort((a, b) =>
+    a.localeCompare(b, 'ca', { sensitivity: 'base' })
+  )
+)
+
       } catch (err: any) {
         console.error('Error carregant espais:', err)
         setError('No s’han pogut carregar les dades')
@@ -89,6 +119,8 @@ export function useSpaces(filters: SpacesFilterState & { baseDate: string }) {
         setTotals([])
         setFincas([])
         setComercials([])
+        setLns([])
+
       } finally {
         setLoading(false)
       }
@@ -105,5 +137,6 @@ export function useSpaces(filters: SpacesFilterState & { baseDate: string }) {
     comercials,
     loading,
     error,
+    lns,
   }
 }

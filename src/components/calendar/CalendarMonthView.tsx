@@ -13,7 +13,7 @@ function dotColorByCollection(collection?: string) {
   const c = (collection || '').toLowerCase()
   if (c.includes('verd')) return 'bg-green-500'
   if (c.includes('taronja')) return 'bg-amber-500'
-  if (c.includes('blau')) return 'bg-blue-500'
+  if (c.includes('taronja')) return 'bg-blue-500'
   return 'bg-gray-300'
 }
 

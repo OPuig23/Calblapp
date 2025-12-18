@@ -10,7 +10,7 @@ import type { Deal } from '@/hooks/useCalendarData'
 
 /* =======================================================
    🔵 PUNT COMBINAT (OPCIÓ B)
-   1) StageGroup (confirmat/taronja/blau)
+   1) StageGroup (confirmat/taronja/taronja)
    2) Si no n'hi ha → color per col·lecció
    ======================================================= */
 function dotColor(ev: Deal): string {
@@ -18,13 +18,13 @@ function dotColor(ev: Deal): string {
 
   if (s.includes('confirmat') || s.includes('ganada')) return 'bg-green-500'   // verd
   if (s.includes('proposta') || s.includes('pendent')) return 'bg-amber-500'  // taronja
-  if (s.includes('prereserva') || s.includes('calent')) return 'bg-blue-500'  // blau
+  if (s.includes('prereserva') || s.includes('calent')) return 'bg-blue-500'  // taronja
 
   // Si StageGroup no existeix → mirem la col·lecció
   const c = (ev.collection || '').toLowerCase()
   if (c.includes('verd')) return 'bg-green-500'
   if (c.includes('taronja')) return 'bg-amber-500'
-  if (c.includes('blau')) return 'bg-blue-500'
+  if (c.includes('taronja')) return 'bg-blue-500'
 
   return 'bg-gray-300'
 }
@@ -74,12 +74,12 @@ export default function CalendarWeekView({
     })
 
     // 🔄 Ordenació per etapa
-    const order = { verd: 1, taronja: 2, blau: 3 }
+    const order = { verd: 1, taronja: 2, taronja: 3 }
     const normalize = (stage?: string) => {
       const s = stage?.toLowerCase() || ''
       if (s.includes('confirmat') || s.includes('ganada')) return 'verd'
       if (s.includes('proposta') || s.includes('pendent')) return 'taronja'
-      return 'blau'
+      return 'taronja'
     }
 
     Object.keys(byDay).forEach((k) => {

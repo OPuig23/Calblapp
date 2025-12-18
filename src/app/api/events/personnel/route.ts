@@ -55,9 +55,9 @@ export async function GET(req: NextRequest) {
 
     /* ────────────────────────────────────────────────
        1) BUSCAR L’ESDEVENIMENT A FIRESTORE (3 col·leccions)
-       stage_verd / stage_taronja / stage_blau
+       stage_verd / stage_taronja / stage_taronja
     ──────────────────────────────────────────────── */
-    const eventCollections = ['stage_verd', 'stage_taronja', 'stage_blau']
+    const eventCollections = ['stage_verd', 'stage_taronja', 'stage_taronja']
 
     let eventData: any = null
     for (const coll of eventCollections) {

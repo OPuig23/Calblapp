@@ -8,7 +8,7 @@ export const runtime = 'nodejs'
 export async function GET() {
   try {
     // 🔹 Col·leccions que contenen esdeveniments
-    const collections = ['stage_blau', 'stage_taronja', 'stage_verd'] as const
+    const collections = ['stage_taronja', 'stage_taronja', 'stage_verd'] as const
     const results: any[] = []
 
     // 🔁 Recorre totes les col·leccions
@@ -30,7 +30,7 @@ export async function GET() {
 
   // 🧠 Determina StageGroup segons col·lecció
   const StageGroup =
-    name === 'stage_blau'
+    name === 'stage_taronja'
       ? 'Prereserva'
       : name === 'stage_taronja'
       ? 'Proposta'

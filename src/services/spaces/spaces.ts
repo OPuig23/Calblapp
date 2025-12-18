@@ -53,13 +53,14 @@ interface RawEvent {
   date: string
   dateEnd?: string
   ln?: string
-  stage: 'verd' | 'taronja' | 'blau' | 'lila'
+  stage: 'verd' | 'taronja' | 'groc'
   eventName: string
   commercial: string
   numPax: number
   startTime?: string
   code?: string
   service?: string
+  observacions?: string 
 }
 
 interface EventOut extends RawEvent {
@@ -109,8 +110,10 @@ export async function getSpacesByWeek(
   fincaFilter: string = '',
   comercialFilter: string = '',
   baseDate?: string,
-  stage: string = 'all'
-): Promise<SpacesResult> {
+  stage: string = 'all',
+  lnFilter: string = ''
+)
+: Promise<SpacesResult> {
   try {
     // 1️⃣ Calcula rang de setmana
     const base = baseDate ? new Date(baseDate) : new Date(year, month)
@@ -120,9 +123,26 @@ export async function getSpacesByWeek(
     const endStr = format(endRange, 'yyyy-MM-dd')
 
     // 2️⃣ Determina col·leccions a llegir
-    let collections = ['stage_verd', 'stage_taronja', 'stage_blau', 'stage_lila']
-    if (stage === 'verd') collections = ['stage_verd']
-    else if (stage === 'taronja') collections = ['stage_taronja', 'stage_blau']
+let collections: string[] = []
+
+switch (stage) {
+  case 'confirmat':      // UI → Confirmats
+    collections = ['stage_verd']
+    break
+
+  case 'pressupost':     // UI → Pressupost enviat
+    collections = ['stage_groc']
+    break
+
+  case 'calentet':       // UI → Prereserva / Calentet
+    collections = ['stage_taronja']
+    break
+
+  default:
+    collections = ['stage_verd', 'stage_taronja', 'stage_groc']
+}
+
+
 
     console.log('🔍 START getSpacesByWeek', { startStr, endStr, collections })
 
@@ -161,6 +181,14 @@ finquesSnap.forEach(doc => {
         const id = doc.id
         let start = d.DataInici
         let endRaw = d.DataFinal || d.DataFi || d.DataInici
+        const observacions = normalizeText(
+  d.ObservacionsZoho ||
+  d.observacionsZoho ||
+  d.Observacions ||
+  d.observacions ||
+  ''
+)
+
 
         if (start?.toDate) start = start.toDate()
         else if (typeof start === 'string') start = new Date(start)
@@ -188,13 +216,20 @@ finquesSnap.forEach(doc => {
         const service = normalizeText(d.Servei || d.service || '')
         const code = d.code ? normalizeText(d.code) : (d.Code ? normalizeText(d.Code) : '')
 
-        // Filtres
-        if (
-          (fincaFilter && !finca.toLowerCase().includes(fincaFilter.toLowerCase())) ||
-          (comercialFilter && !commercial.toLowerCase().includes(comercialFilter.toLowerCase())) ||
-          (stage && stage !== 'all' && stageActual !== stage)
-        )
-          return
+// Filtres
+if (
+  (fincaFilter &&
+    !finca.toLowerCase().includes(fincaFilter.toLowerCase())) ||
+
+  (comercialFilter &&
+    !commercial.toLowerCase().includes(comercialFilter.toLowerCase())) ||
+
+  (lnFilter &&
+    !ln.toLowerCase().includes(lnFilter.toLowerCase()))
+)
+  return
+
+
 
         rawEvents.push({
           id,
@@ -209,6 +244,7 @@ finquesSnap.forEach(doc => {
           startTime,
           code,
           service,
+          observacions,
         })
       })
     }
@@ -293,7 +329,7 @@ finquesSnap.forEach(doc => {
           totalPaxPerDia[i] += e.numPax || 0
         }
 
-        const order: Record<string, number> = { verd: 0, blau: 1, taronja: 2, lila: 3 }
+        const order: Record<string, number> = { verd: 0, taronja: 1, groc: 2 }
         eventsOut.sort((a, b) => order[a.stage] - order[b.stage])
         dies[i].events = eventsOut
       }
@@ -321,5 +357,4 @@ result.push({
 // ──────────────────────────────────────────────────────────────
 // EXPORTS PÚBLICS DE TIPUS (per components React)
 // ──────────────────────────────────────────────────────────────
-export type Stage = 'verd' | 'taronja' | 'blau' | 'lila'
-export type { SpaceRow }
+export type Stage = 'verd' | 'taronja' | 'groc'

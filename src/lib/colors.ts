@@ -2,50 +2,72 @@
 
 /**
  * 🎨 Colors corporatius Cal Blay
- * Centralitza tots els colors per LN (línia de negoci) i per etapa (StageGroup)
- * per garantir coherència visual entre mòduls.
+ * Paleta unificada i coherent per a:
+ * - Calendari
+ * - Mòdul Espais
+ * - Cards i punts d’estat
+ *
+ * Criteri únic de STAGE:
+ * - confirmat   → 🟢 verd
+ * - calentet    → 🟠 taronja
+ * - pressupost  → 🟡 groc
  */
 
 // ───────────────────────────────────────────────
-// Paleta base per estats visuals generals
+// 🎯 STAGE_COLORS
+// (targetes, espais, compatibilitat legacy)
 // ───────────────────────────────────────────────
 export const STAGE_COLORS: Record<string, string> = {
-  verd: 'bg-green-200 text-green-900',
-  blau: 'bg-blue-200 text-blue-900',
-  taronja: 'bg-orange-200 text-orange-900',
-  lila: 'bg-purple-300 text-purple-900',
+  // 🟢 Confirmat
+  verd: 'bg-emerald-50 text-emerald-800 border border-emerald-200',
+
+  // 🟠 Calentet / Prereserva
+  taronja: 'bg-orange-50 text-orange-800 border border-orange-200',
+
+  // 🟡 Pressupost enviat
+  groc: 'bg-yellow-50 text-yellow-800 border border-yellow-200',
+
+  // 🟣 Residual / proves
+  lila: 'bg-violet-50 text-violet-800 border border-violet-200',
 }
 
 // ───────────────────────────────────────────────
-// Línies de Negoci (LN)
+// 🏷️ COLORS PER LÍNIA DE NEGOCI (LN)
 // ───────────────────────────────────────────────
 export const COLORS_LN: Record<string, string> = {
-  empresa: 'bg-blue-100 border border-blue-300 text-blue-700',
-  casaments:  'bg-pink-100 border border-pink-300 text-pink-700',
-  'grups restaurants': 'bg-yellow-100 border border-yellow-300 text-yellow-700',
-  Foodlovers: 'bg-green-100 border border-green-300 text-green-700',
-  foodlovers: 'bg-green-100 border border-green-300 text-green-700',
-  agenda: 'bg-orange-100 border border-orange-300 text-orange-700',
-  altres: 'bg-gray-100 border border-gray-300 text-gray-700',
-  'Prova de Menu': 'bg-violet-100 border border-violet-300 text-violet-700',
-  'Prova de menu': 'bg-violet-100 border border-violet-300 text-violet-700',
-  PM: 'bg-violet-100 border border-violet-300 text-violet-700',
+  empresa: 'bg-blue-50 border border-blue-200 text-blue-800',
+  casaments: 'bg-pink-50 border border-pink-200 text-pink-800',
+  'grups restaurants': 'bg-amber-50 border border-amber-200 text-amber-800',
+  foodlovers: 'bg-emerald-50 border border-emerald-200 text-emerald-800',
+  agenda: 'bg-orange-50 border border-orange-200 text-orange-800',
+  altres: 'bg-gray-50 border border-gray-200 text-gray-700',
+
+  // Variants
+  'prova de menu': 'bg-violet-50 border border-violet-200 text-violet-800',
+  pm: 'bg-violet-50 border border-violet-200 text-violet-800',
 }
 
 // ───────────────────────────────────────────────
-// Etapes (StageGroup)
+// 🟢🟠🟡 COLORS_STAGE
+// (punts del calendari, indicadors simples)
 // ───────────────────────────────────────────────
 export const COLORS_STAGE: Record<string, string> = {
-  confirmat: 'bg-green-500',
-  guanyat: 'bg-green-500',
-  proposta: 'bg-orange-400',
-  pendent: 'bg-orange-400',
-  prereserva: 'bg-blue-400',
-  calentet: 'bg-blue-400',
+  // Confirmat
+  confirmat: 'bg-emerald-200',
+  guanyat: 'bg-emerald-200',
+
+  // Calentet / prereserva
+  calentet: 'bg-orange-200',
+  prereserva: 'bg-orange-200',
+
+  // Pressupost
+  pressupost: 'bg-yellow-200',
+  proposta: 'bg-yellow-200',
+  pendent: 'bg-yellow-200',
 }
 
 // ───────────────────────────────────────────────
-// Helpers reutilitzables
+// 🔧 HELPERS
 // ───────────────────────────────────────────────
 export const colorByLN = (lnRaw?: string): string => {
   const ln = (lnRaw || '').trim().toLowerCase()
@@ -54,8 +76,26 @@ export const colorByLN = (lnRaw?: string): string => {
 
 export const colorByStage = (stage?: string): string => {
   const s = (stage || '').trim().toLowerCase()
-  if (s.includes('confirmat') || s.includes('ganada')) return COLORS_STAGE['confirmat']
-  if (s.includes('proposta') || s.includes('pendent')) return COLORS_STAGE['pendent']
-  if (s.includes('prereserva') || s.includes('calentet')) return COLORS_STAGE['calentet']
+
+  // 🔒 Valors interns normalitzats
+  if (s === 'verd') return COLORS_STAGE.confirmat
+  if (s === 'taronja') return COLORS_STAGE.calentet
+  if (s === 'groc') return COLORS_STAGE.pressupost
+
+  // 🔹 Textos reals (Zoho / Firestore)
+  if (s.includes('confirmat') || s.includes('guanyat'))
+    return COLORS_STAGE.confirmat
+
+  if (s.includes('calentet') || s.includes('prereserva'))
+    return COLORS_STAGE.calentet
+
+  if (
+    s.includes('pressupost') ||
+    s.includes('proposta') ||
+    s.includes('pendent')
+  )
+    return COLORS_STAGE.pressupost
+
+  // Fallback neutre (no hauria de passar)
   return 'bg-gray-300'
 }

@@ -1,6 +1,7 @@
+// file: src/components/spaces/SpaceCell.tsx
 'use client'
 
-import { STAGE_COLORS } from '@/lib/colors'
+import { colorByStage } from '@/lib/colors'
 import type { Stage } from '@/services/spaces/spaces'
 import { AlertTriangle } from 'lucide-react'
 
@@ -24,81 +25,105 @@ interface SpaceCellProps {
 
 /**
  * 🔹 SpaceCell
- * Targeta individual d’esdeveniment dins la graella setmanal d’Espais.
- * - Pinta color segons stage (verd, blau, taronja, lila)
- * - Si hi ha warning → mostra triangle vermell ⚠️
- * - Si està descartat → color vermell i text reforçat
- * - Mobile-first, accessible i amb tooltip complet
+ * Targeta d’esdeveniment dins la graella setmanal d’Espais.
+ *
+ * Disseny:
+ * - Colors suaus, zero fatiga visual
+ * - Text fosc (mai blanc)
+ * - Mobile-first, lectura ràpida
+ * - Totalment alineat amb Calendar (StageDot)
  */
 export default function SpaceCell({ event }: SpaceCellProps) {
-  // 🔸 Normalitza camps
+  /* ──────────────────────────────
+     Normalització de dades
+     ────────────────────────────── */
   const eventName = event.eventName || event.NomEvent || ''
   const commercial = event.commercial || event.Comercial || ''
   const numPax = event.numPax ?? event.NumPax ?? 0
   const stage = event.stage || event.Stage || 'verd'
 
-  // 🔸 Estat visual
   const isDiscarded = event.discarded ?? false
   const hasWarning = event.warning ?? false
   const reason = event.reason ?? ''
 
-  // 🔸 Colors base
+  /* ──────────────────────────────
+     Colors i estats visuals
+     ────────────────────────────── */
   const baseColor = isDiscarded
-    ? 'bg-red-100 text-red-700 border border-red-300'
-    : STAGE_COLORS[stage] || 'bg-gray-50 text-gray-700'
+    ? 'bg-red-50 text-red-800 border border-red-200'
+    : `${colorByStage(stage)} text-gray-800 border border-black/5`
 
-  // 🔸 Texts
+  /* ──────────────────────────────
+     Textos i tooltip
+     ────────────────────────────── */
   const shortEvent =
-    eventName.length > 25 ? `${eventName.slice(0, 25).trim()}…` : eventName
-  const titleText = [eventName, commercial, numPax ? `${numPax} pax` : '']
+    eventName.length > 26 ? `${eventName.slice(0, 26).trim()}…` : eventName
+
+  const tooltip = [
+    eventName,
+    commercial,
+    numPax ? `${numPax} pax` : '',
+    hasWarning && reason ? `⚠️ ${reason}` : '',
+  ]
     .filter(Boolean)
     .join(' · ')
-  const tooltip = reason
-    ? `${titleText} ⚠️ ${reason}`
-    : titleText || 'Esdeveniment sense nom'
 
-  // 🔸 Render
+  /* ──────────────────────────────
+     Render
+     ────────────────────────────── */
   return (
     <div
-      className={`rounded-md px-2 py-[4px] min-h-9 flex flex-col justify-center text-[11px] text-center sm:text-left ${baseColor} cursor-pointer shadow-sm hover:shadow transition`}
-      title={tooltip}
+      className={`
+        rounded-md
+        px-2 py-1
+        min-h-[38px]
+        flex flex-col justify-center
+        text-[11px]
+        ${baseColor}
+        cursor-pointer
+        shadow-sm
+        hover:shadow
+        transition
+      `}
+      title={tooltip || 'Esdeveniment'}
     >
-      {/* ─── Nom + Avís ─── */}
+      {/* Nom de l’esdeveniment */}
       {shortEvent && (
-        <span
-          className={`font-medium truncate flex items-center justify-center sm:justify-start gap-1 ${
-            isDiscarded ? 'text-red-800 font-semibold' : ''
-          }`}
-        >
-        {shortEvent}
-{hasWarning && (
-<AlertTriangle
+        <div className="flex items-center justify-center sm:justify-start gap-1 leading-tight">
+          <span
+            className={`font-semibold truncate ${
+              isDiscarded ? 'text-red-800' : 'text-inherit'
+            }`}
+          >
+            {shortEvent}
+          </span>
+
+          {hasWarning && (
+           <AlertTriangle
   className="w-3 h-3 text-red-600 shrink-0"
   {...({ title: reason || 'Possible conflicte' } as React.SVGProps<SVGSVGElement>)}
 />
 
-
-)}
-
-        </span>
+          )}
+        </div>
       )}
 
-      {/* ─── Comercial ─── */}
+      {/* Comercial */}
       {commercial && (
         <span
-          className={`text-[10px] truncate ${
-            isDiscarded ? 'text-red-700' : 'opacity-80'
+          className={`text-[10px] truncate opacity-70 ${
+            isDiscarded ? 'text-red-700' : ''
           }`}
         >
           {commercial}
         </span>
       )}
 
-      {/* ─── Num. Pax ─── */}
+      {/* PAX */}
       {numPax > 0 && (
         <span
-          className={`text-[10px] font-semibold ${
-            isDiscarded ? 'text-red-700' : 'text-gray-700'
+          className={`text-[10px] font-medium opacity-80 ${
+            isDiscarded ? 'text-red-700' : ''
           }`}
         >
           {numPax} pax

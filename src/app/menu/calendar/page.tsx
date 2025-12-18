@@ -1,7 +1,6 @@
-//file: src/app/menu/calendar/page.tsx
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import {
   RefreshCw,
   CalendarDays,
@@ -46,6 +45,7 @@ type CalendarViewState = {
   end: string
 }
 
+const STORAGE_KEY = 'calblay.calendar.filters.v1'
 const toIso = (d: Date) => format(d, 'yyyy-MM-dd')
 
 /* ────────────────────────────────────────────── */
@@ -53,26 +53,60 @@ const toIso = (d: Date) => format(d, 'yyyy-MM-dd')
 /* ────────────────────────────────────────────── */
 const makeInitialState = (): CalendarViewState => {
   const today = new Date()
-  return {
+
+  const base: CalendarViewState = {
     mode: 'month',
-    ln: 'Tots',
-    stage: 'Tots',
-    commercial: 'Tots',
+    ln: 'all',
+    stage: 'all',
+    commercial: 'all',
     start: toIso(startOfMonth(today)),
     end: toIso(endOfMonth(today)),
+  }
+
+  if (typeof window === 'undefined') return base
+
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return base
+    const saved = JSON.parse(raw)
+    return {
+      ...base,
+      ln: saved?.ln || 'all',
+      stage: saved?.stage || 'all',
+    }
+  } catch {
+    return base
   }
 }
 
 /* ────────────────────────────────────────────── */
-/* COMPONENT PAGE */
+/* COMPONENT */
 /* ────────────────────────────────────────────── */
-
 export default function CalendarPage() {
-  const [state, setState] = useState<CalendarViewState>(() => makeInitialState())
+  const [state, setState] = useState<CalendarViewState>(makeInitialState)
   const { ln, stage, commercial, start, end, mode } = state
+/* 🔒 Quan canvia la LN, tanquem el panell de filtres */
+useEffect(() => {
+  openFiltersPanel(false)
+}, [ln])
 
-  /* Dades del calendari */
-  const { deals, loading, error, reload } = useCalendarData({
+  /* Persistència LN + Stage */
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ ln, stage })
+      )
+    } catch {}
+  }, [ln, stage])
+
+  /* Dades calendari (finals) */
+  const {
+    deals,
+    loading,
+    error,
+    reload,
+  } = useCalendarData({
     ln,
     stage,
     commercial,
@@ -80,27 +114,100 @@ export default function CalendarPage() {
     end,
   })
 
-  /* Llista única de comercials */
+  /* Dades per calcular filtres (sense commercial) */
+  const { deals: dealsForFilters } = useCalendarData({
+    ln,
+    stage,
+    commercial: 'all',
+    start,
+    end,
+  })
+
+  /* Comercials disponibles */
   const comercialOptions = Array.from(
     new Set(
-      deals
+      dealsForFilters
         .map((d) => d.Comercial)
         .filter((x) => x && x.trim() !== '')
         .map((x) => x.trim())
     )
   ).sort()
 
+  /* Netejar comercial si deixa de ser vàlid */
+  useEffect(() => {
+    if (
+      commercial !== 'all' &&
+      !comercialOptions.includes(commercial)
+    ) {
+      setState((prev) => ({
+        ...prev,
+        commercial: 'all',
+      }))
+    }
+  }, [ln, start, end, comercialOptions])
+
   /* Sessió */
   const { data: session } = useSession()
   const role = String(session?.user?.role || '').toLowerCase()
 
-  /* Estats visuals */
+  /* UI */
   const [syncing, setSyncing] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const [showLegend, setShowLegend] = useState(false)
 
-  /* Slideover global */
   const { setOpen: openFiltersPanel, setContent } = useFilters()
+
+  /* Render filtres (únic punt) */
+  const renderFilters = useCallback(() => (
+    <CalendarFilters
+      ln={ln}
+      stage={stage}
+      commercial={commercial}
+      comercialOptions={comercialOptions}
+      onChange={(f) =>
+        setState((prev) => ({
+          ...prev,
+          ...f,
+        }))
+      }
+      onReset={() =>
+        setState((prev) => ({
+          ...prev,
+          ln: 'all',
+          stage: 'all',
+          commercial: 'all',
+        }))
+      }
+    />
+  ), [ln, stage, commercial, comercialOptions])
+
+  /* Obrir filtres */
+ const openFilters = () => {
+  setContent(
+    <CalendarFilters
+      ln={ln}
+      stage={stage}
+      commercial={commercial}
+      comercialOptions={comercialOptions}
+      onChange={(f) =>
+        setState((prev) => ({
+          ...prev,
+          ...f,
+        }))
+      }
+      onReset={() =>
+        setState((prev) => ({
+          ...prev,
+          ln: 'all',
+          stage: 'all',
+          commercial: 'all',
+        }))
+      }
+    />
+  )
+  openFiltersPanel(true)
+}
+
 
   /* Detectar mobile */
   useEffect(() => {
@@ -126,39 +233,7 @@ export default function CalendarPage() {
     }
   }
 
-  /* ────────────────────────────────────────────── */
-  /* OBRIR PANEL DE FILTRES */
-  /* ────────────────────────────────────────────── */
-
-  const openFilters = () => {
-    setContent(
-      <CalendarFilters
-        ln={ln}
-        stage={stage}
-        commercial={commercial}
-        comercialOptions={comercialOptions}
-        onChange={(f) =>
-          setState((prev) => ({
-            ...prev,
-            ...f,
-          }))
-        }
-        onReset={() =>
-          setState((prev) => ({
-            ...prev,
-            ln: 'Tots',
-            stage: 'Tots',
-            commercial: 'Tots',
-          }))
-        }
-      />
-    )
-    openFiltersPanel(true)
-  }
-
-  /* ────────────────────────────────────────────── */
-  /* SELECTOR MES */
-  /* ────────────────────────────────────────────── */
+  /* Navegació dates */
   const monthAnchor = parseISO(start)
   const monthLabel = monthAnchor.toLocaleDateString('ca-ES', {
     month: 'long',
@@ -176,12 +251,8 @@ export default function CalendarPage() {
     }))
   }
 
-  /* ────────────────────────────────────────────── */
-  /* SELECTOR SETMANA */
-  /* ────────────────────────────────────────────── */
-  const weekAnchor = parseISO(start)
   const goToWeek = (delta: number) => {
-    const shifted = addDays(weekAnchor, delta * 7)
+    const shifted = addDays(parseISO(start), delta * 7)
     setState((prev) => ({
       ...prev,
       mode: 'week',
@@ -198,10 +269,6 @@ export default function CalendarPage() {
       day: 'numeric',
       month: 'short',
     })}`
-
-  /* ────────────────────────────────────────────── */
-  /* CANVI INSTANTANI DE MODE (PILLS) */
-  /* ────────────────────────────────────────────── */
 
   const switchToMonth = () => {
     const base = parseISO(start)
@@ -226,18 +293,16 @@ export default function CalendarPage() {
   /* ────────────────────────────────────────────── */
   /* RENDER */
   /* ────────────────────────────────────────────── */
-
   return (
     <div className="relative w-full">
-
       {/* CAPÇALERA */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mt-2 mb-3">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 text-blue-700">
             <CalendarDays size={18} />
           </div>
-          <div className="flex flex-col">
-            <h1 className="text-lg sm:text-xl font-semibold leading-tight">
+          <div>
+            <h1 className="text-lg sm:text-xl font-semibold">
               Calendari comercial
             </h1>
             <p className="text-xs text-gray-500 hidden sm:block">
@@ -248,7 +313,6 @@ export default function CalendarPage() {
 
         <div className="flex items-center gap-2">
           <FilterButton onClick={openFilters} />
-
           {!isMobile && role === 'admin' && (
             <Button
               variant="outline"
@@ -268,95 +332,54 @@ export default function CalendarPage() {
       </div>
 
       {/* LLEGENDA */}
-      <div className="mb-2 flex items-center justify-between">
-        <button
-          type="button"
-          onClick={() => setShowLegend((v) => !v)}
-          className="inline-flex items-center gap-1 text-xs sm:text-sm text-gray-600 hover:text-gray-800"
-        >
-          {showLegend ? (
-            <>Amagar llegenda <ChevronUp className="h-4 w-4" /></>
-          ) : (
-            <>Mostrar llegenda <ChevronDown className="h-4 w-4" /></>
-          )}
-        </button>
-      </div>
-
-      {showLegend && (
-        <div className="mb-3">
-          <Legend />
-        </div>
-      )}
-
-      {/* PILLS + SELECTOR */}
-      <div className="mb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-
-        {/* Pills */}
-        <div className="flex justify-start">
-          <div className="inline-flex items-center rounded-full bg-gray-100 p-1">
-            <button
-              type="button"
-              onClick={switchToMonth}
-              className={`px-3 py-1.5 text-xs sm:text-sm rounded-full transition ${
-                mode === 'month'
-                  ? 'bg-white shadow-sm text-gray-900'
-                  : 'text-gray-500 hover:text-gray-800'
-              }`}
-            >
-              Mes
-            </button>
-            <button
-              type="button"
-              onClick={switchToWeek}
-              className={`px-3 py-1.5 text-xs sm:text-sm rounded-full transition ${
-                mode === 'week'
-                  ? 'bg-white shadow-sm text-gray-900'
-                  : 'text-gray-500 hover:text-gray-800'
-              }`}
-            >
-              Setmana
-            </button>
-          </div>
-        </div>
-
-        {/* Selector Mes */}
-        {mode === 'month' && (
-          <div className="flex items-center gap-2 text-sm text-gray-700">
-            <Button size="icon" variant="ghost" onClick={() => goToMonth(-1)}>‹</Button>
-            <span className="min-w-[140px] text-center capitalize">{monthLabel}</span>
-            <Button size="icon" variant="ghost" onClick={() => goToMonth(1)}>›</Button>
-          </div>
+      <button
+        onClick={() => setShowLegend((v) => !v)}
+        className="text-xs sm:text-sm text-gray-600 mb-2 flex items-center gap-1"
+      >
+        {showLegend ? (
+          <>Amagar llegenda <ChevronUp size={14} /></>
+        ) : (
+          <>Mostrar llegenda <ChevronDown size={14} /></>
         )}
+      </button>
 
-        {/* Selector Setmana */}
-        {mode === 'week' && (
-          <div className="flex items-center gap-2 text-sm text-gray-700">
-            <Button size="icon" variant="ghost" onClick={() => goToWeek(-1)}>‹</Button>
-            <span className="min-w-[140px] text-center">{weekLabel}</span>
-            <Button size="icon" variant="ghost" onClick={() => goToWeek(1)}>›</Button>
+      {showLegend && <Legend />}
+
+      {/* MODE */}
+      <div className="flex justify-between items-center mb-3">
+        <div className="inline-flex bg-gray-100 rounded-full p-1">
+          <button onClick={switchToMonth} className={`px-3 py-1 text-sm rounded-full ${mode === 'month' ? 'bg-white shadow' : ''}`}>Mes</button>
+          <button onClick={switchToWeek} className={`px-3 py-1 text-sm rounded-full ${mode === 'week' ? 'bg-white shadow' : ''}`}>Setmana</button>
+        </div>
+
+        {mode === 'month' ? (
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" onClick={() => goToMonth(-1)}>‹</Button>
+            <span className="capitalize">{monthLabel}</span>
+            <Button variant="ghost" size="icon" onClick={() => goToMonth(1)}>›</Button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" onClick={() => goToWeek(-1)}>‹</Button>
+            <span>{weekLabel}</span>
+            <Button variant="ghost" size="icon" onClick={() => goToWeek(1)}>›</Button>
           </div>
         )}
       </div>
 
       {/* CONTINGUT */}
-      <div>
-        {error && (
-          <div className="text-red-600 text-sm mb-2">{String(error)}</div>
-        )}
-        {loading && (
-          <div className="text-gray-500 text-sm mb-2">Carregant dades...</div>
-        )}
+      {error && <p className="text-red-600 text-sm">{error}</p>}
+      {loading && <p className="text-gray-500 text-sm">Carregant dades…</p>}
 
-        <div className="rounded-xl bg-white border shadow-sm overflow-hidden h-[calc(100dvh-260px)] sm:h-auto">
-          {mode === 'week' ? (
-            <CalendarWeekView deals={deals} start={start} end={end} onCreated={reload} />
-          ) : (
-            <CalendarMonthView deals={deals} start={start} end={end} onCreated={reload} />
-          )}
-        </div>
+      <div className="rounded-xl bg-white border shadow-sm overflow-hidden">
+        {mode === 'week' ? (
+          <CalendarWeekView deals={deals} start={start} end={end} onCreated={reload} />
+        ) : (
+          <CalendarMonthView deals={deals} start={start} end={end} onCreated={reload} />
+        )}
       </div>
 
-      {/* BOTÓ (+) */}
+      {/* ADD */}
       <CalendarNewEventModal
         date=""
         onSaved={reload}

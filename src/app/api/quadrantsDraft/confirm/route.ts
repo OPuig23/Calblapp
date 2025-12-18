@@ -192,20 +192,24 @@ export async function POST(req: NextRequest) {
       }))
 
       await createNotificationsForQuadrant(notifs)
+      // 🔔 PUSH només a conductors afectats
+for (const u of changed) {
+  const uid = await lookupUidByName(u.name)
+  if (!uid) continue
 
-      // 🔔 Enviament PUSH real
-      for (const uid of uids) {
-        await fetch(`${process.env.NEXTAUTH_URL}/api/push/send`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: uid,
-            title: 'Actualització de quadrant',
-            body: 'S’han modificat les teves tasques o horaris.',
-            url: `/quadrants/${eventId}`,
-          }),
-        })
-      }
+  await fetch(`${process.env.NEXTAUTH_URL}/api/push/send`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      userId: uid,
+      title: 'Transport assignat / modificat',
+      body: 'Revisa vehicle, horaris o matrícula assignats.',
+      url: `/menu/logistica/assignacions`,
+    }),
+  })
+}
+    
+      
     }
   }
 }

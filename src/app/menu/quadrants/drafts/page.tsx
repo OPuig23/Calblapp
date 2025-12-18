@@ -373,7 +373,7 @@ export default function DraftsPage() {
     q.status === 'confirmed'
       ? 'bg-green-500'       // Confirmat = Verd
       : q.status === 'draft'
-      ? 'bg-blue-500'        // Esborrany = Blau
+      ? 'bg-blue-500'        // Esborrany = taronja
       : 'bg-yellow-400'      // Pending = Groc
   }`}
 />

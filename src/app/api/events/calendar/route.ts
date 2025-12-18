@@ -1,4 +1,3 @@
-// ✅ file: src/app/api/events/calendar/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
 
@@ -15,7 +14,7 @@ export async function GET(req: NextRequest) {
     }
 
     // 🔹 Llegim totes les col·leccions del Firestore
-    const collections = ['stage_verd', 'stage_taronja', 'stage_blau']
+    const collections = ['stage_verd', 'stage_taronja']
     const base: Record<string, unknown>[] = []
 
     for (const coll of collections) {
@@ -24,68 +23,93 @@ export async function GET(req: NextRequest) {
 
       snap.forEach((doc) => {
         const d = doc.data() as FirebaseFirestore.DocumentData
-        console.log(`[${coll}] 🔹 Comercial:`, d.Comercial, '| Servei:', d.Servei, '| NumPax:', d.NumPax)
 
+        const startISO =
+          typeof d.DataInici === 'string'
+            ? `${d.DataInici}T12:00:00`
+            : null
 
-const startISO =
-  typeof d.DataInici === "string"
-    ? `${d.DataInici}T12:00:00`
-    : null;
+        const endISO =
+          typeof d.DataFi === 'string'
+            ? `${d.DataFi}T12:00:00`
+            : startISO
 
-const endISO =
-  typeof d.DataFi === "string"
-    ? `${d.DataFi}T12:00:00`
-    : startISO;
+        const rawSummary =
+          typeof d.NomEvent === 'string' ? d.NomEvent : '(Sense títol)'
 
-        const rawSummary = typeof d.NomEvent === 'string' ? d.NomEvent : '(Sense títol)'
         const summary = rawSummary.split('/')[0].trim()
+
         const location = (d.Ubicacio ?? '')
           .split('(')[0]
           .split('/')[0]
           .replace(/^ZZ\s*/i, '')
           .trim()
+
         const lnValue = typeof d.LN === 'string' ? d.LN : 'Altres'
 
         // 🗂️ Extreure tots els fileN del document
-const fileFields: Record<string, string> = {};
-Object.entries(d).forEach(([k, v]) => {
-  if (k.toLowerCase().startsWith("file") && typeof v === "string" && v.length > 0) {
-    fileFields[k] = v;
-  }
-});
+        const fileFields: Record<string, string> = {}
+        Object.entries(d).forEach(([k, v]) => {
+          if (
+            k.toLowerCase().startsWith('file') &&
+            typeof v === 'string' &&
+            v.length > 0
+          ) {
+            fileFields[k] = v
+          }
+        })
 
-// AFEGIR TOTS ELS CAMPS DEL DOCUMENT ORIGINAL
-base.push({
-  id: doc.id,
-  ...fileFields,
+        base.push({
+          id: doc.id,
+          ...fileFields,
 
-  // Camps normalitzats que ja tenies
-  summary,
-  start: startISO,
-  end: endISO,
- day: d.DataInici || '',
+          // Camps normalitzats
+          summary,
+          start: startISO,
+          end: endISO,
+          day: d.DataInici || '',
 
-  location,
-  lnKey: lnValue.toLowerCase(),
-  lnLabel: lnValue,
-  collection: coll,
-  code: d.code || d.Code || d.codi || '',
-  comercial: d.Comercial || d.comercial || '',
-  servei: d.Servei || d.servei || '',
-  numPax: d.NumPax || d.numPax || 0,
-  stageGroup: d.StageGroup || d.stageGroup || '',
-  HoraInici: d.HoraInici || d.horaInici || '',
-})
+          location,
+          lnKey: lnValue.toLowerCase(),
+          lnLabel: lnValue,
+          collection: coll,
 
-if (d.HoraInici) console.log(`[${coll}] 🕒 HoraInici detectada:`, d.HoraInici)
+          code: d.code || d.Code || d.codi || '',
 
+          comercial: d.Comercial || d.comercial || '',
+          servei: d.Servei || d.servei || '',
+
+          // 🔧 FIX: Pax robust
+          numPax:
+            d.NumPax ??
+            d.numPax ??
+            d.PAX ??
+            null,
+
+          // 🔧 FIX: Observacions Zoho
+          ObservacionsZoho:
+            d.ObservacionsZoho ??
+            d.observacionsZoho ??
+            d.Observacions ??
+            d.observacions ??
+            '',
+
+          stageGroup: d.StageGroup || d.stageGroup || '',
+          HoraInici: d.HoraInici || d.horaInici || '',
+        })
       })
     }
 
-    console.log(`[events/calendar] 📦 Total esdeveniments trobats: ${base.length}`)
+    console.log(
+      `[events/calendar] 📦 Total esdeveniments trobats: ${base.length}`
+    )
+
     return NextResponse.json({ events: base }, { status: 200 })
   } catch (err) {
     console.error('[api/events/calendar] ❌ Error:', err)
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+    return NextResponse.json(
+      { error: 'Internal Server Error' },
+      { status: 500 }
+    )
   }
 }

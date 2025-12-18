@@ -3,27 +3,56 @@ import { NextResponse } from 'next/server'
 import { getSpacesByWeek } from '@/services/spaces/spaces'
 
 export async function GET(request: Request): Promise<Response> {
-  const { searchParams } = new URL(request.url)
-
-  const monthParam = searchParams.get('month')
-  const yearParam = searchParams.get('year')
-  const finca = searchParams.get('finca') || ''
-  const comercial = searchParams.get('comercial') || ''
-  const baseDate = searchParams.get('baseDate') || undefined
-
-  const today = new Date()
-  const month = monthParam ? parseInt(monthParam, 10) : today.getMonth()
-  const year = yearParam ? parseInt(yearParam, 10) : today.getFullYear()
-
   try {
+    const { searchParams } = new URL(request.url)
+
+    // ───────────────────────────────
+    // 📥 Query params (NETS)
+    // ───────────────────────────────
+    const monthParam = searchParams.get('month')
+    const yearParam = searchParams.get('year')
+
+    const finca = searchParams.get('finca') || ''
+    const comercial = searchParams.get('comercial') || ''
+    const baseDate = searchParams.get('baseDate') || undefined
+
+    // 🔑 filtres CLAU
+    const stage = searchParams.get('stage') || 'all'
+    const ln = searchParams.get('ln') || ''
+
+    // ───────────────────────────────
+    // 📅 Mes / any per defecte
+    // ───────────────────────────────
+    const today = new Date()
+    const month = monthParam ? parseInt(monthParam, 10) : today.getMonth()
+    const year = yearParam ? parseInt(yearParam, 10) : today.getFullYear()
+
+    // ───────────────────────────────
+    // 🔄 Crida ALINEADA amb service
+    // getSpacesByWeek(
+    //   month,
+    //   year,
+    //   finca,
+    //   comercial,
+    //   baseDate,
+    //   stage,
+    //   ln
+    // )
+    // ───────────────────────────────
     const { data, totalPaxPerDia } = await getSpacesByWeek(
       month,
       year,
       finca,
       comercial,
-      baseDate
+      baseDate,
+      stage,
+      ln
     )
-    return NextResponse.json({ data, totalPaxPerDia }, { status: 200 })
+
+    return NextResponse.json(
+      { data, totalPaxPerDia },
+      { status: 200 }
+    )
   } catch (error) {
     console.error('[API-SPACES]', error)
     return NextResponse.json(

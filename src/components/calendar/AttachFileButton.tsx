@@ -8,7 +8,7 @@ import { Paperclip } from 'lucide-react'
 import { motion } from 'framer-motion'
 
 type Props = {
-  collection: 'stage_verd' | 'stage_taronja' | 'stage_blau'
+  collection: 'stage_verd' | 'stage_taronja' | 'stage_taronja'
   docId: string
   disabled?: boolean
   fieldBase?: string

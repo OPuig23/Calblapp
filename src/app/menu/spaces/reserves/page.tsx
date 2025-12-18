@@ -21,19 +21,22 @@ export default function SpacesPage() {
     stage: 'all',
     finca: '',
     comercial: '',
+    ln: '',
     baseDate: new Date().toISOString().split('T')[0],  // Setmana inicial
   })
 
   // -------------------------------
   // 🔹 Carrega dades segons filtres
   // -------------------------------
-  const {
-    spaces,
-    totals,
-    fincas,
-    comercials,
-    loading
-  } = useSpaces(filters)
+const {
+  spaces,
+  totals,
+  fincas,
+  comercials,
+  lns,        // ✅ AFEGIT
+  loading
+} = useSpaces(filters)
+
 
   // -------------------------------
   // 🔹 Control del panell de filtres
@@ -119,6 +122,7 @@ export default function SpacesPage() {
                 <SpacesFilters
                   fincas={fincas}
                   comercials={comercials}
+                  lns={lns} 
                   onChange={(patch) =>
                     setFilters(prev => ({
                       ...prev,

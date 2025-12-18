@@ -5,42 +5,45 @@ import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import ResetFilterButton from '@/components/ui/ResetFilterButton'
 
-/** Tipus de filtres del mòdul d'espais */
 export interface SpacesFilterState {
-  stage?: 'verd' | 'taronja' | 'all'
+  stage?: 'confirmat' | 'pressupost' | 'calentet' | 'all'
   finca?: string
   comercial?: string
+  ln?: string
 }
 
 interface SpacesFiltersProps {
-  fincas: string[]        // Llista real de finques (prové de useSpaces)
-  comercials: string[]    // Llista real de comercials (prové de useSpaces)
+  fincas?: string[]
+  comercials?: string[]
+  lns?: string[]
   onChange: (patch: SpacesFilterState) => void
 }
 
 export default function SpacesFilters({
-  fincas,
-  comercials,
-  onChange
+  fincas = [],
+  comercials = [],
+  lns = [],
+  onChange,
 }: SpacesFiltersProps) {
-
   const [filters, setFilters] = useState<SpacesFilterState>({
     stage: 'all',
     finca: '',
     comercial: '',
+    ln: '',
   })
 
-  /** 🔁 Cada canvi de filtre s'envia automàticament al pare */
+  // 🔁 Propagar canvis al pare
   useEffect(() => {
     onChange(filters)
-  }, [filters, onChange])
+  }, [filters])
 
-  /** 🔄 Reiniciar filtres */
+  // 🔄 Reset
   const resetAll = () => {
     setFilters({
       stage: 'all',
       finca: '',
       comercial: '',
+      ln: '',
     })
   }
 
@@ -50,41 +53,55 @@ export default function SpacesFilters({
       animate={{ opacity: 1, y: 0 }}
       className="flex flex-col gap-3 w-full border-b pb-3 px-2"
     >
-
       {/* 🎨 Estat */}
       <select
-        value={filters.stage || 'all'}
-        onChange={e =>
+        value={filters.stage}
+        onChange={(e) =>
           setFilters(prev => ({
             ...prev,
-            stage: e.target.value as any
+            stage: e.target.value as SpacesFilterState['stage'],
           }))
         }
         className="border rounded-md px-2 py-2 text-sm bg-white w-full"
       >
-        <option value="all">🎨 Tots els estats</option>
-        <option value="verd">✅ Confirmats</option>
-        <option value="taronja">🟧 Pendents</option>
+        <option value="all">Tots els estats</option>
+        <option value="confirmat">Confirmats</option>
+        <option value="pressupost">Pressupost enviat</option>
+        <option value="calentet">Prereserva / Calentet</option>
+      </select>
+
+      {/* 🧩 Línia de negoci */}
+      <select
+        value={filters.ln}
+        onChange={(e) =>
+          setFilters(prev => ({
+            ...prev,
+            ln: e.target.value,
+          }))
+        }
+        className="border rounded-md px-2 py-2 text-sm bg-white w-full"
+      >
+        <option value="">Totes les línies de negoci</option>
+        {lns.map(ln => (
+          <option key={ln} value={ln}>
+            {ln}
+          </option>
+        ))}
       </select>
 
       {/* 🏡 Finca */}
       <select
-        value={filters.finca || ''}
-        onChange={e =>
+        value={filters.finca}
+        onChange={(e) =>
           setFilters(prev => ({
             ...prev,
             finca: e.target.value,
-            comercial: ''          // Reinicialitzar comercial si canviem finca
+            comercial: '', // reset comercial
           }))
         }
         className="border rounded-md px-2 py-2 text-sm bg-white w-full"
       >
-        <option value="">🌐 Totes les finques</option>
-
-        {fincas.length === 0 && (
-          <option disabled>No hi ha finques disponibles</option>
-        )}
-
+        <option value="">Totes les finques</option>
         {fincas.map(f => (
           <option key={f} value={f}>
             {f}
@@ -94,30 +111,25 @@ export default function SpacesFilters({
 
       {/* 👤 Comercial */}
       <select
-        value={filters.comercial || ''}
-        onChange={e =>
+        value={filters.comercial}
+        onChange={(e) =>
           setFilters(prev => ({
             ...prev,
-            comercial: e.target.value
+            comercial: e.target.value,
           }))
         }
         className="border rounded-md px-2 py-2 text-sm bg-white w-full"
       >
-        <option value="">👤 Tots els comercials</option>
-
-        {comercials.length === 0 && (
-          <option disabled>No hi ha comercials disponibles</option>
-        )}
-
-        {comercials.map(nom => (
-          <option key={nom} value={nom}>
-            {nom}
+        <option value="">Tots els comercials</option>
+        {comercials.map(c => (
+          <option key={c} value={c}>
+            {c}
           </option>
         ))}
       </select>
 
-      {/* 🔄 Botó reiniciar filtres */}
-      <div className="flex justify-end mt-4">
+      {/* 🔄 Reset */}
+      <div className="flex justify-end mt-2">
         <ResetFilterButton onClick={resetAll} />
       </div>
     </motion.div>

@@ -14,7 +14,7 @@ export async function GET(req: Request) {
     console.log('🔎 [quadrants/details] Buscant dades per code:', code)
 
     // 1️⃣ Buscar dins les col·leccions de stage
-    const stageCollections = ['stage_blau', 'stage_taronja', 'stage_verd']
+    const stageCollections = ['stage_taronja', 'stage_taronja', 'stage_verd']
     let stageData: any = null
 
     for (const col of stageCollections) {

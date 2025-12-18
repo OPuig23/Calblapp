@@ -26,6 +26,9 @@ interface ZohoDeal {
   Fecha_de_petici_n?: string | null
   Precio_Total?: number | string | null
   Amount?: number | string | null
+  Observacions?: string | null
+  Description?: string | null
+
 }
 
 interface NormalizedDeal {
@@ -39,7 +42,7 @@ interface NormalizedDeal {
   DataFi: string | null
   HoraInici?: string | null
   NumPax: number | string | null
-
+  ObservacionsZoho?: string | null
   Ubicacio: string
   FincaId?: string
   FincaCode?: string
@@ -51,7 +54,7 @@ interface NormalizedDeal {
   origen: string
   editable: boolean
   updatedAt: string
-  collection: 'blau' | 'taronja' | 'verd' | string
+  collection: 'taronja' | 'taronja' | 'verd' | string
   DataPeticio?: string | null
   PreuMenu?: number | string | null
   Import?: number | string | null
@@ -150,7 +153,8 @@ export async function syncZohoDealsToFirestore(): Promise<{
   const todayISO = new Date().toISOString().slice(0, 10)
   const moduleName = process.env.ZOHO_CRM_MODULE || 'Deals'
   const fields =
-    'id,Deal_Name,Stage,Servicio_texto,Men_texto,C_digo,N_mero_de_invitados,N_mero_de_personas_del_evento,Finca_2,Espai_2,Fecha_del_evento,Fecha_y_hora_del_evento,Durac_n_del_evento,Owner,Fecha_de_petici_n,Precio_Total,Amount'
+  'id,Deal_Name,Stage,Servicio_texto,Men_texto,C_digo,N_mero_de_invitados,N_mero_de_personas_del_evento,Finca_2,Espai_2,Fecha_del_evento,Fecha_y_hora_del_evento,Durac_n_del_evento,Owner,Fecha_de_petici_n,Precio_Total,Amount,Observacions,Description'
+
 
   // 1️⃣ Llegir oportunitats amb paginació
   const allDeals: ZohoDeal[] = []
@@ -246,12 +250,17 @@ export async function syncZohoDealsToFirestore(): Promise<{
   }
 
   // 4️⃣ Classifica etapes (Stage)
-  const classifyStage = (stage: string): 'blau' | 'taronja' | 'verd' | null => {
+  const classifyStage = (stage: string): 'groc' | 'taronja' | 'verd' | null => {
     const s = stage.toLowerCase()
-    if (s.includes('prereserva') || s.includes('calentet')) return 'blau'
+    if (s.includes('prereserva') || s.includes('calentet')) return 'taronja'
     if (s.includes('pagament') || s.includes('cerrada ganada') || s.includes('rq'))
       return 'verd'
-    if (s.includes('pendent') || s.includes('proposta')) return 'taronja'
+    if (
+  s.includes('pendent') ||
+  s.includes('proposta') ||
+  s.includes('pressupost enviat')
+) return 'groc'
+
     return null
   }
 
@@ -321,6 +330,7 @@ const ubicacioLabel = stripZZ(stripCode(ubicacioRaw)).trim()
       Comercial: d.Owner?.name || '—',
       DataInici: dateISO,
       DataFi: dataFiISO,
+      ObservacionsZoho: d.Description || d.Observacions || null,
       HoraInici: hora,
       NumPax:
         d.N_mero_de_invitados ||
@@ -332,24 +342,27 @@ const ubicacioLabel = stripZZ(stripCode(ubicacioRaw)).trim()
       FincaCode: fincaCode,
       FincaLN: fincaLN || LN,
 
-      Color:
-        group === 'blau'
-          ? 'border-blue-300 bg-blue-50 text-blue-800'
-          : group === 'taronja'
-          ? 'border-orange-300 bg-orange-50 text-orange-800'
-          : 'border-green-300 bg-green-50 text-green-800',
-      StageDot:
-        group === 'blau'
-          ? 'bg-blue-400'
-          : group === 'taronja'
-          ? 'bg-orange-400'
-          : 'bg-green-500',
-      StageGroup:
-        group === 'blau'
-          ? 'Prereserva / Calentet'
-          : group === 'taronja'
-          ? 'Proposta / Pendent signar'
-          : 'Confirmat',
+Color:
+  group === 'taronja'
+    ? 'border-orange-300 bg-orange-50 text-orange-800' // 🟠 
+    : group === 'groc'
+    ? 'border-yellow-300 bg-yellow-50 text-yellow-800' // 🟡
+    : 'border-green-300 bg-green-50 text-green-800',   // 🟢 
+
+StageDot:
+  group === 'taronja'
+    ? 'bg-orange-400'   // 🟠
+    : group === 'groc'
+    ? 'bg-yellow-400'   // 🟡
+    : 'bg-green-500',   // 🟢
+
+StageGroup:
+  group === 'taronja'
+    ? 'Prereserva / Calentet'
+    : group === 'groc'
+    ? 'Pressupost / Proposta / Pendent'
+    : 'Confirmat',
+
       origen: 'zoho',
       editable: group === 'verd',
       updatedAt: new Date().toISOString(),
@@ -362,9 +375,9 @@ const ubicacioLabel = stripZZ(stripCode(ubicacioRaw)).trim()
 
   console.info(`✅ Oportunitats vàlides: ${normalized.length}`)
 
-  // 6️⃣ Esborrar antics (només blau i taronja per DataInici < avui)
+  // 6️⃣ Esborrar antics (només taronja i groc per DataInici < avui)
   let deleted = 0
-  for (const col of ['stage_blau', 'stage_taronja']) {
+  for (const col of ['stage_taronja', 'stage_groc']) {
     const snap = await firestore.collection(col).get()
     const dels = snap.docs
       .filter((d) => (d.data().DataInici || '') < todayISO)
@@ -374,17 +387,17 @@ const ubicacioLabel = stripZZ(stripCode(ubicacioRaw)).trim()
   }
 
   // ─────────────────────────────────────────────
-  // 7️⃣ Escriure STAGE (verd/taronja/blau) respectant la prioritat
+  // 7️⃣ Escriure STAGE (verd/groc/taronja) respectant la prioritat
   // ─────────────────────────────────────────────
 
   const idsVerd = new Set<string>()
-  const idsTaronja = new Set<string>()
-  const idsBlau = new Set<string>()
+  const idsGroc = new Set<string>()
+  const idstaronja = new Set<string>()
 
   for (const deal of normalized) {
     if (deal.collection === 'verd') idsVerd.add(deal.idZoho)
-    else if (deal.collection === 'taronja') idsTaronja.add(deal.idZoho)
-    else if (deal.collection === 'blau') idsBlau.add(deal.idZoho)
+    else if (deal.collection === 'groc') idsGroc.add(deal.idZoho)
+    else if (deal.collection === 'taronja') idstaronja.add(deal.idZoho)
   }
 
   // 7.1 — Escriure/actualitzar stage_verd (no s’esborren antics)
@@ -400,7 +413,7 @@ const ubicacioLabel = stripZZ(stripCode(ubicacioRaw)).trim()
   await batchVerd.commit()
   console.info(`🟢 stage_verd actualitzat: ${idsVerd.size} deals`)
 
-  // 7.2 — Escriure taronja/blau només si no són verds
+  // 7.2 — Escriure groc/taronja només si no són verds
   const batchOthers = firestore.batch()
 
   for (const deal of normalized) {
@@ -409,24 +422,24 @@ const ubicacioLabel = stripZZ(stripCode(ubicacioRaw)).trim()
 
     const dataToSave = cleanUndefined(deal)
 
-    if (deal.collection === 'taronja') {
-      const ref = firestore.collection('stage_taronja').doc(id)
+    if (deal.collection === 'groc') {
+      const ref = firestore.collection('stage_groc').doc(id)
       batchOthers.set(ref, dataToSave, { merge: true })
     }
 
-    if (deal.collection === 'blau') {
-      const ref = firestore.collection('stage_blau').doc(id)
+    if (deal.collection === 'taronja') {
+      const ref = firestore.collection('stage_taronja').doc(id)
       batchOthers.set(ref, dataToSave, { merge: true })
     }
   }
 
   await batchOthers.commit()
-  console.info('🟠🔵 Taronja/blau escrits respectant la prioritat de verd')
+  console.info('🟠🔵 Groc/taronja escrits respectant la prioritat de verd')
 
-  // 7.3 — Neteja: només taronja i blau (mai verd)
+  // 7.3 — Neteja: només groc i taronja (mai verd)
   const colNeteja = [
-    { name: 'stage_taronja', idsActuals: idsTaronja },
-    { name: 'stage_blau', idsActuals: idsBlau },
+    { name: 'stage_groc', idsActuals: idsGroc },
+    { name: 'stage_taronja', idsActuals: idstaronja },
   ]
 
   for (const { name, idsActuals } of colNeteja) {
@@ -435,7 +448,7 @@ const ubicacioLabel = stripZZ(stripCode(ubicacioRaw)).trim()
     for (const doc of snap.docs) {
       const id = doc.id
 
-      // Si ara és verd → treure de taronja/blau
+      // Si ara és verd → treure de groc/taronja
       if (idsVerd.has(id)) {
         await doc.ref.delete()
         console.log(`🧹 Eliminat de ${name} (ara és verd): ${id}`)
@@ -450,7 +463,7 @@ const ubicacioLabel = stripZZ(stripCode(ubicacioRaw)).trim()
     }
   }
 
-  console.info('✨ Neteja final de stage_taronja i stage_blau completada')
+  console.info('✨ Neteja final de stage_groc i stage_taronja completada')
 
   // ─────────────────────────────────────────────
   // 8️⃣ Actualitzar col·lecció FINQUES (matching avançat)
