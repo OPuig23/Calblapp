@@ -44,7 +44,7 @@ type Props = {
 }
 
 // Constants
-const ROLES = ['Admin', 'Direcció', 'Cap Departament', 'Treballador'] as const
+const ROLES = ['Admin', 'Direcció', 'Cap Departament', 'Treballador','Usuari','Comercial',] as const
 const DEPARTS = [
   'Total',
   'Empresa',
@@ -52,6 +52,9 @@ const DEPARTS = [
   'Logistica',
   'Cuina',
   'Food Lover',
+  'Producció',
+  'Casaments',
+  'Transports',
 ] as const
 
 const RANKS = [
