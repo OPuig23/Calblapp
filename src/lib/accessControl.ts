@@ -24,7 +24,7 @@ export const NAV_ITEMS: {
     department: ['Transports', 'Logistica'], // 👈 ara també ho veu el David
   },
 
-  { label: 'Calendar', path: '/menu/calendar', roles: ['admin', 'direccio', 'comercial'] },
+  { label: 'Calendar', path: '/menu/calendar', roles: ['admin', 'direccio', 'cap','comercial'] },
   { label: 'Espais', path: '/menu/spaces', roles: ['admin', 'direccio', 'cap'] },
 ]
 

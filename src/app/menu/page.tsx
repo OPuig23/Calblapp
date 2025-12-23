@@ -76,7 +76,7 @@ const MODULES: ModuleOption[] = [
     value: 'calendar',
     label: 'Calendar',
     path: '/menu/calendar',
-    roles: ['admin', 'direccio'],
+    roles: ['admin', 'direccio', 'cap', 'usuari', 'comercial'],
     icon: CalendarDays,
     color: 'from-indigo-100 to-blue-50',
     iconColor: 'text-indigo-500',
