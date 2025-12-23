@@ -94,7 +94,7 @@ export const authOptions = {
         name: data.name || '',
         role: roleNorm,
         department,
-        departmentLower: normLower(department),
+        deptLower: normLower(department),
         pushEnabled: data.pushEnabled ?? false,
       }
     } else {
