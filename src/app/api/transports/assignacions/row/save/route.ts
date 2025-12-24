@@ -1,4 +1,4 @@
-// file: src/app/api/transports/assignacions/row/save/route.ts
+// src/app/api/transports/assignacions/row/save/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
 import { getToken } from 'next-auth/jwt'
@@ -10,21 +10,16 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 
 export async function POST(req: NextRequest) {
   try {
-    /* 🔐 AUTH */
     const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET })
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    /* 📥 BODY */
     const body = await req.json()
-    const { eventCode, department, data } = body || {}
+    const { eventCode, department, rowId, data } = body || {}
 
     if (!eventCode || !department || !data?.plate) {
       return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
     }
 
-    /* 📍 BUSCAR QUADRANT PER CODE */
     const colName = `quadrants${cap(department)}`
     const snap = await db
       .collection(colName)
@@ -41,51 +36,50 @@ export async function POST(req: NextRequest) {
     const current = doc.data() as any
 
     const now = new Date().toISOString()
-    const conductors = Array.isArray(current.conductors)
-      ? current.conductors
-      : []
+    const user = (token as any)?.name || (token as any)?.email || 'system'
 
-    /* 🔁 UPSERT PER MATRÍCULA */
+    const conductors = Array.isArray(current.conductors) ? current.conductors : []
+
+    const idToUse = rowId || crypto.randomUUID()
+
     let replaced = false
-
     const nextConductors = conductors.map((c: any) => {
-      if (c?.plate === data.plate) {
+      if (c?.id === idToUse || c?.plate === data.plate) {
         replaced = true
         return {
           ...c,
-          name: data.name || c.name,
-          vehicleType: data.vehicleType,
-          startDate: data.startDate,
-          endDate: data.endDate || data.startDate,
-          startTime: data.startTime,
-          endTime: data.endTime,
+          id: c?.id || idToUse,
+          department,
+          name: data.name || c.name || '',
+          plate: data.plate,
+          vehicleType: data.vehicleType || c.vehicleType || '',
+          startDate: data.startDate || c.startDate || current.startDate || '',
+          endDate: data.endDate || data.startDate || c.endDate || c.startDate || '',
+          startTime: data.startTime || c.startTime || current.startTime || '',
+          endTime: data.endTime || c.endTime || current.endTime || '',
           updatedAt: now,
-          updatedBy:
-            (token as any)?.name || (token as any)?.email || 'system',
+          updatedBy: user,
         }
       }
       return c
     })
 
-    /* ➕ AFEGIR SI NO EXISTIA */
     if (!replaced) {
       nextConductors.push({
-        id: crypto.randomUUID(),
+        id: idToUse,
         department,
         name: data.name || '',
         plate: data.plate,
-        vehicleType: data.vehicleType,
-        startDate: data.startDate,
-        endDate: data.endDate || data.startDate,
-        startTime: data.startTime,
-        endTime: data.endTime,
+        vehicleType: data.vehicleType || '',
+        startDate: data.startDate || current.startDate || '',
+        endDate: data.endDate || data.startDate || current.startDate || '',
+        startTime: data.startTime || current.startTime || '',
+        endTime: data.endTime || current.endTime || '',
         createdAt: now,
-        createdBy:
-          (token as any)?.name || (token as any)?.email || 'system',
+        createdBy: user,
       })
     }
 
-    /* 💾 SAVE */
     await ref.update({
       conductors: nextConductors,
       updatedAt: now,

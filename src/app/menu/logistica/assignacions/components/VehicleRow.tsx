@@ -1,4 +1,4 @@
-// file: src/app/menu/logistica/assignacions/components/VehicleRow.tsx
+//file: src/app/menu/logistica/assignacions/components/VehicleRow.tsx
 'use client'
 
 import React, { useEffect, useMemo, useState } from 'react'
@@ -12,7 +12,6 @@ type AvailableVehicle = {
   plate: string
   type: string
   available: boolean
-  conductorId?: string | null
 }
 
 interface Props {
@@ -23,15 +22,8 @@ interface Props {
   eventStartTime: string
   eventEndTime: string
   onChanged: () => void
-
-  /** ✅ IMPORTANT: VehiclesTable ha d’enviar-ho:
-   *  - files que venen de Firestore → isNew={false}
-   *  - fila “Afegir vehicle” → isNew={true}
-   */
   isNew: boolean
 }
-
-const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '')
 
 const VEHICLE_TYPES = [
   { value: 'furgoneta', label: 'Furgoneta' },
@@ -47,10 +39,7 @@ const DEPARTMENTS = [
   { value: 'empresa', label: 'Empresa' },
 ] as const
 
-function toTime5(t?: string) {
-  if (!t) return ''
-  return String(t).slice(0, 5)
-}
+const toTime5 = (t?: string) => (t ? String(t).slice(0, 5) : '')
 
 export default function VehicleRow({
   eventCode,
@@ -63,86 +52,126 @@ export default function VehicleRow({
   isNew,
 }: Props) {
   /* =========================
-     BASE: dades inicials
-     - isNew=true  → fila nova (editable, conductor editable)
-     - isNew=false → fila existent (conductor NO editable)
+     ESTAT BASE
   ========================= */
-  const initialDept = (row?.department || 'logistica').toString().toLowerCase()
+  const [department, setDepartment] = useState(
+    (row?.department || 'logistica').toString().toLowerCase()
+  )
 
-  const [department, setDepartment] = useState<string>(initialDept)
-  const [vehicleType, setVehicleType] = useState<string>(
+  const [date, setDate] = useState(
+    (row?.startDate || eventDay || '').toString()
+  )
+
+  const [startTime, setStartTime] = useState(
+    toTime5(row?.startTime || eventStartTime || '')
+  )
+
+  const [endTime, setEndTime] = useState(
+    toTime5(row?.endTime || eventEndTime || '')
+  )
+
+  const [vehicleType, setVehicleType] = useState(
     (row?.vehicleType || expectedVehicleType || '').toString()
   )
-  const [plate, setPlate] = useState<string>((row?.plate || '').toString())
-  const [driverName, setDriverName] = useState<string>((row?.name || '').toString())
 
-  const [date, setDate] = useState<string>((row?.startDate || row?.date || eventDay || '').toString())
-  const [startTime, setStartTime] = useState<string>(
-    toTime5(row?.startTime || row?.departTime || eventStartTime || '')
-  )
-  const [endTime, setEndTime] = useState<string>(
-    toTime5(row?.endTime || row?.returnTime || eventEndTime || '')
-  )
+  const normalizedPlate =
+  row?.plate ||
+  row?.matricula ||
+  row?.vehiclePlate ||
+  ''
 
-  // 🔒 Mode edició: fila nova comença editable; fila existent comença bloquejada
+const [plate, setPlate] = useState(normalizedPlate.toString())
+
+  const [driverName, setDriverName] = useState((row?.name || '').toString())
+
   const [isEditing, setIsEditing] = useState<boolean>(isNew)
-
-  // 🔄 Loading / error
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
-  /* =========================
-     Conductors disponibles
-     ✅ NOMÉS per fila nova (isNew)
+    /* =========================
+     SINCRONITZACIÓ AMB ROW
+     (quan arriba async)
   ========================= */
-  const [drivers, setDrivers] = useState<Driver[]>([])
-  const [driversLoading, setDriversLoading] = useState(false)
-
   useEffect(() => {
-    if (!isNew) return
+    if (!row) return
 
-    async function loadDrivers() {
-      try {
-        setDriversLoading(true)
-        // ✅ Si tens un endpoint diferent, canvia només aquesta URL
-        const res = await fetch(`/api/personnel?department=${encodeURIComponent(department)}`)
-        if (!res.ok) {
-          setDrivers([])
-          return
-        }
-        const data = await res.json()
-        setDrivers(Array.isArray(data) ? data : [])
-      } catch {
-        setDrivers([])
-      } finally {
-        setDriversLoading(false)
-      }
-    }
+    if (row.name) setDriverName(row.name)
+    if (row.department) setDepartment(row.department)
+    if (row.startDate) setDate(row.startDate)
+    if (row.startTime) setStartTime(toTime5(row.startTime))
+    if (row.endTime) setEndTime(toTime5(row.endTime))
+    if (row.vehicleType) setVehicleType(row.vehicleType)
+    if (row.plate) setPlate(row.plate)
+  }, [row])
 
-    loadDrivers()
-    // si canviem dept a fila nova, reiniciem conductor
-    setDriverName('')
-  }, [isNew, department])
 
   /* =========================
-     Vehicles disponibles (matrícules)
-     - usa /api/transports/available (POST)
-     - filtra per horari + tipus vehicle
+     CONDUCTORS (només fila nova)
+  ========================= */
+/* =========================
+   CONDUCTORS (fila nova + editar)
+========================= */
+const [drivers, setDrivers] = useState<Driver[]>([])
+const [driversLoading, setDriversLoading] = useState(false)
+
+useEffect(() => {
+  // Només carreguem conductors quan la fila està en edició
+  if (!isEditing || !date || !startTime) {
+    setDrivers([])
+    return
+  }
+
+  async function loadDrivers() {
+    try {
+      setDriversLoading(true)
+
+      const params = new URLSearchParams({
+        department,
+        startDate: date,
+        startTime,
+        endDate: date,
+        endTime: endTime || startTime,
+      })
+
+      const res = await fetch(`/api/personnel/available?${params.toString()}`)
+      if (!res.ok) {
+        setDrivers([])
+        return
+      }
+
+      const data = await res.json()
+
+      // ✅ només conductors disponibles
+      setDrivers(Array.isArray(data?.conductors) ? data.conductors : [])
+    } catch {
+      setDrivers([])
+    } finally {
+      setDriversLoading(false)
+    }
+  }
+
+  loadDrivers()
+}, [isEditing, department, date, startTime, endTime])
+
+
+
+  /* =========================
+     VEHICLES DISPONIBLES
   ========================= */
   const [availableVehicles, setAvailableVehicles] = useState<AvailableVehicle[]>([])
   const [loadingVehicles, setLoadingVehicles] = useState(false)
 
+  const canLoadVehicles = Boolean(date && startTime)
+
   useEffect(() => {
-    async function loadAvailableVehicles() {
-      // No fem crida si falta info mínima (evita 400)
-      if (!date || !startTime || !endTime) {
+    async function loadVehicles() {
+      if (!canLoadVehicles) {
         setAvailableVehicles([])
         return
       }
 
       try {
         setLoadingVehicles(true)
-
         const res = await fetch('/api/transports/available', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -150,84 +179,91 @@ export default function VehicleRow({
             startDate: date,
             startTime,
             endDate: date,
-            endTime,
+            endTime: endTime || startTime,
           }),
         })
 
-        if (!res.ok) {
-          setAvailableVehicles([])
-          return
-        }
-
+        if (!res.ok) return setAvailableVehicles([])
         const json = await res.json()
-        const list: AvailableVehicle[] = Array.isArray(json?.vehicles) ? json.vehicles : []
-
-        // ✅ Només disponibles i compatibles amb vehicleType (si està seleccionat)
-        const filtered = list.filter((v) => {
-          if (v.available !== true) return false
-          if (vehicleType && v.type !== vehicleType) return false
-          return true
-        })
-
-        setAvailableVehicles(filtered)
-      } catch (e) {
-        console.error('Error carregant vehicles disponibles', e)
+        setAvailableVehicles(Array.isArray(json?.vehicles) ? json.vehicles : [])
+      } catch {
         setAvailableVehicles([])
       } finally {
         setLoadingVehicles(false)
       }
     }
 
-    loadAvailableVehicles()
-  }, [date, startTime, endTime, vehicleType])
+    loadVehicles()
+  }, [date, startTime, endTime])
 
-  const plateOptions = useMemo(() => {
-    // ✅ mantenim la matrícula actual visible encara que no sigui "available" ara mateix
-    const opts = [...availableVehicles]
-    const hasPlate = plate && opts.some((v) => v.plate === plate)
-    if (plate && !hasPlate) {
-      opts.unshift({
-        id: `current-${plate}`,
-        plate,
-        type: vehicleType || '',
-        available: true, // perquè es pugui seleccionar
-      } as any)
-    }
-    return opts
-  }, [availableVehicles, plate, vehicleType])
+const plateOptions = useMemo(() => {
+  if (!vehicleType) return []
+
+  const options = availableVehicles.filter(
+    (v) => v.type === vehicleType && v.available === true
+  )
+
+  // 🔒 FORÇAR la matrícula actual encara que no estigui disponible
+  if (plate && !options.some((v) => v.plate === plate)) {
+    options.unshift({
+      id: `current-${plate}`,
+      plate,
+      type: vehicleType,
+      available: true,
+    } as any)
+  }
+
+  return options
+}, [availableVehicles, vehicleType, plate])
+
+
+
 
   /* =========================
-     Helpers UX
+     VALIDACIONS
   ========================= */
-  const canEdit = isEditing
-  const conductorEditable = isNew // ✅ regla de negoci
+const safeDateForValidation = date || eventDay
+const safeStartForValidation = startTime || eventStartTime || ''
+const safeEndForValidation = endTime || eventEndTime || ''
+const safeDeptForValidation = department || row?.department || ''
 
-  const missingRequired =
-    !date || !startTime || !endTime || !vehicleType || !plate || (isNew && !driverName)
+const missingRequired =
+  !safeDeptForValidation ||
+  !safeDateForValidation ||
+  !safeStartForValidation ||
+  !safeEndForValidation ||
+  !vehicleType ||
+  !plate ||
+  (isNew && !driverName)
+
 
   /* =========================
      SAVE / DELETE
   ========================= */
   const handleSave = async () => {
+   // 🔒 Normalització defensiva (A)
+const safeDate = date || eventDay
+const safeStartTime = startTime || eventStartTime || ''
+const safeEndTime = endTime || eventEndTime || ''
+const safeDepartment = department || row?.department || ''
+ 
     try {
       setSaveError(null)
       setSaving(true)
 
-  const isReallyNew = isNew === true || !row?.id
-
 const payload = {
   eventCode,
-  department,
-  isNew: isReallyNew,
-  rowId: isReallyNew ? undefined : row.id, // 👈 CLAU
+  department: safeDepartment,
+  isNew: isNew || !row?.id,
+  rowId: row?.id,
   data: {
     name: driverName,
     plate,
     vehicleType,
-    startDate: date,
-    endDate: date,
-    startTime,
-    endTime,
+    startDate: safeDate,
+    endDate: safeDate,
+    startTime: safeStartTime,
+    endTime: safeEndTime,
   },
 }
 
@@ -239,29 +275,25 @@ const payload = {
       })
 
       if (!res.ok) {
-        const txt = await res.text().catch(() => '')
-        setSaveError(txt || 'No s’ha pogut desar (error servidor)')
+        const txt = await res.text()
+        setSaveError(txt || 'Error desant')
         return
       }
 
       setIsEditing(false)
       onChanged()
-    } catch (e) {
-      console.error(e)
-      setSaveError('No s’ha pogut desar (error inesperat)')
+    } catch {
+      setSaveError('Error inesperat')
     } finally {
       setSaving(false)
     }
   }
 
-const handleDelete = async () => {
-  if (!row?.id) return
+  const handleDelete = async () => {
+    if (!row?.id) return
+    if (!confirm('Vols eliminar aquest vehicle?')) return
 
-  const ok = confirm('Vols eliminar aquest vehicle?')
-  if (!ok) return
-
-  try {
-    const res = await fetch('/api/transports/assignacions/row/delete', {
+    await fetch('/api/transports/assignacions/row/delete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -271,57 +303,99 @@ const handleDelete = async () => {
       }),
     })
 
-    if (!res.ok) {
-      const txt = await res.text()
-      alert(txt || 'Error eliminant el vehicle')
-      return
-    }
-
     onChanged()
-  } catch (e) {
-    console.error(e)
-    alert('Error inesperat eliminant el vehicle')
   }
-}
-
 
   /* =========================
      RENDER
   ========================= */
-  return (
-    <div className="border rounded-xl p-3 bg-white">
-      <div className="grid grid-cols-1 md:grid-cols-[140px_170px_170px_1fr_150px_95px_95px_110px] gap-2 items-center">
-        {/* 1) Departament */}
-        {isNew ? (
-          <select
-            className="border rounded px-2 py-1 text-sm"
-            value={department}
-            onChange={(e) => setDepartment(e.target.value)}
-            disabled={!canEdit}
-          >
-            {DEPARTMENTS.map((d) => (
-              <option key={d.value} value={d.value}>
-                {d.label}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <div className="text-sm font-semibold text-gray-700 px-2">
-            {cap(department)}
-          </div>
-        )}
-
-        {/* 2) Matrícula (desplegable) */}
+return (
+  <div className="rounded-xl border bg-white p-4 space-y-3">
+    {/* FILA PRINCIPAL */}
+    <div className="grid grid-cols-1 md:grid-cols-[120px_150px_90px_90px_140px_160px_1fr_120px] gap-3 items-end">
+      
+      {/* 1) Departament */}
+      <div>
+        <label className="text-xs text-gray-500">Departament</label>
         <select
-          className="border rounded px-2 py-1 text-sm"
+          className="w-full border rounded px-2 py-1 text-sm"
+          value={department}
+          onChange={(e) => setDepartment(e.target.value)}
+          disabled={!isEditing}
+        >
+          {DEPARTMENTS.map((d) => (
+            <option key={d.value} value={d.value}>
+              {d.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* 2) Dia */}
+      <div>
+        <label className="text-xs text-gray-500">Dia</label>
+        <input
+          type="date"
+          className="w-full border rounded px-2 py-1 text-sm"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          disabled={!isEditing}
+        />
+      </div>
+
+      {/* 3) Hora sortida */}
+      <div>
+        <label className="text-xs text-gray-500">Sortida</label>
+        <input
+          type="time"
+          className="w-full border rounded px-2 py-1 text-sm"
+          value={startTime}
+          onChange={(e) => setStartTime(e.target.value)}
+          disabled={!isEditing}
+        />
+      </div>
+
+      {/* 4) Hora arribada */}
+      <div>
+        <label className="text-xs text-gray-500">Arribada</label>
+        <input
+          type="time"
+          className="w-full border rounded px-2 py-1 text-sm"
+          value={endTime}
+          onChange={(e) => setEndTime(e.target.value)}
+          disabled={!isEditing}
+        />
+      </div>
+
+      {/* 5) Tipus vehicle */}
+      <div>
+        <label className="text-xs text-gray-500">Vehicle</label>
+        <select
+          className="w-full border rounded px-2 py-1 text-sm"
+          value={vehicleType}
+          onChange={(e) => {
+            setVehicleType(e.target.value)
+            setPlate('')
+          }}
+          disabled={!isEditing || !canLoadVehicles}
+        >
+          <option value="">— Vehicle —</option>
+          {VEHICLE_TYPES.map((v) => (
+            <option key={v.value} value={v.value}>
+              {v.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* 6) Matrícula */}
+      <div>
+        <label className="text-xs text-gray-500">Matrícula</label>
+        <select
+          className="w-full border rounded px-2 py-1 text-sm"
           value={plate}
           onChange={(e) => setPlate(e.target.value)}
-          disabled={!canEdit || loadingVehicles}
-          title={
-            loadingVehicles
-              ? 'Carregant vehicles disponibles...'
-              : 'Matrícules disponibles segons tipus i horari'
-          }
+          disabled={!isEditing || !vehicleType || loadingVehicles}
         >
           <option value="">— Matrícula —</option>
           {plateOptions.map((v) => (
@@ -330,123 +404,84 @@ const handleDelete = async () => {
             </option>
           ))}
         </select>
-
-        {/* 3) Tipus vehicle */}
-        <select
-          className="border rounded px-2 py-1 text-sm"
-          value={vehicleType}
-          onChange={(e) => {
-            setVehicleType(e.target.value)
-            setPlate('') // reset matrícula quan canvies tipus
-          }}
-          disabled={!canEdit}
-        >
-          <option value="">— Vehicle —</option>
-          {VEHICLE_TYPES.map((t) => (
-            <option key={t.value} value={t.value}>
-              {t.label}
-            </option>
-          ))}
-        </select>
-
-        {/* 4) Conductor */}
-        {conductorEditable ? (
-          <select
-            className="border rounded px-2 py-1 text-sm"
-            value={driverName}
-            onChange={(e) => setDriverName(e.target.value)}
-            disabled={!canEdit || driversLoading}
-            title="Conductors disponibles del departament"
-          >
-            <option value="">— Conductor —</option>
-            {drivers.map((d) => (
-              <option key={d.id} value={d.name}>
-                {d.name}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <input
-            className="border rounded px-2 py-1 text-sm bg-gray-50"
-            value={row?.name || driverName || ''}
-            disabled
-            readOnly
-          />
-        )}
-
-        {/* 5) Dia */}
-        <input
-          type="date"
-          className="border rounded px-2 py-1 text-sm"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          disabled={!canEdit}
-        />
-
-        {/* 6) Hora inici */}
-        <input
-          type="time"
-          className="border rounded px-2 py-1 text-sm"
-          value={startTime}
-          onChange={(e) => setStartTime(e.target.value)}
-          disabled={!canEdit}
-        />
-
-        {/* 7) Hora fi */}
-        <input
-          type="time"
-          className="border rounded px-2 py-1 text-sm"
-          value={endTime}
-          onChange={(e) => setEndTime(e.target.value)}
-          disabled={!canEdit}
-        />
-
-        {/* 8) Accions */}
-        <div className="flex gap-2 justify-end">
-          {!isEditing ? (
-            <Button
-              size="icon"
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-              onClick={() => setIsEditing(true)}
-              title="Editar"
-            >
-              <Pencil size={16} />
-            </Button>
-          ) : (
-            <Button
-              size="icon"
-              className="bg-green-600 hover:bg-green-700 text-white"
-              onClick={handleSave}
-              disabled={saving || missingRequired}
-              title={missingRequired ? 'Falten camps obligatoris' : 'Desar'}
-            >
-              {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
-            </Button>
-          )}
-
-          <Button
-            size="icon"
-            variant="destructive"
-            onClick={handleDelete}
-            title="Eliminar"
-          >
-            <Trash2 size={16} />
-          </Button>
-        </div>
       </div>
 
-      {/* 👇 Feedback UX clar (sense molestar) */}
-      {!loadingVehicles && canEdit && vehicleType && date && startTime && endTime && plateOptions.length === 0 && (
-        <div className="mt-2 text-xs text-amber-700">
-          No hi ha vehicles disponibles per aquest tipus i horari.
-        </div>
-      )}
+     
+{/* 7) Conductor */}
+<div>
+  <label className="text-xs text-gray-500">Conductor</label>
 
-      {saveError && (
-        <div className="mt-2 text-xs text-red-600">
-          {saveError}
-        </div>
-      )}
+  <select
+    className={`w-full border rounded px-2 py-1 text-sm ${
+      !driverName && isEditing
+        ? 'border-amber-400 bg-amber-50'
+        : isEditing
+        ? 'bg-white'
+        : 'bg-gray-100'
+    }`}
+    value={driverName}
+    onChange={(e) => setDriverName(e.target.value)}
+    disabled={!isEditing || driversLoading}
+  >
+    <option value="">— Conductor obligatori —</option>
+
+    {/* ✅ conductor actual (per files existents) */}
+    {row?.name && !drivers.find(d => d.name === row.name) && (
+      <option value={row.name}>{row.name}</option>
+    )}
+
+    {/* ✅ conductors disponibles */}
+    {drivers.map((d) => (
+      <option key={d.id} value={d.name}>
+        {d.name}
+      </option>
+    ))}
+  </select>
+</div>
+
+
+      {/* 8) Accions */}
+      <div className="flex gap-2 justify-end">
+        {!isEditing ? (
+     <Button
+  size="icon"
+  onClick={() => setIsEditing(true)}
+  className="bg-slate-100 hover:bg-slate-200 text-slate-700 border"
+  title="Editar vehicle"
+>
+  <Pencil size={16} />
+</Button>
+
+        ) : (
+          <Button
+            size="icon"
+            onClick={handleSave}
+            disabled={saving || missingRequired}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-40"
+            title={missingRequired ? 'Falten camps obligatoris' : 'Desar'}
+          >
+            {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+          </Button>
+        )}
+
+        <Button
+          size="icon"
+          variant="destructive"
+          onClick={handleDelete}
+          title="Eliminar"
+        >
+          <Trash2 size={16} />
+        </Button>
+      </div>
     </div>
-  )
+
+    {/* ERROR */}
+    {saveError && (
+      <div className="text-xs text-red-600">
+        {saveError}
+      </div>
+    )}
+  </div>
+)
+
 }

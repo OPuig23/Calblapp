@@ -1,3 +1,4 @@
+//file: src/components/calendar/CalendarModal.tsx
 'use client'
 
 import React, { useEffect, useMemo, useState } from 'react'
@@ -312,11 +313,7 @@ export default function CalendarModal({ deal, trigger, onSaved, readonly }: Prop
         </DialogHeader>
 
         <div className="space-y-3 text-sm text-gray-700">
-          {/* Etapa */}
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Etapa</label>
-            <span>{deal.StageGroup || '—'}</span>
-          </div>
+        
 
           {/* 📝 Observacions Zoho */}
           {ObservacionsZoho && (

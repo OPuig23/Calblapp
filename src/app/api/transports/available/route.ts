@@ -1,108 +1,121 @@
-// ✅ src/app/api/transports/available/route.ts
+// src/app/api/transports/available/route.ts
 import { NextResponse } from 'next/server'
 import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
 
-const toDateTime = (date: string, time: string) =>
-  new Date(`${date}T${time}:00`)
+export const runtime = 'nodejs'
 
-const overlaps = (startA: Date, endA: Date, startB: Date, endB: Date) =>
-  startA < endB && startB < endA
+/* =========================
+   HELPERS
+========================= */
+const toDateTime = (date: string, time?: string) =>
+  new Date(`${date}T${time || '00:00'}:00`)
 
-interface Vehicle {
+const overlaps = (aStart: Date, aEnd: Date, bStart: Date, bEnd: Date) =>
+  aStart < bEnd && bStart < aEnd
+
+/* =========================
+   TYPES
+========================= */
+type Vehicle = {
   id: string
-  plate?: string
-  matricula?: string
-  type?: string
-  conductorId?: string | null
+  plate: string
+  type: string
 }
 
-interface QuadrantVehicle {
-  vehicleId: string
+type Occupation = {
+  plate: string
+  start: Date
+  end: Date
 }
 
-interface Quadrant {
-  id: string
-  vehicles?: QuadrantVehicle[]
-  startDate?: string
-  startTime?: string
-  endDate?: string
-  endTime?: string
-}
-
+/* =========================
+   POST
+========================= */
 export async function POST(req: Request) {
   try {
-    const { startDate, startTime, endDate, endTime } = (await req.json()) as {
-      startDate: string
-      startTime: string
-      endDate: string
-      endTime: string
-    }
-
-    console.log('[API /transports/available] 📩 Body rebut:', {
-      startDate, startTime, endDate, endTime,
-    })
+    const { startDate, startTime, endDate, endTime } = await req.json()
 
     if (!startDate || !startTime || !endDate || !endTime) {
-      return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'Missing fields' },
+        { status: 400 }
+      )
     }
 
-    const start = toDateTime(startDate, startTime)
-    const end   = toDateTime(endDate, endTime)
+    const reqStart = toDateTime(startDate, startTime)
+    const reqEnd   = toDateTime(endDate, endTime)
 
-    // 1️⃣ Vehicles de Firestore
+    /* =========================
+       1) VEHICLES (catàleg)
+    ========================= */
     const vehSnap = await db.collection('transports').get()
-    const vehicles: Vehicle[] = vehSnap.docs.map(d => ({
-      id: d.id,
-      ...(d.data() as Omit<Vehicle, 'id'>),
-    }))
-    console.log('[API /transports/available] 🚚 Vehicles trobats:', vehicles.length)
 
-    // 2️⃣ Quadrants de tots els departaments
-    const quadrantCollections = ['quadrantsServeis', 'quadrantsLogistica', 'quadrantsCuina']
-    let quadrants: Quadrant[] = []
+    const vehicles: Vehicle[] = vehSnap.docs
+      .map(d => ({
+        id: d.id,
+        plate: d.data().plate || d.data().matricula || '',
+        type: d.data().type || '',
+      }))
+      .filter(v => Boolean(v.plate))
 
-    for (const col of quadrantCollections) {
+    /* =========================
+       2) OCUPACIONS REALS
+       👉 NOMÉS DES DE QUADRANTS
+    ========================= */
+    const quadrantCols = [
+      'quadrantsLogistica',
+      'quadrantsServeis',
+      'quadrantsCuina',
+      'quadrantsEmpresa',
+    ]
+
+    const occupations: Occupation[] = []
+
+    for (const col of quadrantCols) {
       const snap = await db.collection(col).get()
-      quadrants = quadrants.concat(
-        snap.docs.map(d => ({
-          id: d.id,
-          ...(d.data() as Omit<Quadrant, 'id'>),
-        }))
-      )
+
+      snap.docs.forEach(doc => {
+        const q = doc.data()
+        const conductors = Array.isArray(q.conductors) ? q.conductors : []
+
+        conductors.forEach((c: any) => {
+          if (!c?.plate || !c?.startDate || !c?.startTime) return
+
+          occupations.push({
+            plate: c.plate,
+            start: toDateTime(c.startDate, c.startTime),
+            end: toDateTime(
+              c.endDate || c.startDate,
+              c.endTime || c.startTime
+            ),
+          })
+        })
+      })
     }
-    console.log('[API /transports/available] 📑 Quadrants trobats total:', quadrants.length)
 
-    // 3️⃣ Comprovació d’ocupació
-    const isVehicleBusy = (vehId: string) =>
-      quadrants.some((q) =>
-        q.vehicles?.some((v: QuadrantVehicle) =>
-          v.vehicleId === vehId &&
-          overlaps(
-            start,
-            end,
-            new Date(`${q.startDate}T${q.startTime || '00:00'}`),
-            new Date(`${q.endDate}T${q.endTime || '23:59'}`)
-          )
-        )
+    /* =========================
+       3) DISPONIBILITAT
+    ========================= */
+    const result = vehicles.map(v => {
+      const busy = occupations.some(o =>
+        o.plate === v.plate &&
+        overlaps(reqStart, reqEnd, o.start, o.end)
       )
 
-    // 4️⃣ Resultat final
-    const result = vehicles.map(v => ({
-      id: v.id,
-      plate: v.plate || v.matricula || '(sense matrícula)',
-      type: v.type || '(sense tipus)',
-      conductorId: v.conductorId || null,
-      available: !isVehicleBusy(v.id),
-    }))
-
-    console.log('[API /transports/available] ✅ Vehicles retornats:',
-      result.map(r => ({ id: r.id, plate: r.plate, type: r.type, available: r.available }))
-    )
+      return {
+        id: v.id,
+        plate: v.plate,
+        type: v.type,
+        available: !busy,
+      }
+    })
 
     return NextResponse.json({ vehicles: result })
-  } catch (error: unknown) {
-    console.error('[API /transports/available] 💥 Error:', error)
-    const message = error instanceof Error ? error.message : 'Internal error'
-    return NextResponse.json({ error: message }, { status: 500 })
+  } catch (e) {
+    console.error('[transports/available]', e)
+    return NextResponse.json(
+      { error: 'Internal error' },
+      { status: 500 }
+    )
   }
 }

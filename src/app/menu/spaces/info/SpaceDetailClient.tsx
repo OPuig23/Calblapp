@@ -4,6 +4,10 @@
 import { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import { useEffect } from 'react'
+import { useSession } from 'next-auth/react'
+import { canEditFinca } from '@/lib/accessControl'
+
+
 
 
 /**
@@ -47,6 +51,13 @@ export default function SpaceDetailClient({ espai, onClose, onSave }: Props) {
   // ─────────────────────────────────────────────
   // 1) Estat local (còpia editable de la finca)
   // ─────────────────────────────────────────────
+    const { data: session } = useSession()
+
+  const canEdit = canEditFinca({
+    role: session?.user?.role,
+    department: (session?.user as any)?.departmentLower ?? (session?.user as any)?.department,
+  })
+  const readOnly = !canEdit
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -212,6 +223,7 @@ useEffect(() => {
 // 3) Acció de desar: envia payload al backend
 // ─────────────────────────────────────────────
 const handleSave = async () => {
+  if (!canEdit) return
   setError(null)
   setSuccess(null)
   setSaving(true)
@@ -270,14 +282,18 @@ const handleSave = async () => {
               Tancar
             </button>
           )}
-          <button
-            type="button"
-            disabled={saving}
-            onClick={handleSave}
-            className="px-4 py-2 text-sm rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700 disabled:opacity-60"
-          >
-            {saving ? 'Desant…' : 'Desar canvis'}
-          </button>
+{canEdit && (
+  <button
+    type="button"
+    disabled={saving}
+    onClick={handleSave}
+    className="px-4 py-2 text-sm rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700 disabled:opacity-60"
+  >
+    {saving ? 'Desant…' : 'Desar canvis'}
+  </button>
+)}
+
+
         </div>
       </div>
 
@@ -313,6 +329,7 @@ const handleSave = async () => {
               <input
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
+                disabled={!canEdit}
                 className="w-full border rounded-lg px-2 py-1.5 text-sm font-mono"
                 placeholder="CEU00001 / CCB00001..."
               />
@@ -325,6 +342,7 @@ const handleSave = async () => {
               <input
                 value={nom}
                 onChange={(e) => setNom(e.target.value)}
+                disabled={!canEdit}
                 className="w-full border rounded-lg px-2 py-1.5 text-sm"
                 placeholder="Nom de la masia / espai"
               />
@@ -337,6 +355,7 @@ const handleSave = async () => {
               <input
                 value={ubicacio}
                 onChange={(e) => setUbicacio(e.target.value)}
+                disabled={!canEdit}
                 className="w-full border rounded-lg px-2 py-1.5 text-sm"
                 placeholder="Població, adreça, referències..."
               />
@@ -350,6 +369,7 @@ const handleSave = async () => {
                 <select
   value={ln}
   onChange={(e) => setLn(e.target.value)}
+  disabled={!canEdit}
   className="w-full border rounded-lg px-2 py-1.5 text-sm"
 >
   <option value="">—</option>
@@ -371,6 +391,7 @@ const handleSave = async () => {
                   onChange={(e) =>
                     setTipus(e.target.value as 'Propi' | 'Extern')
                   }
+                  disabled={!canEdit}
                   className="w-full border rounded-lg px-2 py-1.5 text-sm"
                 >
                   <option value="Propi">Masia / espai propi</option>
@@ -399,6 +420,7 @@ const handleSave = async () => {
               <input
                 value={comContacte}
                 onChange={(e) => setComContacte(e.target.value)}
+                disabled={!canEdit}
                 className="w-full border rounded-lg px-2 py-1.5 text-sm"
                 placeholder="Nom contacte principal"
               />
@@ -412,6 +434,7 @@ const handleSave = async () => {
                 <input
                   value={comTelefon}
                   onChange={(e) => setComTelefon(e.target.value)}
+                  disabled={!canEdit}
                   className="w-full border rounded-lg px-2 py-1.5 text-sm"
                   placeholder="+34 ..."
                 />
@@ -423,6 +446,7 @@ const handleSave = async () => {
                 <input
                   value={comEmail}
                   onChange={(e) => setComEmail(e.target.value)}
+                  disabled={!canEdit}
                   className="w-full border rounded-lg px-2 py-1.5 text-sm"
                   placeholder="contacte@..."
                 />
@@ -436,6 +460,7 @@ const handleSave = async () => {
               <textarea
                 value={comNotes}
                 onChange={(e) => setComNotes(e.target.value)}
+                disabled={!canEdit}
                 className="w-full border rounded-lg px-2 py-1.5 text-sm min-h-[70px]"
                 placeholder="Notes d’acord, històric, restriccions, etc."
               />
@@ -448,6 +473,7 @@ const handleSave = async () => {
               <textarea
                 value={comCondicions}
                 onChange={(e) => setComCondicions(e.target.value)}
+                disabled={!canEdit}
                 className="w-full border rounded-lg px-2 py-1.5 text-sm min-h-[70px]"
                 placeholder="Horaris, exclusivitats, limitacions de música, etc."
               />
@@ -473,6 +499,7 @@ const handleSave = async () => {
               <textarea
                 value={officeText}
                 onChange={(e) => setOfficeText(e.target.value)}
+                disabled={!canEdit}
                 className="w-full border rounded-lg px-2 py-1.5 text-sm min-h-[120px]"
                 placeholder="1 ítem per línia"
               />
@@ -485,6 +512,7 @@ const handleSave = async () => {
               <textarea
                 value={aperitiuText}
                 onChange={(e) => setAperitiuText(e.target.value)}
+                disabled={!canEdit}
                 className="w-full border rounded-lg px-2 py-1.5 text-sm min-h-[120px]"
                 placeholder="1 ítem per línia"
               />
@@ -497,6 +525,7 @@ const handleSave = async () => {
               <textarea
                 value={obsText}
                 onChange={(e) => setObsText(e.target.value)}
+                disabled={!canEdit}
                 className="w-full border rounded-lg px-2 py-1.5 text-sm min-h-[120px]"
                 placeholder="Comentaris generals de producció..."
               />
@@ -519,6 +548,7 @@ const handleSave = async () => {
                         [key]: e.target.value,
                       }))
                     }
+                    disabled={!canEdit}
                     className="w-full border rounded-lg px-2 py-1.5 text-sm min-h-[100px]"
                     placeholder="1 ítem per línia"
                   />

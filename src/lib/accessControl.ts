@@ -1,48 +1,158 @@
 //file: src/lib/accessControl.ts
-import { type Role } from '@/lib/roles'
+import { normalizeRole, type Role } from '@/lib/roles'
 
-// Definim quins rols tenen accés a cada mòdul
-export const NAV_ITEMS: { 
+/** Tipus d’usuari mínim */
+export interface AccessUser {
+  role?: string
+  department?: string
+}
+
+export interface SubModuleDef {
   label: string
   path: string
   roles: Role[]
-  department?: string | string[]
-}[] = [
-  { label: 'Torns', path: '/menu/torns', roles: ['admin', 'direccio', 'cap', 'treballador'] },
-  { label: 'Esdeveniments', path: '/menu/events', roles: ['admin', 'direccio', 'cap', 'treballador', 'comercial', 'usuari'] },
-  { label: 'Personal', path: '/menu/personnel', roles: ['admin', 'direccio', 'cap'] },
-  { label: 'Quadrants', path: '/menu/quadrants', roles: ['admin', 'direccio', 'cap'] },
-  { label: 'Incidències', path: '/menu/incidents', roles: ['admin', 'direccio', 'cap'] },
-  { label: 'Informes', path: '/menu/reports', roles: ['admin', 'direccio'] },
-  { label: 'Usuaris', path: '/menu/users', roles: ['admin'] },
-  
-  // ✅ Ampliem Transports per Logistica també
-  { 
-    label: 'Transports',
-    path: '/menu/transports',
-    roles: ['admin', 'direccio', 'cap'],
-    department: ['Transports', 'Logistica'], // 👈 ara també ho veu el David
-  },
-
-  { label: 'Calendar', path: '/menu/calendar', roles: ['admin', 'direccio', 'cap','comercial'] },
-  { label: 'Espais', path: '/menu/spaces', roles: ['admin', 'direccio', 'cap'] },
-]
-
-// Helpers: labels i estils per rol
-export const ROLE_LABEL: Record<Role, string> = {
-  admin: 'Admin',
-  direccio: 'Direcció',
-  cap: 'Cap departament',
-  treballador: 'Treballador',
-  comercial: 'Comercial',
-  usuari: 'Usuari',
+  departments?: string[]
 }
 
-export const ROLE_BADGE_CLASS: Record<Role, string> = {
-  admin: 'bg-blue-50 text-blue-700 ring-blue-200',
-  direccio: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
-  cap: 'bg-amber-50 text-amber-700 ring-amber-200',
-  treballador: 'bg-slate-100 text-slate-700 ring-slate-200',
-  comercial: 'bg-indigo-50 text-indigo-700 ring-indigo-200',
-  usuari: 'bg-gray-100 text-gray-700 ring-gray-200',
+export interface ModuleDef {
+  label: string
+  path: string
+  roles: Role[]
+  departments?: string[]
+  submodules?: SubModuleDef[]
+}
+
+/** 🔐 CATÀLEG ÚNIC DE MÒDULS */
+export const MODULES: ModuleDef[] = [
+  { label: 'Torns', path: '/menu/torns', roles: ['admin','direccio','cap','treballador'] },
+
+  { label: 'Esdeveniments', path: '/menu/events',
+    roles: ['admin','direccio','cap','treballador','comercial','usuari'] },
+
+  { label: 'Pissarra', path: '/menu/pissarra',
+    roles: ['admin','direccio','cap','comercial','usuari'] },
+
+  { label: 'Personal', path: '/menu/personnel',
+    roles: ['admin','direccio','cap'] },
+
+  { label: 'Quadrants', path: '/menu/quadrants',
+    roles: ['admin','direccio','cap'] ,
+    departments: ['logistica','cuina','serveis'],
+  },
+
+  {
+    label: 'Incidències',
+    path: '/menu/incidents',
+    roles: ['admin','direccio','cap','usuari','comercial'],
+    departments: ['produccio','logistica','cuina','serveis'],
+  },
+
+  {
+    label: 'Modificacions',
+    path: '/menu/modifications',
+    roles: ['admin','direccio','cap','usuari','comercial'],
+    departments: ['produccio','logistica','cuina'],
+  },
+
+  { label: 'Informes', path: '/menu/reports',
+    roles: ['admin','direccio'] },
+
+  { label: 'Usuaris', path: '/menu/users',
+    roles: ['admin'] },
+
+  {
+    label: 'Logística',
+    path: '/menu/logistica',
+    roles: ['admin','direccio','cap','treballador'],
+    departments: ['logistica'],
+    submodules: [
+      {
+        label: 'Preparació',
+        path: '/menu/logistica/preparacio',
+        roles: ['admin','direccio','cap','treballador'],
+      },
+      {
+        label: 'Assignacions',
+        path: '/menu/logistica/assignacions',
+        roles: ['admin','direccio','cap'],
+      },
+      {
+        label: 'Transports',
+        path: '/menu/logistica/transports',
+        roles: ['admin','direccio','cap'],
+      },
+    ],
+  },
+
+  {
+    label: 'Calendar',
+    path: '/menu/calendar',
+    roles: ['admin','direccio','cap','comercial','usuari'],
+    departments: ['produccio','empresa','casaments','foodlovers'],
+  },
+
+  { label: 'Espais', path: '/menu/spaces',
+    roles: ['admin','direccio','cap','comercial','usuari'] },
+]
+
+/** 🧠 VISIBILITAT DE MÒDULS + SUBMÒDULS */
+export function getVisibleModules(user: AccessUser): ModuleDef[] {
+  const role = normalizeRole(user.role)
+  const dept = (user.department || '')
+  .normalize('NFD')
+  .replace(/\p{Diacritic}/gu, '')
+  .toLowerCase()
+  .trim()
+
+
+  return MODULES
+    .filter(mod => {
+      if (!mod.roles.includes(role)) return false
+
+      if (mod.departments) {
+        if (role === 'admin' || role === 'direccio') return true
+        return mod.departments.includes(dept)
+      }
+
+      return true
+    })
+    .map(mod => {
+      if (!mod.submodules) return mod
+
+      const visibleSubmodules = mod.submodules.filter(sub => {
+        if (!sub.roles.includes(role)) return false
+
+        if (sub.departments) {
+          if (role === 'admin' || role === 'direccio') return true
+          return sub.departments.includes(dept)
+        }
+
+        return true
+      })
+
+      return {
+        ...mod,
+        submodules: visibleSubmodules,
+      }
+    })
+}
+
+/** ✏️ PERMISOS D’EDICIÓ DE FINCA */
+export function canEditFinca(user?: AccessUser): boolean {
+  if (!user) return false
+
+  const role = normalizeRole(user.role)
+ const dept = (user.department || '')
+  .normalize('NFD')
+  .replace(/\p{Diacritic}/gu, '')
+  .toLowerCase()
+  .trim()
+
+
+  return (
+    role === 'admin' ||
+    role === 'direccio' ||
+    role === 'comercial' ||
+    dept === 'produccio'
+  )
 }

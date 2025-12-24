@@ -7,25 +7,13 @@ import VehiclesTable from './VehiclesTable'
 
 type VehicleRow = {
   id: string
+  department?: string
+  startDate?: string
+  startTime?: string
+  endTime?: string
   plate?: string
   vehicleType?: string
-}
-
-type Requested = {
-  total?: number
-}
-
-function vehicleLabel(t?: string) {
-  if (t === 'furgoneta') return 'Furgoneta'
-  if (t === 'camioPetit') return 'Camió petit'
-  if (t === 'camioGran') return 'Camió gran'
-  return 'Altres'
-}
-
-function statusDot(requestedTotal: number, assignedTotal: number) {
-  if (requestedTotal <= 0) return 'bg-blue-500'
-  if (assignedTotal >= requestedTotal) return 'bg-green-500'
-  return 'bg-yellow-400'
+  name?: string
 }
 
 export default function TransportAssignmentCard({
@@ -40,23 +28,45 @@ export default function TransportAssignmentCard({
     location: string
     service?: string
     pax: number
-    requested: Requested
+    status: 'draft' | 'confirmed'
     rows?: VehicleRow[]
-    assignedTotal: number
   }
   onChanged: () => void
 }) {
   const [open, setOpen] = useState(false)
 
-  const rows = item.rows || []
-  const totalReq = Number(item.requested?.total || 0)
-  const totalAss = rows.length
+  const rows = Array.isArray(item.rows) ? item.rows : []
 
-  const dot = useMemo(
-    () => statusDot(totalReq, totalAss),
-    [totalReq, totalAss]
-  )
+  /* =========================
+     VALIDACIÓ LÍNIA COMPLETA
+  ========================= */
+  const isRowComplete = (r: VehicleRow) =>
+    Boolean(
+      r.department &&
+      r.startDate &&
+      r.startTime &&
+      r.endTime &&
+      r.vehicleType &&
+      r.plate &&
+      r.name
+    )
 
+  /* =========================
+     CÀLCULS
+  ========================= */
+  const totalVehicles = rows.length
+
+  const completedVehicles = rows.filter(isRowComplete).length
+
+  const statusColor = useMemo(() => {
+    return item.status === 'confirmed'
+      ? 'bg-green-500'
+      : 'bg-blue-500'
+  }, [item.status])
+
+  /* =========================
+     RENDER
+  ========================= */
   return (
     <div className="rounded-xl border bg-white shadow-sm">
       {/* TARGETA COMPACTA */}
@@ -91,7 +101,7 @@ export default function TransportAssignmentCard({
           <div className="text-[11px] text-gray-500">pax</div>
         </div>
 
-        {/* VEHICLES ASSIGNATS (NOU) */}
+        {/* Vehicles resum */}
         <div className="flex flex-wrap gap-2">
           {rows.length > 0 ? (
             rows.map(v => (
@@ -99,23 +109,30 @@ export default function TransportAssignmentCard({
                 key={v.id}
                 className="px-2 py-1 rounded-md text-xs font-medium bg-slate-100 border"
               >
-                {v.plate || '—'} · {vehicleLabel(v.vehicleType)}
+                {v.plate || '—'} · {v.vehicleType || '—'}
               </span>
             ))
           ) : (
             <span className="text-xs text-gray-400">
-              Sense vehicles assignats
+              Sense vehicles
             </span>
           )}
         </div>
 
-        {/* Estat */}
+        {/* Estat + comptador */}
         <div className="flex items-center justify-center gap-2">
           <Truck size={16} />
           <span className="font-semibold text-sm">
-            {totalAss}/{totalReq}
+            {completedVehicles}/{totalVehicles}
           </span>
-          <span className={`inline-block w-3 h-3 rounded-full ${dot}`} />
+          <span
+            className={`inline-block w-3 h-3 rounded-full ${statusColor}`}
+            title={
+              item.status === 'confirmed'
+                ? 'Quadrant confirmat'
+                : 'Quadrant en esborrany'
+            }
+          />
         </div>
 
         {/* Expand */}
