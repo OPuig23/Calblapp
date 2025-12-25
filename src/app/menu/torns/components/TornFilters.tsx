@@ -116,8 +116,8 @@ export default function TornFilters({
           }}
         >
           <option value="">Tots</option>
-          {workerOptions.map(w => (
-            <option key={w.id || w.name} value={w.name}>
+          {workerOptions.map((w, i) => (
+            <option key={w.id || `${w.name}-${i}`} value={w.name}>
               {w.name}
             </option>
           ))}

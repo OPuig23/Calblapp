@@ -87,6 +87,7 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
   const [endDate, setEndDate]           = useState(extractDate(event.start))
   const [startTime, setStartTime]       = useState(event.startTime || '')
   const [endTime, setEndTime]           = useState(event.endTime || '')
+  const [arrivalTime, setArrivalTime]   = useState('')
   const [location, setLocation]         = useState(event.location || event.eventLocation || '')
   const [meetingPoint, setMeetingPoint] = useState(event.meetingPoint || '')
   const [manualResp, setManualResp]     = useState('')
@@ -98,7 +99,7 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
   const [numDrivers, setNumDrivers]     = useState(event.numDrivers?.toString() || '')
   const [available, setAvailable]       = useState<{ vehicles: AvailableVehicle[] }>({ vehicles: [] })
   const [vehicleAssignments, setVehicleAssignments] = useState<
-    { vehicleType: string; vehicleId: string; plate: string }[]
+    { vehicleType: string; vehicleId: string; plate: string; arrivalTime?: string }[]
   >([])
 
   const [serveisData, setServeisData] = useState({
@@ -112,6 +113,7 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
     setEndDate(extractDate(event.start))
     setStartTime(event.startTime || '')
     setEndTime(event.endTime || '')
+    setArrivalTime('')
     setLocation(event.location || event.eventLocation || '')
     setMeetingPoint(event.meetingPoint || '')
     setManualResp('')
@@ -162,11 +164,12 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
   }, [department, startDate, startTime, endDate, endTime, totalWorkers])
 
   useEffect(() => {
-    setVehicleAssignments(
-      Array.from({ length: Number(numDrivers || 0) }).map(() => ({
-        vehicleType: '',
-        vehicleId: '',
-        plate: '',
+    setVehicleAssignments((prev) =>
+      Array.from({ length: Number(numDrivers || 0) }).map((_, idx) => ({
+        vehicleType: prev[idx]?.vehicleType || '',
+        vehicleId: prev[idx]?.vehicleId || '',
+        plate: prev[idx]?.plate || '',
+        arrivalTime: prev[idx]?.arrivalTime || '',
       }))
     )
   }, [numDrivers])
@@ -189,6 +192,7 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
         startTime,
         endDate,
         endTime,
+        arrivalTime: arrivalTime || null,
         manualResponsibleId: manualResp || null,
         service: event.service || null,
         numPax: event.numPax || null,
@@ -211,7 +215,7 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
           return hit?.type || x
         }
         const vehiclesPayload = Array.from({ length: Number(numDrivers || 0) }).map((_, idx) => {
-          const v = vehicleAssignments[idx] ?? { vehicleType: '', vehicleId: '', plate: '' }
+          const v = vehicleAssignments[idx] ?? { vehicleType: '', vehicleId: '', plate: '', arrivalTime: '' }
           if (v.vehicleId) {
             const match = available.vehicles.find(av => av.id === v.vehicleId)
             return {
@@ -219,12 +223,19 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
               plate: match?.plate || '',
               vehicleType: v.vehicleType || match?.type || '',
               conductorId: match?.conductorId || null,
+              arrivalTime: v.arrivalTime || '',
             }
           }
           if (v.vehicleType) {
-            return { id: '', plate: '', vehicleType: canonicalType(v.vehicleType), conductorId: null }
+            return {
+              id: '',
+              plate: '',
+              vehicleType: canonicalType(v.vehicleType),
+              conductorId: null,
+              arrivalTime: v.arrivalTime || '',
+            }
           }
-          return { id: '', plate: '', vehicleType: '', conductorId: null }
+          return { id: '', plate: '', vehicleType: '', conductorId: null, arrivalTime: '' }
         })
         payload.totalWorkers = Number(totalWorkers)
         payload.numDrivers   = Number(numDrivers)
@@ -284,6 +295,10 @@ onOpenChange(false)
             <div>
               <Label>Hora Inici</Label>
               <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+            </div>
+            <div>
+              <Label>Hora arribada (esdeveniment)</Label>
+              <Input type="time" value={arrivalTime} onChange={(e) => setArrivalTime(e.target.value)} />
             </div>
             <div>
               <Label>Hora Fi</Label>

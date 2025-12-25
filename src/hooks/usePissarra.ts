@@ -10,28 +10,45 @@ export interface PissarraItem {
   eventName?: string
   startDate?: string
   startTime?: string
+  arrivalTime?: string
   location?: string
   pax?: number
   servei?: string
   comercial?: string
   responsableName?: string
-  HoraInici?: string   // ← afegim el camp opcional
+  HoraInici?: string
   horaInici?: string
+  vehicles?: { plate?: string; type?: string; conductor?: string; source?: string }[]
+  workers?: string[]
 }
 
-export default function usePissarra(weekStart: string, weekEnd: string, role?: string, department?: string) {
+type Mode = 'produccio' | 'logistica'
+
+export default function usePissarra(
+  weekStart: string,
+  weekEnd: string,
+  role?: string,
+  department?: string,
+  mode: Mode = 'produccio'
+) {
   const [flat, setFlat] = useState<PissarraItem[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>()
 
-  const canEdit = role === 'admin' || department === 'produccio'
+  const canEdit =
+    mode === 'produccio' && (role === 'admin' || department === 'produccio')
 
   useEffect(() => {
     let active = true
     async function load() {
       try {
         setLoading(true)
-        const res = await fetch(`/api/pissarra?start=${weekStart}&end=${weekEnd}`, { cache: 'no-store' })
+        const endpoint =
+          mode === 'logistica'
+            ? `/api/pissarra/logistica?start=${weekStart}&end=${weekEnd}`
+            : `/api/pissarra?start=${weekStart}&end=${weekEnd}`
+
+        const res = await fetch(endpoint, { cache: 'no-store' })
         const data = await res.json()
         if (active) setFlat(data.items || [])
       } catch (err: any) {
@@ -44,7 +61,7 @@ export default function usePissarra(weekStart: string, weekEnd: string, role?: s
     return () => {
       active = false
     }
-  }, [weekStart, weekEnd])
+  }, [weekStart, weekEnd, mode])
 
   const dataByDay = useMemo(() => {
     const grouped: Record<string, PissarraItem[]> = {}
@@ -57,6 +74,7 @@ export default function usePissarra(weekStart: string, weekEnd: string, role?: s
   }, [flat])
 
   async function updateField(id: string, payload: Partial<PissarraItem>) {
+    if (mode !== 'produccio') return
     await fetch('/api/pissarra/update', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },

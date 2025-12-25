@@ -20,6 +20,7 @@ export type TornCardItem = {
   eventName: string
   date: string
   time?: string
+  arrivalTime?: string
   location?: string
   mapsUrl?: string
   meetingPoint?: string
@@ -28,9 +29,7 @@ export type TornCardItem = {
   workerName?: string
   __rawWorkers?: WorkerLite[]
   startTime?: string
-endTime?: string
-
-
+  endTime?: string
 }
 
 function shortLocation(s?: string) {
@@ -179,6 +178,11 @@ export default function TornCard({ item, onClick }: Props) {
 
         {item.time && (
           <span className="text-lg text-gray-900">{item.time}</span>
+        )}
+        {item.arrivalTime && (
+          <span className="text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+            Arribada: {item.arrivalTime}
+          </span>
         )}
         {item.meetingPoint && (
           <span className="uppercase tracking-wide text-blue-700">

@@ -12,6 +12,7 @@ export type Torn = {
   endDate: string
   startTime: string
   endTime: string
+  arrivalTime?: string
   meetingPoint?: string
   location?: string
   department: string
@@ -128,6 +129,7 @@ type TornDoc = {
   endDate?: string | { toDate: () => Date }
   startTime?: string | number | Date | { toDate: () => Date }
   endTime?: string | number | Date | { toDate: () => Date }
+  arrivalTime?: string | number | Date | { toDate: () => Date }
   meetingPoint?: string
   department?: string
   location?: string
@@ -173,6 +175,7 @@ function mapDocToTorn(
   const endDate = doc?.endDate ? parseAnyDateToISO(doc.endDate) : ''
   const startTime = toTimeHHmm(doc?.startTime)
   const endTime = toTimeHHmm(doc?.endTime)
+  const arrivalTime = toTimeHHmm((doc as any)?.arrivalTime)
   const meetingPoint = doc?.meetingPoint ?? ''
   const department = doc?.department
     ? norm(doc.department)
@@ -237,6 +240,7 @@ function mapDocToTorn(
     endDate: endDate || startDate,
     startTime,
     endTime,
+    arrivalTime,
     meetingPoint,
     location,
     department,

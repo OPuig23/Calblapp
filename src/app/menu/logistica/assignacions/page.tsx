@@ -1,19 +1,15 @@
 'use client'
 
 import React, { useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { startOfWeek, endOfWeek, format } from 'date-fns'
-import { ArrowLeft } from 'lucide-react'
 
 import ModuleHeader from '@/components/layout/ModuleHeader'
 import FiltersBar, { type FiltersState } from '@/components/layout/FiltersBar'
 import { useTransportAssignments } from './hooks/useTransportAssignments'
 import TransportAssignmentCard from './components/TransportAssignmentCard'
-
 export default function TransportAssignacionsPage() {
-  const router = useRouter()
-  useSession() // només per garantir sessió activa (guard global)
+  useSession() // nomes per garantir sessio activa (guard global)
 
   /* =========================
      FILTRES INICIALS (SETMANA ACTUAL)
@@ -114,6 +110,7 @@ export default function TransportAssignacionsPage() {
           ))}
         </div>
       )}
+
     </main>
   )
 }

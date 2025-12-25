@@ -10,15 +10,15 @@ import { RoleGuard } from '@/lib/withRoleGuard'
 import usePissarra from '@/hooks/usePissarra'
 import PissarraList from './components/PissarraList'
 import SmartFilters from '@/components/filters/SmartFilters'
+import { Button } from '@/components/ui/button'
 
 export default function PissarraPage() {
   const { data: session, status } = useSession()
 
-  // 🧩 Sessió i rol usuari
   const role = normalizeRole(session?.user?.role || 'treballador')
   const dept = (session?.user?.department || '').toLowerCase()
+  const [mode, setMode] = useState<'produccio' | 'logistica'>('produccio')
 
-  // 📆 Setmana actual per defecte
   const now = new Date()
   const defaultWeekStart = startOfWeek(now, { weekStartsOn: 1 })
   const defaultWeekEnd = endOfWeek(now, { weekStartsOn: 1 })
@@ -28,12 +28,12 @@ export default function PissarraPage() {
     endISO: defaultWeekEnd.toISOString().slice(0, 10),
   })
 
-  // 🔁 Dades Firestore
   const { dataByDay, loading, error, canEdit, updateField } = usePissarra(
     week.startISO,
     week.endISO,
     role,
-    dept
+    dept,
+    mode
   )
 
   if (status === 'loading') {
@@ -57,33 +57,52 @@ export default function PissarraPage() {
     >
       <main className="flex flex-col h-full w-full overflow-y-auto bg-gray-50">
 
-        {/* 🔹 Barra filtres */}
+        {/* Barra filtres i mode */}
         <div className="border-b bg-white sticky top-0 z-10 px-3 py-2">
-          <SmartFilters
-            modeDefault="week"
-            role={
-              session?.user?.role === 'admin'
-                ? 'Admin'
-                : session?.user?.role === 'direccio'
-                ? 'Direcció'
-                : session?.user?.role === 'cap'
-                ? 'Cap Departament'
-                : 'Treballador'
-            }
-            showDepartment={false}
-            showWorker={false}
-            showLocation={false}
-            showStatus={false}
-            showImportance={false}
-            onChange={(f) => {
-              if (f.start && f.end) {
-                setWeek({ startISO: f.start, endISO: f.end })
+          <div className="flex flex-wrap items-center gap-2">
+            <SmartFilters
+              modeDefault="week"
+              role={
+                session?.user?.role === 'admin'
+                  ? 'Admin'
+                  : session?.user?.role === 'direccio'
+                  ? 'Direccio'
+                  : session?.user?.role === 'cap'
+                  ? 'Cap Departament'
+                  : 'Treballador'
               }
-            }}
-          />
+              showDepartment={false}
+              showWorker={false}
+              showLocation={false}
+              showStatus={false}
+              showImportance={false}
+              compact
+              onChange={(f) => {
+                if (f.start && f.end) {
+                  setWeek({ startISO: f.start, endISO: f.end })
+                }
+              }}
+            />
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant={mode === 'produccio' ? 'default' : 'outline'}
+                onClick={() => setMode('produccio')}
+              >
+                Pissarra Produccio
+              </Button>
+              <Button
+                size="sm"
+                variant={mode === 'logistica' ? 'default' : 'outline'}
+                onClick={() => setMode('logistica')}
+              >
+                Pissarra Logistica
+              </Button>
+            </div>
+          </div>
         </div>
 
-        {/* 🔹 Carregant o error */}
+        {/* Loading / error */}
         {loading && (
           <div className="flex justify-center items-center py-10">
             <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
@@ -96,16 +115,17 @@ export default function PissarraPage() {
           </p>
         )}
 
-        {/* 🔹 Llista (només es mostra quan hi ha dades) */}
+        {/* Llista */}
         {!loading && !error && (
-  <PissarraList
-    key={week.startISO}
-    dataByDay={dataByDay}
-    canEdit={canEdit}
-    onUpdate={updateField}
-    weekStart={new Date(week.startISO)}
-  />
-)}
+          <PissarraList
+            key={`${week.startISO}-${mode}`}
+            dataByDay={dataByDay}
+            canEdit={canEdit}
+            onUpdate={updateField}
+            weekStart={new Date(week.startISO)}
+            variant={mode}
+          />
+        )}
 
       </main>
     </RoleGuard>

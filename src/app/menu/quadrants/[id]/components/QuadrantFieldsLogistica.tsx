@@ -11,6 +11,7 @@ type VehicleAssignment = {
   vehicleType: string
   vehicleId: string
   plate: string
+  arrivalTime?: string
 }
 
 type AvailableVehicle = {
@@ -30,7 +31,7 @@ type Props = {
   available: { vehicles: AvailableVehicle[] }
 }
 
-// Diccionari per normalitzar tipus
+// Normalitza tipus
 const normalizeType = (t: string) => {
   const val = t?.toLowerCase()
   if (!val) return ''
@@ -46,9 +47,6 @@ export default function QuadrantFieldsLogistica({
   vehicleAssignments, setVehicleAssignments,
   available,
 }: Props) {
-
-  console.log('[Logistica] 🚚 Vehicles disponibles totals:', available.vehicles)
-
   return (
     <div className="grid grid-cols-2 gap-4">
       {/* # Treballadors */}
@@ -85,10 +83,6 @@ export default function QuadrantFieldsLogistica({
             !vehicleAssignments.some((a, i) => i !== idx && a.vehicleId === v.id)
           )
 
-          console.log(`[Logistica] 👤 Conductor ${idx + 1}`)
-          console.log('  vehicleType assignat:', assign.vehicleType)
-          console.log('  Matricules filtrades:', filtered)
-
           return (
             <div key={idx} className="mt-3 border p-3 rounded-md space-y-2">
               <p className="text-sm font-semibold">Vehicle #{idx + 1}</p>
@@ -97,7 +91,6 @@ export default function QuadrantFieldsLogistica({
               <Select
                 value={assign.vehicleType}
                 onValueChange={val => {
-                  console.log(`[Logistica] 🛠️ Conductor ${idx + 1} ha triat tipus:`, val)
                   const upd = [...vehicleAssignments]
                   upd[idx].vehicleType = val
                   upd[idx].vehicleId = ''
@@ -115,7 +108,7 @@ export default function QuadrantFieldsLogistica({
                 </SelectContent>
               </Select>
 
-              {/* 2. Selecció MATRÍCULA */}
+              {/* 2. Selecció MATRÍCULA + Hora d'arribada */}
               {assign.vehicleType && (
                 <>
                   <div className="text-xs text-gray-500">
@@ -125,7 +118,6 @@ export default function QuadrantFieldsLogistica({
                     value={assign.vehicleId}
                     onValueChange={val => {
                       if (val === '__any__') {
-                        console.log(`[Logistica] 🚚 Conductor ${idx + 1} -> Només tipus, sense matrícula`)
                         const upd = [...vehicleAssignments]
                         upd[idx].vehicleId = ''
                         upd[idx].plate = ''
@@ -134,7 +126,6 @@ export default function QuadrantFieldsLogistica({
                       }
 
                       const chosen = available.vehicles.find(v => v.id === val)
-                      console.log(`[Logistica] 🚚 Conductor ${idx + 1} ha triat matrícula:`, chosen)
                       const upd = [...vehicleAssignments]
                       upd[idx].vehicleId = val
                       upd[idx].plate = chosen?.plate || ''
@@ -156,6 +147,19 @@ export default function QuadrantFieldsLogistica({
                       ))}
                     </SelectContent>
                   </Select>
+
+                  <div className="space-y-1 pt-2">
+                    <Label>Hora d'arribada</Label>
+                    <Input
+                      type="time"
+                      value={assign.arrivalTime || ''}
+                      onChange={(e) => {
+                        const upd = [...vehicleAssignments]
+                        upd[idx].arrivalTime = e.target.value
+                        setVehicleAssignments(upd)
+                      }}
+                    />
+                  </div>
                 </>
               )}
             </div>

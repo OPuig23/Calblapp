@@ -64,6 +64,7 @@ interface QuadrantSave {
   updatedAt: string
   brigades?: Brigade[]
   service?: string | null
+  arrivalTime?: string | null
 
 }
 
@@ -108,6 +109,7 @@ export async function POST(req: NextRequest) {
       startTime: body.startTime || '00:00',
       endDate: body.endDate,
       endTime: body.endTime || '00:00',
+      arrivalTime: body.arrivalTime || null,
       department: deptNorm,
       status: 'draft',
       numDrivers: Number(body.numDrivers || 0),

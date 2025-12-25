@@ -4,43 +4,44 @@ import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { useSession } from 'next-auth/react'
 import ModuleHeader from '@/components/layout/ModuleHeader'
-import { ClipboardList, Truck } from 'lucide-react'
+import {
+  ClipboardCheck,
+  ClipboardList,
+  Truck,
+  CalendarClock,
+  Route,
+} from 'lucide-react'
 import { getVisibleModules } from '@/lib/accessControl'
 
 export default function LogisticsHubPage() {
   const { data: session } = useSession()
   const user = session?.user
 
-  // 🔐 Obtenim el mòdul Logística segons permisos reals
   const logisticaModule = getVisibleModules({
     role: user?.role,
     department: user?.department,
   }).find(m => m.path === '/menu/logistica')
 
-  // 🧩 Submòduls visibles
   const submodules = logisticaModule?.submodules ?? []
 
   return (
     <>
-      {/* 🔹 Capçalera automàtica del mòdul */}
       <ModuleHeader />
 
-      <section className="w-full h-full flex flex-col items-center justify-center gap-6 p-6">
-        <div className="flex flex-col gap-4 w-full max-w-xs">
-
+      <section className="w-full h-full flex flex-col items-center justify-center p-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-3xl">
           {submodules.map(sub => {
-            // 🎨 Estils per submòdul (opcional però clar)
-            const isPreparacio = sub.path.includes('preparacio')
-            const isAssignacions = sub.path.includes('assignacions')
-            const isTransports = sub.path.includes('transports')
+            const key = sub.path.split('/').pop() || sub.path
 
-            const Icon = isPreparacio ? ClipboardList : Truck
+            const styleMap: Record<string, { bg: string; text: string; border: string; Icon: any }> = {
+              preparacio: { bg: 'bg-[#e9f8ee]', text: 'text-[#155e37]', border: 'border-[#c7eed6]', Icon: ClipboardCheck },
+              assignacions: { bg: 'bg-[#eef2ff]', text: 'text-[#3730a3]', border: 'border-[#c7d2fe]', Icon: Route },
+              disponibilitat: { bg: 'bg-[#e8f5ff]', text: 'text-[#0f5c99]', border: 'border-[#c9e6ff]', Icon: CalendarClock },
+              transports: { bg: 'bg-[#fff4e5]', text: 'text-[#b45309]', border: 'border-[#fde2bd]', Icon: Truck },
+            }
 
-            const styles = isPreparacio
-              ? 'bg-[#e9f8ee] text-[#155e37] border-[#c7eed6]'
-              : isAssignacions
-              ? 'bg-[#eef2ff] text-[#3730a3] border-[#c7d2fe]'
-              : 'bg-[#fff4e5] text-[#b45309] border-[#fde2bd]'
+            const styles = styleMap[key] ?? { bg: 'bg-white', text: 'text-slate-800', border: 'border-slate-200', Icon: ClipboardList }
+            const Icon = styles.Icon
 
             return (
               <Link key={sub.path} href={sub.path}>
@@ -50,30 +51,28 @@ export default function LogisticsHubPage() {
                     w-full 
                     font-semibold 
                     rounded-xl 
-                    p-4 
+                    p-5 
                     text-center 
                     shadow-sm 
                     border 
                     flex flex-col 
                     items-center 
-                    gap-1
-                    ${styles}
+                    gap-2
+                    ${styles.bg} ${styles.text} ${styles.border}
                   `}
                 >
-                  <Icon className="w-6 h-6" />
+                  <Icon className="w-7 h-7" />
                   {sub.label}
                 </motion.div>
               </Link>
             )
           })}
 
-          {/* 🟡 Si no hi ha submòduls visibles (cas límit) */}
           {!submodules.length && (
-            <p className="text-sm text-gray-500 text-center">
+            <p className="text-sm text-gray-500 text-center col-span-full">
               No tens accés a cap secció de Logística.
             </p>
           )}
-
         </div>
       </section>
     </>

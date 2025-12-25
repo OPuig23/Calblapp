@@ -81,8 +81,7 @@ export interface SmartFiltersProps {
   categoryOptions?: { id: string; label: string }[]  // ✅ AFEGIT
    startDefault?: string
   endDefault?: string
-  
-
+  compact?: boolean
 }
 
 /* ==================== Utils ==================== */
@@ -123,7 +122,8 @@ export default function SmartFilters({
   resetSignal,
   renderLabels = {},
   initialStart,
-  initialEnd
+  initialEnd,
+  compact = false
 }: SmartFiltersProps) {
   
   const isCap = role === 'Cap Departament'
@@ -376,11 +376,19 @@ if (key !== lastPayloadRef.current) {
     }
   }, [resetSignal])
 
+  const containerClass = compact
+    ? 'inline-flex flex-row flex-wrap items-center gap-2'
+    : 'flex flex-col md:flex-row md:flex-wrap gap-2 w-full'
+
+  const dateBarClass = compact
+    ? 'flex items-center gap-2 flex-shrink-0 whitespace-nowrap'
+    : 'flex items-center gap-2 flex-shrink-0 py-1.5 px-1.5 whitespace-nowrap'
+
   /* ==================== RENDER ==================== */
   return (
-    <div className="flex flex-col md:flex-row md:flex-wrap gap-2 w-full">
+    <div className={containerClass}>
       {/* 🔹 Barra superior del filtre de dates – una sola línia, amb selector únic i rang automàtic */}
-<div className="flex items-center gap-2 flex-shrink-0 py-1.5 px-1.5 whitespace-nowrap">
+      <div className={dateBarClass}>
 
 
 
@@ -652,7 +660,7 @@ if (key !== lastPayloadRef.current) {
             <SelectContent>
               <SelectItem value="__all__">🌐 Tots</SelectItem>
               {filteredWorkerOptions.map((w, i) => (
-                <SelectItem key={`${w.id || w.name}-${i}`} value={w.id || w.name}>
+                <SelectItem key={`${w.id || w.name || 'worker'}-${i}`} value={w.id || w.name}>
                   {w.name}
                 </SelectItem>
               ))}
@@ -699,3 +707,6 @@ if (key !== lastPayloadRef.current) {
     </div>
   )
 }
+
+
+
