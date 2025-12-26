@@ -85,7 +85,7 @@ export function useCalendarData(filters?: {
 
         DataInici: ev.start?.slice(0, 10),
         DataFi: ev.end?.slice(0, 10),
-        Ubicacio: ev.Ubicacio || '',
+        Ubicacio: ev.Ubicacio || ev.ubicacio || ev.location || ev.Location || '',
         Color: ev.Color || '',
         StageDot: ev.StageDot || '',
 

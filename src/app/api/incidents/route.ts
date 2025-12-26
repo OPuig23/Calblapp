@@ -125,7 +125,9 @@ export async function GET(req: Request) {
     const to = searchParams.get("to");
     const importance = searchParams.get("importance");
     const eventId = searchParams.get("eventId");
-    const categoryId = searchParams.get("categoryId");
+    const department = searchParams.get("department");
+    const categoryLabel = searchParams.get("categoryLabel");
+    const categoryId = searchParams.get("categoryId"); // compat: nom antic
 
     let ref = firestoreAdmin
       .collection("incidents")
@@ -141,8 +143,19 @@ export async function GET(req: Request) {
     if (eventId) ref = ref.where("eventId", "==", eventId);
     if (importance && importance !== "all")
       ref = ref.where("importance", "==", importance);
-    if (categoryId && categoryId !== "all")
-      ref = ref.where("category.label", "==", categoryId);
+    if (department && department !== "all")
+      ref = ref.where("department", "==", department);
+
+    // Filtre de categoria: admet tant label (nou) com id (antic)
+    const categoryFilter =
+      categoryLabel && categoryLabel !== "all"
+        ? categoryLabel
+        : categoryId && categoryId !== "all"
+        ? categoryId
+        : null;
+
+    if (categoryFilter)
+      ref = ref.where("category.label", "==", categoryFilter);
 
     // 1️⃣ Llegir incidències crues
     const snap = await ref.get();

@@ -1,13 +1,22 @@
-//file: src/app/menu/incidents/page.tsx
+// file: src/app/menu/incidents/page.tsx
 'use client'
 
 import React, { useState, useMemo } from 'react'
 import { AlertTriangle } from 'lucide-react'
+import {
+  Select,
+  SelectTrigger,
+  SelectContent,
+  SelectItem,
+  SelectValue,
+} from '@/components/ui/select'
 
 import ModuleHeader from '@/components/layout/ModuleHeader'
 import SmartFilters, { SmartFiltersChange } from '@/components/filters/SmartFilters'
 import { useIncidents } from '@/hooks/useIncidents'
 import IncidentsTable from './components/IncidentsTable'
+import FilterButton from '@/components/ui/filter-button'
+import { useFilters } from '@/context/FiltersContext'
 
 export default function IncidentsPage() {
   const [filters, setFilters] = useState({
@@ -20,7 +29,15 @@ export default function IncidentsPage() {
 
   const { incidents, loading, error, updateIncident } = useIncidents(filters)
 
-  // 🔹 Derivem categories automàticament
+  const departmentOptions = useMemo(() => {
+    const set = new Set<string>()
+    incidents.forEach((i) => {
+      const dep = i.department?.trim()
+      if (dep) set.add(dep)
+    })
+    return Array.from(set).sort((a, b) => a.localeCompare(b))
+  }, [incidents])
+
   const categoryOptions = useMemo(() => {
     const set = new Set<string>()
     incidents.forEach((i) => {
@@ -30,7 +47,6 @@ export default function IncidentsPage() {
     return Array.from(set).map((l) => ({ id: l, label: l }))
   }, [incidents])
 
-  // 🔹 Total incidències del rang
   const totalIncidencies = incidents.length
 
   const handleFilterChange = (f: SmartFiltersChange) => {
@@ -43,6 +59,79 @@ export default function IncidentsPage() {
       categoryLabel:
         f.categoryId && f.categoryId !== 'all' ? f.categoryId : 'all',
     }))
+  }
+
+  const { setContent, setOpen } = useFilters()
+
+  const openFiltersPanel = () => {
+    setContent(
+      <div className="p-4 space-y-4">
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-700">Departament</label>
+          <Select
+            value={filters.department || 'all'}
+            onValueChange={(v) =>
+              setFilters((prev) => ({ ...prev, department: v === 'all' ? undefined : v }))
+            }
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Tots" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tots</SelectItem>
+              {departmentOptions.map((d) => (
+                <SelectItem key={d} value={d}>
+                  {d}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-700">Importància</label>
+          <Select
+            value={filters.importance || 'all'}
+            onValueChange={(v) =>
+              setFilters((prev) => ({ ...prev, importance: v === 'all' ? 'all' : v }))
+            }
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Totes" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Totes</SelectItem>
+              <SelectItem value="alta">Alta</SelectItem>
+              <SelectItem value="mitjana">Mitjana</SelectItem>
+              <SelectItem value="baixa">Baixa</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-700">Categoria</label>
+          <Select
+            value={filters.categoryLabel || 'all'}
+            onValueChange={(v) =>
+              setFilters((prev) => ({ ...prev, categoryLabel: v === 'all' ? 'all' : v }))
+            }
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Totes" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Totes</SelectItem>
+              {categoryOptions.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+    )
+    setOpen(true)
   }
 
   return (
@@ -59,24 +148,22 @@ export default function IncidentsPage() {
         Total incidències: {totalIncidencies}
       </div>
 
-      {/* Barra de filtres */}
-      <div
-        className="
-          rounded-2xl border border-gray-200 bg-white p-3 shadow-sm mb-2
-          flex flex-col gap-3
-          sm:flex-row sm:items-center sm:flex-wrap
-        "
-      >
+      {/* Barra compacta: només dates + botó filtres */}
+      <div className="rounded-2xl border border-gray-200 bg-white p-3 shadow-sm mb-2 flex items-center gap-3 flex-wrap sm:flex-nowrap">
         <SmartFilters
           role="Direcció"
           onChange={handleFilterChange}
-          showDepartment
+          showDepartment={false}
           showWorker={false}
           showLocation={false}
           showStatus={false}
-          showImportance
+          showImportance={false}
           categoryOptions={categoryOptions}
+          showAdvanced={false}
+          compact
         />
+        <div className="flex-1 min-w-[8px]" />
+        <FilterButton onClick={openFiltersPanel} />
       </div>
 
       {/* Contingut */}

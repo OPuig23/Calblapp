@@ -29,12 +29,43 @@ type QRow = {
   startDate?: string
   meetingPoint?: string
   startTime?: string
+  endTime?: string
   hour?: string
   convocatoria?: string
   responsableName?: string
-  conductors?: Array<{ name?: string; meetingPoint?: string; time?: string; hour?: string }>
-  treballadors?: Array<{ name?: string; meetingPoint?: string; time?: string; hour?: string }>
-  workers?: Array<{ name?: string; meetingPoint?: string; time?: string; hour?: string }>
+  conductors?: Array<{
+    name?: string
+    meetingPoint?: string
+    time?: string
+    hour?: string
+    endTime?: string
+    endTimeReal?: string
+    sortidaNotes?: string
+    noShow?: boolean
+    leftEarly?: boolean
+  }>
+  treballadors?: Array<{
+    name?: string
+    meetingPoint?: string
+    time?: string
+    hour?: string
+    endTime?: string
+    endTimeReal?: string
+    sortidaNotes?: string
+    noShow?: boolean
+    leftEarly?: boolean
+  }>
+  workers?: Array<{
+    name?: string
+    meetingPoint?: string
+    time?: string
+    hour?: string
+    endTime?: string
+    endTimeReal?: string
+    sortidaNotes?: string
+    noShow?: boolean
+    leftEarly?: boolean
+  }>
 }
 
 type PersonnelDoc = {
@@ -152,7 +183,19 @@ export async function GET(req: NextRequest) {
       }
 
       const each = (
-        arr: Array<{ name?: string; meetingPoint?: string; time?: string; hour?: string }> | undefined,
+        arr:
+          | Array<{
+              name?: string
+              meetingPoint?: string
+              time?: string
+              hour?: string
+              endTime?: string
+              endTimeReal?: string
+              sortidaNotes?: string
+              noShow?: boolean
+              leftEarly?: boolean
+            }>
+          | undefined,
         role: string
       ) => {
         if (!Array.isArray(arr)) return
@@ -165,6 +208,11 @@ export async function GET(req: NextRequest) {
             department: dept,
             meetingPoint: p.meetingPoint || qMeeting,
             time: p.time || p.hour || qTime,
+            endTime: p.endTime || q.endTime || '',
+            endTimeReal: p.endTimeReal || '',
+            notes: p.sortidaNotes || '',
+            noShow: !!p.noShow,
+            leftEarly: !!p.leftEarly,
           })
         }
       }

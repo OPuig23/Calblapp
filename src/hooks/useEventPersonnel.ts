@@ -12,6 +12,11 @@ export interface Person {
   department?: string
   meetingPoint?: string
   time?: string
+  endTime?: string
+  endTimeReal?: string
+  notes?: string
+  noShow?: boolean
+  leftEarly?: boolean
 }
 
 export interface EventPersonnel {

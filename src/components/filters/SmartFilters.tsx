@@ -37,6 +37,7 @@ export type SmartFiltersChange = {
   start?: string
   end?: string
   department?: string
+  commercial?: string
   workerId?: string
   workerName?: string
   location?: string
@@ -56,11 +57,13 @@ export interface SmartFiltersProps {
   departmentOptions?: string[]
   workerOptions?: WorkerOpt[]
   locationOptions?: string[]
+  commercialOptions?: string[]
   role: Role
   fixedDepartment?: string | null
   lockedWorkerId?: string
   lockedWorkerName?: string
   showDepartment?: boolean
+  showCommercial?: boolean
   showWorker?: boolean
   showLocation?: boolean
   showStatus?: boolean
@@ -82,8 +85,8 @@ export interface SmartFiltersProps {
    startDefault?: string
   endDefault?: string
   compact?: boolean
+  showAdvanced?: boolean
 }
-
 /* ==================== Utils ==================== */
 const toIso = (d: Date) => format(d, 'yyyy-MM-dd')
 const human = (d: Date) => format(d, 'd MMM yyyy', { locale: es })
@@ -107,11 +110,13 @@ export default function SmartFilters({
   departmentOptions = [],
   workerOptions = [],
   locationOptions = [],
+  commercialOptions = [],
   role,
     fixedDepartment = null,
   lockedWorkerId,
   lockedWorkerName,
   showDepartment = true,
+  showCommercial = false,
   showWorker = true,
   showLocation = true,
   showStatus = true,
@@ -123,14 +128,17 @@ export default function SmartFilters({
   renderLabels = {},
   initialStart,
   initialEnd,
-  compact = false
+  compact = false,
+  showAdvanced = true
 }: SmartFiltersProps) {
-  
-  const isCap = role === 'Cap Departament'
+
+  // Normalitzem rol per evitar problemes amb accents/cas
+  const roleNorm = unaccent(String(role || '').toLowerCase())
+  const isCap = roleNorm === 'cap departament'
   const isAdminOrDireccio =
-    role?.toLowerCase() === 'admin' ||
-    role?.toLowerCase() === 'direccio' ||
-    role?.toLowerCase() === 'direccion'
+    roleNorm === 'admin' ||
+    roleNorm === 'direccio' ||
+    roleNorm === 'direccion'
 
   const allowDepartment = showDepartment && isAdminOrDireccio
   const allowWorker = showWorker && (isCap || isAdminOrDireccio)
@@ -164,6 +172,7 @@ useEffect(() => {
   const [workerId, setWorkerId] = useState<string>(lockedWorkerId || '')
   const [workerName, setWorkerName] = useState<string>(lockedWorkerName || '')
   const [location, setLocation] = useState<string>('')
+  const [commercial, setCommercial] = useState<string>('')
   const [status, setStatus] = useState<'all' | 'confirmed' | 'draft'>('all')
   const [importance, setImportance] = useState<string | undefined>(undefined)
   const [roleType, setRoleType] = useState<RoleType>('all')
@@ -317,6 +326,7 @@ useEffect(() => {
       workerId: allowWorker && workerId ? workerId : undefined,
       workerName: allowWorker && workerName ? workerName : undefined,
       location: showLocation && location ? location : undefined,
+      commercial: showCommercial && commercial ? commercial : undefined,
       status: showStatus ? status : undefined,
       importance: showImportance && importance !== 'all'
         ? (importance as 'Alta' | 'Mitjana' | 'Baixa')
@@ -354,6 +364,7 @@ if (key !== lastPayloadRef.current) {
     workerId,
     workerName,
     location,
+    commercial,
     status,
     importance,
     roleType,
@@ -362,6 +373,7 @@ if (key !== lastPayloadRef.current) {
     showLocation,
     showStatus,
     showImportance,
+    showCommercial,
     onChange
   ])
 
@@ -589,8 +601,8 @@ if (key !== lastPayloadRef.current) {
 </div> {/* ✅ Tanca la barra superior de filtres */}
 
 
-{/* 🔽 Selects opcionals (es mostren només si cal) */}
-<div className="flex flex-wrap gap-2">
+{/* Selects opcionals */}
+<div className={showAdvanced ? "flex flex-wrap gap-2" : "hidden sm:flex sm:flex-wrap sm:gap-2"}>
   {allowWorker && (
     <Select value={roleType} onValueChange={(v) => setRoleType(v as RoleType)}>
       <SelectTrigger className="w-[180px] border bg-white text-gray-900">
@@ -636,6 +648,22 @@ if (key !== lastPayloadRef.current) {
           </Select>
         )}
 
+        {showCommercial && commercialOptions && commercialOptions.length > 0 && (
+          <Select value={commercial || '__all__'} onValueChange={(v) => setCommercial(v === '__all__' ? '' : v)}>
+            <SelectTrigger className="w-[180px] border bg-white text-gray-900">
+              <SelectValue placeholder="Comercial" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">Tots</SelectItem>
+              {commercialOptions.map((c, i) => (
+                <SelectItem key={`${c}-${i}`} value={c}>
+                  {c}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+
         {allowWorker && filteredWorkerOptions.length > 0 && (
           <Select
             value={workerId || workerName || '__all__'}
@@ -658,7 +686,7 @@ if (key !== lastPayloadRef.current) {
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="__all__">🌐 Tots</SelectItem>
+              <SelectItem value="__all__">Tots</SelectItem>
               {filteredWorkerOptions.map((w, i) => (
                 <SelectItem key={`${w.id || w.name || 'worker'}-${i}`} value={w.id || w.name}>
                   {w.name}
@@ -707,6 +735,7 @@ if (key !== lastPayloadRef.current) {
     </div>
   )
 }
+
 
 
 

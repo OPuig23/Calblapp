@@ -22,6 +22,12 @@ export interface Incident {
   fincaId?: string
 }
 
+const normalizeTimestamp = (ts: any): string => {
+  if (ts && typeof ts.toDate === 'function') return ts.toDate().toISOString()
+  if (typeof ts === 'string') return ts
+  return ''
+}
+
 export function useIncidents(_filters: {
   eventId?: string
   from?: string
@@ -111,11 +117,41 @@ export function useIncidents(_filters: {
   ])
 
   const updateIncident = async (id: string, data: Partial<Incident>) => {
-    await fetch(`/api/incidents/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    })
+    try {
+      setError(null)
+
+      const res = await fetch(`/api/incidents/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+
+      const payload = await res.json()
+      const updated = payload?.incident
+        ? {
+            ...payload.incident,
+            createdAt: normalizeTimestamp(payload.incident.createdAt),
+          }
+        : null
+
+      if (updated) {
+        setIncidents((prev) =>
+          prev.map((inc) => (inc.id === id ? { ...inc, ...updated } : inc))
+        )
+      } else {
+        setIncidents((prev) =>
+          prev.map((inc) => (inc.id === id ? { ...inc, ...data } : inc))
+        )
+      }
+
+      return updated
+    } catch (err: any) {
+      const msg = err?.message || 'Error actualitzant incidència'
+      setError(msg)
+      return null
+    }
   }
 
   return { incidents, loading, error, updateIncident }

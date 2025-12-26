@@ -34,6 +34,7 @@ import EventModificationsModal from './EventModificationsModal'
 import CreateModificationModal from './CreateModificationModal'
 import EventSpacesModal from './EventSpacesModal'
 import EventAvisosModal from './EventAvisosModal'
+import EventClosingModal from './EventClosingModal'
 
 
 /** ───────────────────────── Helpers ───────────────────────── */
@@ -174,6 +175,7 @@ export default function EventMenuModal({ event, user, onClose }: EventMenuModalP
   const [showModifications, setShowModifications] = useState(false)
   const [showCreateModification, setShowCreateModification] = useState(false)
   const [showAvisos, setShowAvisos] = useState(false)
+  const [showClosing, setShowClosing] = useState(false)
 
 
   // ✅ Nou botó: Espais (placeholder fins que ens diguis on ha d'anar)
@@ -223,6 +225,12 @@ const treballadorsPersons =
   const isProduccio = deptN === 'produccio'
   const canWriteAvisos =
   isAdmin || isDireccio || isCapDept || isProduccio
+  const canCloseEvent =
+    isAdmin ||
+    isDireccio ||
+    isCapDept ||
+    norm(event?.department) === deptN ||
+    !!event?.isResponsible
 
 
 
@@ -314,6 +322,17 @@ const operativa = useMemo(
           }
         : null,
 
+      canCloseEvent
+        ? {
+            key: 'closing',
+            label: 'Tancament (hores reals)',
+            badge: 'Tancament',
+            icon: Sparkles,
+            tone: 'success' as const,
+            onClick: () => setShowClosing(true),
+          }
+        : null,
+
       // 🔔 Avisos de Producció (SEMPRE visible)
       
         
@@ -333,6 +352,7 @@ const operativa = useMemo(
     canCreateModification,
     canSeeModifications,
     canWriteAvisos,
+    canCloseEvent,
     
   ]
 )
@@ -555,6 +575,13 @@ treballadors={treballadorsPersons}
   fincaId={event.fincaId ?? null}
   eventSummary={event.summary}
 />
+      <EventClosingModal
+        open={showClosing}
+        onClose={() => setShowClosing(false)}
+        eventId={String(event.id)}
+        eventName={event.summary}
+        user={user as any}
+      />
       <EventDocumentsSheet eventId={String(event.id)} open={docsOpen} onOpenChange={setDocsOpen} />
     </>
   )

@@ -2,6 +2,7 @@
 'use client'
 
 import React, { useEffect, useMemo, useState } from 'react'
+import { useSession } from 'next-auth/react'
 import {
   Dialog,
   DialogContent,
@@ -34,7 +35,15 @@ interface Props {
 export default function CalendarModal({ deal, trigger, onSaved, readonly }: Props) {
   console.log('🧩 Dades rebudes al modal:', deal)
 
+  const { data: session } = useSession()
   const [open, setOpen] = useState(false)
+
+  const norm = (s?: string | null) =>
+    (s || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .trim()
 
   // Helper per recuperar camps sense importar majúscules/minúscules
   const get = (obj: any, ...keys: string[]) => {
@@ -73,7 +82,17 @@ export default function CalendarModal({ deal, trigger, onSaved, readonly }: Prop
     deal.origen === 'zoho'
   const isManual = deal.origen !== 'zoho'
 
-  const canEdit = !readonly && (isZohoVerd || isManual)
+  const role = norm((session?.user as any)?.role)
+  const department = norm((session?.user as any)?.department)
+  const isAdmin = role === 'admin'
+  const isDireccio = role === 'direccio' || role === 'direccion'
+  const isProduccio = department === 'produccio'
+  const isComercial = department === 'comercial'
+
+  const canEditStageVerd = isZohoVerd && (isAdmin || isDireccio || isProduccio || isComercial)
+  const canEditManual = isManual && (isAdmin || isDireccio || isProduccio || isComercial)
+
+  const canEdit = !readonly && (canEditStageVerd || canEditManual)
 
   // Col·lecció: sempre guardem a stage_verd (segons decisió)
   const COLLECTION = 'stage_verd' as const
@@ -565,3 +584,8 @@ export default function CalendarModal({ deal, trigger, onSaved, readonly }: Prop
     </Dialog>
   )
 }
+
+
+
+
+

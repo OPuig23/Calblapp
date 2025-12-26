@@ -5,10 +5,13 @@ import { useEffect, useMemo, useState } from 'react'
 
 export interface Modification {
   id: string
+  modificationNumber?: string
   eventId: string
   eventCode?: string
   eventTitle?: string
   eventDate?: string
+  eventLocation?: string
+  eventCommercial?: string
   department: string
   createdBy: string
   tipus?: string
@@ -16,10 +19,16 @@ export interface Modification {
   importance: string
   description: string
   createdAt: string
+  updatedAt?: string
 }
 
-// 🔵 Cache en memòria (igual que useIncidents)
 const modificationsCache: Record<string, Modification[]> = {}
+
+const normalizeTimestamp = (ts: any): string => {
+  if (ts && typeof ts.toDate === 'function') return ts.toDate().toISOString()
+  if (typeof ts === 'string') return ts
+  return ''
+}
 
 export function useModifications(filters: {
   from?: string
@@ -28,12 +37,13 @@ export function useModifications(filters: {
   eventId?: string
   importance?: string
   categoryId?: string
+  categoryLabel?: string
+  commercial?: string
 }) {
   const [modifications, setModifications] = useState<Modification[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<null | string>(null)
 
-  // ✅ clau estable per la cache
   const fetchKey = useMemo(() => JSON.stringify(filters), [filters])
 
   useEffect(() => {
@@ -42,26 +52,32 @@ export function useModifications(filters: {
         setLoading(true)
         setError(null)
 
-        // 1️⃣ Revisar cache
         if (modificationsCache[fetchKey]) {
-          const cached = modificationsCache[fetchKey]
-          setModifications(cached)
+          setModifications(modificationsCache[fetchKey])
           setLoading(false)
           return
         }
 
-        // 2️⃣ Construir query string
         const params = new URLSearchParams()
         if (filters.from) params.set('from', filters.from)
         if (filters.to) params.set('to', filters.to)
         if (filters.eventId) params.set('eventId', filters.eventId)
-        if (filters.department) params.set('department', filters.department)
+        if (filters.department && filters.department !== 'all')
+          params.set('department', filters.department)
         if (filters.importance && filters.importance !== 'all')
-          params.set('importance', filters.importance)
-        if (filters.categoryId && filters.categoryId !== 'all')
-          params.set('categoryId', filters.categoryId)
+          params.set('importance', filters.importance.toLowerCase())
+        if (filters.commercial && filters.commercial !== 'all')
+          params.set('commercial', filters.commercial)
 
-        // 3️⃣ Crida API
+        const categoryLabel =
+          filters.categoryLabel && filters.categoryLabel !== 'all'
+            ? filters.categoryLabel
+            : filters.categoryId && filters.categoryId !== 'all'
+            ? filters.categoryId
+            : null
+
+        if (categoryLabel) params.set('categoryLabel', categoryLabel)
+
         const res = await fetch(`/api/modifications?${params.toString()}`, {
           cache: 'no-store',
         })
@@ -80,7 +96,37 @@ export function useModifications(filters: {
     }
 
     fetchModifications()
-  }, [fetchKey]) // 👈 només aquesta dependència
+  }, [fetchKey])
 
-  return { modifications, loading, error }
+  const updateModification = async (id: string, data: Partial<Modification>) => {
+    const res = await fetch(`/api/modifications/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const payload = await res.json()
+    const updated = payload?.modification
+      ? {
+          ...payload.modification,
+          createdAt: normalizeTimestamp(payload.modification.createdAt),
+          updatedAt: normalizeTimestamp(payload.modification.updatedAt),
+        }
+      : null
+
+    setModifications((prev) =>
+      prev.map((m) => (m.id === id ? { ...m, ...(updated || data) } : m))
+    )
+
+    if (modificationsCache[fetchKey]) {
+      modificationsCache[fetchKey] = modificationsCache[fetchKey].map((m) =>
+        m.id === id ? { ...m, ...(updated || data) } : m
+      )
+    }
+
+    return updated
+  }
+
+  return { modifications, loading, error, updateModification }
 }
