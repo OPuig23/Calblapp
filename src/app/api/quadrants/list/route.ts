@@ -15,6 +15,7 @@ interface FirestorePerson {
   startTime?: string
   endDate?: string
   endTime?: string
+  arrivalTime?: string
   plate?: string
   vehicleType?: string
   type?: string
@@ -81,6 +82,7 @@ type Person = {
   startTime?: string
   endDate?: string
   endTime?: string
+  arrivalTime?: string
   plate?: string
   vehicleType?: string
 }
@@ -94,6 +96,7 @@ type Draft = {
   startTime: string
   endDate: string
   endTime: string
+  arrivalTime?: string
   location?: string
   totalWorkers: number
   numDrivers: number
@@ -204,6 +207,7 @@ const mapPerson = (p: FirestorePerson, doc?: FirestoreDraftDoc): Person => ({
   startTime: p?.startTime ?? doc?.startTime ?? '',
   endDate: p?.endDate ?? doc?.endDate ?? '',
   endTime: p?.endTime ?? doc?.endTime ?? '',
+  arrivalTime: p?.arrivalTime ?? (doc as FirestorePerson)?.arrivalTime ?? '',
   plate: p?.plate ?? '',
   vehicleType: p?.vehicleType ?? p?.type ?? '',
 })
@@ -290,6 +294,7 @@ async function fetchDeptDrafts(
       endDate,
       endTime,
       location,
+      arrivalTime: d.arrivalTime || '',
       totalWorkers: Number(d.totalWorkers || 0),
       numDrivers: Number(d.numDrivers || 0),
       responsableId: d.responsableId || '',
@@ -312,7 +317,12 @@ async function fetchDeptDrafts(
       responsable: d.responsable
         ? mapPerson(d.responsable, d)
         : d.responsableId
-        ? { id: d.responsableId, name: d.responsableName || '', meetingPoint: d.meetingPoint || '' }
+        ? {
+            id: d.responsableId,
+            name: d.responsableName || '',
+            meetingPoint: d.meetingPoint || '',
+            arrivalTime: d.arrivalTime || '',
+          }
         : null,
       updatedAt: updated,
       status,

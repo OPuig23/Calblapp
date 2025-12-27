@@ -5,6 +5,8 @@ import { getToken } from 'next-auth/jwt'
 import { createNotificationsForQuadrant } from '@/services/notifications'
 
 export const runtime = 'nodejs'
+const ORIGIN = 'Molí Vinyals, 11, 08776 Sant Pere de Riudebitlles, Barcelona'
+const GOOGLE_KEY = process.env.NEXT_PUBLIC_GOOGLE_API_KEY
 
 /* ------------------ Tipus ------------------ */
 interface QuadrantDoc {
@@ -18,19 +20,8 @@ interface QuadrantDoc {
   responsableId?: string
   startDate?: string
   meetingPoint?: string
+  distanceKm?: number
 }
-
-interface QuadrantNotification {
-  userId: string
-  quadrantId: string
-  payload: {
-    weekStartISO: string        // sempre string, mai null
-    weekLabel: string
-    dept?: string               // opcional
-    countAssignments?: number   // opcional
-  }
-}
-
 
 type TokenLike = {
   user?: { email?: string }
@@ -43,14 +34,35 @@ const norm = (v?: string) =>
 
 const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 
+async function calcDistanceKm(destination: string): Promise<number | null> {
+  if (!GOOGLE_KEY || !destination) return null
+  try {
+    const url = new URL('https://maps.googleapis.com/maps/api/distancematrix/json')
+    url.searchParams.set('origins', ORIGIN)
+    url.searchParams.set('destinations', destination)
+    url.searchParams.set('key', GOOGLE_KEY)
+    url.searchParams.set('mode', 'driving')
+
+    const res = await fetch(url.toString())
+    if (!res.ok) return null
+    const json = await res.json()
+    const el = json?.rows?.[0]?.elements?.[0]
+    if (el?.status !== 'OK') return null
+    const meters = el.distance?.value
+    if (!meters) return null
+    return (meters / 1000) * 2 // anada + tornada
+  } catch (err) {
+    console.warn('[quadrantsDraft/confirm] distance error', err)
+    return null
+  }
+}
+
 async function lookupUidByName(name: string): Promise<string | null> {
   const folded = norm(name)
 
-  // Primer intent: camp normalitzat nameFold
   let q = await db.collection('users').where('nameFold', '==', folded).limit(1).get()
   if (!q.empty) return q.docs[0].id
 
-  // Fallback literal
   q = await db.collection('users').where('name', '==', name).limit(1).get()
   if (!q.empty) return q.docs[0].id
 
@@ -70,25 +82,20 @@ export async function POST(req: NextRequest) {
     const eventId: string = body?.eventId || body?.id
 
     if (!deptRaw || !eventId) {
-      return NextResponse.json(
-        { ok: false, error: 'Missing department or eventId' },
-        { status: 400 }
-      )
+      return NextResponse.json({ ok: false, error: 'Missing department or eventId' }, { status: 400 })
     }
 
     const dept = norm(deptRaw)
     const colName = `quadrants${capitalize(dept)}`
     const ref = db.collection(colName).doc(String(eventId))
 
-    // ── 1) Llegir estat actual
+    // 1) Llegir estat actual
     const snap = await ref.get()
     const prev = snap.exists ? (snap.data() as QuadrantDoc) : null
     const already = prev?.status === 'confirmed'
 
-    // ── 2) Confirmar (idempotent)
+    // 2) Confirmar
     const now = new Date()
-
-    // Construïm payload sense camps undefined
     const updatePayload: Record<string, any> = {
       status: 'confirmed',
       confirmedAt: now,
@@ -97,123 +104,96 @@ export async function POST(req: NextRequest) {
         (token as TokenLike)?.email ||
         'system',
     }
-
-    // Només afegim "service" si arriba i no és buit
     if (body.service !== undefined && body.service !== '') {
       updatePayload.service = body.service
     }
-
     await ref.set(updatePayload, { merge: true })
 
- // ── 3) Avisos intel·ligents
-{
-  const prevSnap = await ref.get()
-  const prev = prevSnap.data() as QuadrantDoc | undefined
-  const doc = prev as QuadrantDoc   // doc = estat actual després del set()
+    // Distància: sempre intentem recalcular amb l'adreça actual
+    const evSnap = await db.collection('stage_verd').doc(String(eventId)).get()
+    const ev = evSnap.data() as any
+    const destination = ev?.Ubicacio || ev?.location || ev?.address || ''
+    const km = await calcDistanceKm(destination)
+    if (km) {
+      await ref.set({ distanceKm: km, distanceCalcAt: new Date() }, { merge: true })
+    }
 
-  if (!doc) {
-    return NextResponse.json({ ok: true })
-  }
+    // 3) Avisos intel·ligents
+    const prevSnap = await ref.get()
+    const doc = (prevSnap.data() as QuadrantDoc) || {}
 
-  // --- Funció per extreure (nom + camps rellevants)
-  const extract = (q?: QuadrantDoc) => {
-    if (!q) return []
-    const arr: Array<any> = []
+    const extract = (q?: QuadrantDoc) => {
+      if (!q) return []
+      const arr: Array<any> = []
+      const pushUser = (name: string, src: any) => {
+        arr.push({
+          name,
+          startDate: src.startDate,
+          startTime: src.startTime,
+          endDate: src.endDate,
+          endTime: src.endTime,
+          meetingPoint: src.meetingPoint,
+          vehicleType: src.vehicleType,
+          plate: src.plate,
+        })
+      }
+      const rName = q.responsable?.name || q.responsableName
+      if (rName) pushUser(rName, q.responsable || q)
+      ;(q.conductors || []).forEach(c => c?.name && pushUser(c.name, c))
+      ;(q.treballadors || []).forEach(t => t?.name && pushUser(t.name, t))
+      return arr
+    }
 
-    const pushUser = (name: string, src: any) => {
-      arr.push({
-        name,
-        startDate: src.startDate,
-        startTime: src.startTime,
-        endDate: src.endDate,
-        endTime: src.endTime,
-        meetingPoint: src.meetingPoint,
-        vehicleType: src.vehicleType,
-        plate: src.plate,
+    const oldUsers = extract(snap.exists ? (prev as QuadrantDoc) : undefined)
+    const newUsers = extract(doc)
+    const isFirstConfirm = !prev?.status || prev?.status !== 'confirmed'
+    let changed = newUsers
+    if (!isFirstConfirm) {
+      changed = newUsers.filter(nu => {
+        const old = oldUsers.find(ou => ou.name === nu.name)
+        if (!old) return true
+        return (
+          old.startDate !== nu.startDate ||
+          old.startTime !== nu.startTime ||
+          old.endDate !== nu.endDate ||
+          old.endTime !== nu.endTime ||
+          old.meetingPoint !== nu.meetingPoint ||
+          old.vehicleType !== nu.vehicleType ||
+          old.plate !== nu.plate
+        )
       })
     }
 
-    // responsable
-    const rName = q.responsable?.name || q.responsableName
-    if (rName) pushUser(rName, q.responsable || q)
+    if (changed.length > 0) {
+      const uids = (await Promise.all(changed.map(u => lookupUidByName(u.name)))).filter(Boolean) as string[]
+      if (uids.length > 0) {
+        const notifs = uids.map(uid => ({
+          userId: uid,
+          quadrantId: String(eventId),
+          payload: {
+            weekStartISO: doc.startDate || '',
+            weekLabel: doc.startDate || '',
+            dept: dept,
+          },
+        }))
+        await createNotificationsForQuadrant(notifs)
 
-    // conductors
-    ;(q.conductors || []).forEach(c => {
-      if (c?.name) pushUser(c.name, c)
-    })
-
-    // treballadors
-    ;(q.treballadors || []).forEach(t => {
-      if (t?.name) pushUser(t.name, t)
-    })
-
-    return arr
-  }
-
-  const oldUsers = extract(prevSnap.exists ? prev : undefined)
-  const newUsers = extract(doc)
-
-  // ✨ Si és la PRIMERA confirmació → tots reben push
-  const isFirstConfirm = !prev?.status || prev?.status !== 'confirmed'
-
-  let changed = newUsers
-
-  if (!isFirstConfirm) {
-    // ✨ Reconfirmació → només nous o editats
-    changed = newUsers.filter(nu => {
-      const old = oldUsers.find(ou => ou.name === nu.name)
-      if (!old) return true // nou usuari
-      return (
-        old.startDate !== nu.startDate ||
-        old.startTime !== nu.startTime ||
-        old.endDate !== nu.endDate ||
-        old.endTime !== nu.endTime ||
-        old.meetingPoint !== nu.meetingPoint ||
-        old.vehicleType !== nu.vehicleType ||
-        old.plate !== nu.plate
-      )
-    })
-  }
-
-  if (changed.length > 0) {
-    const uids = (
-      await Promise.all(changed.map(u => lookupUidByName(u.name)))
-    ).filter(Boolean) as string[]
-
-    if (uids.length > 0) {
-      const notifs = uids.map(uid => ({
-        userId: uid,
-        quadrantId: String(eventId),
-        payload: {
-          weekStartISO: doc.startDate || '',
-          weekLabel: doc.startDate || '',
-          dept: dept,
-        },
-      }))
-
-      await createNotificationsForQuadrant(notifs)
-      // 🔔 PUSH només a conductors afectats
-for (const u of changed) {
-  const uid = await lookupUidByName(u.name)
-  if (!uid) continue
-
-  await fetch(`${process.env.NEXTAUTH_URL}/api/push/send`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      userId: uid,
-      title: 'Transport assignat / modificat',
-      body: 'Revisa vehicle, horaris o matrícula assignats.',
-      url: `/menu/logistica/assignacions`,
-    }),
-  })
-}
-    
-      
+        for (const u of changed) {
+          const uid = await lookupUidByName(u.name)
+          if (!uid) continue
+          await fetch(`${process.env.NEXTAUTH_URL}/api/push/send`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId: uid,
+              title: 'Transport assignat / modificat',
+              body: 'Revisa vehicle, horaris o matrícula assignats.',
+              url: `/menu/logistica/assignacions`,
+            }),
+          })
+        }
+      }
     }
-  }
-}
-
 
     return NextResponse.json({ ok: true, already })
   } catch (e) {

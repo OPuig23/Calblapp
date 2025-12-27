@@ -1,8 +1,6 @@
 // filename: src/app/api/modifications/route.ts
 import { NextResponse } from "next/server"
 import { firestoreAdmin } from "@/lib/firebaseAdmin"
-import { google } from "googleapis"
-import { getISOWeek, parseISO } from "date-fns"
 import admin from "firebase-admin"
 
 interface ModificationDoc {
@@ -26,18 +24,6 @@ interface ModificationDoc {
 
 function isTimestamp(val: unknown): val is FirebaseFirestore.Timestamp {
   return typeof val === "object" && val !== null && "toDate" in val
-}
-
-async function getSheetsClient() {
-  const credentialsJSON = process.env.GOOGLE_SHEETS_CREDENTIALS
-  if (!credentialsJSON) throw new Error("GOOGLE_SHEETS_CREDENTIALS no definit")
-
-  const credentials = JSON.parse(credentialsJSON)
-  const auth = new google.auth.GoogleAuth({
-    credentials,
-    scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-  })
-  return google.sheets({ version: "v4", auth })
 }
 
 async function generateModificationNumber(): Promise<string> {
@@ -94,6 +80,13 @@ export async function POST(req: Request) {
     const eventDateFinal = eventDate || ev?.DataInici || ev?.DataPeticio || ""
     const eventCommercialFinal = eventCommercial || ev?.Comercial || ""
 
+    const now = new Date()
+    const eventDateObj = eventDateFinal ? new Date(eventDateFinal) : null
+    const daysToEvent =
+      eventDateObj && !isNaN(eventDateObj.getTime())
+        ? Math.round((eventDateObj.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+        : null
+
     const docRef = await firestoreAdmin.collection("modifications").add({
       modificationNumber,
       eventId: eventId || "",
@@ -107,56 +100,9 @@ export async function POST(req: Request) {
       importance: importance?.trim().toLowerCase() || "",
       description: description || "",
       createdBy: createdBy || "",
+      daysToEvent,
       createdAt: admin.firestore.Timestamp.now(),
     })
-
-    // Escriu a Google Sheets (best-effort)
-    const sheets = await getSheetsClient()
-    const spreadsheetId =
-      process.env.MODIFICATIONS_SHEET_ID ||
-      process.env.GOOGLE_SHEETS_SPREADSHEET_ID ||
-      ""
-    const sheetName =
-      process.env.MODIFICATIONS_SHEET_NAME ||
-      process.env.INCIDENTS_SHEET_NAME ||
-      "Taula"
-
-    const weekNum = eventDate ? getISOWeek(parseISO(eventDate)) : ""
-    const businessTag = eventCode?.toUpperCase().startsWith("C")
-      ? "Casaments"
-      : eventCode?.toUpperCase().startsWith("E")
-      ? "Empresa"
-      : eventCode?.toUpperCase().startsWith("F")
-      ? "Foodlovers"
-      : eventCode?.toUpperCase().startsWith("PM")
-      ? "Prova de mençà"
-      : "Altres"
-
-    if (spreadsheetId) {
-      const row: string[] = [
-        eventCode || "",
-        eventTitle || "",
-        new Date().toISOString(), // data de modificació
-        eventDate || "",
-        businessTag,
-        eventLocation || "",
-        department || "",
-        createdBy || "",
-        category?.id || "",
-        category?.label || "",
-        description || "",
-        importance || "",
-        modificationNumber,
-        weekNum.toString(),
-      ]
-
-      await sheets.spreadsheets.values.append({
-        spreadsheetId,
-        range: `${sheetName}!A:N`,
-        valueInputOption: "RAW",
-        requestBody: { values: [row] },
-      })
-    }
 
     return NextResponse.json({ id: docRef.id }, { status: 201 })
   } catch (err: unknown) {
@@ -179,18 +125,18 @@ export async function GET(req: Request) {
   const categoryId = searchParams.get("categoryId") // compatibilitat antiga
 
   try {
-    let ref: FirebaseFirestore.Query<FirebaseFirestore.DocumentData> =
-      firestoreAdmin.collection("modifications").orderBy("createdAt", "desc")
+    const coll = firestoreAdmin.collection("modifications")
 
-    if (from) {
-      const fromDate = new Date(`${from}T00:00:00.000Z`)
-      ref = ref.where("createdAt", ">=", admin.firestore.Timestamp.fromDate(fromDate))
-    }
+    // Si filtrem per dates d'esdeveniment, ordenem per eventDate; si no, per createdAt
+    const usingEventDate = Boolean(from || to)
+    let ref: FirebaseFirestore.Query<FirebaseFirestore.DocumentData> = usingEventDate
+      ? coll.orderBy("eventDate", "asc")
+      : coll.orderBy("createdAt", "desc")
 
-    if (to) {
-      const toDate = new Date(`${to}T23:59:59.999Z`)
-      ref = ref.where("createdAt", "<=", admin.firestore.Timestamp.fromDate(toDate))
-    }
+    // Filtrat per data: eventDate en format YYYY-MM-DD
+    if (from) ref = ref.where("eventDate", ">=", from)
+    if (to) ref = ref.where("eventDate", "<=", to)
+
     if (eventId) ref = ref.where("eventId", "==", eventId)
     if (department && department !== "all")
       ref = ref.where("department", "==", department)

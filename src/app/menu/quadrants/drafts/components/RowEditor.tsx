@@ -58,6 +58,19 @@ function useIsDesktop() {
   return isDesktop
 }
 
+const normalizeType = (t?: string) => {
+  const val = (t || '')
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .trim()
+  if (!val) return ''
+  if (val.includes('petit')) return 'camiopetit'
+  if (val.includes('gran')) return 'camiogran'
+  if (val.includes('furgo')) return 'furgoneta'
+  return val
+}
+
 /* ──────────────────────────────
    Subcomponents comuns
 ────────────────────────────── */
@@ -258,7 +271,8 @@ function EditorFields({
                 .filter(
                   (v) =>
                     v.available &&
-                    v.type?.toLowerCase() === row.vehicleType?.toLowerCase()
+                    (!row.vehicleType ||
+                      normalizeType(v.type) === normalizeType(row.vehicleType))
                 )
                 .map((v) => (
                   <option key={v.id} value={v.plate}>
@@ -267,11 +281,22 @@ function EditorFields({
                 ))}
             </select>
           </div>
+
+          <div>
+            <label className="text-xs font-medium">Hora d'arribada</label>
+            <Input
+              type="time"
+              value={row.arrivalTime || ''}
+              onChange={(e) => onPatch({ arrivalTime: e.target.value })}
+              className="w-full text-sm"
+              disabled={isLocked}
+            />
+          </div>
         </div>
       )}
 
       {/* Dates i hores */}
-      <div className="mt-3 flex flex-col gap-3 md:grid md:grid-cols-4">
+      <div className="mt-3 flex flex-col gap-3 md:grid md:grid-cols-5">
         <div>
           <label className="text-xs">Data inici</label>
           <Input
@@ -312,6 +337,16 @@ function EditorFields({
             disabled={isLocked}
           />
         </div>
+        <div>
+          <label className="text-xs">Hora arribada</label>
+          <Input
+            type="time"
+            value={row.arrivalTime || ''}
+            onChange={(e) => onPatch({ arrivalTime: e.target.value })}
+            className="w-full text-sm"
+            disabled={isLocked}
+          />
+        </div>
       </div>
     </>
   )
@@ -342,7 +377,7 @@ export default function RowEditor(props: RowEditorProps) {
     </>
   )
 
-  // 🟢 DESKTOP → editor inline (com fins ara)
+  // Desktop / mobile render
   if (isDesktop) {
     return (
       <div className="col-span-full border-t bg-gray-50 px-4 py-3">
@@ -351,12 +386,8 @@ export default function RowEditor(props: RowEditorProps) {
     )
   }
 
-  // 📱 MÒBIL → bottom-sheet / drawer inferior
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end bg-black/40"
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 z-50 flex items-end bg-black/40" onClick={onClose}>
       <div
         className="w-full max-h-[90vh] rounded-t-3xl bg-white p-4 shadow-xl overflow-y-auto"
         onClick={(e) => e.stopPropagation()}

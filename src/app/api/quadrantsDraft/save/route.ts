@@ -4,6 +4,8 @@ import { getToken } from 'next-auth/jwt'
 import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
 
 export const runtime = 'nodejs'
+const ORIGIN = 'Molí Vinyals, 11, 08776 Sant Pere de Riudebitlles, Barcelona'
+const GOOGLE_KEY = process.env.NEXT_PUBLIC_GOOGLE_API_KEY
 
 // Normalitza: "logística" -> "logistica"
 const norm = (s?: string | null) =>
@@ -53,6 +55,7 @@ interface RowInput {
   endTime?: string
   vehicleType?: string
   plate?: string
+  arrivalTime?: string
   workers?: number // només per brigades
 }
 
@@ -64,6 +67,7 @@ type Line = {
   startTime: string
   endDate: string
   endTime: string
+  arrivalTime: string
   vehicleType: string
   plate: string
 }
@@ -80,6 +84,7 @@ const toLine = (p: RowInput): Line => ({
   startTime: p?.startTime || '',
   endDate: p?.endDate || '',
   endTime: p?.endTime || '',
+  arrivalTime: p?.arrivalTime || '',
   vehicleType: p?.vehicleType || '',
   plate: p?.plate || '',
 })
@@ -88,6 +93,28 @@ const toBrigadeLine = (p: RowInput): BrigadeLine => ({
   ...toLine(p),
   workers: typeof p?.workers === 'number' ? p.workers : 0,
 })
+
+async function calcDistanceKm(destination: string): Promise<number | null> {
+  if (!GOOGLE_KEY || !destination) return null
+  try {
+    const url = new URL('https://maps.googleapis.com/maps/api/distancematrix/json')
+    url.searchParams.set('origins', ORIGIN)
+    url.searchParams.set('destinations', destination)
+    url.searchParams.set('key', GOOGLE_KEY)
+    url.searchParams.set('mode', 'driving')
+    const res = await fetch(url.toString())
+    if (!res.ok) return null
+    const json = await res.json()
+    const el = json?.rows?.[0]?.elements?.[0]
+    if (el?.status !== 'OK') return null
+    const meters = el.distance?.value
+    if (!meters) return null
+    return (meters / 1000) * 2 // anada+tornada
+  } catch (err) {
+    console.warn('[quadrantsDraft/save] distance error', err)
+    return null
+  }
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -165,6 +192,15 @@ export async function POST(req: NextRequest) {
 
     // Upsert idempotent
     await ref.set(updateData, { merge: true })
+
+    // Distància: sempre recalculada amb l'adreça actual
+    const evSnap = await db.collection('stage_verd').doc(String(eventId)).get()
+    const ev = evSnap.data() as any
+    const destination = ev?.Ubicacio || ev?.location || ev?.address || ''
+    const km = await calcDistanceKm(destination)
+    if (km) {
+      await ref.set({ distanceKm: km, distanceCalcAt: new Date() }, { merge: true })
+    }
 
     return NextResponse.json({ ok: true })
   } catch (e) {

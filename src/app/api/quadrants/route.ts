@@ -5,11 +5,35 @@ import { firestoreAdmin } from '@/lib/firebaseAdmin'
 import { autoAssign } from '@/services/autoAssign'
 
 export const runtime = 'nodejs'
+const ORIGIN = 'Mol√≠ Vinyals, 11, 08776 Sant Pere de Riudebitlles, Barcelona'
+const GOOGLE_KEY = process.env.NEXT_PUBLIC_GOOGLE_API_KEY
 
 // Helpers
 const unaccent = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 const norm = (v?: string | null) => unaccent((v || '').toString().trim().toLowerCase())
 const capitalize = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s)
+const calcDistanceKm = async (destination: string): Promise<number | null> => {
+  if (!GOOGLE_KEY || !destination) return null
+  try {
+    const url = new URL('https://maps.googleapis.com/maps/api/distancematrix/json')
+    url.searchParams.set('origins', ORIGIN)
+    url.searchParams.set('destinations', destination)
+    url.searchParams.set('key', GOOGLE_KEY)
+    url.searchParams.set('mode', 'driving')
+
+    const res = await fetch(url.toString())
+    if (!res.ok) return null
+    const json = await res.json()
+    const el = json?.rows?.[0]?.elements?.[0]
+    if (el?.status !== 'OK') return null
+    const meters = el.distance?.value
+    if (!meters) return null
+    return (meters / 1000) * 2 // anada + tornada
+  } catch (err) {
+    console.warn('[quadrants/route] distance error', err)
+    return null
+  }
+}
 
 /** Construeix el nom de col¬∑lecci√≥ per departament: quadrantsLogistica, quadrantsServeis, ... */
 /** Retorna el nom de col¬∑lecci√≥ existent per al departament (singular o plural). */
@@ -65,6 +89,8 @@ interface QuadrantSave {
   brigades?: Brigade[]
   service?: string | null
   arrivalTime?: string | null
+  distanceKm?: number | null
+  distanceCalcAt?: string | null
 
 }
 
@@ -143,18 +169,32 @@ export async function POST(req: NextRequest) {
     if (Array.isArray(body.brigades)) {
       toSave.brigades = body.brigades as Brigade[]
     }
-// üîπ Determinem la col¬∑lecci√≥ segons el departament
-const collectionName = await resolveWriteCollectionForDepartment(deptNorm)
-console.log('[quadrants/route] üóÇÔ∏è Escriur√© a col¬∑lecci√≥:', collectionName)
+    // Determinem la col∑lecciÛ segons el departament
+    const collectionName = await resolveWriteCollectionForDepartment(deptNorm)
+    console.log('[quadrants/route] EscriurÈ a col∑lecciÛ:', collectionName)
 
-// üß© Si el code no arriba del front, recuperem el del stage_verd
-if (!toSave.code) {
-  const stageSnap = await db.collection('stage_verd').doc(body.eventId).get()
-  const stageData = stageSnap.exists ? stageSnap.data() : null
-  toSave.code = stageData?.code || stageData?.C_digo || ''
-}
+    // Dades de stage_verd (codi i adreÁa)
+    const stageSnap = await db.collection('stage_verd').doc(body.eventId).get()
+    const stageData = stageSnap.exists ? stageSnap.data() : null
 
-    // Desa a la col¬∑lecci√≥ espec√≠fica del departament (ex.: quadrantsLogistica)
+    if (!toSave.code) {
+      toSave.code = stageData?.code || stageData?.C_digo || ''
+    }
+
+    // Dist‡ncia (anada + tornada)
+    const destination =
+      stageData?.Ubicacio ||
+      stageData?.location ||
+      stageData?.address ||
+      toSave.location
+    const km = await calcDistanceKm(destination || '')
+    if (km) {
+      toSave.distanceKm = km
+      toSave.distanceCalcAt = new Date().toISOString()
+    }
+
+    // Desa a la col∑lecciÛ especÌfica del departament (ex.: quadrantsLogistica)
+    await db.collection(collectionName).doc(body.eventId).set(toSave, { merge: true })
     await db.collection(collectionName).doc(body.eventId).set(toSave, { merge: true })
 
     

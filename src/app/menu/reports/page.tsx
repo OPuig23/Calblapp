@@ -3,12 +3,20 @@
 
 import { useState } from 'react'
 import ModuleHeader from '@/components/layout/ModuleHeader'
-import { BarChart3, Activity, Truck, AlertTriangle, FileEdit } from 'lucide-react'
+import { BarChart3, Activity, Truck, AlertTriangle, FileEdit, Wallet } from 'lucide-react'
 import { PersonalPanel } from '@/components/reports/PersonalPanel'
+import { EventsPanel } from '@/components/reports/events/EventsPanel'
+import { FinancialPanel } from '@/components/reports/financial/FinancialPanel'
+import { VehiclesPanel } from '@/components/reports/vehicles/VehiclesPanel'
+import { ModificacionsPanel } from '@/components/reports/modificacions/ModificacionsPanel'
+import { IncidenciesPanel } from '@/components/reports/incidencies/IncidenciesPanel'
+import { SummaryPanel } from '@/components/reports/summary/SummaryPanel'
 
 const TABS = [
+  { key: 'summary', label: 'Resum' },
   { key: 'personal', label: 'Personal' },
   { key: 'events', label: 'Events' },
+  { key: 'financial', label: 'Financial' },
   { key: 'vehicles', label: 'Vehicles' },
   { key: 'incidencies', label: 'Incidències' },
   { key: 'modificacions', label: 'Modificacions' },
@@ -17,14 +25,14 @@ const TABS = [
 type TabKey = (typeof TABS)[number]['key']
 
 export default function ReportsPage() {
-  const [active, setActive] = useState<TabKey>('personal')
+  const [active, setActive] = useState<TabKey>('summary')
 
   return (
     <div className="p-6 flex flex-col gap-6">
       <ModuleHeader
         icon={<BarChart3 className="w-7 h-7 text-indigo-600" />}
         title="Informes"
-        subtitle="Panell inicial: personal (hores, rols, esdeveniments)"
+        subtitle="Panell inicial: resum global"
       />
 
       <div className="flex gap-4">
@@ -47,25 +55,16 @@ export default function ReportsPage() {
         </aside>
 
         <main className="flex-1">
+          {active === 'summary' && <SummaryPanel />}
           {active === 'personal' && <PersonalPanel />}
-          {active === 'events' && <Placeholder icon={<Activity />} title="Events" />}
-          {active === 'vehicles' && <Placeholder icon={<Truck />} title="Vehicles" />}
-          {active === 'incidencies' && <Placeholder icon={<AlertTriangle />} title="Incidències" />}
-          {active === 'modificacions' && <Placeholder icon={<FileEdit />} title="Modificacions" />}
+          {active === 'events' && <EventsPanel />}
+          {active === 'financial' && <FinancialPanel />}
+          {active === 'vehicles' && <VehiclesPanel />}
+          {active === 'incidencies' && <IncidenciesPanel />}
+          {active === 'modificacions' && <ModificacionsPanel />}
         </main>
       </div>
     </div>
   )
 }
 
-function Placeholder({ icon, title }: { icon: React.ReactNode; title: string }) {
-  return (
-    <div className="bg-white border rounded-xl p-6 text-gray-600 flex items-center gap-3">
-      <div className="text-indigo-500">{icon}</div>
-      <div>
-        <p className="font-semibold">{title}</p>
-        <p className="text-sm text-gray-500">Properament: afegirem gràfics i mètriques.</p>
-      </div>
-    </div>
-  )
-}

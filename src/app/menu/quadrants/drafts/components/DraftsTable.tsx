@@ -13,6 +13,13 @@ import DraftActions from './DraftActions'
 import type { Role } from './types'
 import type { DraftInput, Row } from './types'
 
+type Vehicle = {
+  id: string
+  plate: string
+  type: string
+  available: boolean
+}
+
 export default function DraftsTable({ draft }: { draft: DraftInput }) {
   const { data: session } = useSession()
   const department =
@@ -35,6 +42,7 @@ endDate:   draft.responsable?.endDate   || draft.endDate,
 endTime:   draft.responsable?.endTime   || draft.endTime,
 meetingPoint: draft.responsable?.meetingPoint || '',
 
+            arrivalTime: draft.responsable?.arrivalTime || draft.arrivalTime || '',
             plate: draft.responsable?.plate || '',
             vehicleType: draft.responsable?.vehicleType || '',
           },
@@ -50,7 +58,7 @@ endDate:   c.endDate   || draft.endDate,
 endTime:   c.endTime   || draft.endTime,
 meetingPoint: c.meetingPoint || '',
 
-
+      arrivalTime: c.arrivalTime || draft.arrivalTime || '',
       plate: c.plate || '',
       vehicleType: c.vehicleType || '',
     })),
@@ -64,6 +72,7 @@ endDate:   t.endDate   || draft.endDate,
 endTime:   t.endTime   || draft.endTime,
 meetingPoint: t.meetingPoint || '',
 
+      arrivalTime: t.arrivalTime || draft.arrivalTime || '',
       plate: '',
       vehicleType: '',
     })),
@@ -77,6 +86,7 @@ endDate:   b.endDate   || draft.endDate,
 endTime:   b.endTime   || draft.endTime,
 
       meetingPoint: b.meetingPoint || '',
+      arrivalTime: b.arrivalTime || draft.arrivalTime || '',
       workers: b.workers || 0,
       plate: '',
       vehicleType: '',
@@ -124,6 +134,49 @@ endTime:   b.endTime   || draft.endTime,
     }),
     [draft]
   )
+
+  // --- Vehicles disponibles (per logística/cuines)
+  const [vehicles, setVehicles] = useState<Vehicle[]>([])
+  React.useEffect(() => {
+    const dept = department?.toLowerCase?.() || ''
+    if (!(dept === 'logistica' || dept === 'cuina')) {
+      setVehicles([])
+      return
+    }
+    if (!draft.startDate || !draft.endDate || !draft.startTime || !draft.endTime) {
+      setVehicles([])
+      return
+    }
+
+    const controller = new AbortController()
+    fetch('/api/transports/available', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        startDate: draft.startDate,
+        startTime: draft.startTime,
+        endDate: draft.endDate,
+        endTime: draft.endTime,
+        department: dept,
+      }),
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error('No es poden carregar vehicles')
+        const json = await res.json()
+        setVehicles(Array.isArray(json?.vehicles) ? json.vehicles : [])
+      })
+      .catch(() => setVehicles([]))
+
+    return () => controller.abort()
+  }, [department, draft.startDate, draft.endDate, draft.startTime, draft.endTime])
+
+  const availableForEditor = {
+    responsables: available.responsables,
+    conductors: available.conductors,
+    treballadors: available.treballadors,
+    vehicles,
+  }
 
   // --- Callbacks (API routes)
 const handleSaveAll = async () => {
@@ -290,7 +343,7 @@ const handleSaveAll = async () => {
             {editIdx === i && (
               <RowEditor
                 row={r}
-                available={available}
+                available={availableForEditor}
                 onPatch={patchRow}
                 onClose={endEdit}
                 onRevert={revertRow}
@@ -348,6 +401,7 @@ const handleSaveAll = async () => {
               startTime: draft.startTime,
               endTime: draft.endTime,
               meetingPoint: '',
+              arrivalTime: '',
               plate: '',
               vehicleType: '',
             },
@@ -370,6 +424,7 @@ const handleSaveAll = async () => {
               startTime: draft.startTime,
               endTime: draft.endTime,
               meetingPoint: '',
+              arrivalTime: '',
               plate: '',
               vehicleType: '',
             },
@@ -392,6 +447,7 @@ const handleSaveAll = async () => {
               startTime: draft.startTime,
               endTime: draft.endTime,
               meetingPoint: '',
+              arrivalTime: '',
               plate: '',
               vehicleType: '',
             },
@@ -414,6 +470,7 @@ const handleSaveAll = async () => {
               startTime: draft.startTime,
               endTime: draft.endTime,
               meetingPoint: draft.meetingPoint || '',
+              arrivalTime: draft.arrivalTime || '',
               workers: 0,
               plate: '',
               vehicleType: '',

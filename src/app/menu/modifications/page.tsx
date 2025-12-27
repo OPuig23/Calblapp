@@ -10,6 +10,12 @@ import ModuleHeader from '@/components/layout/ModuleHeader'
 import { FileEdit } from 'lucide-react'
 import FilterButton from '@/components/ui/filter-button'
 import { useFilters } from '@/context/FiltersContext'
+import FloatingAddButton from '@/components/ui/floating-add-button'
+import CreateModificationModal from '@/components/events/CreateModificationModal'
+import useEvents from '@/hooks/events/useEvents'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
+import { useSession } from 'next-auth/react'
 import {
   Select,
   SelectTrigger,
@@ -19,6 +25,7 @@ import {
 } from '@/components/ui/select'
 
 export default function ModificationsPage() {
+  const { data: session } = useSession()
   const initialWeek = useMemo(() => {
     const s = startOfWeek(new Date(), { weekStartsOn: 1 })
     const e = endOfWeek(new Date(), { weekStartsOn: 1 })
@@ -42,7 +49,15 @@ export default function ModificationsPage() {
     commercial: 'all',
   })
 
-  const { modifications, loading, error, updateModification } = useModifications(filters)
+  const { modifications, loading, error, updateModification, refetch } = useModifications(filters)
+  const { events } = useEvents(
+    filters.department || 'all',
+    filters.from || initialWeek.from,
+    filters.to || initialWeek.to,
+    'all'
+  )
+  const [showAdd, setShowAdd] = useState(false)
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
 
   const departmentOptions = useMemo(() => {
     const set = new Set<string>()
@@ -180,6 +195,11 @@ export default function ModificationsPage() {
     setOpen(true)
   }
 
+  const selectedEvent = useMemo(() => {
+    if (!selectedEventId) return null
+    return events.find((e) => e.id === selectedEventId) || null
+  }, [events, selectedEventId])
+
   return (
     <div className="p-4 flex flex-col gap-4">
       <ModuleHeader
@@ -217,6 +237,71 @@ export default function ModificationsPage() {
         <ModificationsTable
           modifications={modifications}
           onUpdate={updateModification}
+        />
+      )}
+
+      <FloatingAddButton onClick={() => setShowAdd(true)} />
+
+      <Dialog open={showAdd} onOpenChange={(o) => { setShowAdd(o); if (!o) setSelectedEventId(null) }}>
+        <DialogContent className="max-w-lg rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold text-purple-900">
+              Nova modificació
+            </DialogTitle>
+            <p className="text-sm text-gray-500">
+              Escull l&apos;esdeveniment dins del rang de dates seleccionat.
+            </p>
+          </DialogHeader>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700">Esdeveniment</label>
+            <Select
+              value={selectedEventId || ''}
+              onValueChange={(v) => setSelectedEventId(v)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={events.length ? 'Selecciona esdeveniment' : 'Cap esdeveniment en el rang'} />
+              </SelectTrigger>
+              <SelectContent>
+                {events.map((ev) => (
+                  <SelectItem key={ev.id} value={ev.id}>
+                    {ev.day} · {ev.summary}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <DialogFooter className="pt-2">
+            <Button variant="outline" onClick={() => { setShowAdd(false); setSelectedEventId(null) }}>
+              Cancel·la
+            </Button>
+            <Button
+              disabled={!selectedEventId}
+              onClick={() => {
+                if (selectedEventId) {
+                  setShowAdd(false)
+                }
+              }}
+            >
+              Continuar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {selectedEvent && (
+        <CreateModificationModal
+          event={{ id: selectedEvent.id, summary: selectedEvent.summary }}
+          user={{
+            name: (session?.user as any)?.name || (session?.user as any)?.email || 'Usuari',
+            department: (session?.user as any)?.department || filters.department || 'desconegut',
+          }}
+          onClose={() => setSelectedEventId(null)}
+          onCreated={async () => {
+            setSelectedEventId(null)
+            await refetch()
+          }}
         />
       )}
     </div>

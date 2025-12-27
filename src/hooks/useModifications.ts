@@ -2,6 +2,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useCallback } from 'react'
 
 export interface Modification {
   id: string
@@ -46,57 +47,57 @@ export function useModifications(filters: {
 
   const fetchKey = useMemo(() => JSON.stringify(filters), [filters])
 
-  useEffect(() => {
-    async function fetchModifications() {
-      try {
-        setLoading(true)
-        setError(null)
+  const fetchModifications = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
 
-        if (modificationsCache[fetchKey]) {
-          setModifications(modificationsCache[fetchKey])
-          setLoading(false)
-          return
-        }
-
-        const params = new URLSearchParams()
-        if (filters.from) params.set('from', filters.from)
-        if (filters.to) params.set('to', filters.to)
-        if (filters.eventId) params.set('eventId', filters.eventId)
-        if (filters.department && filters.department !== 'all')
-          params.set('department', filters.department)
-        if (filters.importance && filters.importance !== 'all')
-          params.set('importance', filters.importance.toLowerCase())
-        if (filters.commercial && filters.commercial !== 'all')
-          params.set('commercial', filters.commercial)
-
-        const categoryLabel =
-          filters.categoryLabel && filters.categoryLabel !== 'all'
-            ? filters.categoryLabel
-            : filters.categoryId && filters.categoryId !== 'all'
-            ? filters.categoryId
-            : null
-
-        if (categoryLabel) params.set('categoryLabel', categoryLabel)
-
-        const res = await fetch(`/api/modifications?${params.toString()}`, {
-          cache: 'no-store',
-        })
-        if (!res.ok) throw new Error(`Error HTTP ${res.status}`)
-        const data = await res.json()
-
-        const mods = (data.modifications || []) as Modification[]
-        modificationsCache[fetchKey] = mods
-        setModifications(mods)
-      } catch (err) {
-        console.error('[useModifications] Error carregant modificacions:', err)
-        setError('Error carregant registres de modificacions')
-      } finally {
+      if (modificationsCache[fetchKey]) {
+        setModifications(modificationsCache[fetchKey])
         setLoading(false)
+        return
       }
-    }
 
+      const params = new URLSearchParams()
+      if (filters.from) params.set('from', filters.from)
+      if (filters.to) params.set('to', filters.to)
+      if (filters.eventId) params.set('eventId', filters.eventId)
+      if (filters.department && filters.department !== 'all')
+        params.set('department', filters.department)
+      if (filters.importance && filters.importance !== 'all')
+        params.set('importance', filters.importance.toLowerCase())
+      if (filters.commercial && filters.commercial !== 'all')
+        params.set('commercial', filters.commercial)
+
+      const categoryLabel =
+        filters.categoryLabel && filters.categoryLabel !== 'all'
+          ? filters.categoryLabel
+          : filters.categoryId && filters.categoryId !== 'all'
+          ? filters.categoryId
+          : null
+
+      if (categoryLabel) params.set('categoryLabel', categoryLabel)
+
+      const res = await fetch(`/api/modifications?${params.toString()}`, {
+        cache: 'no-store',
+      })
+      if (!res.ok) throw new Error(`Error HTTP ${res.status}`)
+      const data = await res.json()
+
+      const mods = (data.modifications || []) as Modification[]
+      modificationsCache[fetchKey] = mods
+      setModifications(mods)
+    } catch (err) {
+      console.warn('[useModifications] Error carregant modificacions:', err)
+      setError('Error carregant registres de modificacions')
+    } finally {
+      setLoading(false)
+    }
+  }, [fetchKey, filters])
+
+  useEffect(() => {
     fetchModifications()
-  }, [fetchKey])
+  }, [fetchModifications])
 
   const updateModification = async (id: string, data: Partial<Modification>) => {
     const res = await fetch(`/api/modifications/${id}`, {
@@ -128,5 +129,10 @@ export function useModifications(filters: {
     return updated
   }
 
-  return { modifications, loading, error, updateModification }
+  const refetch = () => {
+    delete modificationsCache[fetchKey]
+    return fetchModifications()
+  }
+
+  return { modifications, loading, error, updateModification, refetch }
 }
