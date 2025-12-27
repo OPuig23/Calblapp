@@ -336,11 +336,7 @@ camioPetit: e.target.checked,
             >
               Cancel·lar
             </Button>
-            <Button
-              type="submit"
-              disabled={isSaving || nameError}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-            >
+            <Button type="submit" disabled={isSaving || nameError}>
               {isSaving ? 'Guardant…' : 'Guardar'}
             </Button>
           </div>
@@ -351,3 +347,4 @@ camioPetit: e.target.checked,
     </Dialog>
   )
 }
+

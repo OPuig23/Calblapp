@@ -13,7 +13,7 @@ interface Notification {
   type: string
   createdAt: number
   read: boolean
-  personId?: string // molt important
+  personId?: string   // 👈 molt important
 }
 
 interface ModalData {
@@ -23,38 +23,38 @@ interface ModalData {
 }
 
 type Props = {
-  onAfterAction?: () => void // callback per refrescar la taula principal
+  onAfterAction?: () => void   // callback per refrescar la taula principal
 }
 
 export function UserRequestsList({ onAfterAction }: Props) {
   const { notifications, refresh } = useNotificationsList(50)
   const [modalData, setModalData] = React.useState<ModalData | null>(null)
 
-  // Filtrar només sol·licituds d’usuari pendents
+  // 🔹 Filtrar només sol·licituds d’usuari pendents
   const userRequests = (notifications as Notification[]).filter(
     n => n.type === 'user_request' && !n.read
   )
 
-  // Obrir modal amb personId perquè faci fetch directe a Firestore
+  // 🔹 Obrir modal amb personId perquè faci fetch directe a Firestore
   const openModalFromRequest = (req: Notification) => {
-    console.log('Obrint modal per notificació:', req)
+    console.log('📩 Obrint modal per notificació:', req)
 
     if (!req.personId) {
-      console.error('Notificació sense personId:', req)
+      console.error('❌ Notificació sense personId:', req)
       return
     }
 
     setModalData({
       id: null,
-      personId: req.personId,
-      _notificationId: req.id,
+      personId: req.personId,       // 👈 ara sí passem personId
+      _notificationId: req.id,      // per marcar després com llegida
     })
   }
 
-  // Quan admin desa usuari nou (després de approve)
+  // 🔹 Quan admin desa usuari nou (després de approve)
   const handleSave = async () => {
     if (!modalData) return
-    console.log('Usuari creat correctament via approve')
+    console.log('💾 Usuari creat correctament via approve')
 
     // Marquem notificació com llegida
     await fetch('/api/notifications', {
@@ -71,37 +71,34 @@ export function UserRequestsList({ onAfterAction }: Props) {
     setModalData(null)
   }
 
-  // Quan admin rebutja la sol·licitud
+  // 🔹 Quan admin rebutja la sol·licitud
   const handleReject = async (req: Notification) => {
-    console.log('🔴 Rebutjant sol·licitud:', req)
+    console.log('🛑 Rebutjant sol·licitud:', req)
 
     if (!req.personId) {
-      console.error('No hi ha personId a la notificació:', req)
+      console.error("❌ No hi ha personId a la notificació:", req)
       return
     }
 
-    const reason =
-      prompt('Motiu del rebuig?', 'Rebutjada manualment') || 'Rebutjada manualment'
-
-    // 1) Trucar al backend per actualitzar userRequests + personnel
+    // 1️⃣ Trucar al backend per actualitzar userRequests + personnel
     const res = await fetch(`/api/user-requests/${req.personId}/reject`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reason }),
+      body: JSON.stringify({ reason: 'Rebutjada manualment' }),
     })
     const data = await res.json()
-    console.log('Resposta reject:', data)
+    console.log("📤 Resposta reject:", data)
 
-    // 2) Si tot bé, marquem notificació com llegida
+    // 2️⃣ Si tot bé, marquem notificació com llegida
     if (data.success) {
       await fetch('/api/notifications', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'markRead', notificationId: req.id }),
       })
-      console.log('Notificació marcada com llegida:', req.id)
+      console.log("✅ Notificació marcada com llegida:", req.id)
     } else {
-      console.error('Error al rebutjar:', data)
+      console.error("❌ Error al rebutjar:", data)
     }
 
     await refresh()
@@ -151,7 +148,7 @@ export function UserRequestsList({ onAfterAction }: Props) {
           user={modalData}
           onSubmit={handleSave}
           onClose={() => {
-            console.log('Modal tancat sense desar')
+            console.log('❌ Modal tancat sense desar')
             setModalData(null)
           }}
         />
@@ -159,3 +156,4 @@ export function UserRequestsList({ onAfterAction }: Props) {
     </div>
   )
 }
+

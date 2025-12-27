@@ -9,6 +9,56 @@ import { firestoreAdmin } from '@/lib/firebaseAdmin'
 
 import { normalizeRole } from '@/lib/roles'
 
+interface UserDoc {
+  role?: string
+  notificationsUnread?: number
+}
+
+async function notifyRequester(
+  requesterId: string | null | undefined,
+  title: string,
+  body: string,
+  personId: string,
+  req: NextRequest
+) {
+  if (!requesterId) return
+  try {
+    const doc = await firestoreAdmin.collection('users').doc(requesterId).get()
+    if (!doc.exists) return
+
+    const data = doc.data() as UserDoc
+    await doc.ref.set(
+      { notificationsUnread: (data.notificationsUnread || 0) + 1 },
+      { merge: true }
+    )
+    await doc.ref.collection('notifications').add({
+      title,
+      body,
+      createdAt: Date.now(),
+      read: false,
+      type: 'user_request_result',
+      personId,
+    })
+
+    try {
+      await fetch(`${req.nextUrl.origin}/api/push/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: requesterId,
+          title,
+          body,
+          url: '/menu/personnel',
+        }),
+      })
+    } catch (pushErr) {
+      console.error('⚠️ Error enviant push al cap:', pushErr)
+    }
+  } catch (err) {
+    console.error('⚠️ Error notificació requester (reject):', err)
+  }
+}
+
 export async function POST(req: NextRequest, ctx: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
   if (!session) {
@@ -66,6 +116,14 @@ export async function POST(req: NextRequest, ctx: { params: { id: string } }) {
     )
     const checkPerson = await personRef.get()
     console.log('🔎 [reject] Estat personnel després:', checkPerson.data())
+
+    await notifyRequester(
+      (reqSnap.data() as { requestedByUserId?: string | null })?.requestedByUserId,
+      'Sol·licitud rebutjada',
+      reason ? `S'ha rebutjat la sol·licitud: ${reason}` : 'S\'ha rebutjat la sol·licitud',
+      personId,
+      req
+    )
 
     return NextResponse.json({ success: true })
   } catch (error: unknown) {

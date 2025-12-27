@@ -78,10 +78,31 @@ export default function PersonnelList({ personnel, mutate, onEdit }: Props) {
   }
 
   async function handleRequestUser(p: Personnel) {
+    const missing: string[] = []
+    if (!p.name?.trim()) missing.push('nom')
+    if (!p.role?.toString().trim()) missing.push('rol')
+    if (!p.department?.toString().trim()) missing.push('departament')
+    if (!p.email?.toString().trim()) missing.push('email')
+    if (!p.phone?.toString().trim()) missing.push('telèfon')
+    if (p.driver?.isDriver) {
+      const hasType = p.driver.camioGran || p.driver.camioPetit
+      if (!hasType) missing.push('tipus conductor')
+    }
+    if (missing.length) {
+      alert(
+        `Falten camps obligatoris per demanar usuari: ${missing.join(', ')}`
+      )
+      return
+    }
+
     try {
       setLoadingMap((m) => ({ ...m, [p.id]: true }))
       await requestUser(p.id)
       mutate()
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : "No s'ha pogut sol·licitar l'usuari"
+      alert(msg)
     } finally {
       setLoadingMap((m) => ({ ...m, [p.id]: false }))
     }

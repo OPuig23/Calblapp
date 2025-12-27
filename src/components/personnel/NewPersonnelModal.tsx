@@ -325,7 +325,11 @@ export default function NewPersonnelModal({
               Cancel·lar
             </Button>
 
-            <Button type="submit" disabled={isCreating || nameError}>
+            <Button
+              type="submit"
+              disabled={isCreating || nameError}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
               {isCreating ? 'Creant…' : 'Crear'}
             </Button>
           </div>

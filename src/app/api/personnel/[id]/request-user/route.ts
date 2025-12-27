@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
-import { db, firestoreAdmin } from '@/lib/firebaseAdmin'
+import { firestoreAdmin } from '@/lib/firebaseAdmin'
 
 import { normalizeRole } from '@/lib/roles'
 
@@ -24,6 +24,10 @@ interface PersonnelDoc {
   role?: string
   department?: string
   departmentLower?: string
+  workerRank?: string | null
+  email?: string | null
+  phone?: string | null
+  maxHoursWeek?: number | null
   driver?: {
     isDriver: boolean
     camioGran: boolean
@@ -41,13 +45,18 @@ interface UserDoc {
 interface UserRequestDoc {
   personId: string
   departmentLower: string
+  department?: string | null
   requestedByUserId: string | null
   requestedByName: string | null
+  email?: string | null
+  phone?: string | null
+  maxHoursWeek?: number | null
   createdAt: number
   updatedAt: number
   status: 'pending' | 'approved' | 'rejected'
   name: string
   role: string
+  workerRank?: string | null
   driver: PersonnelDoc['driver']
   available: boolean
 }
@@ -56,6 +65,28 @@ const unaccent = (s: string) =>
   s.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 const normLower = (s?: string) =>
   unaccent((s || '').toString().trim()).toLowerCase()
+
+const requiredFields = ['name', 'role', 'department', 'email', 'phone'] as const
+
+function findMissingFields(person: PersonnelDoc) {
+  const missing: string[] = []
+  const isEmpty = (v?: unknown) => {
+    if (v === undefined || v === null) return true
+    if (typeof v === 'string' && v.trim() === '') return true
+    return false
+  }
+
+  requiredFields.forEach(field => {
+    if (isEmpty((person as Record<string, unknown>)[field])) missing.push(field)
+  })
+
+  if (person.driver?.isDriver) {
+    const hasType = person.driver.camioGran || person.driver.camioPetit
+    if (!hasType) missing.push('driverType')
+  }
+
+  return missing
+}
 
 async function notifyAdmins(title: string, body: string, personId: string) {
   const snap = await firestoreAdmin.collection('users').get()
@@ -132,6 +163,18 @@ export async function POST(
 
     const personDeptLower = normLower(p.departmentLower || p.department)
 
+    const missing = findMissingFields(p)
+    if (missing.length) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Falten camps obligatoris per sol·licitar usuari: ${missing.join(', ')}`,
+          missing,
+        },
+        { status: 400 }
+      )
+    }
+
     // Comprovació permisos
     if (!isPrivileged) {
       if (!isCapDept) {
@@ -176,13 +219,18 @@ export async function POST(
     const payload: UserRequestDoc = {
       personId,
       departmentLower: personDeptLower,
+      department: p.department || null,
       requestedByUserId: requesterId || null,
       requestedByName: requesterName || null,
+      email: p.email ?? null,
+      phone: p.phone ?? null,
+      maxHoursWeek: p.maxHoursWeek ?? null,
       createdAt: now,
       updatedAt: now,
       status: 'pending',
       name: p.name || '',
       role: p.role || 'soldat',
+      workerRank: p.workerRank || null,
       driver: p.driver || {
         isDriver: false,
         camioGran: false,

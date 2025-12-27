@@ -9,6 +9,7 @@ import EditPersonnelModal from '@/components/personnel/EditPersonnelModal'
 import FloatingAddButton from '@/components/ui/floating-add-button'
 import FilterButton from '@/components/ui/filter-button'
 import PersonnelFilters from '@/components/personnel/PersonnelFilters'
+import UserRequestResultsList from '@/components/users/UserRequestResultsList'
 import { usePersonnel, Personnel } from '@/hooks/usePersonnel'
 import { useFilters } from '@/context/FiltersContext'
 
@@ -81,6 +82,11 @@ if (filters.isDriver !== 'all') {
 
   return (
     <section className="p-0 space-y-4">
+
+      {/* Respostes a sol·licituds (caps/admin) */}
+      <div className="px-4 pt-4">
+        <UserRequestResultsList onAfterAction={refetch} />
+      </div>
 
       {/* 🔍 Barra de cerca */}
 <div className="px-1 pt-2 flex items-center gap-2 relative z-40">

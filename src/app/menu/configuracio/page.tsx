@@ -6,13 +6,28 @@ import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
-import { Sun, Moon, Languages, Bell, LogOut } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import {
+  Bell,
+  LogOut,
+  Shield,
+  KeyRound,
+  CalendarRange,
+  ShieldCheck,
+} from 'lucide-react'
 
-// 👉 ARA FEM SERVIR EL SISTEMA WEBPUSH
 import { usePushNotifications } from '@/hooks/usePushNotifications'
+import { Button } from '@/components/ui/button'
+
+type SessionUser = {
+  id: string
+  name?: string
+}
 
 export default function ConfiguracioPage() {
   const { data: session, status } = useSession()
+  const user = session?.user as SessionUser | undefined
+
   const {
     permission,
     error: pushError,
@@ -20,52 +35,60 @@ export default function ConfiguracioPage() {
     requestPermission,
   } = usePushNotifications()
 
-  const user = session?.user as {
-    id: string
-    name?: string
-  }
-
   const [hasDevicePush, setHasDevicePush] = useState<boolean>(false)
   const [loadingPush, setLoadingPush] = useState(false)
-  const [darkMode, setDarkMode] = useState<boolean>(false)
 
-  // ──────────────────────────────────────────────────────────────
-  // 1) Carregar estat inicial del dispositiu
-  // ──────────────────────────────────────────────────────────────
+  const [profileLoading, setProfileLoading] = useState(false)
+  const [profileSaving, setProfileSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+  const [showPrivacy, setShowPrivacy] = useState(false)
+
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [phone, setPhone] = useState('')
+  const [password, setPassword] = useState('')
+
+  // Carregar estat push i perfil
   useEffect(() => {
     if (!user?.id) return
-
     const key = `cb_push_activated_${user.id}`
     setHasDevicePush(localStorage.getItem(key) === '1')
+  }, [user?.id])
 
-    const dark = localStorage.getItem('cb_dark_mode') === '1'
-    setDarkMode(dark)
-    if (dark) document.documentElement.classList.add('dark')
+  useEffect(() => {
+    async function loadProfile() {
+      if (!user?.id) return
+      setProfileLoading(true)
+      setError(null)
+      try {
+        const res = await fetch(`/api/users/${user.id}`, { cache: 'no-store' })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data?.error || 'Error carregant perfil')
+        setName(data.name || '')
+        setEmail(data.email || '')
+        setPhone(data.phone || '')
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Error carregant perfil')
+      } finally {
+        setProfileLoading(false)
+      }
+    }
+    loadProfile()
   }, [user?.id])
 
   if (status === 'loading') return <p className="p-4">Carregant…</p>
   if (!user) return <p className="p-4">No autoritzat.</p>
 
-  // ──────────────────────────────────────────────────────────────
-  // 2) Funcions push (WebPush)
-  // ──────────────────────────────────────────────────────────────
+  // Push
   const enablePush = async () => {
     if (!user?.id) return
     try {
       setLoadingPush(true)
-
-      // 2.1 Demanem permís al navegador
       const perm = await requestPermission()
-      if (perm !== 'granted') {
-        console.warn('[CalBlay] Permís notificacions no concedit:', perm)
-        return
-      }
-
-      // 2.2 Creem subscripció WebPush i la guardem a Firestore
+      if (perm !== 'granted') return
       const ok = await subscribeUser(user.id)
       if (!ok) return
-
-      // 2.3 Marquem al dispositiu que ja està activat
       localStorage.setItem(`cb_push_activated_${user.id}`, '1')
       setHasDevicePush(true)
     } finally {
@@ -75,34 +98,50 @@ export default function ConfiguracioPage() {
 
   const disablePush = () => {
     if (!user?.id) return
-    // (Opcional: aquí podríem afegir /api/push/unsubscribe en el futur)
     localStorage.removeItem(`cb_push_activated_${user.id}`)
     setHasDevicePush(false)
   }
 
-  // ──────────────────────────────────────────────────────────────
-  // 3) Mode fosc / clar
-  // ──────────────────────────────────────────────────────────────
-  const toggleDarkMode = (val: boolean) => {
-    setDarkMode(val)
-    localStorage.setItem('cb_dark_mode', val ? '1' : '0')
+  // Desa perfil
+  const saveProfile = async () => {
+    if (!user?.id) return
+    setProfileSaving(true)
+    setError(null)
+    setSuccess(null)
+    try {
+      const payload: Record<string, unknown> = {
+        name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+      }
+      if (password.trim()) payload.password = password.trim()
 
-    if (val) document.documentElement.classList.add('dark')
-    else document.documentElement.classList.remove('dark')
+      const res = await fetch(`/api/users/${user.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error((data as any).error || 'Error desant perfil')
+
+      setSuccess('Canvis desats correctament')
+      setPassword('')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error desant perfil')
+    } finally {
+      setProfileSaving(false)
+    }
   }
 
-  // ──────────────────────────────────────────────────────────────
-  // 4) UI
-  // ──────────────────────────────────────────────────────────────
   return (
     <section className="w-full max-w-md mx-auto p-4 space-y-6">
       <h1 className="text-2xl font-bold text-center mb-4">Configuració</h1>
 
-      {/* ────────────── Targeta Notificacions ────────────── */}
+      {/* Push */}
       <motion.div
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
-        className="p-4 rounded-2xl bg-white dark:bg-gray-800 shadow border border-gray-200 dark:border-gray-700 space-y-3"
+        className="p-4 rounded-2xl bg-white shadow border border-gray-200 space-y-3"
       >
         <div className="flex items-center gap-2">
           <Bell className="w-5 h-5 text-blue-500" />
@@ -123,72 +162,125 @@ export default function ConfiguracioPage() {
           />
         </div>
 
-        {loadingPush && (
-          <p className="text-sm text-blue-600">Activant…</p>
-        )}
-
-        {pushError && (
-          <p className="text-xs text-red-600">
-            Error notificacions: {pushError}
-          </p>
-        )}
-
+        {loadingPush && <p className="text-sm text-blue-600">Activant…</p>}
+        {pushError && <p className="text-xs text-red-600">Error notificacions: {pushError}</p>}
         {permission === 'denied' && (
           <p className="text-xs text-amber-600">
-            Has bloquejat les notificacions al navegador. Caldrà activar-les als ajustos de Chrome.
+            Has bloquejat les notificacions al navegador. Caldrà activar-les als ajustos del navegador.
           </p>
         )}
       </motion.div>
 
-      {/* ────────────── Targeta Aparença ────────────── */}
+      {/* Perfil i contrasenya */}
       <motion.div
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
-        className="p-4 rounded-2xl bg-white dark:bg-gray-800 shadow border border-gray-200 dark:border-gray-700 space-y-3"
+        className="p-4 rounded-2xl bg-white shadow border border-gray-200 space-y-3"
       >
         <div className="flex items-center gap-2">
-          {darkMode ? (
-            <Moon className="w-5 h-5 text-yellow-500" />
-          ) : (
-            <Sun className="w-5 h-5 text-orange-500" />
-          )}
-          <h2 className="font-semibold text-lg">Aparença</h2>
+          <Shield className="w-5 h-5 text-emerald-600" />
+          <h2 className="font-semibold text-lg">Perfil i seguretat</h2>
         </div>
 
-        <div className="flex items-center justify-between">
-          <Label htmlFor="dark-switch">Mode fosc</Label>
-          <Switch
-            id="dark-switch"
-            checked={darkMode}
-            onCheckedChange={toggleDarkMode}
-          />
-        </div>
+        {profileLoading ? (
+          <p className="text-sm text-gray-500">Carregant perfil…</p>
+        ) : (
+          <div className="space-y-3">
+            <div>
+              <Label>Nom d'usuari</Label>
+              <Input value={name} onChange={(e) => setName(e.target.value)} required />
+            </div>
+            <div>
+              <Label>Email</Label>
+              <Input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="usuari@exemple.com"
+              />
+            </div>
+            <div>
+              <Label>Telèfon</Label>
+              <Input
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="600123123"
+              />
+            </div>
+            <div>
+              <Label>Contrasenya (opcional)</Label>
+              <Input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Deixa buit per no canviar-la"
+              />
+            </div>
+
+            {error && <p className="text-sm text-red-600">{error}</p>}
+            {success && <p className="text-sm text-emerald-600">{success}</p>}
+
+            <div className="flex justify-end">
+              <Button
+                onClick={saveProfile}
+                disabled={profileSaving}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                {profileSaving ? 'Desant…' : 'Desar canvis'}
+              </Button>
+            </div>
+          </div>
+        )}
       </motion.div>
 
-      {/* ────────────── Targeta Idioma ────────────── */}
+      {/* Integracions placeholder */}
       <motion.div
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
-        className="p-4 rounded-2xl bg-white dark:bg-gray-800 shadow border border-gray-200 dark:border-gray-700 space-y-3"
+        className="p-4 rounded-2xl bg-white shadow border border-gray-200 space-y-3"
       >
         <div className="flex items-center gap-2">
-          <Languages className="w-5 h-5 text-green-500" />
-          <h2 className="font-semibold text-lg">Idioma</h2>
+          <CalendarRange className="w-5 h-5 text-indigo-500" />
+          <h2 className="font-semibold text-lg">Integracions</h2>
         </div>
-
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          Properament: escollir català / castellà / anglès
+        <p className="text-sm text-gray-600">
+          Properament: connexió amb Google Calendar i Outlook per sincronitzar esdeveniments i torns.
         </p>
       </motion.div>
 
-      {/* ────────────── Targeta Compte ────────────── */}
+      {/* Privadesa i compte */}
       <motion.div
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
-        className="p-4 rounded-2xl bg-white dark:bg-gray-800 shadow border border-gray-200 dark:border-gray-700 space-y-4"
+        className="p-4 rounded-2xl bg-white shadow border border-gray-200 space-y-4"
       >
-        <h2 className="font-semibold text-lg">Compte</h2>
+        <div className="flex items-center gap-2">
+          <ShieldCheck className="w-5 h-5 text-purple-600" />
+          <h2 className="font-semibold text-lg">Privadesa i dades</h2>
+        </div>
+        <div className="space-y-2">
+          <Button
+            variant="outline"
+            className="w-full justify-start"
+            onClick={() => setShowPrivacy((v) => !v)}
+          >
+            {showPrivacy ? 'Amagar text' : 'Llegir avís de privadesa'}
+          </Button>
+          {showPrivacy && (
+            <p className="text-sm text-gray-600">
+              Catering Cal Blay S.L. tracta les dades per a la gestió de serveis, personal i comunicacions internes.
+              Pots sol·licitar rectificació o eliminació escrivint a{' '}
+              <a href="mailto:rrhh@calblay.com" className="text-blue-600 underline">rrhh@calblay.com</a>.
+              Les dades s’emmagatzemen de forma segura i només es comparteixen amb proveïdors necessaris per al servei.
+            </p>
+          )}
+        </div>
 
+        <div className="flex items-center gap-2">
+          <KeyRound className="w-5 h-5 text-red-500" />
+          <h2 className="font-semibold text-lg">Compte</h2>
+        </div>
         <button
           onClick={() => signOut({ callbackUrl: '/login' })}
           className="flex items-center gap-2 text-red-600 font-semibold"

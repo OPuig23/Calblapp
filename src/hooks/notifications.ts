@@ -85,9 +85,15 @@ export function useUnreadCountsByType() {
       (n: Notification) => !n.read && n.type === 'user_request'
     ).length
 
+  const usuarisResultCount =
+    notis.filter(
+      (n: Notification) => !n.read && n.type === 'user_request_result'
+    ).length
+
   return {
     tornsCount,
     usuarisCount,
+    usuarisResultCount,
     loading: !data && !error,
     error,
     refresh: mutate,

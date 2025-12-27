@@ -134,7 +134,7 @@ export default function MenuPage() {
 ───────────────────────────────────────────── */
 function MenuContent({ user }: { user: SessionUser }) {
   const pathname = usePathname()
-  const { tornsCount, usuarisCount } = useUnreadCountsByType()
+  const { tornsCount, usuarisCount, usuarisResultCount } = useUnreadCountsByType()
   const { requestToken } = useFCMToken()
 
   // 🔑 ÚNICA FONT DE MÒDULS
@@ -180,6 +180,12 @@ function MenuContent({ user }: { user: SessionUser }) {
                 {mod.path === '/menu/users' && usuarisCount > 0 && (
                   <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
                     {usuarisCount}
+                  </span>
+                )}
+
+                {mod.path === '/menu/personnel' && usuarisResultCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                    {usuarisResultCount}
                   </span>
                 )}
               </div>
