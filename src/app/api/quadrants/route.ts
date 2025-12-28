@@ -1,4 +1,4 @@
-// src/app/api/quadrants/route.ts
+ï»¿// src/app/api/quadrants/route.ts
 import { NextResponse, type NextRequest } from 'next/server'
 import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
 import { firestoreAdmin } from '@/lib/firebaseAdmin'
@@ -169,11 +169,11 @@ export async function POST(req: NextRequest) {
     if (Array.isArray(body.brigades)) {
       toSave.brigades = body.brigades as Brigade[]
     }
-    // Determinem la col·lecció segons el departament
+    // Determinem la colÂ·lecciÃ³ segons el departament
     const collectionName = await resolveWriteCollectionForDepartment(deptNorm)
-    console.log('[quadrants/route] Escriuré a col·lecció:', collectionName)
+    console.log('[quadrants/route] EscriurÃ  a colÂ·lecciÃ³:', collectionName)
 
-    // Dades de stage_verd (codi i adreça)
+    // Dades de stage_verd (codi i adreÃ§a)
     const stageSnap = await db.collection('stage_verd').doc(body.eventId).get()
     const stageData = stageSnap.exists ? stageSnap.data() : null
 
@@ -181,7 +181,7 @@ export async function POST(req: NextRequest) {
       toSave.code = stageData?.code || stageData?.C_digo || ''
     }
 
-    // Distància (anada + tornada)
+    // DistÃ ncia (anada + tornada)
     const destination =
       stageData?.Ubicacio ||
       stageData?.location ||
@@ -193,7 +193,7 @@ export async function POST(req: NextRequest) {
       toSave.distanceCalcAt = new Date().toISOString()
     }
 
-    // Desa a la col·lecció específica del departament (ex.: quadrantsLogistica)
+    // Desa a la colÂ·lecciÃ³ especÃ­fica del departament (ex.: quadrantsLogistica)
     await db.collection(collectionName).doc(body.eventId).set(toSave, { merge: true })
     await db.collection(collectionName).doc(body.eventId).set(toSave, { merge: true })
 
