@@ -12,7 +12,7 @@ import type { AdapterUser } from 'next-auth/adapters'
 // Helpers
 const normLower = (s?: string) => (s || '').toString().trim().toLowerCase()
 
-// 🔹 Documento User en Firestore
+// Firestore User doc
 interface FirestoreUser {
   userId?: string
   name?: string
@@ -22,17 +22,17 @@ interface FirestoreUser {
   pushEnabled?: boolean
 }
 
-// 🔹 Extendemos JWT y Session para evitar any
+// Extend JWT
 declare module 'next-auth/jwt' {
   interface JWT {
     role?: string
     department?: string
     deptLower?: string
     pushEnabled?: boolean
-
   }
 }
 
+// Extend Session
 declare module 'next-auth' {
   interface Session {
     user?: {
@@ -46,6 +46,8 @@ declare module 'next-auth' {
 
 export const authOptions = {
   debug: true,
+  // Habilita host dinàmic (preview/custom domains a Vercel)
+  trustHost: true,
   providers: [
     CredentialsProvider({
       name: 'Usuari i Contrasenya (Firebase)',
@@ -53,78 +55,105 @@ export const authOptions = {
         username: { label: 'Usuari', type: 'text' },
         password: { label: 'Contrasenya', type: 'password' },
       },
-     async authorize(credentials) {
-  if (!credentials?.username || !credentials.password) {
-    console.log("❌ Falta usuari o password")
-    return null
-  }
+      async authorize(credentials) {
+        if (!credentials?.username || !credentials.password) {
+          console.log('[AUTH] Falta usuari o password')
+          return null
+        }
 
-  console.log("🔎 Intent login amb:", credentials.username)
+        const usernameRaw = credentials.username.toString().trim()
+        const usernameFold = normLower(usernameRaw)
+        const passInput = credentials.password.toString().trim()
 
-  const snap = await firestore
-    .collection('users')
-    .where('name', '==', credentials.username)
-    .get()
+        console.log('[AUTH] Intent login amb:', usernameRaw, 'fold:', usernameFold)
 
-  if (snap.empty) {
-    console.log("❌ Usuari no trobat:", credentials.username)
-    return null
-  }
+        try {
+          // 1) Buscar per nom exacte (compatibilitat antic)
+          let snap = await firestore
+            .collection('users')
+            .where('name', '==', usernameRaw)
+            .get()
 
-  for (const doc of snap.docs) {
-    const data = doc.data() as FirestoreUser
-    console.log("✅ Usuari trobat:", data)
+          // 2) Fallback: buscar per nameFold (case/accents insensitive)
+          if (snap.empty) {
+            snap = await firestore
+              .collection('users')
+              .where('nameFold', '==', usernameFold)
+              .get()
+          }
 
-    // Ens assegurem que tot sigui string
-    const passDoc = (data.password || '').toString().trim()
-    const passInput = credentials.password.toString().trim()
+          // 3) Fallback addicional: permetre login amb email exacta
+          if (snap.empty) {
+            snap = await firestore
+              .collection('users')
+              .where('email', '==', usernameRaw)
+              .get()
+          }
 
-    if (passDoc === passInput) {
-      console.log("✅ Password correcte per:", data.name)
+          if (snap.empty) {
+            console.log('[AUTH] Usuari no trobat (name/nameFold/email):', usernameRaw)
+            return null
+          }
 
-      if (!data.userId) {
-        await doc.ref.set({ userId: doc.id }, { merge: true })
-      }
+          for (const doc of snap.docs) {
+            const data = doc.data() as FirestoreUser
+            console.log('[AUTH] Usuari trobat:', { id: doc.id, name: data.name, role: data.role })
 
-      const roleNorm = normalizeRole(data.role)
-      const department = (data.department || '').toString().trim()
+            const passDoc = (data.password || '').toString().trim()
 
-      return {
-        id: data.userId || doc.id,
-        name: data.name || '',
-        role: roleNorm,
-        department,
-        deptLower: normLower(department),
-        pushEnabled: data.pushEnabled ?? false,
-      }
-    } else {
-      console.log("❌ Password incorrecte. Input:", passInput, "Doc:", passDoc)
-    }
-  }
+            if (!passDoc) {
+              console.log('[AUTH] Password buit a Firestore per', data.name)
+              continue
+            }
 
-  return null
-}
-,
+            if (passDoc === passInput) {
+              console.log('[AUTH] Password correcte per:', data.name)
+
+              if (!data.userId) {
+                await doc.ref.set({ userId: doc.id }, { merge: true })
+              }
+
+              const roleNorm = normalizeRole(data.role)
+              const department = (data.department || '').toString().trim()
+
+              return {
+                id: data.userId || doc.id,
+                name: data.name || '',
+                role: roleNorm,
+                department,
+                deptLower: normLower(department),
+                pushEnabled: data.pushEnabled ?? false,
+              }
+            } else {
+              console.log('[AUTH] Password incorrecte. Input:', passInput, 'Doc:', passDoc)
+            }
+          }
+        } catch (err) {
+          console.error('[AUTH] Error inesperat a authorize:', err)
+          return null
+        }
+
+        return null
+      },
     }),
   ],
   session: { strategy: 'jwt' as const },
   callbacks: {
     async jwt({ token, user }: { token: JWT; user?: AdapterUser | User }) {
-   if (user) {
-  const u = user as User & {
-    id: string
-    role?: string
-    department?: string
-    pushEnabled?: boolean
-  }
+      if (user) {
+        const u = user as User & {
+          id: string
+          role?: string
+          department?: string
+          pushEnabled?: boolean
+        }
 
-  token.sub = u.id
-  token.role = normalizeRole(u.role)
-  token.department = u.department || ''
-  token.deptLower = normLower(token.department)
-  token.pushEnabled = u.pushEnabled ?? false        // 👈 AFEGIT
-}
-
+        token.sub = u.id
+        token.role = normalizeRole(u.role)
+        token.department = u.department || ''
+        token.deptLower = normLower(token.department)
+        token.pushEnabled = u.pushEnabled ?? false // Added
+      }
 
       if (token.role) {
         token.role = normalizeRole(String(token.role))

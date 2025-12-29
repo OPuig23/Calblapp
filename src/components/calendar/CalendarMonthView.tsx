@@ -179,6 +179,14 @@ export default function CalendarMonthView({
                     ${c.isOther ? 'bg-gray-50 text-gray-400' : 'bg-white'}
                   `}
                 >
+                  <div
+                    className={`
+                      text-[11px] sm:text-xs font-semibold leading-none
+                      ${c.isOther ? 'text-gray-300' : 'text-slate-600'}
+                    `}
+                  >
+                    {c.date.getDate()}
+                  </div>
                 </div>
               ))}
 

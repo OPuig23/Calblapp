@@ -30,22 +30,31 @@ function LoginInner() {
     setError(null)
     setLoading(true)
 
+    const username = user.trim()
+    const password = pass
+
     const res = await signIn('credentials', {
       redirect: false,
-      username: user,
-      password: pass,
-      // callbackUrl is handled via router.push for explicit control
+      username,
+      password,
     })
 
-    if (res?.error) {
+    if (!res || res.error) {
+      const rawError = res?.error || 'unknown_error'
+      const isCreds = rawError === 'CredentialsSignin'
+      const friendly = isCreds
+        ? 'Usuari o contrasenya incorrectes'
+        : `Error iniciant sessio: ${rawError}`
+
+      console.error('[AUTH] signIn error', res)
       setLoading(false)
-      setError('Usuari o contrasenya incorrectes')
+      setError(friendly)
       return
     }
 
     // Remember username (never password)
     try {
-      if (remember) localStorage.setItem('cb_login_username', user)
+      if (remember) localStorage.setItem('cb_login_username', username)
       else localStorage.removeItem('cb_login_username')
     } catch {
       // ignore storage errors
@@ -62,7 +71,7 @@ function LoginInner() {
         noValidate
       >
         <div className="text-center">
-          <h1 className="text-2xl font-bold">Inicia sessió</h1>
+          <h1 className="text-2xl font-bold">Inicia sessio</h1>
         </div>
 
         {error && (
@@ -78,8 +87,8 @@ function LoginInner() {
           <input
             id="username"
             name="username"
-            type="email"
-            inputMode="email"
+            type="text"
+            inputMode="text"
             autoCapitalize="none"
             autoCorrect="off"
             autoComplete="username"
@@ -117,11 +126,8 @@ function LoginInner() {
               onChange={(e) => setRemember(e.target.checked)}
               className="h-4 w-4"
             />
-            Recorda’m
+            Recorda'm
           </label>
-
-          {/* Placeholder per “Has oblidat la contrasenya?” si el voleu activar en el futur */}
-          {/* <a href="/forgot" className="text-sm text-blue-600 underline">Has oblidat la contrasenya?</a> */}
         </div>
 
         <button
@@ -129,7 +135,7 @@ function LoginInner() {
           disabled={loading}
           className="w-full h-12 rounded-lg bg-blue-600 text-white font-medium disabled:opacity-60 active:translate-y-px transition"
         >
-          {loading ? 'Entrant…' : 'Entrar'}
+          {loading ? 'Entrant...' : 'Entrar'}
         </button>
       </form>
     </div>
@@ -138,7 +144,7 @@ function LoginInner() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="p-4 text-center">Carregant…</div>}>
+    <Suspense fallback={<div className="p-4 text-center">Carregant...</div>}>
       <LoginInner />
     </Suspense>
   )
