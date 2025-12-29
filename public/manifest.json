@@ -2,13 +2,13 @@
   "name": "Cal Blay App",
   "short_name": "CalBlay",
   "description": "WebApp operativa de Cal Blay – esdeveniments, personal, quadrants i incidències.",
-  "id": "calblapp",
+  "id": "/",
   "start_url": "/",
-  "display": "standalone",
   "scope": "/",
+  "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#1e293b",
-  "orientation": "any",
+  "orientation": "portrait",
   "icons": [
     {
       "src": "/icons/icon-192.png",
