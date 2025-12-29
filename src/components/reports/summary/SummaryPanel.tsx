@@ -95,6 +95,7 @@ export function SummaryPanel() {
           departmentOptions={[]}
           personOptions={[]}
           lineOptions={lineOptions}
+          collapsible
         />
       </div>
 

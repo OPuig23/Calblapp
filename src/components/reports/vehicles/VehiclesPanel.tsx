@@ -100,14 +100,15 @@ export function VehiclesPanel() {
   return (
     <div className="flex flex-col gap-4">
       <div className="overflow-x-auto -mx-1 px-1">
-        <FiltersBar
-          value={filters}
-          onChange={setFilters}
-          eventOptions={options.events}
-          departmentOptions={[]}
-          personOptions={[]}
-          lineOptions={options.lines}
-        />
+      <FiltersBar
+        value={filters}
+        onChange={setFilters}
+        eventOptions={options.events}
+        departmentOptions={[]}
+        personOptions={[]}
+        lineOptions={options.lines}
+        collapsible
+      />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

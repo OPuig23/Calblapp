@@ -1,4 +1,3 @@
-// file: src/components/layout/FiltersBar.tsx
 'use client'
 
 import React, { useState, useCallback, memo } from 'react'
@@ -9,9 +8,6 @@ import { useFilters } from '@/context/FiltersContext'
 import ResetFilterButton from '@/components/ui/ResetFilterButton'
 import FilterButton from '@/components/ui/filter-button'
 
-/* ──────────────────────────────
-   Tipus i props
-────────────────────────────── */
 export type FiltersState = {
   start: string
   end: string
@@ -19,7 +15,7 @@ export type FiltersState = {
   ln?: string
   responsable?: string
   location?: string
-  status?: string // nou: estat (pending / draft / confirmed)
+  status?: string
 }
 
 type FilterKey = 'ln' | 'responsable' | 'location'
@@ -34,11 +30,9 @@ export type FiltersBarProps = {
   lnOptions?: string[]
   responsables?: string[]
   locations?: string[]
+  collapseOnMobile?: boolean
 }
 
-/* ──────────────────────────────
-   Component principal
-────────────────────────────── */
 export default function FiltersBar({
   filters,
   setFilters,
@@ -48,6 +42,7 @@ export default function FiltersBar({
   lnOptions = [],
   responsables = [],
   locations = [],
+  collapseOnMobile = false,
 }: FiltersBarProps) {
   const pathname = usePathname()
   const isQuadrants = pathname?.startsWith('/menu/quadrants')
@@ -55,7 +50,6 @@ export default function FiltersBar({
 
   const [resetSignal, setResetSignal] = useState(0)
 
-  /* ─── Gestor dates (SmartFilters compacte de setmana) ───────────── */
   const handleDatesChange = useCallback(
     (f: SmartFiltersChange) => {
       if (f.start) {
@@ -72,7 +66,6 @@ export default function FiltersBar({
     [setFilters]
   )
 
-  /* ─── Selects inline (si algun mòdul els vol mostrar) ───────────── */
   const SelectsInline = memo(() => {
     const base = 'h-10 rounded-xl border bg-white text-gray-900 px-3'
     return (
@@ -125,36 +118,51 @@ export default function FiltersBar({
     )
   })
 
-  /* ─── PANTALLA ───────────── */
   return (
     <div className="sticky top-[56px] z-40 border-b border-gray-200 bg-white/90 backdrop-blur-sm">
       <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-2 overflow-x-auto whitespace-nowrap px-2 py-[3px] sm:flex-nowrap">
-        {/* 📅 Selector compacte de Setmana (només dates) */}
-        <SmartFilters
-          modeDefault="week"
-          role="Treballador"
-          showDepartment={false}
-          showWorker={false}
-          showLocation={false}
-          showStatus={false}
-          onChange={handleDatesChange}
-          resetSignal={resetSignal}
-        />
+        <div className={collapseOnMobile ? 'hidden sm:block' : ''}>
+          <SmartFilters
+            modeDefault="week"
+            role="Treballador"
+            showDepartment={false}
+            showWorker={false}
+            showLocation={false}
+            showStatus={false}
+            onChange={handleDatesChange}
+            resetSignal={resetSignal}
+            initialStart={filters.start}
+            initialEnd={filters.end}
+          />
+        </div>
 
-        {/* Selects inline opcionals */}
-        
+        {/* Selects inline opcionals (actualment no utilitzats) */}
+        <SelectsInline />
 
-        {/* 🔘 Botó de filtres (slide lateral) */}
         <FilterButton
           onClick={() => {
             setContent(
               <div className="p-4 flex flex-col gap-4">
-                {/* 🌐 LN */}
+                {collapseOnMobile && (
+                  <div className="border-b pb-3">
+                    <SmartFilters
+                      modeDefault="week"
+                      role="Treballador"
+                      showDepartment={false}
+                      showWorker={false}
+                      showLocation={false}
+                      showStatus={false}
+                      onChange={handleDatesChange}
+                      resetSignal={resetSignal}
+                      initialStart={filters.start}
+                      initialEnd={filters.end}
+                    />
+                  </div>
+                )}
+
                 {lnOptions?.length > 0 && (
                   <div className="flex flex-col gap-1">
-                    <label className="text-sm text-gray-600">
-                      🌐 Línia de Negoci
-                    </label>
+                    <label className="text-sm text-gray-600">Línia de Negoci</label>
                     <select
                       className="h-10 rounded-xl border bg-white px-3"
                       value={filters.ln ?? '__all__'}
@@ -170,10 +178,9 @@ export default function FiltersBar({
                   </div>
                 )}
 
-                {/* 📌 Estat – NOMÉS a Quadrants */}
                 {isQuadrants && (
                   <div className="flex flex-col gap-1">
-                    <label className="text-sm text-gray-600">📌 Estat</label>
+                    <label className="text-sm text-gray-600">Estat</label>
                     <select
                       className="h-10 rounded-xl border bg-white px-3"
                       value={filters.status ?? '__all__'}
@@ -187,10 +194,9 @@ export default function FiltersBar({
                   </div>
                 )}
 
-                {/* 👤 Responsable */}
                 {responsables && responsables.length > 0 && (
                   <div className="flex flex-col gap-1">
-                    <label className="text-sm text-gray-600">👤 Responsable</label>
+                    <label className="text-sm text-gray-600">Responsable</label>
                     <select
                       className="h-10 rounded-xl border bg-white px-3"
                       value={filters.responsable ?? '__all__'}
@@ -206,43 +212,44 @@ export default function FiltersBar({
                   </div>
                 )}
 
-                {/* 📍 Ubicació */}
-                {locations?.length > 0 && (
+                {locations && locations.length > 0 && (
                   <div className="flex flex-col gap-1">
-                    <label className="text-sm text-gray-600">📍 Ubicació</label>
+                    <label className="text-sm text-gray-600">Ubicació</label>
                     <select
-                    
-  className="h-10 rounded-xl border bg-white px-3"
-  value={filters.location ?? '__all__'}
-  onChange={(e) => setFilters({ location: e.target.value })} 
->
-  <option value="__all__">Totes</option>
-  {locations.map((o) => (
-    <option key={o} value={o}>{o}</option>
-  ))}
-</select>
-
+                      className="h-10 rounded-xl border bg-white px-3"
+                      value={filters.location ?? '__all__'}
+                      onChange={(e) => setFilters({ location: e.target.value })}
+                    >
+                      <option value="__all__">Totes</option>
+                      {locations.map((o) => (
+                        <option key={o} value={o}>
+                          {o}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 )}
 
-                {/* 🔄 Botó reset */}
-                <div className="flex gap-2 pt-4">
-                  <ResetFilterButton
-                    onClick={() => {
-                      setFilters({
-                        ln: '__all__',
-                        responsable: '__all__',
-                        location: '__all__',
-                        status: '__all__',
-                      })
-                      setResetSignal((v) => v + 1)
-                      onReset?.()
-                    }}
-                  />
-                </div>
+                <ResetFilterButton
+                  onClick={() => {
+                    const s = startOfWeek(new Date(), { weekStartsOn: 1 })
+                    const e = endOfWeek(new Date(), { weekStartsOn: 1 })
+                    setFilters({
+                      start: format(s, 'yyyy-MM-dd'),
+                      end: format(e, 'yyyy-MM-dd'),
+                      mode: 'week',
+                      ln: undefined,
+                      responsable: undefined,
+                      location: undefined,
+                      status: undefined,
+                    })
+                    setResetSignal((r) => r + 1)
+                    onReset?.()
+                    setOpen(false)
+                  }}
+                />
               </div>
             )
-
             setOpen(true)
           }}
         />

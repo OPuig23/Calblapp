@@ -82,6 +82,7 @@ export function IncidenciesPanel() {
           departmentOptions={options.departments}
           personOptions={[]}
           lineOptions={options.lines}
+          collapsible
         />
       </div>
 

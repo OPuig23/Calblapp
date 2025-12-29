@@ -83,6 +83,7 @@ export function ModificacionsPanel() {
           departmentOptions={options.departments}
           personOptions={[]}
           lineOptions={options.lines}
+          collapsible
         />
       </div>
 

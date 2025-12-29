@@ -121,6 +121,7 @@ export function PersonalPanel() {
         departmentOptions={options.departments}
         personOptions={options.persons}
         lineOptions={options.lines}
+        collapsible
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

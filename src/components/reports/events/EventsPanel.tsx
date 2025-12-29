@@ -102,6 +102,7 @@ export function EventsPanel() {
         departmentOptions={[]}
         personOptions={[]}
         lineOptions={options.lines}
+        collapsible
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
