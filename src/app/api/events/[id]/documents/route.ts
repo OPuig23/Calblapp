@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
 import { getDownloadURL } from 'firebase-admin/storage'
 import { storageAdmin } from '@/lib/firebaseAdmin'
+import { getGraphToken, getSiteAndDrive } from '@/services/sharepoint/graph'
 
 export type EventDoc = {
   id: string
@@ -10,6 +11,7 @@ export type EventDoc = {
   source: 'firestore-file' | 'firestore-link'
   url: string
   icon: 'pdf' | 'img' | 'doc' | 'sheet' | 'slide' | 'link'
+  mimeType?: string
 }
 
 function detectIcon(name: string): EventDoc['icon'] {
@@ -20,6 +22,17 @@ function detectIcon(name: string): EventDoc['icon'] {
   if (n.endsWith('.xls') || n.endsWith('.xlsx')) return 'sheet'
   if (n.endsWith('.ppt') || n.endsWith('.pptx')) return 'slide'
   return 'link'
+}
+
+function detectIconFromMime(mime?: string): EventDoc['icon'] | null {
+  if (!mime) return null
+  const m = mime.toLowerCase()
+  if (m.includes('pdf')) return 'pdf'
+  if (m.startsWith('image/')) return 'img'
+  if (m.includes('sheet') || m.includes('excel')) return 'sheet'
+  if (m.includes('presentation')) return 'slide'
+  if (m.includes('word')) return 'doc'
+  return null
 }
 
 function looksLikeUrl(value: string) {
@@ -33,6 +46,36 @@ function filenameFromPath(path: string, fallback: string) {
     return decodeURIComponent(last || fallback)
   } catch {
     return fallback
+  }
+}
+
+async function getSharePointMeta(itemId: string) {
+  const { driveId } = await getSiteAndDrive()
+  const { access_token } = await getGraphToken()
+
+  const res = await fetch(
+    `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${encodeURIComponent(itemId)}`,
+    {
+      headers: { Authorization: `Bearer ${access_token}` },
+      cache: 'no-store',
+    }
+  )
+
+  if (!res.ok) throw new Error(`SharePoint meta error ${res.status}`)
+
+  const json = await res.json()
+  return {
+    name: (json as any)?.name as string | undefined,
+    mimeType: (json as any)?.file?.mimeType as string | undefined,
+  }
+}
+
+function parseItemId(path: string): string | null {
+  try {
+    const url = path.startsWith('http') ? new URL(path) : new URL(path, 'http://local')
+    return url.searchParams.get('itemId')
+  } catch {
+    return null
   }
 }
 
@@ -67,22 +110,44 @@ export async function GET(
     )
 
     const bucket = storageAdmin.bucket()
-
     const docs: EventDoc[] = []
 
     for (const [key, rawPath] of files) {
       const path = String(rawPath)
       const filename = filenameFromPath(path, key)
 
-      // si ja tenim una URL absoluta/relativa (SharePoint, etc.), la retornem directament
+      const doc: EventDoc = {
+        id: key,
+        title: filename,
+        source: 'firestore-link',
+        url: path,
+        icon: detectIcon(filename),
+      }
+
+      // SharePoint proxy -> recuperem nom real + mime
+      if (path.startsWith('/api/sharepoint/file')) {
+        const itemId = parseItemId(path)
+        if (itemId) {
+          try {
+            const meta = await getSharePointMeta(itemId)
+            if (meta?.name) {
+              doc.title = meta.name
+              doc.icon = detectIcon(meta.name)
+            }
+            if (meta?.mimeType) {
+              doc.mimeType = meta.mimeType
+              const iconFromMime = detectIconFromMime(meta.mimeType)
+              if (iconFromMime) doc.icon = iconFromMime
+            }
+          } catch (err) {
+            console.warn('[events/documents] SharePoint meta error', err)
+          }
+        }
+      }
+
+      // URL absoluta/relativa (SharePoint, etc.)
       if (looksLikeUrl(path)) {
-        docs.push({
-          id: key,
-          title: filename,
-          source: 'firestore-link',
-          url: path,
-          icon: detectIcon(filename),
-        })
+        docs.push(doc)
         continue
       }
 
@@ -91,11 +156,9 @@ export async function GET(
         const publicUrl = await getDownloadURL(file)
 
         docs.push({
-          id: key,
-          title: filename,
+          ...doc,
           source: 'firestore-file',
           url: publicUrl,
-          icon: detectIcon(filename),
         })
       } catch {
         // si un fitxer no existeix o no és una ruta de Storage, el saltem
@@ -104,7 +167,7 @@ export async function GET(
 
     return NextResponse.json({ docs })
   } catch (err) {
-    console.error('❌ documents error', err)
+    console.error('⚠️ documents error', err)
     return NextResponse.json({ docs: [] }, { status: 500 })
   }
 }

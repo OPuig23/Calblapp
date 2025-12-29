@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 import useEventDocuments, { EventDoc } from '@/hooks/events/useEventDocuments'
 
-/* ───────────────────────── Icons ───────────────────────── */
+/* Icons */
 function DocIcon({ d }: { d: EventDoc }) {
   switch (d.icon) {
     case 'pdf':
@@ -31,7 +31,7 @@ function DocIcon({ d }: { d: EventDoc }) {
   }
 }
 
-/* ───────────────────────── Portal ───────────────────────── */
+/* Portal */
 function Portal({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false)
   const [el] = useState(() => {
@@ -54,7 +54,7 @@ function Portal({ children }: { children: React.ReactNode }) {
   return createPortal(children, el)
 }
 
-/* ───────────────────────── Component ───────────────────────── */
+/* Component */
 export default function EventDocumentsSheet({
   eventId,
   eventCode,
@@ -69,6 +69,40 @@ export default function EventDocumentsSheet({
   const { docs, loading, error } = useEventDocuments(eventId, eventCode || undefined)
 
   if (!open) return null
+
+  // En PWA standalone alguns navegadors ignoren target="_blank" i obren sobre la mateixa vista.
+  // Només forcem window.open en aquest cas; en navegador normal deixem el comportament nadiu.
+  const isStandalone =
+    typeof window !== 'undefined' &&
+    (window.matchMedia('(display-mode: standalone)').matches ||
+      (window.navigator as any).standalone === true)
+
+  const handleOpenDoc = (url: string) => {
+    if (typeof window === 'undefined') return
+    const newWin = window.open(url, '_blank', 'noopener,noreferrer')
+    if (!newWin) {
+      window.location.href = url
+    }
+  }
+
+  const kindLabel = (d: EventDoc) => {
+    if (d.icon === 'pdf') return 'PDF'
+    if (d.icon === 'sheet') return 'XLS'
+    if (d.icon === 'slide') return 'PPT'
+    if (d.icon === 'img') return 'IMG'
+    if (d.icon === 'doc') return 'DOC'
+    const clean = (d.url || '').split('?')[0]
+    const last = clean.split('/').filter(Boolean).pop() || ''
+    const ext = last.includes('.') ? last.split('.').pop() : ''
+    return (ext || 'LINK').toUpperCase()
+  }
+
+  const displayTitle = (d: EventDoc) => {
+    const title = d.title?.trim()
+    if (title && title.toLowerCase() !== 'file') return title
+    // SharePoint proxiat sol retorna "file"; fem servir la clau (file1, file2…) com a fallback
+    return d.id || title || 'Document'
+  }
 
   return (
     <Portal>
@@ -120,15 +154,33 @@ export default function EventDocumentsSheet({
 
                 {/* INFO */}
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium truncate">{d.title}</div>
-                  <div className="text-xs text-gray-500 capitalize">
-                    {d.source.replace('-', ' ')}
+                  <div className="text-sm font-medium truncate" title={d.title || d.id}>
+                    {displayTitle(d)}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 mt-1">
+                    <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold shrink-0">
+                      {kindLabel(d)}
+                    </span>
+                    <span className="capitalize">{d.source.replace('-', ' ')}</span>
+                    {d.id && (
+                      <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 shrink-0">
+                        {d.id}
+                      </span>
+                    )}
                   </div>
                 </div>
 
-                {/* ÚNIC BOTÓ */}
+                {/* BOTÓ */}
                 <a
                   href={d.url}
+                  onClick={
+                    isStandalone
+                      ? (e) => {
+                          e.preventDefault()
+                          handleOpenDoc(d.url)
+                        }
+                      : undefined
+                  }
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-blue-600 text-sm font-semibold hover:underline"
