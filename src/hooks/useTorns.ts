@@ -36,6 +36,7 @@ export function useTorns(initialFilters: Filters = {}) {
 
   const fetchData = useCallback(async () => {
     if (!session) return
+    if (!filters.start || !filters.end) return
     const { role, department: userDept, id: userId } = session.user as UserSession
 
     const params = new URLSearchParams()
@@ -43,6 +44,7 @@ export function useTorns(initialFilters: Filters = {}) {
     if (filters.end)   params.set('end', filters.end)
 
     if (role === 'Treballador') {
+      params.set('workerName', session.user?.name || '')
       params.set('userId', userId)
     } else if (role === 'Cap Departament') {
       params.set('department', filters.department || userDept || '')
@@ -54,10 +56,10 @@ export function useTorns(initialFilters: Filters = {}) {
     try {
       const res = await fetch(endpoint)
       const json = await res.json()
-      if (!res.ok) {
+      if (!res.ok || !json.ok) {
         setError(`Error ${res.status}`)
       } else {
-        setTorns((json.torns || []) as Torn[])
+        setTorns((json.data || []) as Torn[])
         setError(null)
       }
     } catch (err: unknown) {

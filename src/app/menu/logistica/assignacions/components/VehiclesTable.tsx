@@ -47,9 +47,10 @@ export default function VehiclesTable({ item, onChanged }: Props) {
       {/* =========================
           FILES EXISTENTS
       ========================= */}
-      {existingRows.map((row) => (
+      {existingRows.map((row, idx) => (
         <VehicleRow
           key={row.id}
+          rowIndex={idx}
           eventCode={item.eventCode}
           row={row}
           isNew={false}

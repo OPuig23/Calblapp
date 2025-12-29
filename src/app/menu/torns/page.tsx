@@ -10,6 +10,8 @@ import SmartFilters, { SmartFiltersChange } from '@/components/filters/SmartFilt
 import TornsList from './components/TornsList'
 import TornDetailModal from './components/TornDetailModal'
 import FilterButton from '@/components/ui/filter-button'
+import EventMenuModal from '@/components/events/EventMenuModal'
+import EventAvisosReadOnlyModal from '@/components/events/EventAvisosReadOnlyModal'
 import { useFilters } from '@/context/FiltersContext'
 import TornFilters from './components/TornFilters'
 import { format, startOfWeek, endOfWeek } from 'date-fns'
@@ -17,10 +19,23 @@ import { format, startOfWeek, endOfWeek } from 'date-fns'
 type ApiWorker = { id?: string; name?: string }
 type ApiTorn = {
   id: string
+  eventId?: string
   code: string
   eventName: string
   date: string
-  __rawWorkers?: ApiWorker[]
+  time?: string
+  location?: string
+  meetingPoint?: string
+  department?: string
+  workerRole?: 'responsable' | 'conductor' | 'treballador' | null
+  workerName?: string
+  __rawWorkers?: (ApiWorker & {
+    role?: 'responsable' | 'conductor' | 'treballador'
+    startTime?: string
+    endTime?: string
+    meetingPoint?: string
+    department?: string
+  })[]
 }
 
 type ApiResp = {
@@ -50,6 +65,20 @@ export default function TornsPage() {
 
   const [selectedTorn, setSelectedTorn] = useState<ApiTorn | null>(null)
   const [detail, setDetail] = useState<ApiTorn | null>(null)
+  const [eventMenuOpen, setEventMenuOpen] = useState(false)
+  const [eventMenuData, setEventMenuData] = useState<{
+    id: string
+    summary: string
+    start: string
+    eventCode?: string | null
+    code?: string | null
+    department?: string
+    isResponsible?: boolean
+    fincaId?: string | null
+    fincaCode?: string | null
+  } | null>(null)
+  const [avisosOpen, setAvisosOpen] = useState(false)
+  const [avisosEventCode, setAvisosEventCode] = useState<string | null>(null)
 
   const userName = session?.user?.name || ''
   const rawRole = norm(session?.user?.role)
@@ -144,7 +173,9 @@ export default function TornsPage() {
           name: w.name || '',
         }))
         setWorkerOptions(workers)
-      } catch {
+      } catch (err: unknown) {
+        if ((err as any)?.name === 'AbortError') return
+        console.error('[torns] fetch error', err)
         setError('Error de connexió')
       } finally {
         setLoading(false)
@@ -166,6 +197,47 @@ export default function TornsPage() {
   const closeDetail = () => {
     setSelectedTorn(null)
     setDetail(null)
+  }
+
+  const closeEventMenu = () => {
+    setEventMenuOpen(false)
+    setEventMenuData(null)
+  }
+
+  const openAvisos = (t: ApiTorn) => {
+    if (!t.code) return
+    setAvisosEventCode(t.code)
+    setAvisosOpen(true)
+  }
+
+  const openEventMenu = (t: ApiTorn) => {
+    if (!t.eventId) {
+      console.warn('[torns] eventId missing, skipping event menu', t)
+      return
+    }
+
+    const isResponsible =
+      norm(t.workerRole) === 'responsable' ||
+      (Array.isArray(t.__rawWorkers) &&
+        t.__rawWorkers.some((w) => norm(w.role) === 'responsable'))
+
+    setEventMenuData({
+      id: t.eventId,
+      summary: t.eventName,
+      start: t.date,
+      eventCode: t.code,
+      code: t.code,
+      department: t.department,
+      isResponsible,
+    })
+    setEventMenuOpen(true)
+  }
+
+  const userForEventMenu = {
+    id: (session?.user as any)?.id,
+    role: (session?.user as any)?.role,
+    department: (session?.user as any)?.department,
+    name: (session?.user as any)?.name,
   }
 
   if (status === 'loading') return <p className="p-6">Carregant sessió…</p>
@@ -242,6 +314,8 @@ export default function TornsPage() {
         <TornsList
           items={items}
           onTornClick={openDetail}
+          onEventClick={openEventMenu}
+          onAvisosClick={openAvisos}
           groupByEvent={
             !isWorker && !(filters.workerId) && !(filters.workerName)
           }
@@ -254,6 +328,18 @@ export default function TornsPage() {
         open={!!selectedTorn}
         onClose={closeDetail}
         torn={detail || selectedTorn}
+      />
+      {eventMenuOpen && eventMenuData && (
+        <EventMenuModal
+          event={eventMenuData}
+          user={userForEventMenu}
+          onClose={closeEventMenu}
+        />
+      )}
+      <EventAvisosReadOnlyModal
+        open={avisosOpen}
+        onClose={() => setAvisosOpen(false)}
+        eventCode={avisosEventCode}
       />
     </div>
   )

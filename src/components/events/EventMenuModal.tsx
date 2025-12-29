@@ -223,8 +223,7 @@ const treballadorsPersons =
   const isDireccio = roleN === 'direccio'
   const isCapDept = roleN === 'cap' || (roleN.includes('cap') && roleN.includes('depart'))
   const isProduccio = deptN === 'produccio'
-  const canWriteAvisos =
-  isAdmin || isDireccio || isCapDept || isProduccio
+  const canWriteAvisos = isAdmin || isDireccio || isProduccio
   const canCloseEvent =
     isAdmin ||
     isDireccio ||
@@ -333,17 +332,17 @@ const operativa = useMemo(
           }
         : null,
 
-      // 🔔 Avisos de Producció (SEMPRE visible)
-      
-        
- {
-  key: 'avisos',
-  label: 'Avisos de Producció',
-  badge: 'Info',
-  icon: FileText,
-  tone: 'info' as const,
-  onClick: () => setShowAvisos(true),
-},
+      // 🔔 Avisos de Producció (visible només per Producció / Admin / Direcció)
+      canWriteAvisos
+        ? {
+            key: 'avisos',
+            label: 'Avisos de Producció',
+            badge: 'Info',
+            icon: FileText,
+            tone: 'info' as const,
+            onClick: () => setShowAvisos(true),
+          }
+        : null,
 
     ].filter(Boolean) as any[],
   [

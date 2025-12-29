@@ -9,6 +9,8 @@ import { Users, Calendar } from 'lucide-react'
 type Props = {
   items?: TornCardItem[]
   onTornClick?: (t: TornCardItem) => void
+  onEventClick?: (t: TornCardItem) => void
+  onAvisosClick?: (t: TornCardItem) => void
   groupByEvent?: boolean
   role?: 'Admin' | 'Direcció' | 'Cap Departament' | 'Treballador'
   filters?: {
@@ -73,11 +75,11 @@ function mergeGroup(arr: TornCardItem[]): TornCardItem {
   }
 
   for (const t of arr) {
-    t.__rawWorkers?.forEach(pushWorker)
-
-    if (t.workerName) {
+    if (Array.isArray(t.__rawWorkers) && t.__rawWorkers.length) {
+      t.__rawWorkers.forEach(pushWorker)
+    } else if (t.workerName) {
       pushWorker({
-        id: t.id,
+        id: undefined,
         name: t.workerName,
         role: t.workerRole ?? 'treballador',
         meetingPoint: t.meetingPoint,
@@ -110,6 +112,8 @@ function mergeGroup(arr: TornCardItem[]): TornCardItem {
 export default function TornsList({
   items = [],
   onTornClick,
+  onEventClick,
+  onAvisosClick,
   groupByEvent = false,
   role = 'Treballador',
   filters,
@@ -204,7 +208,11 @@ export default function TornsList({
       workerRole: t.workerRole,
       eventName: t.eventName,
     })}
-    <TornCardWorker item={t} />
+    <TornCardWorker
+      item={t}
+      onEventClick={onEventClick ? () => onEventClick(t) : undefined}
+      onAvisosClick={onAvisosClick ? () => onAvisosClick(t) : undefined}
+    />
   </>
 ) : (
   <>
@@ -212,7 +220,11 @@ export default function TornsList({
       id: t.id,
       eventName: t.eventName,
     })}
-    <TornCard item={t} />
+    <TornCard
+      item={t}
+      onEventClick={onEventClick ? () => onEventClick(t) : undefined}
+      onAvisosClick={onAvisosClick ? () => onAvisosClick(t) : undefined}
+    />
   </>
 )}
 

@@ -2,7 +2,7 @@
 'use client'
 
 import React from 'react'
-import { MapPin, Users, Tag } from 'lucide-react'
+import { MapPin, Users, Tag, Info } from 'lucide-react'
 
 type WorkerLite = {
   id?: string
@@ -121,9 +121,14 @@ function LnBadge({ ln }: { ln: string }) {
   )
 }
 
-type Props = { item: TornCardItem; onClick?: () => void }
+type Props = {
+  item: TornCardItem
+  onClick?: () => void
+  onEventClick?: () => void
+  onAvisosClick?: () => void
+}
 
-export default function TornCard({ item, onClick }: Props) {
+export default function TornCard({ item, onClick, onEventClick, onAvisosClick }: Props) {
   if (!item) return null
 
   const ln = detectLN(item.code)
@@ -160,11 +165,26 @@ export default function TornCard({ item, onClick }: Props) {
           {effectiveRole && <RolePill role={effectiveRole} />}
           <LnBadge ln={ln} />
         </div>
-        {totalAssignats > 0 && (
-          <span className="text-xs px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border flex items-center gap-1">
-            <Users className="h-3 w-3" /> {totalAssignats}
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {onAvisosClick && (
+            <button
+              type="button"
+              aria-label="Obrir avisos de producció"
+              onClick={(e) => {
+                e.stopPropagation()
+                onAvisosClick()
+              }}
+              className="text-gray-400 hover:text-blue-600"
+            >
+              <Info className="h-4 w-4" />
+            </button>
+          )}
+          {totalAssignats > 0 && (
+            <span className="text-xs px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border flex items-center gap-1">
+              <Users className="h-3 w-3" /> {totalAssignats}
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="text-base font-semibold text-gray-900 mb-2 flex flex-wrap items-center gap-2">
@@ -213,12 +233,26 @@ export default function TornCard({ item, onClick }: Props) {
 
       {eventClean && (
         <div className="mt-1 flex items-center justify-between">
-          <div
-            className="text-sm font-medium text-gray-900 truncate"
-            title={eventClean}
-          >
-            {eventClean}
-          </div>
+          {onEventClick ? (
+            <button
+              type="button"
+              className="text-sm font-medium text-gray-900 truncate text-left hover:text-blue-600"
+              title={eventClean}
+              onClick={(e) => {
+                e.stopPropagation()
+                onEventClick()
+              }}
+            >
+              {eventClean}
+            </button>
+          ) : (
+            <div
+              className="text-sm font-medium text-gray-900 truncate"
+              title={eventClean}
+            >
+              {eventClean}
+            </div>
+          )}
           {item.code && (
             <div className="text-xs text-gray-400 flex items-center gap-1 ml-2 shrink-0">
               <Tag className="w-3 h-3" />

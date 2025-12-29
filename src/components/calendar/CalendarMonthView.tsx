@@ -179,9 +179,6 @@ export default function CalendarMonthView({
                     ${c.isOther ? 'bg-gray-50 text-gray-400' : 'bg-white'}
                   `}
                 >
-                  <span className="absolute top-1 right-1 text-[10px] sm:text-xs text-gray-500">
-                    {c.date.getDate()}
-                  </span>
                 </div>
               ))}
 

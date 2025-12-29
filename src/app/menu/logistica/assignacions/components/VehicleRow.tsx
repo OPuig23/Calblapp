@@ -18,6 +18,7 @@ interface Props {
   eventCode: string
   expectedVehicleType?: string
   row: any | null
+  rowIndex?: number
   eventDay: string
   eventStartTime: string
   eventEndTime: string
@@ -45,6 +46,7 @@ export default function VehicleRow({
   eventCode,
   expectedVehicleType,
   row,
+  rowIndex,
   eventDay,
   eventStartTime,
   eventEndTime,
@@ -74,11 +76,12 @@ export default function VehicleRow({
     (row?.vehicleType || expectedVehicleType || '').toString()
   )
 
-  const normalizedPlate =
+const normalizedPlate =
   row?.plate ||
   row?.matricula ||
   row?.vehiclePlate ||
   ''
+const originalPlate = normalizedPlate.toString()
 
 const [plate, setPlate] = useState(normalizedPlate.toString())
 
@@ -256,6 +259,8 @@ const payload = {
   department: safeDepartment,
   isNew: isNew || !row?.id,
   rowId: row?.id,
+  rowIndex,
+  originalPlate,
   data: {
     name: driverName,
     plate,

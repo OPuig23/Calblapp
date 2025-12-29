@@ -1,8 +1,8 @@
-// filename: src/app/menu/torns/components/TornCardWorker.tsx
+﻿// filename: src/app/menu/torns/components/TornCardWorker.tsx
 'use client'
 
 import React from 'react'
-import { MapPin, Tag } from 'lucide-react'
+import { MapPin, Tag, Info } from 'lucide-react'
 import { TornCardItem } from './TornCard'
 
 /* Helpers */
@@ -27,8 +27,16 @@ function cleanEventName(s?: string) {
   if (!s) return ''
   const t = s.replace(/^\s*[A-Z]\s*-\s*/i, '').trim()
   const STOP = [
-    'FC','SOPAR','DINAR','BRUNCH','CERIMONIA','CERIMÒNIA',
-    'BANQUET','COCTEL','CÒCTEL','PAX'
+    'FC',
+    'SOPAR',
+    'DINAR',
+    'BRUNCH',
+    'CERIMONIA',
+    'CERIMÒNIA',
+    'BANQUET',
+    'COCTEL',
+    'CÒCTEL',
+    'PAX',
   ]
   const parts = t.split(/\s-\s/).map(p => p.trim())
   const out: string[] = []
@@ -85,9 +93,14 @@ function LnBadge({ ln }: { ln: string }) {
   )
 }
 
-type Props = { item: TornCardItem; onClick?: () => void }
+type Props = {
+  item: TornCardItem
+  onClick?: () => void
+  onEventClick?: () => void
+  onAvisosClick?: () => void
+}
 
-export default function TornCardWorker({ item, onClick }: Props) {
+export default function TornCardWorker({ item, onClick, onEventClick, onAvisosClick }: Props) {
   if (!item) return null
 
   const ln = detectLN(item.code)
@@ -109,6 +122,19 @@ export default function TornCardWorker({ item, onClick }: Props) {
           <RolePill role={item.workerRole} />
           <LnBadge ln={ln} />
         </div>
+        {onAvisosClick && (
+          <button
+            type="button"
+            aria-label="Obrir avisos de producció"
+            onClick={(e) => {
+              e.stopPropagation()
+              onAvisosClick()
+            }}
+            className="text-gray-400 hover:text-blue-600"
+          >
+            <Info className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
       {/* Nom treballador + Hora + Meeting point */}
@@ -116,12 +142,12 @@ export default function TornCardWorker({ item, onClick }: Props) {
         <span className="text-lg font-bold text-gray-800">{item.workerName}</span>
         {item.startTime && item.endTime && (
           <span className="text-lg text-gray-900">
-            {item.startTime} – {item.endTime}
+            {item.startTime} - {item.endTime}
           </span>
         )}
         {item.meetingPoint && (
           <span className="uppercase tracking-wide text-blue-700">
-            · {item.meetingPoint}
+            Punt: {item.meetingPoint}
           </span>
         )}
       </div>
@@ -150,9 +176,23 @@ export default function TornCardWorker({ item, onClick }: Props) {
       {/* Nom esdeveniment + Codi */}
       {eventClean && (
         <div className="mt-1 flex items-center justify-between">
-          <div className="text-sm font-medium text-gray-900 truncate" title={eventClean}>
-            {eventClean}
-          </div>
+          {onEventClick ? (
+            <button
+              type="button"
+              className="text-sm font-medium text-gray-900 truncate text-left hover:text-blue-600"
+              title={eventClean}
+              onClick={(e) => {
+                e.stopPropagation()
+                onEventClick()
+              }}
+            >
+              {eventClean}
+            </button>
+          ) : (
+            <div className="text-sm font-medium text-gray-900 truncate" title={eventClean}>
+              {eventClean}
+            </div>
+          )}
           {item.code && (
             <div className="text-xs text-gray-400 flex items-center gap-1 ml-2 shrink-0">
               <Tag className="w-3 h-3" />

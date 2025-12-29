@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const body = await req.json()
-    const { eventCode, department, rowId, data } = body || {}
+    const { eventCode, department, rowId, rowIndex, data, originalPlate } = body || {}
 
     if (!eventCode || !department || !data?.plate) {
       return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
@@ -40,11 +40,20 @@ export async function POST(req: NextRequest) {
 
     const conductors = Array.isArray(current.conductors) ? current.conductors : []
 
-    const idToUse = rowId || crypto.randomUUID()
+    const idToUse = rowId || data?.id || crypto.randomUUID()
+
+    const normPlate = (s?: string | null) => String(s || '').trim().toUpperCase()
+    const targetPlate = normPlate(data?.plate)
+    const origPlateNorm = normPlate(originalPlate)
 
     let replaced = false
     const nextConductors = conductors.map((c: any) => {
-      if (c?.id === idToUse || c?.plate === data.plate) {
+      const curPlateNorm = normPlate(c?.plate)
+      if (
+        c?.id === idToUse ||
+        (origPlateNorm && curPlateNorm === origPlateNorm) ||
+        (targetPlate && curPlateNorm === targetPlate)
+      ) {
         replaced = true
         return {
           ...c,
@@ -65,7 +74,7 @@ export async function POST(req: NextRequest) {
     })
 
     if (!replaced) {
-      nextConductors.push({
+      const newRow = {
         id: idToUse,
         department,
         name: data.name || '',
@@ -77,7 +86,13 @@ export async function POST(req: NextRequest) {
         endTime: data.endTime || current.endTime || '',
         createdAt: now,
         createdBy: user,
-      })
+      }
+
+      if (typeof rowIndex === 'number' && rowIndex >= 0 && rowIndex < nextConductors.length) {
+        nextConductors[rowIndex] = newRow
+      } else {
+        nextConductors.push(newRow)
+      }
     }
 
     await ref.update({
