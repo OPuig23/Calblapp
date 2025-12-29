@@ -25,7 +25,8 @@ export function useAvisos(eventCode: string | null) {
 
   /* ================= LOAD ================= */
   const loadAvisos = async () => {
-    if (!eventCode) {
+    const code = (eventCode || '').toString().trim()
+    if (!code) {
       setAvisos([])
       return
     }
@@ -34,7 +35,8 @@ export function useAvisos(eventCode: string | null) {
     setError(null)
 
     try {
-      const res = await fetch(`/api/avisos?code=${eventCode}`)
+      const qs = new URLSearchParams({ code })
+      const res = await fetch(`/api/avisos?${qs.toString()}`)
       if (!res.ok) throw new Error('Error carregant avisos')
 
       const data = await res.json()

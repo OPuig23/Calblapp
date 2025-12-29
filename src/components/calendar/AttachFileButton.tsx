@@ -12,7 +12,8 @@ type Props = {
   docId: string
   disabled?: boolean
   fieldBase?: string
-  onAdded?: (att: { name: string; url: string }) => void
+  existingKeys?: string[]
+  onAdded?: (att: { name: string; url: string; key: string }) => void
 }
 
 export default function AttachFileButton({
@@ -20,13 +21,13 @@ export default function AttachFileButton({
   docId,
   disabled = false,
   fieldBase = 'file',
+  existingKeys = [],
   onAdded,
 }: Props) {
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [attachments] = useState<{ name: string; url: string }[]>([])
 
-  /** 📌 Troba el primer camp disponible: file1, file2, file3... */
+  // Troba el primer camp disponible: file1, file2, file3...
   const findNextFileKey = (currentKeys: string[]) => {
     const used = new Set(
       currentKeys
@@ -39,20 +40,17 @@ export default function AttachFileButton({
     return `${fieldBase}${i}`
   }
 
-  /** 📌 Quan l’usuari selecciona un fitxer del picker */
+  // Quan l'usuari selecciona un fitxer del picker
   async function handleSelected(item: { id: string; name: string; url: string }) {
     if (!docId) {
-      alert('❌ Cal desar l’esdeveniment abans d’adjuntar documents.')
+      alert("Cal desar l'esdeveniment abans d'adjuntar documents.")
       return
     }
 
     setSaving(true)
     try {
-      const publicUrl = item.url // ja ve en format vàlid via /api/sharepoint/file
-
-      const nextKey = findNextFileKey(
-        attachments.map((_, i) => `${fieldBase}${i + 1}`)
-      )
+      const publicUrl = item.url // ja ve en format valid via /api/sharepoint/file
+      const nextKey = findNextFileKey(existingKeys)
 
       await fetch(`/api/calendar/manual/${docId}`, {
         method: 'POST',
@@ -64,17 +62,15 @@ export default function AttachFileButton({
         }),
       })
 
-      // Notificar al component pare
-      onAdded?.({ name: item.name, url: publicUrl })
+      onAdded?.({ name: item.name, url: publicUrl, key: nextKey })
     } catch (err) {
-      console.error('❌ Error desant fitxer:', err)
-      alert('❌ No s’ha pogut desar el fitxer.')
+      console.error('Error desant fitxer:', err)
+      alert("No s'ha pogut desar el fitxer.")
     } finally {
       setSaving(false)
     }
   }
 
-  /** 📌 Animació del botó */
   const scaleAnimation = disabled
     ? {}
     : {
@@ -103,11 +99,7 @@ export default function AttachFileButton({
         </Button>
       </motion.div>
 
-      <SharePointPicker
-        open={open}
-        onOpenChange={setOpen}
-        onSelected={handleSelected}
-      />
+      <SharePointPicker open={open} onOpenChange={setOpen} onSelected={handleSelected} />
     </>
   )
 }

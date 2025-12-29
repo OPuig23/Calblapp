@@ -19,6 +19,7 @@ export interface Deal {
   NumPax?: number | string | null
   ObservacionsZoho?: string
   code?: string
+  files?: { key: string; url: string }[]
 }
 
 export function useCalendarData(filters?: {
@@ -74,48 +75,61 @@ export function useCalendarData(filters?: {
         return
       }
 
-      let data: Deal[] = json.events.map((ev: any) => ({
-        id: ev.id,
-        NomEvent: ev.summary || '(Sense títol)',
-        Comercial: ev.Comercial || ev.comercial || '',
-        LN: ev.LN || ev.lnLabel || 'Altres',
-        Servei: ev.Servei || ev.servei || '',
-        StageGroup: ev.StageGroup || '',
-        collection: normalizeCollection(ev.collection) || undefined,
+      let data: Deal[] = json.events.map((ev: any) => {
+        const fileEntries = Object.entries(ev || {})
+          .filter(
+            ([k, v]) =>
+              k.toLowerCase().startsWith('file') &&
+              typeof v === 'string' &&
+              v
+          )
+          .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
+          .map(([key, url]) => ({ key, url: url as string }))
 
-        DataInici: ev.start?.slice(0, 10),
-        DataFi: ev.end?.slice(0, 10),
-        Ubicacio: ev.Ubicacio || ev.ubicacio || ev.location || ev.Location || '',
-        Color: ev.Color || '',
-        StageDot: ev.StageDot || '',
+        return {
+          id: ev.id,
+          NomEvent: ev.summary || '(Sense títol)',
+          Comercial: ev.Comercial || ev.comercial || '',
+          LN: ev.LN || ev.lnLabel || 'Altres',
+          Servei: ev.Servei || ev.servei || '',
+          StageGroup: ev.StageGroup || '',
+          collection: normalizeCollection(ev.collection) || undefined,
 
-        // 🔧 FIX CRÍTIC
-        NumPax:
-          ev.NumPax ??
-          ev.numPax ??
-          ev.pax ??
-          ev.PAX ??
-          null,
+          DataInici: ev.start?.slice(0, 10),
+          DataFi: ev.end?.slice(0, 10),
+          Ubicacio: ev.Ubicacio || ev.ubicacio || ev.location || ev.Location || '',
+          Color: ev.Color || '',
+          StageDot: ev.StageDot || '',
 
-        // 🔧 FIX CRÍTIC
-        ObservacionsZoho:
-          ev.ObservacionsZoho ??
-          ev.observacionsZoho ??
-          ev.Observacions ??
-          ev.observacions ??
-          '',
+          // 🔐 FIX CRÍTIC
+          NumPax:
+            ev.NumPax ??
+            ev.numPax ??
+            ev.pax ??
+            ev.PAX ??
+            null,
 
-        code: ev.code || '',
-        origen: ev.origen || 'firestore',
-      }))
+          // 🔐 FIX CRÍTIC
+          ObservacionsZoho:
+            ev.ObservacionsZoho ??
+            ev.observacionsZoho ??
+            ev.Observacions ??
+            ev.observacions ??
+            '',
 
-      /* ───────────── LN ───────────── */
+          code: ev.code || '',
+          origen: ev.origen || 'firestore',
+          files: fileEntries,
+        }
+      })
+
+      /* ---------- LN ---------- */
       if (!isAll(filters?.ln)) {
         const ln = normalize(filters!.ln!)
         data = data.filter((d) => normalize(d.LN || '') === ln)
       }
 
-      /* ───────────── STAGE ───────────── */
+      /* ---------- STAGE ---------- */
       if (!isAll(filters?.stage)) {
         const st = normalize(filters!.stage!)
         data = data.filter((d) => {
@@ -127,7 +141,7 @@ export function useCalendarData(filters?: {
         })
       }
 
-      /* ───────────── COMERCIAL ───────────── */
+      /* ---------- COMERCIAL ---------- */
       if (!isAll(filters?.commercial)) {
         const c = normalize(filters!.commercial!)
         data = data.filter((d) => normalize(d.Comercial || '') === c)

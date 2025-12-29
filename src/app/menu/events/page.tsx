@@ -1,4 +1,3 @@
-//filename: src/app/menu/events/page.tsx
 'use client'
 
 import React, { useMemo, useState } from 'react'
@@ -8,6 +7,7 @@ import { startOfWeek, endOfWeek, format } from 'date-fns'
 import useEvents from '@/hooks/events/useEvents'
 import EventsDayGroup from '@/components/events/EventsDayGroup'
 import EventMenuModal from '@/components/events/EventMenuModal'
+import EventDocumentsSheet from '@/components/events/EventDocumentsSheet'
 import EventAvisosReadOnlyModal from '@/components/events/EventAvisosReadOnlyModal'
 import ModuleHeader from '@/components/layout/ModuleHeader'
 import FiltersBar, { FiltersState } from '@/components/layout/FiltersBar'
@@ -65,6 +65,18 @@ export default function EventsPage() {
   const { events, loading, error, responsablesDetailed } =
     useEvents(userDept, fromISO, toISO, scope, includeQuadrants)
 
+  /* ================= MODALS (PARE) ================= */
+  const [isMenuOpen, setMenuOpen] = useState(false)
+  const [selectedEvent, setSelectedEvent] = useState<EventMenuData | null>(null)
+
+  const [docsEvent, setDocsEvent] = useState<{
+    eventId: string
+    eventCode?: string | null
+  } | null>(null)
+
+  const [isAvisosOpen, setAvisosOpen] = useState(false)
+  const [avisosEventCode, setAvisosEventCode] = useState<string | null>(null)
+
   /* ================= Filtrat ================= */
   let filteredEvents = events
 
@@ -96,23 +108,17 @@ export default function EventsPage() {
     return acc
   }, {})
 
-  /* ================= MODALS ================= */
-  const [isMenuOpen, setMenuOpen] = useState(false)
-  const [selectedEvent, setSelectedEvent] = useState<EventMenuData | null>(null)
-
-  const [isAvisosOpen, setAvisosOpen] = useState(false)
-  const [avisosEventCode, setAvisosEventCode] = useState<string | null>(null)
-
   /* ================= HANDLER CENTRAL ================= */
   const handleEventClick = (ev: any, mode: 'menu' | 'avisos' = 'menu') => {
     if (mode === 'avisos') {
-      setAvisosEventCode(ev.eventCode ?? null)
+      const codeForAvisos = ev.eventCode || (ev.id ? String(ev.id) : null)
+      setAvisosEventCode(codeForAvisos)
       setAvisosOpen(true)
       return
     }
 
     setSelectedEvent({
-      id: ev.id,
+      id: String(ev.id),
       summary: ev.summary,
       start: ev.start,
       responsableName: ev.responsableName,
@@ -150,9 +156,7 @@ export default function EventsPage() {
         visibleFilters={[]}
         hiddenFilters={['ln', 'responsable', 'location']}
         lnOptions={Array.from(new Set(filteredEvents.map(e => e.lnKey).filter(Boolean))).sort()}
-        responsables={
-          responsablesDetailed?.map(r => r.name).filter(Boolean) ?? []
-        }
+        responsables={responsablesDetailed?.map(r => r.name).filter(Boolean) ?? []}
         locations={Array.from(
           new Set(filteredEvents.map(e => e.locationShort || e.location).filter(Boolean))
         ).sort()}
@@ -182,16 +186,27 @@ export default function EventsPage() {
         )}
       </div>
 
-      {/* MODAL MENU */}
+      {/* ─────────── MODAL MENÚ ─────────── */}
       {isMenuOpen && selectedEvent && (
         <EventMenuModal
           event={selectedEvent}
           user={userForModal}
           onClose={() => setMenuOpen(false)}
+          onOpenDocuments={(data) => setDocsEvent(data)}
         />
       )}
 
-      {/* MODAL AVISOS READ-ONLY */}
+      {/* ─────────── DOCUMENTS (PARE) ─────────── */}
+      {docsEvent && (
+        <EventDocumentsSheet
+          eventId={docsEvent.eventId}
+          eventCode={docsEvent.eventCode}
+          open
+          onOpenChange={() => setDocsEvent(null)}
+        />
+      )}
+
+      {/* ─────────── AVISOS READ-ONLY ─────────── */}
       <EventAvisosReadOnlyModal
         open={isAvisosOpen}
         onClose={() => setAvisosOpen(false)}

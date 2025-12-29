@@ -13,63 +13,44 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'itemId required' }, { status: 400 })
     }
 
-    // 1️⃣ Obtenim driveId
+    // 1️⃣ Drive + token
     const { driveId } = await getSiteAndDrive()
     const { access_token } = await getGraphToken()
 
-    // 2️⃣ Recuperem el driveItem complet (per assegurar correct ID)
-    const metaRes = await fetch(
-      `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}`,
-      {
-        headers: { Authorization: `Bearer ${access_token}` },
-      }
-    )
-
-    if (!metaRes.ok) {
-      const msg = await metaRes.text()
-      console.error('❌ Meta error:', msg)
-      return NextResponse.json(
-        { error: 'File metadata not found', detail: msg },
-        { status: 404 }
-      )
-    }
-
-    const metaJson = await metaRes.json()
-
-    // 3️⃣ Ara fem servir el driveItemId real
-    const realId = metaJson.id
-
-    // 4️⃣ Descarreguem el fitxer
+    // 2️⃣ Demanem CONTINGUT DIRECTE (no downloadUrl)
     const fileRes = await fetch(
-      `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${realId}/content`,
+      `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/content`,
       {
-        headers: { Authorization: `Bearer ${access_token}` },
+        headers: {
+          Authorization: `Bearer ${access_token}`,
+        },
       }
     )
 
     if (!fileRes.ok) {
       const msg = await fileRes.text()
-      console.error('❌ Download error:', msg)
+      console.error('❌ SharePoint content error:', msg)
       return NextResponse.json(
-        { error: 'Download failed', detail: msg },
+        { error: 'Unable to fetch file content' },
         { status: 404 }
       )
     }
 
-    const arrayBuffer = await fileRes.arrayBuffer()
+    const buffer = await fileRes.arrayBuffer()
     const contentType =
       fileRes.headers.get('content-type') || 'application/octet-stream'
 
-    return new NextResponse(arrayBuffer, {
+    // 3️⃣ INLINE → OBRIR, NO DESCARREGAR
+    return new NextResponse(buffer, {
       status: 200,
       headers: {
         'Content-Type': contentType,
-        'Access-Control-Allow-Origin': '*',
         'Content-Disposition': 'inline',
+        'Cache-Control': 'no-store',
       },
     })
   } catch (err: any) {
-    console.error('❌ Error GET /api/sharepoint/file:', err)
+    console.error('❌ Error /api/sharepoint/file:', err)
     return NextResponse.json(
       { error: err.message || 'Unknown error' },
       { status: 500 }

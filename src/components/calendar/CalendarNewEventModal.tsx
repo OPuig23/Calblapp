@@ -395,14 +395,9 @@ export default function CalendarNewEventModal({ date, trigger, onSaved }: Props)
               collection="stage_verd"
               docId={createdId || ''}
               disabled={!createdId || !canEdit}
+              existingKeys={files.map((f) => f.key)}
               onAdded={(att) => {
-                setFiles((prev) => [
-                  ...prev,
-                  {
-                    key: `file${prev.length + 1}`,
-                    url: att.url,
-                  },
-                ])
+                setFiles((prev) => [...prev, { key: att.key, url: att.url }])
               }}
             />
           </div>

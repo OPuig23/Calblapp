@@ -134,14 +134,18 @@ async function fetchQuadrantsRange(
 }
 
 /* ================== Roles ================== */
-type Role = 'admin' | 'direccio' | 'cap' | 'treballador'
+type Role = 'admin' | 'direccio' | 'cap' | 'treballador' | 'comercial' | 'usuari'
 
 function roleFrom(token: TokenLike | null): Role {
   const raw = token?.role ?? token?.userRole ?? token?.user?.role ?? ''
   const r = normalize(raw)
+
   if (r === 'admin') return 'admin'
   if (r === 'direccio' || r.includes('dir')) return 'direccio'
   if (r === 'cap' || r.includes('head')) return 'cap'
+  if (r === 'comercial' || r === 'commercial' || r === 'sales') return 'comercial'
+  if (r === 'usuari' || r === 'user' || r === 'invitado' || r === 'usuario') return 'usuari'
+
   return 'treballador'
 }
 

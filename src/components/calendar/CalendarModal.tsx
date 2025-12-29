@@ -502,12 +502,10 @@ export default function CalendarModal({ deal, trigger, onSaved, readonly }: Prop
                 <AttachFileButton
                   collection={COLLECTION}
                   docId={deal.id}
+                  existingKeys={files.map((f) => f.key)}
                   onAdded={(att) => {
-                    // mantenim el comportament actual (crea fileN seqüencial)
-                    setFiles((prev) => [
-                      ...prev,
-                      { key: `file${prev.length + 1}`, url: att.url },
-                    ])
+                    // afegeix utilitzant la clau retornada pel boto
+                    setFiles((prev) => [...prev, { key: att.key, url: att.url }])
                   }}
                 />
               </div>
@@ -584,6 +582,7 @@ export default function CalendarModal({ deal, trigger, onSaved, readonly }: Prop
     </Dialog>
   )
 }
+
 
 
 

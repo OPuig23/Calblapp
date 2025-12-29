@@ -77,6 +77,11 @@ interface EventMenuModalProps {
     name?: string
   }
   onClose: () => void
+  onOpenDocuments: (data: {
+    eventId: string
+    eventCode?: string | null
+  }) => void
+  
 }
 
 function deduceLnKeyFromSummary(summary: string): LnKey {
@@ -164,12 +169,19 @@ function ActionRow({
 }
 
 /** ───────────────────────── Component ───────────────────────── */
-export default function EventMenuModal({ event, user, onClose }: EventMenuModalProps) {
+export default function EventMenuModal({
+  event,
+  user,
+  onClose,
+  onOpenDocuments,
+}: EventMenuModalProps) {
+
   const router = useRouter()
 
   // Internals
   const [showCreateIncident, setShowCreateIncident] = useState(false)
-  const [docsOpen, setDocsOpen] = useState(false)
+  const [pendingDocsOpen, setPendingDocsOpen] = useState(false)
+
   const [showPersonnel, setShowPersonnel] = useState(false)
   const [showIncidents, setShowIncidents] = useState(false)
   const [showModifications, setShowModifications] = useState(false)
@@ -388,7 +400,15 @@ const recursos = useMemo(
       badge: 'Docs',
       icon: FileText,
       tone: 'info' as const,
-      onClick: () => setDocsOpen(true),
+onClick: () => {
+  onOpenDocuments({
+    eventId: String(event.id),
+    eventCode: event.eventCode || event.code || null,
+  })
+}
+
+
+
     },
   ],
   [event, navigateTo]
@@ -509,6 +529,15 @@ const recursos = useMemo(
           </div>
         </DialogContent>
       </Dialog>
+      {pendingDocsOpen && (
+  <EventDocumentsSheet
+    eventId={String(event.id)}
+    eventCode={event.eventCode || event.code || null}
+    open
+    onOpenChange={() => setPendingDocsOpen(false)}
+  />
+)}
+
 
       {/* ─────────── MODALS INTERNES EXISTENTS ─────────── */}
       <CreateIncidentModal
@@ -564,8 +593,7 @@ treballadors={treballadorsPersons}
 <EventAvisosModal
   open={showAvisos}
   onClose={() => setShowAvisos(false)}
-  eventCode={event.eventCode ?? event.code ?? null}
-
+  eventCode={event.eventCode ?? event.code ?? (event.id ? String(event.id) : null)}
   user={user}
 />
       <EventSpacesModal
@@ -581,7 +609,9 @@ treballadors={treballadorsPersons}
         eventName={event.summary}
         user={user as any}
       />
-      <EventDocumentsSheet eventId={String(event.id)} open={docsOpen} onOpenChange={setDocsOpen} />
+      
+
+     
     </>
   )
 }
