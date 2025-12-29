@@ -65,7 +65,6 @@ export default function TransportAssignacionsPage() {
         setFilters={(patch) =>
           setFilters((prev) => ({ ...prev, ...patch }))
         }
-        collapseOnMobile
       />
 
       {/* Estat càrrega */}

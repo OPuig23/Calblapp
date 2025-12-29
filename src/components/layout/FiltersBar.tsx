@@ -121,20 +121,18 @@ export default function FiltersBar({
   return (
     <div className="sticky top-[56px] z-40 border-b border-gray-200 bg-white/90 backdrop-blur-sm">
       <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-2 overflow-x-auto whitespace-nowrap px-2 py-[3px] sm:flex-nowrap">
-        <div className={collapseOnMobile ? 'hidden sm:block' : ''}>
-          <SmartFilters
-            modeDefault="week"
-            role="Treballador"
-            showDepartment={false}
-            showWorker={false}
-            showLocation={false}
-            showStatus={false}
-            onChange={handleDatesChange}
-            resetSignal={resetSignal}
-            initialStart={filters.start}
-            initialEnd={filters.end}
-          />
-        </div>
+        <SmartFilters
+          modeDefault="week"
+          role="Treballador"
+          showDepartment={false}
+          showWorker={false}
+          showLocation={false}
+          showStatus={false}
+          onChange={handleDatesChange}
+          resetSignal={resetSignal}
+          initialStart={filters.start}
+          initialEnd={filters.end}
+        />
 
         {/* Selects inline opcionals (actualment no utilitzats) */}
         <SelectsInline />
@@ -143,23 +141,6 @@ export default function FiltersBar({
           onClick={() => {
             setContent(
               <div className="p-4 flex flex-col gap-4">
-                {collapseOnMobile && (
-                  <div className="border-b pb-3">
-                    <SmartFilters
-                      modeDefault="week"
-                      role="Treballador"
-                      showDepartment={false}
-                      showWorker={false}
-                      showLocation={false}
-                      showStatus={false}
-                      onChange={handleDatesChange}
-                      resetSignal={resetSignal}
-                      initialStart={filters.start}
-                      initialEnd={filters.end}
-                    />
-                  </div>
-                )}
-
                 {lnOptions?.length > 0 && (
                   <div className="flex flex-col gap-1">
                     <label className="text-sm text-gray-600">Línia de Negoci</label>
