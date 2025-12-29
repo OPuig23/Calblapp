@@ -152,20 +152,28 @@ export default function SmartFilters({
   // 🔹 Inicialitza automàticament el mode i les dates si venen donades per props
 useEffect(() => {
   if (initialStart && initialEnd) {
+    const parsedStart = parseISO(initialStart)
+
+    if (modeDefault === 'week') {
+      setMode('week')
+      setAnchor(parsedStart)
+      setDayStr(initialStart)
+      setRangeStartStr(initialStart)
+      setRangeEndStr(initialEnd)
+      return
+    }
+
     if (initialStart === initialEnd) {
-      // 🔸 Mateixa data → mode DIA
       setMode('day')
       setDayStr(initialStart)
-      setAnchor(parseISO(initialStart))
+      setAnchor(parsedStart)
     } else {
-      // 🔸 Dates diferents → mode RANG
       setMode('range')
       setRangeStartStr(initialStart)
       setRangeEndStr(initialEnd)
     }
   }
-}, [initialStart, initialEnd])
-
+}, [initialStart, initialEnd, modeDefault])
 
 
   const [dept, setDept] = useState<string>(() => normDept(fixedDepartment || ''))
@@ -735,6 +743,7 @@ if (key !== lastPayloadRef.current) {
     </div>
   )
 }
+
 
 
 

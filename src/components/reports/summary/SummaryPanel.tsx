@@ -15,11 +15,13 @@ type FinancialRes = { summary?: { revenue?: number; cost?: number; marginPct?: n
 type VehiclesRes = { vehicles?: Array<{ distanceKm?: number; cost?: number }> }
 type IncidenciesRes = { summary?: { total?: number; open?: number } }
 type ModsRes = { summary?: { total?: number; last72?: number } }
+type EventsOptions = { id: string; name: string }
 
 export function SummaryPanel() {
+  const defaultRange = getCurrentWeekRange()
   const [filters, setFilters] = useState<Filters>({
-    start: getISO(-30),
-    end: getISO(0),
+    start: defaultRange.start,
+    end: defaultRange.end,
     department: '',
     event: '',
     person: '',
@@ -29,6 +31,8 @@ export function SummaryPanel() {
   const [error, setError] = useState<string | null>(null)
   const [kpis, setKpis] = useState<Record<string, string | number>>({})
   const [eventsList, setEventsList] = useState<EventsRes['data']>([])
+  const [eventOptions, setEventOptions] = useState<EventsOptions[]>([])
+  const [lineOptions, setLineOptions] = useState<string[]>([])
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -50,6 +54,8 @@ export function SummaryPanel() {
       const vehKm = (vehicles.vehicles || []).reduce((acc, v) => acc + Number(v.distanceKm || 0), 0)
       const vehCost = (vehicles.vehicles || []).reduce((acc, v) => acc + Number(v.cost || 0), 0)
       setEventsList(events.data || [])
+      setEventOptions(Array.isArray((events as any)?.options?.events) ? (events as any).options.events : [])
+      setLineOptions(Array.isArray((events as any)?.options?.lines) ? (events as any).options.lines : [])
 
       setKpis({
         hours: personal.summary?.hours?.toFixed ? personal.summary.hours.toFixed(1) : personal.summary?.hours || 0,
@@ -85,10 +91,10 @@ export function SummaryPanel() {
         <FiltersBar
           value={filters}
           onChange={setFilters}
-          eventOptions={[]}
+          eventOptions={eventOptions}
           departmentOptions={[]}
           personOptions={[]}
-          lineOptions={[]}
+          lineOptions={lineOptions}
         />
       </div>
 
@@ -125,8 +131,19 @@ async function fetchJson<T>(url: string): Promise<T> {
   return data as T
 }
 
-function getISO(offsetDays: number) {
-  const d = new Date()
-  d.setDate(d.getDate() + offsetDays)
-  return d.toISOString().slice(0, 10)
+function getCurrentWeekRange() {
+  const now = new Date()
+  const day = now.getDay() || 7 // convert Sunday (0) to 7
+  const start = new Date(now)
+  start.setDate(now.getDate() - (day - 1))
+  start.setHours(0, 0, 0, 0)
+
+  const end = new Date(start)
+  end.setDate(start.getDate() + 6)
+  end.setHours(23, 59, 59, 999)
+
+  return {
+    start: start.toISOString().slice(0, 10),
+    end: end.toISOString().slice(0, 10),
+  }
 }

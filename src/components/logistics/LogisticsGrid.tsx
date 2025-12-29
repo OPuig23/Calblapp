@@ -221,7 +221,7 @@ function WorkerGroupedView({ events, loading }: { events: any[]; loading: boolea
               </div>
             </div>
             <div className="overflow-x-auto mt-2">
-              <table className="min-w-[560px] w-full text-xs border border-slate-200 rounded-lg overflow-hidden">
+              <table className="min-w-full sm:min-w-[560px] w-full text-xs border border-slate-200 rounded-lg overflow-hidden">
                 <thead className="bg-slate-100 text-slate-700">
                   <tr>
                     <th className="px-3 py-2 text-left w-24">Hora prep.</th>
@@ -268,7 +268,7 @@ function EditableTable({
 }) {
   return (
     <div className="overflow-x-auto scroll-smooth">
-      <table className="min-w-max text-[10px] sm:text-xs border-collapse w-full">
+      <table className="min-w-full sm:min-w-[560px] text-[10px] sm:text-xs border-collapse w-full">
         <thead>
           <tr className="bg-gray-100 text-left">
             <th className="p-2 bg-white sticky left-0 shadow-sm z-30">Data preparació</th>

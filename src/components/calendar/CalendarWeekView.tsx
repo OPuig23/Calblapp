@@ -116,7 +116,7 @@ export default function CalendarWeekView({
   return (
     <div className="w-full overflow-x-auto pb-2">
       <div
-        className="relative bg-white rounded-lg overflow-hidden min-w-[1120px] sm:min-w-0 border border-slate-200 shadow-sm"
+        className="relative bg-white rounded-lg overflow-hidden min-w-full md:min-w-[1024px] lg:min-w-[1120px] sm:min-w-0 border border-slate-200 shadow-sm"
         style={{ minHeight }}
       >
         {/* Header */}

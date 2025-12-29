@@ -32,7 +32,7 @@ export default function PissarraList({
   return (
     <div key={weekStart.toISOString()} className="relative w-full overflow-x-auto">
       {/* Header */}
-      <div className="grid grid-cols-7 min-w-[950px] bg-white sticky top-0 z-20 border-b">
+      <div className="grid grid-cols-7 min-w-[720px] sm:min-w-[900px] bg-white sticky top-0 z-20 border-b">
         {days.map((day) => (
           <div
             key={day.toISOString()}
@@ -45,7 +45,7 @@ export default function PissarraList({
       </div>
 
       {/* Content */}
-      <div className="grid grid-cols-7 min-w-[950px] max-h-[80vh] overflow-y-auto">
+      <div className="grid grid-cols-7 min-w-[720px] sm:min-w-[900px] max-h-[80vh] overflow-y-auto">
         {days.map((day) => {
           const key = format(day, "yyyy-MM-dd")
           let events = dataByDay[key] || []

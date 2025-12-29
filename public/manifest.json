@@ -4,6 +4,7 @@
   "description": "WebApp operativa de Cal Blay – esdeveniments, personal, quadrants i incidències.",
   "start_url": "/?source=pwa",
   "display": "standalone",
+  "scope": "/",
   "background_color": "#ffffff",
   "theme_color": "#1e293b",
   "orientation": "any",

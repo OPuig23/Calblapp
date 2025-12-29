@@ -21,9 +21,10 @@ type FilterOptions = {
 const defaultOptions: FilterOptions = { events: [], lines: [], departments: [], categories: [] }
 
 export function IncidenciesPanel() {
+  const defaultRange = getCurrentWeekRange()
   const [filters, setFilters] = useState<Filters>({
-    start: getISO(-30),
-    end: getISO(0),
+    start: defaultRange.start,
+    end: defaultRange.end,
     department: '',
     event: '',
     person: '',
@@ -107,8 +108,19 @@ export function IncidenciesPanel() {
   )
 }
 
-function getISO(offsetDays: number) {
-  const d = new Date()
-  d.setDate(d.getDate() + offsetDays)
-  return d.toISOString().slice(0, 10)
+function getCurrentWeekRange() {
+  const now = new Date()
+  const day = now.getDay() || 7
+  const start = new Date(now)
+  start.setDate(now.getDate() - (day - 1))
+  start.setHours(0, 0, 0, 0)
+
+  const end = new Date(start)
+  end.setDate(start.getDate() + 6)
+  end.setHours(23, 59, 59, 999)
+
+  return {
+    start: start.toISOString().slice(0, 10),
+    end: end.toISOString().slice(0, 10),
+  }
 }

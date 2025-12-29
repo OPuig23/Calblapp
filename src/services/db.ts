@@ -1,5 +1,5 @@
 // src/services/db.ts
-import { firestore as fb } from '@/lib/firebaseAdmin'
+import { firestoreAdmin as fb } from '@/lib/firebaseAdmin'
 import { FieldValue, type DocumentData } from 'firebase-admin/firestore'
 
 // Export dual: compatibilidad total

@@ -28,16 +28,34 @@ export default function ReportsPage() {
   const [active, setActive] = useState<TabKey>('summary')
 
   return (
-    <div className="p-6 flex flex-col gap-6">
+    <div className="p-4 sm:p-6 flex flex-col gap-4 sm:gap-6">
       <ModuleHeader
         icon={<BarChart3 className="w-7 h-7 text-indigo-600" />}
         title="Informes"
         subtitle="Panell inicial: resum global"
       />
 
-      <div className="flex gap-4">
-        <aside className="w-48 shrink-0">
-          <nav className="space-y-2">
+      {/* Navegació mòbil: pestanyes horitzontals scrollables */}
+      <div className="flex sm:hidden gap-2 overflow-x-auto -mx-1 px-1">
+        {TABS.map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => setActive(tab.key)}
+            className={`whitespace-nowrap px-3 py-2 rounded-full border text-sm ${
+              active === tab.key
+                ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
+                : 'bg-white border-gray-200 text-gray-700'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex flex-col lg:flex-row gap-4">
+        {/* Navegació escriptori */}
+        <aside className="hidden sm:block w-full lg:w-48 shrink-0">
+          <nav className="grid grid-cols-2 sm:grid-cols-1 gap-2">
             {TABS.map(tab => (
               <button
                 key={tab.key}
@@ -54,7 +72,7 @@ export default function ReportsPage() {
           </nav>
         </aside>
 
-        <main className="flex-1">
+        <main className="flex-1 min-w-0">
           {active === 'summary' && <SummaryPanel />}
           {active === 'personal' && <PersonalPanel />}
           {active === 'events' && <EventsPanel />}
@@ -67,4 +85,3 @@ export default function ReportsPage() {
     </div>
   )
 }
-
