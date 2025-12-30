@@ -10,7 +10,7 @@ import type { Deal } from '@/hooks/useCalendarData'
 import { colorByLN } from '@/lib/colors'
 
 const VISIBLE_LANES_DESKTOP = 6
-const VISIBLE_LANES_MOBILE = 3
+const VISIBLE_LANES_MOBILE = 4
 
 const diffDays = (a: Date, b: Date) =>
   Math.floor((a.getTime() - b.getTime()) / (24 * 60 * 60 * 1000))
@@ -27,7 +27,8 @@ function dotColorByCollection(collection?: string) {
   const c = (collection || '').toLowerCase()
   if (c.includes('verd')) return 'bg-green-500'
   if (c.includes('taronja')) return 'bg-amber-500'
-  if (c.includes('taronja')) return 'bg-blue-500'
+  if (c.includes('groc')) return 'bg-yellow-500'
+  if (c.includes('blau')) return 'bg-blue-500'
   return 'bg-gray-300'
 }
 
@@ -103,10 +104,9 @@ export default function CalendarWeekView({
   const laneLimit = isMobile ? VISIBLE_LANES_MOBILE : VISIBLE_LANES_DESKTOP
   const visibleLaneCount = Math.min(laneLimit, laneCount)
   const visibleSpans = spans.filter((s) => s.lane < visibleLaneCount)
-  console.debug('[CalendarWeekView] deals', deals.length, 'spans', spans.length, 'visible', visibleSpans.length, { start })
 
-  const minHeight = Math.max(240, visibleLaneCount * 44 + 120)
-  const minColWidth = isMobile ? 110 : 150
+  const minHeight = Math.max(260, visibleLaneCount * 48 + 120)
+  const minColWidth = isMobile ? 140 : 160
 
   const weekCells = weekDays.map((d) => ({
     date: d,
@@ -116,16 +116,16 @@ export default function CalendarWeekView({
   return (
     <div className="w-full overflow-x-auto pb-2">
       <div
-        className="relative bg-white rounded-lg overflow-hidden min-w-full md:min-w-[1024px] lg:min-w-[1120px] sm:min-w-0 border border-slate-200 shadow-sm"
+        className="relative overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm min-w-full sm:min-w-0 md:min-w-[1024px] lg:min-w-[1120px]"
         style={{ minHeight }}
       >
         {/* Header */}
         <div
-          className="grid grid-cols-7 text-[10px] sm:text-xs text-gray-600 bg-slate-50 border-b"
+          className="grid grid-cols-7 border-b bg-slate-50 text-[10px] text-gray-600 sm:text-xs"
           style={{ gridTemplateColumns: `repeat(7, minmax(${minColWidth}px, 1fr))` }}
         >
           {weekDays.map((d) => (
-            <div key={d.toISOString()} className="py-1 sm:py-2 text-center font-medium">
+            <div key={d.toISOString()} className="py-1 text-center font-medium sm:py-2">
               {format(d, 'EEE d', { locale: es })}
             </div>
           ))}
@@ -139,19 +139,14 @@ export default function CalendarWeekView({
           {weekCells.map((c) => (
             <div
               key={c.iso}
-              className="relative border-r bg-white min-h-[160px]"
+              className="relative min-h-[180px] border-r bg-white"
               style={{ minHeight }}
             />
           ))}
 
           <div
-            className="
-              absolute inset-0
-              grid grid-cols-7 gap-2
-              px-2 pb-2 pt-6
-              pointer-events-none
-            "
-            style={{ gridAutoRows: 'minmax(26px, auto)' }}
+            className="pointer-events-none absolute inset-0 grid grid-cols-7 gap-2 px-2 pb-2 pt-6"
+            style={{ gridAutoRows: 'minmax(28px, auto)' }}
           >
             {visibleSpans.map((span, idx) => {
               const isSingleDay = span.startIdx === span.endIdx
@@ -165,10 +160,10 @@ export default function CalendarWeekView({
                     <div
                       onClick={(e) => e.stopPropagation()}
                       className={`
-                        pointer-events-auto
-                        truncate ${isSingleDay ? 'px-2 py-[2px]' : 'px-2 py-[4px]'}
+                        pointer-events-auto whitespace-normal
+                        ${isSingleDay ? 'px-2 py-[2px]' : 'px-2 py-[4px]'}
                         rounded-md border 
-                        flex items-center ${isSingleDay ? 'justify-start' : 'justify-center'} gap-2
+                        flex items-center gap-2
                         text-[10px] sm:text-[12px] font-medium
                         ${colorByLN(span.ev.LN)}
                       `}
@@ -178,9 +173,9 @@ export default function CalendarWeekView({
                       }}
                     >
                       <span
-                        className={`w-2 h-2 rounded-full ${dotColorByCollection(span.ev.collection)}`}
+                        className={`h-2 w-2 rounded-full ${dotColorByCollection(span.ev.collection)}`}
                       />
-                      <span className={`truncate ${isSingleDay ? 'text-left' : 'text-center'}`}>
+                      <span className="min-w-0 flex-1 text-left leading-tight line-clamp-2">
                         {span.ev.NomEvent}
                       </span>
                     </div>
@@ -222,7 +217,7 @@ function MoreEventsPopup({ date, events }: { date: Date; events: Deal[] }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <div
-        className="text-[10px] text-gray-400 italic cursor-pointer hover:text-blue-500"
+        className="cursor-pointer text-[10px] italic text-gray-400 hover:text-blue-500"
         onClick={(e) => {
           e.stopPropagation()
           setOpen(true)
@@ -231,7 +226,7 @@ function MoreEventsPopup({ date, events }: { date: Date; events: Deal[] }) {
         +{events.length} més
       </div>
 
-      <DialogContent className="w-[95dvw] max-w-sm sm:max-w-md h-[80dvh] sm:h-auto">
+      <DialogContent className="h-[80dvh] w-[95dvw] max-w-sm sm:h-auto sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-sm font-semibold capitalize">
             Esdeveniments del {format(date, 'EEEE d MMMM', { locale: es })}
@@ -239,7 +234,7 @@ function MoreEventsPopup({ date, events }: { date: Date; events: Deal[] }) {
         </DialogHeader>
 
         <div
-          className="space-y-1 mt-2 max-h-[60dvh] overflow-y-auto"
+          className="mt-2 max-h-[60dvh] space-y-1 overflow-y-auto"
           onClick={(e) => e.stopPropagation()}
         >
           {events.map((ev) => (
@@ -250,13 +245,12 @@ function MoreEventsPopup({ date, events }: { date: Date; events: Deal[] }) {
                 <div
                   onClick={(e) => e.stopPropagation()}
                   className="
-                    flex items-center gap-2
-                    truncate px-1.5 py-[3px]
-                    rounded-md border text-[11px] sm:text-[12px]
-                    bg-white 
+                    flex items-center gap-2 truncate
+                    rounded-md border bg-white px-1.5 py-[3px]
+                    text-[11px] sm:text-[12px]
                   "
                 >
-                  <span className={`w-2 h-2 rounded-full ${dotColorByCollection(ev.collection)}`} />
+                  <span className={`h-2 w-2 rounded-full ${dotColorByCollection(ev.collection)}`} />
                   <span className="truncate">{ev.NomEvent}</span>
                 </div>
               }

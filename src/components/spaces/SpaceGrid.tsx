@@ -131,20 +131,27 @@ export default function SpaceGrid({ data, totals = [], baseDate }: SpaceGridProp
               <tr key={`row-${rIdx}`} className="border-t align-top">
                 {/* FINCA */}
                 <td className="p-2 text-left font-semibold sticky left-0 bg-white border-r shadow-sm z-10">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!row.fincaId) return
-                      window.open(
-                        `/menu/spaces/info/${row.fincaId}`,
-                        '_blank',
-                        'noopener,noreferrer'
-                      )
-                    }}
-                    className="hover:underline text-left"
-                  >
-                    {row.finca}
-                  </button>
+                  {row.fincaId ? (
+                    <a
+                      href={`/menu/spaces/info/${row.fincaId}?readonly=1`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:underline text-left"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        window.open(
+                          `/menu/spaces/info/${row.fincaId}?readonly=1`,
+                          '_blank',
+                          'noopener,noreferrer'
+                        )
+                      }}
+                    >
+                      {row.finca}
+                    </a>
+                  ) : (
+                    <span>{row.finca}</span>
+                  )}
                 </td>
 
                 {/* CEL·LES */}

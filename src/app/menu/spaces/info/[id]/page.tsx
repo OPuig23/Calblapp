@@ -8,11 +8,13 @@ import ModuleHeader from '@/components/layout/ModuleHeader'
 
 interface Props {
   params: { id: string }
+  searchParams?: { readonly?: string }
 }
 
 export default async function SpaceDetailPage(props: Props) {
   const params = await props.params
   const id = params.id
+  const forceReadOnly = props.searchParams?.readonly === '1'
 
 
   const snap = await firestoreAdmin.collection('finques').doc(id).get()
@@ -42,7 +44,7 @@ export default async function SpaceDetailPage(props: Props) {
   return (
     <>
       <ModuleHeader title="Espais" subtitle={espai.nom || 'Detall'} />
-      <SpaceDetailClient espai={espai} />
+      <SpaceDetailClient espai={espai} forceReadOnly={forceReadOnly} />
     </>
   )
 }

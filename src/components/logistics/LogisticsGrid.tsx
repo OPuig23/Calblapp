@@ -118,8 +118,8 @@ export default function LogisticsGrid() {
   }
 
   return (
-    <div className="mt-4 w-full bg-white border rounded-xl shadow-sm overflow-hidden">
-      <div className="px-4 py-3 border-b bg-gray-50">
+    <div className="mt-4 w-full overflow-hidden rounded-xl border bg-white shadow-sm">
+      <div className="border-b bg-gray-50 px-4 py-3">
         <SmartFilters
           showStatus={false}
           modeDefault="week"
@@ -140,19 +140,19 @@ export default function LogisticsGrid() {
       )}
 
       {isManager && (
-        <div className="p-4 flex justify-between border-t bg-gray-50">
+        <div className="flex justify-between border-t bg-gray-50 p-4">
           <button
             onClick={handleRefresh}
-            className="flex items-center gap-1 text-sm px-2 py-1 rounded-md text-gray-600 hover:bg-gray-100 transition"
+            className="flex items-center gap-1 rounded-md px-2 py-1 text-sm text-gray-600 transition hover:bg-gray-100"
           >
-            <RefreshCcw className={`w-4 h-4 ${updating ? 'animate-spin' : ''}`} />
+            <RefreshCcw className={`h-4 w-4 ${updating ? 'animate-spin' : ''}`} />
             Actualitzar
           </button>
           <button
             onClick={handleConfirm}
             disabled={updating}
-            className={`px-4 py-2 text-white rounded-lg text-sm transition-colors ${
-              updating ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'
+            className={`rounded-lg px-4 py-2 text-sm text-white transition-colors ${
+              updating ? 'cursor-not-allowed bg-gray-400' : 'bg-green-600 hover:bg-green-700'
             }`}
           >
             {updating ? 'Guardant...' : 'Confirmar ordre'}
@@ -179,11 +179,11 @@ function WorkerGroupedView({ events, loading }: { events: any[]; loading: boolea
   }, [events])
 
   if (loading) {
-    return <div className="p-4 text-center text-gray-500 text-sm">Carregant dades...</div>
+    return <div className="p-4 text-center text-sm text-gray-500">Carregant dades...</div>
   }
 
   if (!groups.length) {
-    return <div className="p-4 text-center text-gray-400 text-sm">No hi ha dades disponibles.</div>
+    return <div className="p-4 text-center text-sm text-gray-400">No hi ha dades disponibles.</div>
   }
 
   return (
@@ -192,14 +192,13 @@ function WorkerGroupedView({ events, loading }: { events: any[]; loading: boolea
         const label = dayIso && dayIso !== 'sense-data'
           ? (() => {
               const d = parseISO(dayIso)
-              const dowIdx = d.getDay() // 0=dg ... 6=ds
+              const dowIdx = d.getDay()
               const dowMap = ['Dg', 'Dl', 'Dt', 'Dc', 'Dj', 'Dv', 'Ds']
               const dow = dowMap[dowIdx] || format(d, 'EEE', { locale: ca })
               return `${dow} ${format(d, 'dd/LL/yy', { locale: ca })}`
             })()
           : 'Sense data de preparació'
 
-        // Ordenem les files del dia per hora de preparació
         const ordered = [...items].sort((a, b) => {
           const ha = a.PreparacioHora || ''
           const hb = b.PreparacioHora || ''
@@ -213,33 +212,68 @@ function WorkerGroupedView({ events, loading }: { events: any[]; loading: boolea
           <div key={dayIso} className="pb-4">
             <div className="flex items-center justify-between rounded-lg bg-green-50 px-4 py-2 text-sm font-semibold text-green-900">
               <div className="flex items-center gap-2">
-                <CalendarClock className="w-4 h-4" />
+                <CalendarClock className="h-4 w-4" />
                 <span className="uppercase tracking-wide">{label}</span>
               </div>
               <div className="text-xs font-semibold text-pink-600">
                 {ordered.length} prep
               </div>
             </div>
-            <div className="overflow-x-auto mt-2">
-              <table className="min-w-full sm:min-w-[560px] w-full text-xs border border-slate-200 rounded-lg overflow-hidden">
+
+            {/* Targetes per mòbil */}
+            <div className="mt-2 flex flex-col gap-3 md:hidden">
+              {ordered.map(ev => (
+                <div key={ev.id} className="rounded-xl border bg-white p-3 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-semibold text-slate-900">
+                      {ev.PreparacioHora || '--:--'}
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      {ev.DataInici
+                        ? format(new Date(ev.DataInici), 'dd/LL/yy', { locale: ca })
+                        : '--/--/--'}
+                    </div>
+                  </div>
+
+                  <div className="mt-1 text-sm font-semibold leading-snug text-slate-900">
+                    {ev.NomEvent || 'Sense nom'}
+                  </div>
+
+                  <div className="mt-1 text-xs text-slate-600 line-clamp-2">
+                    {ev.Ubicacio || 'Sense ubicació'}
+                  </div>
+
+                  <div className="mt-2 flex items-center justify-between text-xs text-slate-700">
+                    <span>Pax: {ev.NumPax ?? '--'}</span>
+                    <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                      Prep: {ev.PreparacioHora || '--:--'}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Taula per desktop */}
+            <div className="mt-2 hidden overflow-x-auto md:block">
+              <table className="w-full min-w-full overflow-hidden rounded-lg border border-slate-200 text-xs sm:min-w-[560px]">
                 <thead className="bg-slate-100 text-slate-700">
                   <tr>
-                    <th className="px-3 py-2 text-left w-24">Hora prep.</th>
+                    <th className="w-24 px-3 py-2 text-left">Hora prep.</th>
                     <th className="px-3 py-2 text-left">Nom esdeveniment</th>
-                    <th className="px-3 py-2 text-left w-16">Pax</th>
+                    <th className="w-16 px-3 py-2 text-left">Pax</th>
                     <th className="px-3 py-2 text-left">Ubicació</th>
-                    <th className="px-3 py-2 text-left w-28">Data event</th>
+                    <th className="w-28 px-3 py-2 text-left">Data event</th>
                   </tr>
                 </thead>
                 <tbody>
                   {ordered.map(ev => (
                     <tr key={ev.id} className="border-t border-slate-200">
-                      <td className="px-3 py-2 text-slate-700">{ev.PreparacioHora || '—'}</td>
-                      <td className="px-3 py-2 text-slate-800 font-semibold">{ev.NomEvent}</td>
-                      <td className="px-3 py-2 text-slate-700">{ev.NumPax ?? '—'}</td>
-                      <td className="px-3 py-2 text-slate-700">{ev.Ubicacio}</td>
+                      <td className="px-3 py-2 text-slate-700">{ev.PreparacioHora || '--:--'}</td>
+                      <td className="px-3 py-2 font-semibold text-slate-800">{ev.NomEvent || 'Sense nom'}</td>
+                      <td className="px-3 py-2 text-slate-700">{ev.NumPax ?? '--'}</td>
+                      <td className="px-3 py-2 text-slate-700">{ev.Ubicacio || 'Sense ubicació'}</td>
                       <td className="px-3 py-2 text-slate-700">
-                        {format(new Date(ev.DataInici), 'dd/MM', { locale: ca })}
+                        {ev.DataInici ? format(new Date(ev.DataInici), 'dd/MM', { locale: ca }) : '--/--/--'}
                       </td>
                     </tr>
                   ))}
@@ -268,10 +302,10 @@ function EditableTable({
 }) {
   return (
     <div className="overflow-x-auto scroll-smooth">
-      <table className="min-w-full sm:min-w-[560px] text-[10px] sm:text-xs border-collapse w-full">
+      <table className="min-w-full w-full border-collapse text-[10px] sm:min-w-[560px] sm:text-xs">
         <thead>
           <tr className="bg-gray-100 text-left">
-            <th className="p-2 bg-white sticky left-0 shadow-sm z-30">Data preparació</th>
+            <th className="sticky left-0 z-30 bg-white p-2 shadow-sm">Data preparació</th>
             <th className="p-2">Hora preparació</th>
             <th className="p-2">Nom</th>
             <th className="p-2">Pax</th>
@@ -283,7 +317,7 @@ function EditableTable({
         <tbody>
           {loading ? (
             <tr>
-              <td colSpan={6} className="text-center text-gray-400 py-6">
+              <td colSpan={6} className="py-6 text-center text-gray-400">
                 Carregant dades...
               </td>
             </tr>
@@ -295,9 +329,9 @@ function EditableTable({
               return (
                 <tr
                   key={`row-${idx}`}
-                  className="border-t align-top hover:bg-gray-50 transition-colors text-left"
+                  className="border-t text-left align-top transition-colors hover:bg-gray-50"
                 >
-                  <td className="p-2 bg-white sticky left-0 border-r shadow-sm font-medium">
+                  <td className="sticky left-0 border-r bg-white p-2 font-medium shadow-sm">
                     {isManager ? (
                       <input
                         type="text"
@@ -312,7 +346,7 @@ function EditableTable({
                             [ev.id]: { ...prev[ev.id], PreparacioData: v },
                           }))
                         }}
-                        className="border rounded p-1 w-full text-xs"
+                        className="w-full rounded border p-1 text-xs"
                       />
                     ) : (
                       <span>{prepDM || '-'}</span>
@@ -331,7 +365,7 @@ function EditableTable({
                             [ev.id]: { ...prev[ev.id], PreparacioHora: v },
                           }))
                         }}
-                        className="border rounded p-1 w-full text-xs"
+                        className="w-full rounded border p-1 text-xs"
                       />
                     ) : (
                       <span>{prepH || '-'}</span>
@@ -349,7 +383,7 @@ function EditableTable({
             })
           ) : (
             <tr>
-              <td colSpan={6} className="text-center text-gray-400 py-6">
+              <td colSpan={6} className="py-6 text-center text-gray-400">
                 No hi ha dades disponibles.
               </td>
             </tr>

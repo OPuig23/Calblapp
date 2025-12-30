@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import useSWR from 'swr'
 import { format } from 'date-fns'
-import { Clock, Filter, MapPin, RefreshCw } from 'lucide-react'
+import { Clock, Filter, MapPin, RefreshCw, Truck } from 'lucide-react'
 
 import ModuleHeader from '@/components/layout/ModuleHeader'
 import { Button } from '@/components/ui/button'
@@ -41,7 +41,7 @@ const availabilityFetcher = async (
 
   if (!res.ok) {
     const txt = await res.text()
-    throw new Error(txt || 'No s\'ha pogut carregar la disponibilitat')
+    throw new Error(txt || "No s'ha pogut carregar la disponibilitat")
   }
 
   return (await res.json()) as AvailabilityResponse
@@ -60,6 +60,7 @@ export default function DisponibilitatLogisticaPage() {
   const [conductorId, setConductorId] = useState('')
   const [assignLoading, setAssignLoading] = useState(false)
   const [assignError, setAssignError] = useState<string | null>(null)
+  const [showMobileParams, setShowMobileParams] = useState(false)
 
   const { data, error, isLoading, mutate } = useSWR(
     ['availability', date, startTime, endTime],
@@ -162,7 +163,7 @@ export default function DisponibilitatLogisticaPage() {
       setConductorId('')
       mutate()
     } catch (e: any) {
-      setAssignError(e?.message || "Error creant assignació")
+      setAssignError(e?.message || 'Error creant assignació')
     } finally {
       setAssignLoading(false)
     }
@@ -175,14 +176,32 @@ export default function DisponibilitatLogisticaPage() {
   return (
     <main className="space-y-6 px-4 pb-12">
       <ModuleHeader
-        icon="🚚"
+        icon={<Truck className="h-6 w-6 text-emerald-600" />}
         title="Disponibilitat de vehicles"
         subtitle="Consulta vehicles lliures i crea torns de transport"
       />
 
-      <section className="grid grid-cols-1 xl:grid-cols-[380px_1fr] gap-4">
-        {/* Filtres */}
-        <div className="rounded-2xl border bg-white p-4 shadow-sm space-y-4 h-fit">
+      {/* Botó per mostrar/ocultar paràmetres en mòbil */}
+      <div className="md:hidden">
+        <Button
+          variant="outline"
+          className="w-full justify-between"
+          onClick={() => setShowMobileParams((v) => !v)}
+        >
+          <span>Paràmetres</span>
+          <Filter className={`h-4 w-4 transition-transform ${showMobileParams ? 'rotate-90' : ''}`} />
+        </Button>
+      </div>
+
+      <section className="grid grid-cols-1 gap-4 xl:grid-cols-[380px_1fr]">
+        {/* Paràmetres */}
+        <div
+          className={cn(
+            'h-fit space-y-4 rounded-2xl border bg-white p-4 shadow-sm',
+            showMobileParams ? 'block' : 'hidden',
+            'md:block'
+          )}
+        >
           <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
             <Filter className="h-4 w-4 text-slate-500" />
             Paràmetres
@@ -194,31 +213,31 @@ export default function DisponibilitatLogisticaPage() {
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="w-full border rounded-md px-3 py-2 text-sm bg-slate-50"
+              className="w-full rounded-md border bg-slate-50 px-3 py-2 text-sm"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs text-slate-500 flex items-center gap-1">
+              <label className="flex items-center gap-1 text-xs text-slate-500">
                 <Clock className="h-4 w-4" /> Inici
               </label>
               <input
                 type="time"
                 value={startTime}
                 onChange={(e) => setStartTime(e.target.value)}
-                className="w-full border rounded-md px-3 py-2 text-sm bg-slate-50"
+                className="w-full rounded-md border bg-slate-50 px-3 py-2 text-sm"
               />
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-slate-500 flex items-center gap-1">
+              <label className="flex items-center gap-1 text-xs text-slate-500">
                 <Clock className="h-4 w-4" /> Fi
               </label>
               <input
                 type="time"
                 value={endTime}
                 onChange={(e) => setEndTime(e.target.value)}
-                className="w-full border rounded-md px-3 py-2 text-sm bg-slate-50"
+                className="w-full rounded-md border bg-slate-50 px-3 py-2 text-sm"
               />
             </div>
           </div>
@@ -226,7 +245,7 @@ export default function DisponibilitatLogisticaPage() {
           <div className="space-y-1">
             <label className="text-xs text-slate-500">Tipus de vehicle</label>
             <select
-              className="w-full border rounded-md px-3 py-2 text-sm bg-slate-50"
+              className="w-full rounded-md border bg-slate-50 px-3 py-2 text-sm"
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}
             >
@@ -245,8 +264,8 @@ export default function DisponibilitatLogisticaPage() {
             >
               {onlyAvailable ? 'Només disponibles' : 'Mostrar-ho tot'}
             </Button>
-            <div className="text-sm text-slate-600 flex items-center gap-2">
-              <span className="text-emerald-700 font-semibold">{availableCount}</span>
+            <div className="flex items-center gap-2 text-sm text-slate-600">
+              <span className="font-semibold text-emerald-700">{availableCount}</span>
               <span className="text-slate-400">/</span>
               <span>{filteredVehicles.length}</span>
             </div>
@@ -259,17 +278,17 @@ export default function DisponibilitatLogisticaPage() {
         </div>
 
         {/* Llista + panell assignació */}
-        <div className="rounded-2xl border bg-white p-4 shadow-sm grid grid-cols-1 2xl:grid-cols-[2fr_1fr] gap-4 h-[calc(90vh-200px)] overflow-hidden">
-          <div className="h-full overflow-y-auto pr-1 space-y-3">
-            {loading && <div className="text-sm text-slate-500 py-6">Carregant disponibilitat…</div>}
+        <div className="grid h-[calc(90vh-200px)] grid-cols-1 gap-4 overflow-hidden rounded-2xl border bg-white p-4 shadow-sm 2xl:grid-cols-[2fr_1fr]">
+          <div className="h-full space-y-3 overflow-y-auto pr-1">
+            {loading && <div className="py-6 text-sm text-slate-500">Carregant disponibilitat...</div>}
             {error && (
-              <div className="text-sm text-red-600 py-6">
+              <div className="py-6 text-sm text-red-600">
                 Error: {String(error)}
               </div>
             )}
 
             {listEmpty && (
-              <div className="text-sm text-slate-500 py-6 text-center">
+              <div className="py-6 text-center text-sm text-slate-500">
                 No hi ha vehicles per als filtres seleccionats.
               </div>
             )}
@@ -278,25 +297,25 @@ export default function DisponibilitatLogisticaPage() {
               <div
                 key={v.id}
                 className={cn(
-                  'border rounded-xl px-3 py-2 flex items-center justify-between bg-white shadow-[0_4px_14px_-8px_rgba(15,23,42,0.25)] transition hover:-translate-y-[1px]',
+                  'flex items-center justify-between rounded-xl border bg-white px-3 py-2 shadow-[0_4px_14px_-8px_rgba(15,23,42,0.25)] transition hover:-translate-y-[1px]',
                   selectedVehicle?.id === v.id && 'ring-2 ring-emerald-500'
                 )}
               >
                 <div className="flex flex-col gap-1">
                   <div className="flex items-center gap-2">
                     <span className="text-base font-semibold text-slate-900">{v.plate}</span>
-                    <span className="text-[11px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-slate-100 border">
+                    <span className="rounded-full border bg-slate-100 px-2 py-0.5 text-[11px] uppercase tracking-wide">
                       {v.type || 'Sense tipus'}
                     </span>
                   </div>
-                  <span className="text-xs text-slate-500 flex items-center gap-1">
+                  <span className="flex items-center gap-1 text-xs text-slate-500">
                     <MapPin className="h-3 w-3" />
                     {v.type || 'Sense tipus'}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className={cn(
-                    'px-2 py-1 rounded-full text-xs font-semibold',
+                    'rounded-full px-2 py-1 text-xs font-semibold',
                     v.available ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
                   )}>
                     {v.available ? 'Disponible' : 'Ocupat'}
@@ -314,9 +333,9 @@ export default function DisponibilitatLogisticaPage() {
             ))}
           </div>
 
-          <div className="border rounded-xl p-4 bg-slate-50 shadow-inner space-y-3 h-full overflow-y-auto">
+          <div className="h-full space-y-3 overflow-y-auto rounded-xl border bg-slate-50 p-4 shadow-inner">
             {!selectedVehicle && (
-              <div className="text-sm text-slate-500 text-center py-8">
+              <div className="py-8 text-center text-sm text-slate-500">
                 Selecciona un vehicle disponible per crear un torn de transport.
               </div>
             )}
@@ -328,7 +347,7 @@ export default function DisponibilitatLogisticaPage() {
                     <div className="text-xs text-slate-500">Vehicle seleccionat</div>
                     <div className="font-semibold text-slate-900">{selectedVehicle.plate}</div>
                     <div className="text-xs text-slate-500">{selectedVehicle.type || 'Sense tipus'}</div>
-                    <div className="text-xs text-slate-500 mt-1">
+                    <div className="mt-1 text-xs text-slate-500">
                       {format(new Date(date), "d 'de' LLLL yyyy")} · {startTime} - {endTime}
                     </div>
                   </div>
@@ -344,7 +363,7 @@ export default function DisponibilitatLogisticaPage() {
                       type="time"
                       value={startTime}
                       onChange={(e) => setStartTime(e.target.value)}
-                      className="w-full border rounded px-3 py-2 text-sm bg-white"
+                      className="w-full rounded border bg-white px-3 py-2 text-sm"
                     />
                   </div>
                   <div className="space-y-1">
@@ -353,7 +372,7 @@ export default function DisponibilitatLogisticaPage() {
                       type="time"
                       value={endTime}
                       onChange={(e) => setEndTime(e.target.value)}
-                      className="w-full border rounded px-3 py-2 text-sm bg-white"
+                      className="w-full rounded border bg-white px-3 py-2 text-sm"
                     />
                   </div>
                 </div>
@@ -361,23 +380,26 @@ export default function DisponibilitatLogisticaPage() {
                 <div className="space-y-1">
                   <label className="text-xs text-slate-500">Destinació</label>
                   <input
-                    className="w-full border rounded px-3 py-2 text-sm bg-white"
+                    type="text"
+                    className="w-full rounded border bg-white px-3 py-2 text-sm"
+                    placeholder="On va el vehicle?"
                     value={destination}
                     onChange={(e) => setDestination(e.target.value)}
-                    placeholder="On va el vehicle?"
                   />
                 </div>
 
                 <div className="space-y-1">
                   <label className="text-xs text-slate-500">Conductor</label>
                   <select
-                    className="w-full border rounded px-3 py-2 text-sm bg-white"
+                    className="w-full rounded border bg-white px-3 py-2 text-sm"
                     value={conductorId}
                     onChange={(e) => setConductorId(e.target.value)}
                   >
                     <option value="">Selecciona conductor</option>
-                    {conductors.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
+                    {conductors.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
                     ))}
                   </select>
                   {conductors.length === 0 && (
@@ -390,7 +412,7 @@ export default function DisponibilitatLogisticaPage() {
                 <div className="space-y-1">
                   <label className="text-xs text-slate-500">Notes (opcional)</label>
                   <textarea
-                    className="w-full border rounded px-3 py-2 text-sm bg-white"
+                    className="w-full rounded border bg-white px-3 py-2 text-sm"
                     rows={3}
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
@@ -403,13 +425,13 @@ export default function DisponibilitatLogisticaPage() {
                 )}
 
                 <Button
-                  className="w-full h-11 rounded-xl font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-slate-200 disabled:text-slate-500 disabled:border disabled:border-slate-300 shadow-md"
+                  className="h-11 w-full rounded-xl bg-emerald-600 font-semibold text-white shadow-md hover:bg-emerald-700 disabled:border disabled:border-slate-300 disabled:bg-slate-200 disabled:text-slate-500"
                   variant="default"
                   size="lg"
                   onClick={handleAssign}
                   disabled={assignLoading || !canAssign}
                 >
-                  {assignLoading ? 'Assignant…' : 'Crear torn de transport'}
+                  {assignLoading ? 'Assignant...' : 'Crear torn de transport'}
                 </Button>
               </>
             )}

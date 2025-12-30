@@ -42,21 +42,28 @@ export type EspaiDetall = {
 
 type Props = {
   espai: EspaiDetall
-  lnOptions: string[]
+  lnOptions?: string[]
   onClose?: () => void
   onSave?: (data: EspaiDetall) => Promise<void> | void
+  forceReadOnly?: boolean
 }
 
-export default function SpaceDetailClient({ espai, onClose, onSave }: Props) {
+export default function SpaceDetailClient({
+  espai,
+  onClose,
+  onSave,
+  forceReadOnly = false,
+}: Props) {
   // ─────────────────────────────────────────────
   // 1) Estat local (còpia editable de la finca)
   // ─────────────────────────────────────────────
-    const { data: session } = useSession()
+  const { data: session } = useSession()
 
-  const canEdit = canEditFinca({
+  const canEditRole = canEditFinca({
     role: session?.user?.role,
     department: (session?.user as any)?.departmentLower ?? (session?.user as any)?.department,
   })
+  const canEdit = !forceReadOnly && canEditRole
   const readOnly = !canEdit
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)

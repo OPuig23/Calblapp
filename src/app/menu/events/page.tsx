@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { startOfWeek, endOfWeek, format } from 'date-fns'
+import { CalendarDays } from 'lucide-react'
 
 import useEvents from '@/hooks/events/useEvents'
 import EventsDayGroup from '@/components/events/EventsDayGroup'
@@ -12,7 +13,6 @@ import EventAvisosReadOnlyModal from '@/components/events/EventAvisosReadOnlyMod
 import ModuleHeader from '@/components/layout/ModuleHeader'
 import FiltersBar, { FiltersState } from '@/components/layout/FiltersBar'
 
-/* ================= Utils ================= */
 const normalize = (s?: string | null) =>
   (s || '')
     .normalize('NFD')
@@ -20,7 +20,6 @@ const normalize = (s?: string | null) =>
     .toLowerCase()
     .trim()
 
-/* ================= Tipus ================= */
 type SessionUser = {
   id?: string
   role?: string
@@ -40,7 +39,6 @@ type EventMenuData = {
   fincaCode?: string | null
 }
 
-/* ================= Page ================= */
 export default function EventsPage() {
   const { data: session } = useSession()
 
@@ -50,7 +48,6 @@ export default function EventsPage() {
   const scope: 'all' | 'mine' = role === 'treballador' ? 'mine' : 'all'
   const includeQuadrants = role === 'treballador'
 
-  /* ================= Setmana ================= */
   const initial: FiltersState = useMemo(() => {
     const s = startOfWeek(new Date(), { weekStartsOn: 1 })
     const e = endOfWeek(new Date(), { weekStartsOn: 1 })
@@ -65,7 +62,6 @@ export default function EventsPage() {
   const { events, loading, error, responsablesDetailed } =
     useEvents(userDept, fromISO, toISO, scope, includeQuadrants)
 
-  /* ================= MODALS (PARE) ================= */
   const [isMenuOpen, setMenuOpen] = useState(false)
   const [selectedEvent, setSelectedEvent] = useState<EventMenuData | null>(null)
 
@@ -78,7 +74,6 @@ export default function EventsPage() {
   const [avisosEventCode, setAvisosEventCode] = useState<string | null>(null)
   const [avisosState, setAvisosState] = useState<Record<string, { hasAvisos: boolean; lastAvisoDate?: string }>>({})
 
-  /* ================= Filtrat ================= */
   let filteredEvents = events
 
   if (filters.ln && filters.ln !== '__all__') {
@@ -101,7 +96,6 @@ export default function EventsPage() {
     )
   }
 
-  /* ================= Agrupació ================= */
   const enhancedEvents = filteredEvents.map(ev => {
     const code = ev.eventCode || ev.id
     const hasAvisos = code
@@ -127,7 +121,6 @@ export default function EventsPage() {
     return acc
   }, {})
 
-  /* ================= HANDLER CENTRAL ================= */
   const handleEventClick = (ev: any, mode: 'menu' | 'avisos' = 'menu') => {
     if (mode === 'avisos') {
       const codeForAvisos = ev.eventCode || (ev.id ? String(ev.id) : null)
@@ -158,7 +151,6 @@ export default function EventsPage() {
     name: (session?.user as SessionUser)?.name,
   }
 
-  // Inicialitza l'estat dels avisos amb el que ve del backend
   useEffect(() => {
     setAvisosState(prev => {
       const next = { ...prev }
@@ -188,16 +180,13 @@ export default function EventsPage() {
     []
   )
 
-  /* ================= Render ================= */
   return (
-    <div className="space-y-6">
-      <div className="px-4">
-        <ModuleHeader
-          icon="📅"
-          title="ESDEVENIMENTS"
-          subtitle="Consulta i gestiona els esdeveniments"
-        />
-      </div>
+    <div className="space-y-6 px-4 pb-8">
+      <ModuleHeader
+        icon={<CalendarDays className="h-6 w-6 text-indigo-600" />}
+        title="Esdeveniments"
+        subtitle="Consulta i gestiona els esdeveniments"
+      />
 
       <FiltersBar
         filters={filters}
@@ -211,8 +200,8 @@ export default function EventsPage() {
         ).sort()}
       />
 
-      <div className="px-4">
-        {loading && <p className="text-gray-500">Carregant esdeveniments…</p>}
+      <div>
+        {loading && <p className="text-gray-500">Carregant esdeveniments...</p>}
         {error && <p className="text-red-600">{String(error)}</p>}
 
         {!loading && !error && filteredEvents.length === 0 && (
@@ -235,7 +224,6 @@ export default function EventsPage() {
         )}
       </div>
 
-      {/* ─────────── MODAL MENÚ ─────────── */}
       {isMenuOpen && selectedEvent && (
         <EventMenuModal
           event={selectedEvent}
@@ -246,7 +234,6 @@ export default function EventsPage() {
         />
       )}
 
-      {/* ─────────── DOCUMENTS (PARE) ─────────── */}
       {docsEvent && (
         <EventDocumentsSheet
           eventId={docsEvent.eventId}
@@ -256,7 +243,6 @@ export default function EventsPage() {
         />
       )}
 
-      {/* ─────────── AVISOS READ-ONLY ─────────── */}
       <EventAvisosReadOnlyModal
         open={isAvisosOpen}
         onClose={() => setAvisosOpen(false)}

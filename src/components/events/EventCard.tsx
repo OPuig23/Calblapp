@@ -24,8 +24,6 @@ interface EventData {
   LN?: string
   lnKey?: string
   lnLabel?: string
-
-  // Avisos
   lastAviso?: LastAviso | null
   avisosUnread?: number
 }
@@ -36,7 +34,6 @@ interface Props {
   onOpenAvisos: () => void
 }
 
-/* Helpers */
 function cleanEventName(s?: string) {
   if (!s) return ''
   let t = s.replace(/^\s*[A-Z]\s*-\s*/i, '').trim()
@@ -62,76 +59,68 @@ export default function EventCard({ event, onOpenMenu, onOpenAvisos }: Props) {
   return (
     <Card
       onClick={onOpenMenu}
-      className="rounded-xl p-3 bg-white shadow-sm hover:shadow-md transition cursor-pointer flex flex-col gap-2"
+      className="flex w-full flex-col gap-2 cursor-pointer rounded-xl bg-white p-3 shadow-sm transition hover:shadow-md"
     >
-      {/* ───── Títol + Pax + LN ───── */}
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex flex-col flex-1">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+        <div className="flex min-w-0 flex-col flex-1">
           <h3
-            className="text-sm font-semibold text-gray-900 leading-snug line-clamp-2"
+            className="line-clamp-2 text-sm font-semibold leading-snug text-gray-900"
             title={displaySummary}
           >
             {displaySummary}
           </h3>
 
-          <div className="flex flex-wrap items-center gap-1 mt-1">
+          <div className="mt-1 flex flex-wrap items-center gap-1">
             {ln && (
-              <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${lnColor}`}>
+              <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${lnColor}`}>
                 {ln.charAt(0).toUpperCase() + ln.slice(1)}
               </span>
             )}
 
             {event.eventCode && (
               <span className="flex items-center gap-1 text-[11px] text-gray-500">
-                <Tag className="w-3 h-3 text-gray-400" />
+                <Tag className="h-3 w-3 text-gray-400" />
                 {event.eventCode}
               </span>
             )}
           </div>
         </div>
 
-        {/* ───── ÚNICA “i” FUNCIONAL ───── */}
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex shrink-0 items-center gap-2">
           <button
             type="button"
-            aria-label="Obrir avisos de producció"
+            aria-label="Obrir avisos de produccio"
             onClick={(e) => {
               e.stopPropagation()
               onOpenAvisos()
             }}
           >
             <Info
-              className={[
-                'w-4 h-4',
-                hasAviso ? 'text-blue-600' : 'text-gray-300',
-              ].join(' ')}
+              className={hasAviso ? 'h-4 w-4 text-blue-600' : 'h-4 w-4 text-gray-300'}
             />
           </button>
 
           {event.pax && (
-            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-pink-100 text-pink-700">
-              <Users className="w-3 h-3" />
+            <span className="flex items-center gap-1 rounded-full bg-pink-100 px-2 py-0.5 text-[11px] font-bold text-pink-700">
+              <Users className="h-3 w-3" />
               {Number(event.pax)}
             </span>
           )}
         </div>
       </div>
 
-      {/* ───── Ubicació ───── */}
       {mapsUrl && (
         <a
           href={mapsUrl}
           target="_blank"
           rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}
-          className="flex items-center gap-1 text-[12px] text-gray-500 hover:text-blue-600 truncate"
+          className="flex items-center gap-1 text-[12px] text-gray-500 hover:text-blue-600"
         >
-          <MapPin className="w-3.5 h-3.5 shrink-0" />
+          <MapPin className="h-3.5 w-3.5 shrink-0" />
           <span className="truncate">{location}</span>
         </a>
       )}
-
-      
     </Card>
   )
 }
