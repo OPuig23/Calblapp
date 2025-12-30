@@ -138,13 +138,12 @@ export default function SpaceGrid({ data, totals = [], baseDate }: SpaceGridProp
                       rel="noopener noreferrer"
                       className="hover:underline text-left"
                       onClick={(e) => {
-                        e.preventDefault()
                         e.stopPropagation()
-                        window.open(
+                        const url = new URL(
                           `/menu/spaces/info/${row.fincaId}?readonly=1`,
-                          '_blank',
-                          'noopener,noreferrer'
-                        )
+                          window.location.origin
+                        ).toString()
+                        window.open(url, '_blank', 'noopener,noreferrer')
                       }}
                     >
                       {row.finca}

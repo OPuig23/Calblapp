@@ -13,7 +13,8 @@ export default function PissarraCardLogistica({ item }: Props) {
   const workers = Array.isArray(item.workers) ? item.workers : []
 
   return (
-    <div className="rounded-xl border border-gray-300 bg-white shadow-sm p-3 text-xs mb-2">
+    <div className="rounded-xl border border-gray-300 bg-white shadow-sm p-3 sm:p-4 text-xs mb-3">
+
       {/* Event + hores */}
       <div className="flex flex-col gap-1 mb-2">
         <div className="font-semibold text-gray-800 text-[13px] truncate">
@@ -49,7 +50,7 @@ export default function PissarraCardLogistica({ item }: Props) {
             return (
               <div
                 key={v?.plate ? `plate-${v.source || 'src'}-${v.plate}` : `vehicle-${idx}`}
-                className="flex items-center gap-2"
+                className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2"
               >
                 <Icon className={`w-3.5 h-3.5 ${iconColor}`} />
                 <span className="font-semibold">{v.plate || '-'}</span>

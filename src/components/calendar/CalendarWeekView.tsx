@@ -58,9 +58,11 @@ export default function CalendarWeekView({
   }, [])
 
   const weekDays = useMemo(() => {
-    const base = start ? parseISO(start) : new Date()
-    return Array.from({ length: 7 }, (_, i) => addDays(base, i))
-  }, [start])
+  const base = start ? parseISO(start) : new Date()
+  const daysCount = isMobile ? 3 : 7
+  return Array.from({ length: daysCount }, (_, i) => addDays(base, i))
+}, [start, isMobile])
+
 
   const spans = useMemo(() => {
     if (!weekDays.length) return [] as Span[]
@@ -106,7 +108,8 @@ export default function CalendarWeekView({
   const visibleSpans = spans.filter((s) => s.lane < visibleLaneCount)
 
   const minHeight = Math.max(260, visibleLaneCount * 48 + 120)
-  const minColWidth = isMobile ? 140 : 160
+  const minColWidth = isMobile ? 110 : 160
+
 
   const weekCells = weekDays.map((d) => ({
     date: d,
@@ -116,7 +119,8 @@ export default function CalendarWeekView({
   return (
     <div className="w-full overflow-x-auto pb-2">
       <div
-        className="relative overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm min-w-full sm:min-w-0 md:min-w-[1024px] lg:min-w-[1120px]"
+  className="relative overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm min-w-full sm:min-w-0"
+
         style={{ minHeight }}
       >
         {/* Header */}
@@ -164,7 +168,7 @@ export default function CalendarWeekView({
                         ${isSingleDay ? 'px-2 py-[2px]' : 'px-2 py-[4px]'}
                         rounded-md border 
                         flex items-center gap-2
-                        text-[10px] sm:text-[12px] font-medium
+                        text-[11px] sm:text-[12px]  font-medium
                         ${colorByLN(span.ev.LN)}
                       `}
                       style={{
