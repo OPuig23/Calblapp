@@ -1,163 +1,66 @@
-'use client'
-
-import React, { useEffect, useState } from 'react'
-import { Providers } from '@/app/providers'
-import { useSession, signOut } from 'next-auth/react'
-import { useRouter, usePathname } from 'next/navigation'
-import Image from 'next/image'
-import Link from 'next/link'
-import { LogOut, Settings } from 'lucide-react'
-import { TooltipProvider } from '@/components/ui/tooltip'
-import { normalizeRole } from '@/lib/roles'
-import { getVisibleModules } from '@/lib/accessControl'
-import { NotificationsProvider } from '@/context/NotificationsContext'
-import { FiltersProvider } from '@/context/FiltersContext'
-import FilterSlideOver from '@/components/ui/filter-slide-over'
+// file: src/app/layout.tsx
+import type { Metadata } from 'next'
+import ClientLayout from './ClientLayout'
 import './globals.css'
 
 /* ------------------------------------------------------------------ */
-/* ROOT LAYOUT                                                         */
+/* METADATA GLOBAL (PWA + SEO)                                         */
 /* ------------------------------------------------------------------ */
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <html lang="ca">
-      <body suppressHydrationWarning>
-        <Providers>
-          <TooltipProvider>
-            <NotificationsProvider>
-              <FiltersProvider>
-                <InnerLayout>{children}</InnerLayout>
-                <FilterSlideOver />
-              </FiltersProvider>
-            </NotificationsProvider>
-          </TooltipProvider>
-        </Providers>
-      </body>
-    </html>
-  )
+export const metadata: Metadata = {
+  title: 'Cal Blay App',
+  description:
+    'WebApp operativa de Cal Blay – esdeveniments, personal, quadrants i incidències.',
+
+  manifest: '/manifest.json',
+
+  appleWebApp: {
+    capable: true,
+    title: 'Cal Blay',
+    statusBarStyle: 'default',
+  },
+
+  icons: {
+    icon: [
+      { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: '/icons/icon-192.png',
+  },
 }
 
 /* ------------------------------------------------------------------ */
-/* INNER LAYOUT                                                        */
+/* VIEWPORT (OBLIGATORI PER theme-color)                               */
 /* ------------------------------------------------------------------ */
 
-function InnerLayout({ children }: { children: React.ReactNode }) {
-  const router = useRouter()
-  const pathname = usePathname() ?? ''
-  const { data: session, status } = useSession()
-  const [menuOpen, setMenuOpen] = useState(false)
+export const viewport = {
+  themeColor: '#1e293b',
+}
 
-  const user = session?.user
+/* ------------------------------------------------------------------ */
+/* ROOT LAYOUT (SERVER)                                                */
+/* ------------------------------------------------------------------ */
 
-  /* 🔐 Protecció de sessió */
-  useEffect(() => {
-    if (status !== 'loading' && !user && !pathname.startsWith('/login')) {
-      router.replace('/login')
-    }
-  }, [status, user, pathname, router])
-
-  /* 🔓 Pantalla login sense layout */
-  if (pathname.startsWith('/login')) {
-    return (
-      <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-gray-50">
-        <Image src="/logo.png" alt="Cal Blay" width={200} height={80} />
-        {children}
-      </div>
-    )
-  }
-
-  if (!user) return null
-
-  const role = normalizeRole(user.role)
-  const department = user.department || ''
-  const username = user.name || user.email || 'Usuari'
-  const avatarLetter = username[0]?.toUpperCase() ?? 'U'
-
-  /* ✅ ÚNIC punt de permisos */
-  const visibleModules = getVisibleModules({ role, department })
-
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
   return (
-    <div className="min-h-[100dvh] bg-gray-50 text-gray-800">
-
-      {/* ---------------- CAPÇALERA ---------------- */}
-      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur border-b">
-        <div className="h-14 flex items-center justify-between px-4">
-
-          <button
-            onClick={() => setMenuOpen(true)}
-            className="p-2 rounded-md hover:bg-gray-100"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
-
-          <Link href="/menu">
-            <Image src="/logo.png" alt="Cal Blay" width={120} height={50} />
-          </Link>
-
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold">
-              {avatarLetter}
-            </div>
-
-            <button
-              onClick={async () => {
-                await signOut({ redirect: false })
-                router.replace('/login')
-              }}
-              className="p-2 rounded hover:bg-gray-100"
-            >
-              <LogOut className="w-5 h-5" />
-            </button>
-          </div>
-
-        </div>
-      </header>
-
-      {/* ---------------- MENÚ LATERAL ---------------- */}
-      {menuOpen && (
-        <div className="fixed inset-0 z-[9999] bg-black/40" onClick={() => setMenuOpen(false)}>
-          <aside
-            className="fixed left-0 top-0 h-full w-64 bg-white shadow-xl p-4"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="flex justify-between mb-4">
-              <span className="text-lg font-semibold">Menú</span>
-              <button onClick={() => setMenuOpen(false)}>✕</button>
-            </div>
-
-            <nav className="flex flex-col gap-2">
-              {visibleModules.map(mod => (
-                <Link
-                  key={mod.path}
-                  href={mod.path}
-                  onClick={() => setMenuOpen(false)}
-                  className="px-3 py-2 rounded-md hover:bg-gray-100"
-                >
-                  {mod.label}
-                </Link>
-              ))}
-
-              <Link
-                href="/menu/configuracio"
-                onClick={() => setMenuOpen(false)}
-                className="px-3 py-2 rounded-md hover:bg-gray-100 flex items-center gap-2"
-              >
-                <Settings className="w-5 h-5" />
-                Configuració
-              </Link>
-            </nav>
-          </aside>
-        </div>
-      )}
-
-      {/* ---------------- CONTINGUT ---------------- */}
-      <main className="px-2 sm:px-4 pb-6 max-w-7xl mx-auto">
-        {children}
-      </main>
-
-    </div>
+    <html lang="ca">
+      <body suppressHydrationWarning>
+        {/* 
+          IMPORTANT:
+          ClientLayout embolcalla TOTA l'app.
+          Això garanteix:
+          - SessionProvider actiu
+          - useSession funcional a tot arreu
+          - zero errors 500
+        */}
+        <ClientLayout>
+          {children}
+        </ClientLayout>
+      </body>
+    </html>
   )
 }

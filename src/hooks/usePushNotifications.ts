@@ -18,7 +18,7 @@ export function usePushNotifications() {
     setPermission(Notification.permission)
   }, [])
 
-  // 1) Demanar permís
+  // 1) Demanar permÇðs
   const requestPermission = async () => {
     try {
       if (typeof window === 'undefined' || !('Notification' in window)) {
@@ -32,7 +32,7 @@ export function usePushNotifications() {
       }
       return result
     } catch (err) {
-      setError('No s’ha pogut demanar permís')
+      setError('No sƒ?Tha pogut demanar permÇðs')
       return 'denied'
     }
   }
@@ -43,9 +43,12 @@ export function usePushNotifications() {
       if (typeof window === 'undefined') throw new Error('No window')
       if (!('serviceWorker' in navigator)) throw new Error('No SW disponible')
 
-      const registration = await navigator.serviceWorker.ready
+      const registration = await navigator.serviceWorker.getRegistration()
+      if (!registration) {
+        throw new Error('Notificacions push desactivades (service worker no registrat)')
+      }
 
-      // Fem servir la VAPID pública correcta en producció
+      // Fem servir la VAPID pÇ§blica correcta en producciÇü
       const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
       if (!vapidKey) {
         throw new Error('Falta NEXT_PUBLIC_VAPID_PUBLIC_KEY')
@@ -68,7 +71,7 @@ export function usePushNotifications() {
 
       if (!res.ok) {
         await sub.unsubscribe().catch(() => {})
-        throw new Error('Error enviant subscripció')
+        throw new Error('Error enviant subscripciÇü')
       }
       return true
     } catch (err: any) {

@@ -5,11 +5,13 @@ import { useSession } from 'next-auth/react'
 import { startOfWeek, endOfWeek, format } from 'date-fns'
 
 import ModuleHeader from '@/components/layout/ModuleHeader'
+import FilterButton from '@/components/ui/filter-button'
 import FiltersBar, { type FiltersState } from '@/components/layout/FiltersBar'
 import { useTransportAssignments } from './hooks/useTransportAssignments'
 import TransportAssignmentCard from './components/TransportAssignmentCard'
+
 export default function TransportAssignacionsPage() {
-  useSession() // nomes per garantir sessio activa (guard global)
+  useSession() // garantir sessió activa (guard global)
 
   /* =========================
      FILTRES INICIALS (SETMANA ACTUAL)
@@ -51,44 +53,48 @@ export default function TransportAssignacionsPage() {
   return (
     <main className="space-y-6 px-4 pb-12">
 
-
-      {/* Capçalera */}
+      {/* ================= HEADER ================= */}
       <ModuleHeader
         icon="🚚"
         title="Assignacions de Transport"
         subtitle="Vehicles i conductors per esdeveniment"
       />
 
-      {/* Filtres */}
-      <FiltersBar
-        filters={filters}
-        setFilters={(patch) =>
-          setFilters((prev) => ({ ...prev, ...patch }))
-        }
-      />
+      {/* ================= MOBILE: BOTÓ FILTRES ================= */}
+      <div className="flex justify-end sm:hidden">
+        <FilterButton />
+      </div>
 
-      {/* Estat càrrega */}
+      {/* ================= DESKTOP: FILTRES ================= */}
+      <div className="hidden sm:block">
+        <FiltersBar
+          filters={filters}
+          setFilters={(patch) =>
+            setFilters((prev) => ({ ...prev, ...patch }))
+          }
+        />
+      </div>
+
+      {/* ================= ESTATS ================= */}
       {loading && (
         <p className="text-center text-gray-500 py-10">
           Carregant assignacions…
         </p>
       )}
 
-      {/* Error */}
       {error && (
         <p className="text-center text-red-600 py-10">
           {String(error)}
         </p>
       )}
 
-      {/* Buit */}
       {!loading && !error && grouped.length === 0 && (
         <p className="text-center text-gray-400 py-10">
           Cap esdeveniment amb demanda/assignació en aquest rang.
         </p>
       )}
 
-      {/* Llistat */}
+      {/* ================= LLISTAT ================= */}
       {!loading && !error && grouped.length > 0 && (
         <div className="space-y-6">
           {grouped.map(([day, evs]) => (
@@ -98,7 +104,7 @@ export default function TransportAssignacionsPage() {
               </div>
 
               <div className="space-y-2">
-                {evs.map((ev) => (
+                {evs.map(ev => (
                   <TransportAssignmentCard
                     key={ev.eventCode}
                     item={ev}
@@ -110,7 +116,6 @@ export default function TransportAssignacionsPage() {
           ))}
         </div>
       )}
-
     </main>
   )
 }

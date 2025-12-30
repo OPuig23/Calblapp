@@ -149,7 +149,8 @@ export default function IncidentsPage() {
       </div>
 
       {/* Barra compacta: només dates + botó filtres */}
-      <div className="rounded-2xl border border-gray-200 bg-white p-3 shadow-sm mb-2 flex items-center gap-3 flex-wrap sm:flex-nowrap">
+      <div className="rounded-2xl border border-gray-200 bg-white p-3 shadow-sm mb-2 flex items-center gap-3 flex-nowrap">
+
         <SmartFilters
           role="Direcció"
           onChange={handleFilterChange}
