@@ -3,7 +3,6 @@
 
 import { useState } from 'react'
 import ModuleHeader from '@/components/layout/ModuleHeader'
-import FilterButton from '@/components/ui/filter-button'
 import { BarChart3 } from 'lucide-react'
 
 import { PersonalPanel } from '@/components/reports/PersonalPanel'
@@ -20,7 +19,7 @@ const TABS = [
   { key: 'events', label: 'Events' },
   { key: 'financial', label: 'Financial' },
   { key: 'vehicles', label: 'Vehicles' },
-  { key: 'incidencies', label: 'Incidències' },
+  { key: 'incidencies', label: 'IncidÇùncies' },
   { key: 'modificacions', label: 'Modificacions' },
 ] as const
 
@@ -39,8 +38,8 @@ export default function ReportsPage() {
         subtitle="Panell inicial: resum global"
       />
 
-      {/* ================= MOBILE: TABS + FILTER ================= */}
-      <div className="sm:hidden flex items-center justify-between gap-2">
+      {/* ================= MOBILE: TABS ================= */}
+      <div className="sm:hidden flex items-center justify-center gap-2">
         <div className="flex gap-2 overflow-x-auto -mx-1 px-1">
           {TABS.map(tab => (
             <button
@@ -56,9 +55,6 @@ export default function ReportsPage() {
             </button>
           ))}
         </div>
-
-        {/* ✅ BOTÓ DE FILTRES OFICIAL */}
-        <FilterButton />
       </div>
 
       <div className="flex flex-col lg:flex-row gap-4">

@@ -15,6 +15,8 @@ export interface Modification {
   eventCommercial?: string
   department: string
   createdBy: string
+  createdById?: string
+  createdByEmail?: string
   tipus?: string
   category?: { id: string; label: string }
   importance: string
@@ -134,5 +136,15 @@ export function useModifications(filters: {
     return fetchModifications()
   }
 
-  return { modifications, loading, error, updateModification, refetch }
+  const deleteModification = async (id: string) => {
+    const res = await fetch(`/api/modifications/${id}`, { method: 'DELETE' })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+
+    setModifications((prev) => prev.filter((m) => m.id !== id))
+    if (modificationsCache[fetchKey]) {
+      modificationsCache[fetchKey] = modificationsCache[fetchKey].filter((m) => m.id !== id)
+    }
+  }
+
+  return { modifications, loading, error, updateModification, deleteModification, refetch }
 }

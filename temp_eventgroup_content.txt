@@ -63,7 +63,6 @@ export default function ModificationsEventGroup({
             <th className="w-28 p-2 text-left">Importància</th>
             <th className="w-auto p-2 text-left">Descripció</th>
             <th className="w-36 p-2 text-left">Creat</th>
-            <th className="w-28 p-2 text-right">Accions</th>
           </tr>
         </thead>
         <tbody>
@@ -83,3 +82,4 @@ export default function ModificationsEventGroup({
     </div>
   )
 }
+

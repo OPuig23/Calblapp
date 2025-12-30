@@ -3,13 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import useSWR from 'swr'
 import { format } from 'date-fns'
-import {
-  CalendarDays,
-  Clock,
-  Filter,
-  MapPin,
-  RefreshCw,
-} from 'lucide-react'
+import { Clock, Filter, MapPin, RefreshCw } from 'lucide-react'
 
 import ModuleHeader from '@/components/layout/ModuleHeader'
 import { Button } from '@/components/ui/button'
@@ -47,7 +41,7 @@ const availabilityFetcher = async (
 
   if (!res.ok) {
     const txt = await res.text()
-    throw new Error(txt || 'No s’ha pogut carregar la disponibilitat')
+    throw new Error(txt || 'No s\'ha pogut carregar la disponibilitat')
   }
 
   return (await res.json()) as AvailabilityResponse
@@ -128,8 +122,8 @@ export default function DisponibilitatLogisticaPage() {
 
   const handleAssign = async () => {
     if (!selectedVehicle) return
-    if (!destination || !conductorId) {
-      setAssignError('Destinació i conductor són obligatoris.')
+    if (!destination.trim() || !conductorId) {
+      setAssignError('La destinació i el conductor són obligatoris.')
       return
     }
     setAssignError(null)
@@ -147,7 +141,7 @@ export default function DisponibilitatLogisticaPage() {
         endDate: date,
         startTime,
         endTime,
-        destination,
+        destination: destination.trim(),
         notes,
         department: 'logistica',
       }
@@ -159,7 +153,7 @@ export default function DisponibilitatLogisticaPage() {
       })
       if (!res.ok) {
         const txt = await res.text()
-        throw new Error(txt || 'No s’ha pogut crear l’assignació')
+        throw new Error(txt || "No s'ha pogut crear l'assignació")
       }
 
       setSelectedVehicle(null)
@@ -168,12 +162,13 @@ export default function DisponibilitatLogisticaPage() {
       setConductorId('')
       mutate()
     } catch (e: any) {
-      setAssignError(e?.message || 'Error creant assignació')
+      setAssignError(e?.message || "Error creant assignació")
     } finally {
       setAssignLoading(false)
     }
   }
 
+  const canAssign = Boolean(selectedVehicle && destination.trim() && conductorId)
   const loading = isLoading
   const listEmpty = !loading && !error && filteredVehicles.length === 0
 
@@ -408,9 +403,11 @@ export default function DisponibilitatLogisticaPage() {
                 )}
 
                 <Button
-                  className="w-full"
+                  className="w-full h-11 rounded-xl font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-slate-200 disabled:text-slate-500 disabled:border disabled:border-slate-300 shadow-md"
+                  variant="default"
+                  size="lg"
                   onClick={handleAssign}
-                  disabled={assignLoading}
+                  disabled={assignLoading || !canAssign}
                 >
                   {assignLoading ? 'Assignant…' : 'Crear torn de transport'}
                 </Button>
@@ -421,10 +418,4 @@ export default function DisponibilitatLogisticaPage() {
       </section>
     </main>
   )
-}
-
-function addDaysSafe(date: Date, days: number) {
-  const d = new Date(date)
-  d.setDate(d.getDate() + days)
-  return d
 }

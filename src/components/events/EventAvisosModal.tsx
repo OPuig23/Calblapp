@@ -1,7 +1,7 @@
 //file: src/components/events/EventAvisosModal.tsx
 'use client'
 
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -28,9 +28,10 @@ interface Props {
     department?: string
     role?: string
   }
+  onAvisosStateChange?: (state: { eventCode: string | null; hasAvisos: boolean; lastAvisoDate?: string }) => void
 }
 
-export default function EventAvisosModal({ open, onClose, eventCode, user }: Props) {
+export default function EventAvisosModal({ open, onClose, eventCode, user, onAvisosStateChange }: Props) {
   const { avisos, loading, error, createAviso, updateAviso, deleteAviso } = useAvisos(eventCode)
 
   const [text, setText] = useState('')
@@ -53,12 +54,12 @@ export default function EventAvisosModal({ open, onClose, eventCode, user }: Pro
 
   const handleSave = async () => {
     if (!eventCode) {
-      setSaveError('Aquest esdeveniment no tÇ¸ codi disponible per guardar avisos.')
+      setSaveError('Aquest esdeveniment no té codi disponible per guardar avisos.')
       return
     }
 
     if (!text.trim()) {
-      setSaveError("Escriu l'avÇðs abans de guardar-lo.")
+      setSaveError("Escriu l'avís abans de guardar-lo.")
       return
     }
 
@@ -73,14 +74,14 @@ export default function EventAvisosModal({ open, onClose, eventCode, user }: Pro
           eventCode,
           content: text.trim(),
           userName: user.name || 'Desconegut',
-          department: user.department || 'ProducciÇü',
+          department: user.department || 'Producció',
         })
       }
 
       resetForm()
     } catch (err) {
-      console.error('ƒ?O ERROR guardant avÇðs:', err)
-      setSaveError("No s'ha pogut guardar l'avÇðs. Torna-ho a provar.")
+      console.error('Error guardant avís:', err)
+      setSaveError("No s'ha pogut guardar l'avís. Torna-ho a provar.")
     } finally {
       setSaving(false)
     }
@@ -95,19 +96,29 @@ export default function EventAvisosModal({ open, onClose, eventCode, user }: Pro
       await deleteAviso(target.id)
       resetForm()
     } catch (err) {
-      console.error('ƒ?O ERROR eliminant avÇðs:', err)
-      setSaveError("No s'ha pogut eliminar l'avÇðs.")
+      console.error('Error eliminant avís:', err)
+      setSaveError("No s'ha pogut eliminar l'avís.")
     } finally {
       setSaving(false)
     }
   }
+
+  // Notifica l'estat dels avisos (per pintar la icona a la llista sense recarregar)
+  useEffect(() => {
+    const lastAvisoDate = avisos[0]?.editedAt || avisos[0]?.createdAt
+    onAvisosStateChange?.({
+      eventCode,
+      hasAvisos: avisos.length > 0,
+      lastAvisoDate,
+    })
+  }, [avisos, eventCode, onAvisosStateChange])
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="w-[92vw] max-w-md rounded-2xl p-4 max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-lg font-semibold">
-            Avisos de producciÇü
+            Avisos de producció
           </DialogTitle>
           {eventCode && <p className="text-xs text-gray-400">Codi: {eventCode}</p>}
         </DialogHeader>
@@ -115,7 +126,7 @@ export default function EventAvisosModal({ open, onClose, eventCode, user }: Pro
         {/* FORM */}
         <div className="space-y-3">
           <Textarea
-            placeholder="Escriu l'avÇðs operatiuƒ?Ý"
+            placeholder="Escriu l'avís operatiu"
             value={text}
             onChange={(e) => setText(e.target.value)}
             rows={4}
@@ -125,7 +136,7 @@ export default function EventAvisosModal({ open, onClose, eventCode, user }: Pro
           <div className="sticky bottom-0 left-0 right-0 bg-white pt-3 border-t border-gray-200">
             <div className="flex gap-2">
               <Button variant="outline" className="flex-1" onClick={resetForm}>
-                Cancel¶úlar
+                Cancel·lar
               </Button>
 
               {editing && canEditCurrent && (
@@ -144,14 +155,14 @@ export default function EventAvisosModal({ open, onClose, eventCode, user }: Pro
                 className="w-full bg-white-600 text-black hover:bg-grey-700"
                 disabled={saving}
               >
-                {saving ? 'Guardantƒ?Ý' : editing ? 'Guardar canvis' : 'Guardar avÇðs'}
+                {saving ? 'Guardant…' : editing ? 'Guardar canvis' : 'Guardar avís'}
               </Button>
             </div>
           </div>
         </div>
 
         {/* ESTATS */}
-        {loading && <p className="text-sm text-gray-500">Carregant avisosƒ?Ý</p>}
+        {loading && <p className="text-sm text-gray-500">Carregant avisos…</p>}
         {(error || saveError) && <p className="text-sm text-red-600">{error || saveError}</p>}
 
         {!loading && !error && avisos.length === 0 && (
@@ -207,11 +218,11 @@ export default function EventAvisosModal({ open, onClose, eventCode, user }: Pro
                   </div>
 
                   <div className="text-xs text-gray-600 mt-1">
-                    {a.createdBy.department} ¶ú {a.createdBy.name}
+                    {a.createdBy.department} · {a.createdBy.name}
                   </div>
                   <div className="text-xs text-gray-400">
                     {new Date(a.editedAt ?? a.createdAt).toLocaleString('ca-ES')}
-                    {a.editedAt && ' ¶ú editat'}
+                    {a.editedAt && ' · editat'}
                   </div>
                 </div>
               )

@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server"
 import { firestoreAdmin } from "@/lib/firebaseAdmin"
 import admin from "firebase-admin"
+import { getToken } from "next-auth/jwt"
 
 interface ModificationDoc {
   id?: string
@@ -14,6 +15,8 @@ interface ModificationDoc {
   modificationNumber?: string
   department?: string
   createdBy?: string
+  createdById?: string
+  createdByEmail?: string
   category?: { id?: string; label?: string }
   importance?: string
   description?: string
@@ -42,6 +45,9 @@ async function generateModificationNumber(): Promise<string> {
 
 export async function POST(req: Request) {
   try {
+    const token = await getToken({ req })
+    if (!token) return NextResponse.json({ error: "No autoritzat" }, { status: 401 })
+
     const rawBody = await req.text()
     let payload: Record<string, unknown>
 
@@ -60,10 +66,16 @@ export async function POST(req: Request) {
       eventCommercial,
       department,
       createdBy,
+      createdById,
+      createdByEmail,
       category,
       importance,
       description,
     } = payload as ModificationDoc
+
+    const createdByFinal = createdBy || (token as any)?.name || (token as any)?.email || ""
+    const createdByIdFinal = createdById || (token as any)?.sub || ""
+    const createdByEmailFinal = createdByEmail || (token as any)?.email || ""
 
     const modificationNumber = await generateModificationNumber()
 
@@ -99,7 +111,9 @@ export async function POST(req: Request) {
       category: category || { id: "", label: "" },
       importance: importance?.trim().toLowerCase() || "",
       description: description || "",
-      createdBy: createdBy || "",
+      createdBy: createdByFinal,
+      createdById: createdByIdFinal,
+      createdByEmail: createdByEmailFinal,
       daysToEvent,
       createdAt: admin.firestore.Timestamp.now(),
     })

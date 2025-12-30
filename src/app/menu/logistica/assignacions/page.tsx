@@ -5,13 +5,12 @@ import { useSession } from 'next-auth/react'
 import { startOfWeek, endOfWeek, format } from 'date-fns'
 
 import ModuleHeader from '@/components/layout/ModuleHeader'
-import FilterButton from '@/components/ui/filter-button'
 import FiltersBar, { type FiltersState } from '@/components/layout/FiltersBar'
 import { useTransportAssignments } from './hooks/useTransportAssignments'
 import TransportAssignmentCard from './components/TransportAssignmentCard'
 
 export default function TransportAssignacionsPage() {
-  useSession() // garantir sessió activa (guard global)
+  useSession() // garantir sessiÇü activa (guard global)
 
   /* =========================
      FILTRES INICIALS (SETMANA ACTUAL)
@@ -35,7 +34,7 @@ export default function TransportAssignacionsPage() {
     useTransportAssignments(filters.start, filters.end)
 
   /* =========================
-     AGRUPACIÓ PER DIA
+     AGRUPACIÇ" PER DIA
   ========================= */
   const grouped = useMemo(() => {
     const map: Record<string, any[]> = {}
@@ -55,30 +54,23 @@ export default function TransportAssignacionsPage() {
 
       {/* ================= HEADER ================= */}
       <ModuleHeader
-        icon="🚚"
+        icon="ĞYss"
         title="Assignacions de Transport"
         subtitle="Vehicles i conductors per esdeveniment"
       />
 
-      {/* ================= MOBILE: BOTÓ FILTRES ================= */}
-      <div className="flex justify-end sm:hidden">
-        <FilterButton />
-      </div>
-
-      {/* ================= DESKTOP: FILTRES ================= */}
-      <div className="hidden sm:block">
-        <FiltersBar
-          filters={filters}
-          setFilters={(patch) =>
-            setFilters((prev) => ({ ...prev, ...patch }))
-          }
-        />
-      </div>
+      {/* ================= FILTRES (sempre visibles) ================= */}
+      <FiltersBar
+        filters={filters}
+        setFilters={(patch) =>
+          setFilters((prev) => ({ ...prev, ...patch }))
+        }
+      />
 
       {/* ================= ESTATS ================= */}
       {loading && (
         <p className="text-center text-gray-500 py-10">
-          Carregant assignacions…
+          Carregant assignacionsƒ?İ
         </p>
       )}
 
@@ -90,7 +82,7 @@ export default function TransportAssignacionsPage() {
 
       {!loading && !error && grouped.length === 0 && (
         <p className="text-center text-gray-400 py-10">
-          Cap esdeveniment amb demanda/assignació en aquest rang.
+          Cap esdeveniment amb demanda/assignaciÇü en aquest rang.
         </p>
       )}
 

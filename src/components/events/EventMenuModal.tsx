@@ -81,7 +81,7 @@ interface EventMenuModalProps {
     eventId: string
     eventCode?: string | null
   }) => void
-  
+  onAvisosStateChange?: (state: { eventCode: string | null; hasAvisos: boolean; lastAvisoDate?: string }) => void
 }
 
 function deduceLnKeyFromSummary(summary: string): LnKey {
@@ -174,6 +174,7 @@ export default function EventMenuModal({
   user,
   onClose,
   onOpenDocuments,
+  onAvisosStateChange,
 }: EventMenuModalProps) {
 
   const router = useRouter()
@@ -595,6 +596,7 @@ treballadors={treballadorsPersons}
   onClose={() => setShowAvisos(false)}
   eventCode={event.eventCode ?? event.code ?? (event.id ? String(event.id) : null)}
   user={user}
+  onAvisosStateChange={onAvisosStateChange}
 />
       <EventSpacesModal
   open={showEspais}

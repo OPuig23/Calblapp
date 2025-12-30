@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { startOfWeek, endOfWeek, format } from 'date-fns'
 
@@ -76,6 +76,7 @@ export default function EventsPage() {
 
   const [isAvisosOpen, setAvisosOpen] = useState(false)
   const [avisosEventCode, setAvisosEventCode] = useState<string | null>(null)
+  const [avisosState, setAvisosState] = useState<Record<string, { hasAvisos: boolean; lastAvisoDate?: string }>>({})
 
   /* ================= Filtrat ================= */
   let filteredEvents = events
@@ -101,7 +102,25 @@ export default function EventsPage() {
   }
 
   /* ================= Agrupació ================= */
-  const grouped = filteredEvents.reduce<Record<string, typeof filteredEvents>>((acc, ev) => {
+  const enhancedEvents = filteredEvents.map(ev => {
+    const code = ev.eventCode || ev.id
+    const hasAvisos = code
+      ? (avisosState[code]?.hasAvisos ?? Boolean(ev.lastAviso))
+      : Boolean(ev.lastAviso)
+
+    return {
+      ...ev,
+      lastAviso: hasAvisos
+        ? ev.lastAviso || {
+            content: '',
+            department: '',
+            createdAt: avisosState[code || '']?.lastAvisoDate || new Date().toISOString(),
+          }
+        : null,
+    }
+  })
+
+  const grouped = enhancedEvents.reduce<Record<string, typeof enhancedEvents>>((acc, ev) => {
     const day = ev.start.slice(0, 10)
     acc[day] ||= []
     acc[day].push(ev)
@@ -138,6 +157,36 @@ export default function EventsPage() {
     department: (session?.user as SessionUser)?.department,
     name: (session?.user as SessionUser)?.name,
   }
+
+  // Inicialitza l'estat dels avisos amb el que ve del backend
+  useEffect(() => {
+    setAvisosState(prev => {
+      const next = { ...prev }
+      events.forEach(ev => {
+        const code = ev.eventCode || ev.id
+        if (!code) return
+        if (!(code in next)) {
+          next[code] = { hasAvisos: Boolean(ev.lastAviso), lastAvisoDate: ev.lastAviso?.createdAt }
+        }
+      })
+      return next
+    })
+  }, [events])
+
+  const handleAvisosStateChange = useCallback(
+    (info: { eventCode: string | null; hasAvisos: boolean; lastAvisoDate?: string }) => {
+      if (!info.eventCode) return
+      setAvisosState(prev => {
+        const current = prev[info.eventCode]
+        const next = { hasAvisos: info.hasAvisos, lastAvisoDate: info.lastAvisoDate }
+        if (current && current.hasAvisos === next.hasAvisos && current.lastAvisoDate === next.lastAvisoDate) {
+          return prev
+        }
+        return { ...prev, [info.eventCode]: next }
+      })
+    },
+    []
+  )
 
   /* ================= Render ================= */
   return (
@@ -193,6 +242,7 @@ export default function EventsPage() {
           user={userForModal}
           onClose={() => setMenuOpen(false)}
           onOpenDocuments={(data) => setDocsEvent(data)}
+          onAvisosStateChange={handleAvisosStateChange}
         />
       )}
 
@@ -211,6 +261,7 @@ export default function EventsPage() {
         open={isAvisosOpen}
         onClose={() => setAvisosOpen(false)}
         eventCode={avisosEventCode}
+        onAvisosStateChange={handleAvisosStateChange}
       />
     </div>
   )

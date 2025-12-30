@@ -1,7 +1,7 @@
 // filename: src/app/menu/pissarra/page.tsx
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { startOfWeek, endOfWeek } from 'date-fns'
 import { Loader2 } from 'lucide-react'
@@ -11,6 +11,8 @@ import usePissarra from '@/hooks/usePissarra'
 import PissarraList from './components/PissarraList'
 import SmartFilters from '@/components/filters/SmartFilters'
 import { Button } from '@/components/ui/button'
+import FilterButton from '@/components/ui/filter-button'
+import { useFilters } from '@/context/FiltersContext'
 
 export default function PissarraPage() {
   const { data: session, status } = useSession()
@@ -18,6 +20,8 @@ export default function PissarraPage() {
   const role = normalizeRole(session?.user?.role || 'treballador')
   const dept = (session?.user?.department || '').toLowerCase()
   const [mode, setMode] = useState<'produccio' | 'logistica'>('produccio')
+  const [lnFilter, setLnFilter] = useState<string>('__all__')
+  const [commercialFilter, setCommercialFilter] = useState<string>('__all__')
 
   const now = new Date()
   const defaultWeekStart = startOfWeek(now, { weekStartsOn: 1 })
@@ -28,13 +32,93 @@ export default function PissarraPage() {
     endISO: defaultWeekEnd.toISOString().slice(0, 10),
   })
 
-  const { dataByDay, loading, error, canEdit, updateField } = usePissarra(
+  const { dataByDay, flat, loading, error, canEdit, updateField } = usePissarra(
     week.startISO,
     week.endISO,
     role,
     dept,
     mode
   )
+
+  const { setContent, setOpen } = useFilters()
+
+  const lnOptions = useMemo(
+    () => Array.from(new Set(flat.map((e) => e.LN).filter(Boolean))).sort(),
+    [flat]
+  )
+  const commercialOptions = useMemo(
+    () => Array.from(new Set(flat.map((e) => e.comercial).filter(Boolean))).sort(),
+    [flat]
+  )
+
+  const filteredDataByDay = useMemo(() => {
+    const grouped: Record<string, typeof flat> = {}
+
+    const filtered = flat.filter((ev) => {
+      if (lnFilter !== '__all__' && ev.LN !== lnFilter) return false
+      if (commercialFilter !== '__all__' && ev.comercial !== commercialFilter) return false
+      return true
+    })
+
+    filtered.forEach((ev) => {
+      const day = ev.startDate || 'sense-data'
+      if (!grouped[day]) grouped[day] = []
+      grouped[day].push(ev)
+    })
+
+    return grouped
+  }, [flat, lnFilter, commercialFilter])
+
+  const openFiltersPanel = () => {
+    setContent(
+      <div className="p-4 space-y-3">
+        <div className="space-y-1">
+          <label className="text-sm text-gray-700">Línia de negoci</label>
+          <select
+            className="w-full border rounded-md px-3 py-2 text-sm bg-white"
+            value={lnFilter}
+            onChange={(e) => setLnFilter(e.target.value)}
+          >
+            <option value="__all__">Totes</option>
+            {lnOptions.map((o) => (
+              <option key={o} value={o}>
+                {o}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-sm text-gray-700">Comercial</label>
+          <select
+            className="w-full border rounded-md px-3 py-2 text-sm bg-white"
+            value={commercialFilter}
+            onChange={(e) => setCommercialFilter(e.target.value)}
+          >
+            <option value="__all__">Tots</option>
+            {commercialOptions.map((o) => (
+              <option key={o} value={o}>
+                {o}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <Button
+          variant="outline"
+          className="w-full"
+          onClick={() => {
+            setLnFilter('__all__')
+            setCommercialFilter('__all__')
+            setOpen(false)
+          }}
+        >
+          Neteja filtres
+        </Button>
+      </div>
+    )
+    setOpen(true)
+  }
 
   if (status === 'loading') {
     return (
@@ -83,6 +167,7 @@ export default function PissarraPage() {
                 }
               }}
             />
+            <FilterButton onClick={openFiltersPanel} />
             <div className="flex gap-2">
               <Button
                 size="sm"
@@ -119,7 +204,7 @@ export default function PissarraPage() {
         {!loading && !error && (
           <PissarraList
             key={`${week.startISO}-${mode}`}
-            dataByDay={dataByDay}
+            dataByDay={filteredDataByDay}
             canEdit={canEdit}
             onUpdate={updateField}
             weekStart={new Date(week.startISO)}

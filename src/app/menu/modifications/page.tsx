@@ -49,7 +49,14 @@ export default function ModificationsPage() {
     commercial: 'all',
   })
 
-  const { modifications, loading, error, updateModification, refetch } = useModifications(filters)
+  const {
+    modifications,
+    loading,
+    error,
+    updateModification,
+    deleteModification,
+    refetch,
+  } = useModifications(filters)
   const { events } = useEvents(
     filters.department || 'all',
     filters.from || initialWeek.from,
@@ -237,6 +244,10 @@ export default function ModificationsPage() {
         <ModificationsTable
           modifications={modifications}
           onUpdate={updateModification}
+          onDelete={deleteModification}
+          currentUserId={(session?.user as any)?.id}
+          currentUserName={(session?.user as any)?.name || (session?.user as any)?.email}
+          currentUserEmail={(session?.user as any)?.email}
         />
       )}
 

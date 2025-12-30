@@ -10,31 +10,61 @@ import { cn } from '@/lib/utils'
 interface Props {
   mod: Modification
   onUpdate: (id: string, data: Partial<Modification>) => Promise<any> | void
+  onDelete: (id: string) => Promise<any> | void
+  currentUserId?: string
+  currentUserName?: string
+  currentUserEmail?: string
 }
 
-export default function ModificationsRow({ mod, onUpdate }: Props) {
+export default function ModificationsRow({
+  mod,
+  onUpdate,
+  onDelete,
+  currentUserEmail,
+  currentUserId,
+  currentUserName,
+}: Props) {
   const [isEditing, setIsEditing] = useState(false)
   const [draftDesc, setDraftDesc] = useState(mod.description || '')
 
+  const norm = (v?: string | null) => (v || '').toLowerCase().trim()
+  const matchesOwner = (a?: string | null, b?: string | null) =>
+    Boolean(a && b && norm(a) === norm(b))
+
+  const canEdit =
+    matchesOwner(mod.createdById, currentUserId) ||
+    matchesOwner(mod.createdByEmail, currentUserEmail) ||
+    matchesOwner(mod.createdBy, currentUserName) ||
+    matchesOwner(mod.createdBy, currentUserEmail)
+
   const save = async () => {
+    if (!canEdit) return
     await onUpdate(mod.id, { description: draftDesc })
     setIsEditing(false)
+  }
+
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!canEdit) return
+    const ok = window.confirm('Eliminar aquesta modificació?')
+    if (!ok) return
+    await onDelete(mod.id)
   }
 
   return (
     <tr
       className="border-b last:border-0 hover:bg-slate-50"
       onClick={() => {
-        if (!isEditing) setIsEditing(true)
+        if (canEdit && !isEditing) setIsEditing(true)
       }}
     >
       <td className="p-2">
         <span className="text-[11px] font-mono tracking-tight block max-w-[90px] truncate">
-          {mod.modificationNumber || '—'}
+          {mod.modificationNumber || '-'}
         </span>
       </td>
-      <td className="p-2 truncate text-blue-700 font-medium">{mod.createdBy || '—'}</td>
-      <td className="p-2 truncate">{mod.department || '—'}</td>
+      <td className="p-2 truncate text-blue-700 font-medium">{mod.createdBy || '-'}</td>
+      <td className="p-2 truncate">{mod.department || '-'}</td>
       <td className="p-2">
         <Badge
           className={cn(
@@ -48,7 +78,7 @@ export default function ModificationsRow({ mod, onUpdate }: Props) {
         </Badge>
       </td>
       <td className="p-2 truncate">
-        {isEditing ? (
+        {isEditing && canEdit ? (
           <Input
             value={draftDesc}
             onChange={(e) => setDraftDesc(e.target.value)}
@@ -61,14 +91,53 @@ export default function ModificationsRow({ mod, onUpdate }: Props) {
             }}
           />
         ) : (
-          mod.description || '—'
+          mod.description || '-'
         )}
       </td>
-      <td className="p-2 text-xs text-slate-600">
+      <td className="p-2 text-xs text-slate-600 whitespace-nowrap">
         {(() => {
           const d = new Date(mod.createdAt || '')
-          return isNaN(d.getTime()) ? '—' : d.toLocaleString('ca-ES')
+          return isNaN(d.getTime()) ? '-' : d.toLocaleString('ca-ES')
         })()}
+      </td>
+      <td className="p-2 text-right">
+        {canEdit && (
+          <div className="flex justify-end gap-2">
+            {isEditing ? (
+              <>
+                <button
+                  type="button"
+                  className="text-xs px-2 py-1 rounded border border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    save()
+                  }}
+                >
+                  Desa
+                </button>
+                <button
+                  type="button"
+                  className="text-xs px-2 py-1 rounded border border-gray-200 text-gray-700 hover:bg-gray-100"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setIsEditing(false)
+                    setDraftDesc(mod.description || '')
+                  }}
+                >
+                  Cancel·la
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                className="text-xs px-2 py-1 rounded border border-rose-200 text-rose-700 hover:bg-rose-50"
+                onClick={handleDelete}
+              >
+                Elimina
+              </button>
+            )}
+          </div>
+        )}
       </td>
     </tr>
   )

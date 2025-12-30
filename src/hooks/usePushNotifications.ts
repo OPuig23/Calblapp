@@ -44,9 +44,13 @@ export function usePushNotifications() {
       if (!('serviceWorker' in navigator)) throw new Error('No SW disponible')
 
       const registration = await navigator.serviceWorker.getRegistration()
-      if (!registration) {
-        throw new Error('Notificacions push desactivades (service worker no registrat)')
-      }
+
+if (!registration || !registration.pushManager) {
+  throw new Error(
+    'Les notificacions encara no estan disponibles en aquest dispositiu'
+  )
+}
+
 
       // Fem servir la VAPID pÇ§blica correcta en producciÇü
       const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
@@ -75,7 +79,8 @@ export function usePushNotifications() {
       }
       return true
     } catch (err: any) {
-      setError(String(err))
+      setError(err?.message || 'Error activant notificacions')
+
       return false
     }
   }

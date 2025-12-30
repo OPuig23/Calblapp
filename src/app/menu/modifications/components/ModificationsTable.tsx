@@ -8,9 +8,20 @@ import ModificationsEventGroup from './ModificationsEventGroup'
 interface Props {
   modifications: Modification[]
   onUpdate: (id: string, data: Partial<Modification>) => Promise<any> | void
+  onDelete: (id: string) => Promise<any> | void
+  currentUserId?: string
+  currentUserName?: string
+  currentUserEmail?: string
 }
 
-export default function ModificationsTable({ modifications, onUpdate }: Props) {
+export default function ModificationsTable({
+  modifications,
+  onUpdate,
+  onDelete,
+  currentUserId,
+  currentUserName,
+  currentUserEmail,
+}: Props) {
   // Agrupació per dia -> esdeveniment
   const days = modifications.reduce((acc: any, mod) => {
     const day = (mod.eventDate || mod.createdAt || '').slice(0, 10)
@@ -48,6 +59,10 @@ export default function ModificationsTable({ modifications, onUpdate }: Props) {
               key={i}
               event={event}
               onUpdate={onUpdate}
+              onDelete={onDelete}
+              currentUserId={currentUserId}
+              currentUserName={currentUserName}
+              currentUserEmail={currentUserEmail}
             />
           ))}
         </div>

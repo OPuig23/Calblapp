@@ -2,7 +2,6 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { Filter } from 'lucide-react'
 import SmartFilters, { type SmartFiltersChange } from '@/components/filters/SmartFilters'
 
 export type Filters = {
@@ -40,7 +39,7 @@ export function FiltersBar({
     start: value.start,
     end: value.end,
   })
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(!collapsible)
 
   const update = (partial: Partial<Filters>) => {
     const next = { ...value, ...partial }
@@ -57,37 +56,50 @@ export function FiltersBar({
 
   const panelClass = collapsible
     ? `${open ? 'block' : 'hidden'} sm:block`
-    : ''
+    : 'block'
 
   return (
     <div className="bg-white border rounded-xl p-4 space-y-3">
-      {collapsible && (
-        <button
-          type="button"
-          onClick={() => setOpen(o => !o)}
-          className="flex items-center gap-2 text-sm font-semibold text-gray-700 sm:hidden"
-        >
-          <Filter className="w-4 h-4" />
-          {open ? 'Amaga filtres' : 'Mostra filtres'}
-        </button>
-      )}
+      <div className="flex items-start gap-2">
+        <div className="flex-1 min-w-0">
+          <SmartFilters
+            role="admin"
+            onChange={handleDates}
+            showDepartment={false}
+            showCommercial={false}
+            showWorker={false}
+            showLocation={false}
+            showStatus={false}
+            showImportance={false}
+            showAdvanced={false}
+            compact
+            initialStart={initialStartRef.current}
+            initialEnd={initialEndRef.current}
+          />
+        </div>
+
+        {collapsible && (
+          <button
+            type="button"
+            onClick={() => setOpen(o => !o)}
+            className="sm:hidden h-10 w-10 flex items-center justify-center rounded-xl border border-gray-300 bg-white hover:bg-gray-100 shrink-0"
+            title={open ? 'Amaga filtres' : 'Mostra filtres'}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-5 w-5 text-gray-700"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 4h18M6 12h12M10 20h4" />
+            </svg>
+          </button>
+        )}
+      </div>
 
       <div className={panelClass}>
-        <SmartFilters
-          role="admin"
-          onChange={handleDates}
-          showDepartment={false}
-          showCommercial={false}
-          showWorker={false}
-          showLocation={false}
-          showStatus={false}
-          showImportance={false}
-          showAdvanced={false}
-          compact
-          initialStart={initialStartRef.current}
-          initialEnd={initialEndRef.current}
-        />
-
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-3 md:mt-4">
           <div>
             <label className="text-xs font-semibold text-gray-500">Departament</label>
