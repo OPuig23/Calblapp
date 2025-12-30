@@ -29,23 +29,23 @@ export default function EventsDayGroup({ date, events, onEventClick }: Props) {
   const totalEvents = events.length
 
   return (
-    <section className="mb-6">
-      <header className="mb-3 flex flex-col gap-2 rounded-xl bg-blue-50 p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="flex flex-wrap items-center gap-2 text-base font-semibold text-gray-800">
+    <section className="mb-4">
+      <header className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-blue-100 bg-blue-50/70 px-3 py-2 shadow-sm">
+        <h2 className="flex flex-wrap items-center gap-2 text-sm font-semibold leading-tight text-gray-800">
           {format(parseISO(date), 'dd/MM/yyyy', { locale: ca })}
-          <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-sm font-medium text-purple-700">
+          <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-[3px] text-xs font-semibold text-purple-700">
             <Calendar className="h-3 w-3" />
             {totalEvents} esdeveniments
           </span>
         </h2>
 
-        <span className="flex items-center gap-1 text-sm font-bold text-pink-600 sm:text-base">
+        <span className="flex items-center gap-1 text-xs font-semibold text-pink-600 sm:text-sm">
           <Users className="h-4 w-4" />
           {totalPax} pax
         </span>
       </header>
 
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-2.5">
         {events.map(event => (
           <div
             key={event.id}

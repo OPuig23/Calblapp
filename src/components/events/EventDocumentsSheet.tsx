@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import React, { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -70,12 +70,21 @@ export default function EventDocumentsSheet({
 
   if (!open) return null
 
-  // En PWA standalone alguns navegadors ignoren target="_blank" i obren sobre la mateixa vista.
-  // Només forcem window.open en aquest cas; en navegador normal deixem el comportament nadiu.
+  // En mobil/PWA target="_blank" pot obrir sobre la mateixa vista.
+  // Forcem window.open per pantalles estretes o mode standalone.
+  const [isNarrow, setIsNarrow] = useState(false)
+  useEffect(() => {
+    const update = () => setIsNarrow(window.innerWidth < 900)
+    update()
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
+  }, [])
+
   const isStandalone =
     typeof window !== 'undefined' &&
     (window.matchMedia('(display-mode: standalone)').matches ||
       (window.navigator as any).standalone === true)
+  const forceWindowOpen = isStandalone || isNarrow
 
   const handleOpenDoc = (url: string) => {
     if (typeof window === 'undefined') return
@@ -83,6 +92,7 @@ export default function EventDocumentsSheet({
     if (!newWin) {
       window.location.href = url
     }
+    if (forceWindowOpen) onOpenChange(false)
   }
 
   const kindLabel = (d: EventDoc) => {
@@ -174,7 +184,7 @@ export default function EventDocumentsSheet({
                 <a
                   href={d.url}
                   onClick={
-                    isStandalone
+                    forceWindowOpen
                       ? (e) => {
                           e.preventDefault()
                           handleOpenDoc(d.url)
@@ -195,3 +205,5 @@ export default function EventDocumentsSheet({
     </Portal>
   )
 }
+
+

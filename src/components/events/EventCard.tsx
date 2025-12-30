@@ -60,34 +60,49 @@ export default function EventCard({ event, onOpenMenu, onOpenAvisos }: Props) {
   return (
     <Card
       onClick={onOpenMenu}
-      className="flex w-full flex-col gap-1.5 cursor-pointer rounded-xl bg-white p-2.5 sm:p-3 shadow-sm transition hover:shadow-md"
+      className="flex w-full cursor-pointer flex-col gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2.5 shadow-sm transition hover:shadow-md sm:py-3"
     >
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-        <div className="flex min-w-0 flex-col flex-1">
-          <h3
-            className="line-clamp-1 sm:line-clamp-2 text-sm font-semibold leading-snug text-gray-900"
-            title={displaySummary}
-          >
-            {displaySummary}
-          </h3>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1 space-y-1">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <h3
+              className="line-clamp-1 text-[13px] font-semibold leading-snug text-gray-900"
+              title={displaySummary}
+            >
+              {displaySummary}
+            </h3>
 
-         <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px]">
             {ln && (
-              <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${lnColor}`}>
+              <span className={`rounded-full px-2 py-[3px] text-[10px] font-semibold ${lnColor}`}>
                 {ln.charAt(0).toUpperCase() + ln.slice(1)}
               </span>
             )}
+          </div>
 
+          <div className="flex flex-wrap items-center gap-2 text-[11px] text-gray-600">
             {event.eventCode && (
-              <span className="flex items-center gap-1 text-[11px] text-gray-500">
+              <span className="flex items-center gap-1">
                 <Tag className="h-3 w-3 text-gray-400" />
                 {event.eventCode}
               </span>
             )}
+
+            {mapsUrl && (
+              <a
+                href={mapsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="flex items-center gap-1 text-[11px] text-gray-600 underline-offset-2 hover:text-blue-600 hover:underline"
+              >
+                <MapPin className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">{location}</span>
+              </a>
+            )}
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-1.5">
+        <div className="flex shrink-0 items-center gap-1.5 pl-1">
           <button
             type="button"
             aria-label="Obrir avisos de produccio"
@@ -96,33 +111,17 @@ export default function EventCard({ event, onOpenMenu, onOpenAvisos }: Props) {
               onOpenAvisos()
             }}
           >
-            <Info
-              className={hasAviso ? 'h-4 w-4 text-blue-600' : 'h-4 w-4 text-gray-300'}
-            />
+            <Info className={hasAviso ? 'h-4 w-4 text-blue-600' : 'h-4 w-4 text-gray-300'} />
           </button>
 
           {event.pax && (
-           <span className="flex items-center gap-1 rounded-full bg-pink-100 px-1.5 py-0.5 text-[11px] font-bold text-pink-700">
+            <span className="flex items-center gap-1 rounded-full border border-pink-100 bg-pink-50 px-2 py-[3px] text-[11px] font-semibold text-pink-700">
               <Users className="h-3 w-3" />
               {Number(event.pax)}
             </span>
           )}
         </div>
       </div>
-
-      {mapsUrl && (
-        <a
-          href={mapsUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          className="flex items-center gap-1 text-[11px] sm:text-[12px] text-gray-500 hover:text-blue-600"
-
-        >
-          <MapPin className="h-3.5 w-3.5 shrink-0" />
-          <span className="truncate">{location}</span>
-        </a>
-      )}
     </Card>
   )
 }

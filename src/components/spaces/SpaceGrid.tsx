@@ -1,4 +1,4 @@
-// ✅ file: src/components/spaces/SpaceGrid.tsx
+﻿// âœ… file: src/components/spaces/SpaceGrid.tsx
 'use client'
 
 import { useState } from 'react'
@@ -9,9 +9,9 @@ import type { SpaceRow } from '@/services/spaces/spaces'
 import SpaceEventModal from '@/components/spaces/SpaceEventModal'
 
 /**
- * 🔁 Adapter
- * - Només per pintar la cel·la (SpaceCell)
- * - NO s’utilitza per passar dades al modal
+ * ðŸ” Adapter
+ * - NomÃ©s per pintar la celÂ·la (SpaceCell)
+ * - NO sâ€™utilitza per passar dades al modal
  */
 function adaptEventForCell(ev: any) {
   return {
@@ -29,20 +29,38 @@ interface SpaceGridProps {
 }
 
 /**
- * 🔹 SpaceGrid
+ * ðŸ”¹ SpaceGrid
  * Taula setmanal d'espais amb targetes clicables.
- * El modal rep SEMPRE l’event original (sense perdre camps).
+ * El modal rep SEMPRE lâ€™event original (sense perdre camps).
  */
 export default function SpaceGrid({ data, totals = [], baseDate }: SpaceGridProps) {
   const [selectedEvent, setSelectedEvent] = useState<any | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
+
+  const handleEventClick = (ev: any) => {
+    if (typeof window !== 'undefined') {
+      const isMobile = window.innerWidth < 768
+      const targetCode = ev?.code || ev?.Code || ev?.id
+
+      // En mÃ²bil obrim en una finestra nova per no tapar la graella
+      if (isMobile && targetCode) {
+        const url = `/menu/events/${targetCode}`
+        window.open(url, '_blank', 'noopener,noreferrer')
+        return
+      }
+    }
+
+    // Desktop o sense identificador: modal in-place
+    setSelectedEvent(ev)
+    setModalOpen(true)
+  }
 
   const start = startOfWeek(baseDate ? new Date(baseDate) : new Date(), {
     weekStartsOn: 1,
   })
   const days = Array.from({ length: 7 }, (_, i) => addDays(start, i))
 
-  // 🔎 Logs de diagnòstic (dev only)
+  // ðŸ”Ž Logs de diagnÃ²stic (dev only)
   if (process.env.NODE_ENV === 'development') {
     try {
       const totalEvents = data.reduce(
@@ -55,7 +73,7 @@ export default function SpaceGrid({ data, totals = [], baseDate }: SpaceGridProp
         0
       )
       console.info(
-        '🧩 [SpaceGrid] Finques:',
+        'ðŸ§© [SpaceGrid] Finques:',
         data.length,
         '| Events totals:',
         totalEvents
@@ -114,9 +132,9 @@ export default function SpaceGrid({ data, totals = [], baseDate }: SpaceGridProp
                           : 'text-green-700'
                       }`}
                     >
-                      <span>👤 {totalPaxVerd} pax</span>
-                      <span className="opacity-40">·</span>
-                      <span>📅 {totalEventsVerd} events</span>
+                      <span>ðŸ‘¤ {totalPaxVerd} pax</span>
+                      <span className="opacity-40">Â·</span>
+                      <span>ðŸ“… {totalEventsVerd} events</span>
                     </div>
                   </div>
                 </th>
@@ -153,7 +171,7 @@ export default function SpaceGrid({ data, totals = [], baseDate }: SpaceGridProp
                   )}
                 </td>
 
-                {/* CEL·LES */}
+                {/* CELÂ·LES */}
                 {(row.dies ?? []).map((cell, cIdx) => (
                   <td key={`cell-${rIdx}-${cIdx}`} className="p-1 space-y-1">
                     {(cell?.events ?? []).map((ev: any, eIdx: number) => {
@@ -163,12 +181,7 @@ export default function SpaceGrid({ data, totals = [], baseDate }: SpaceGridProp
                         <div
                           key={`${row.finca}-${cIdx}-${eIdx}`}
                           className="cursor-pointer"
-                          onClick={() => {
-                            // 🔴 AQUÍ ÉS LA CLAU:
-                            // passem l’event ORIGINAL, sense adaptar
-                            setSelectedEvent(ev)
-                            setModalOpen(true)
-                          }}
+                          onClick={() => handleEventClick(ev)}
                         >
                           <SpaceCell
                             event={{

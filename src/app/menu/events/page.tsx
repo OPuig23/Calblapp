@@ -181,7 +181,7 @@ export default function EventsPage() {
   )
 
   return (
-    <div className="space-y-6 px-4 pb-8">
+    <div className="space-y-5 px-4 pb-8">
       <ModuleHeader
         icon={<CalendarDays className="h-6 w-6 text-indigo-600" />}
         title="Esdeveniments"
@@ -209,7 +209,7 @@ export default function EventsPage() {
         )}
 
         {!loading && !error && filteredEvents.length > 0 && (
-          <div className="space-y-6">
+          <div className="space-y-4">
             {Object.entries(grouped)
               .sort(([a], [b]) => a.localeCompare(b))
               .map(([day, evs]) => (

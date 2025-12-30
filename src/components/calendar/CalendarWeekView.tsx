@@ -11,6 +11,8 @@ import { colorByLN } from '@/lib/colors'
 
 const VISIBLE_LANES_DESKTOP = 6
 const VISIBLE_LANES_MOBILE = 4
+const BREAKPOINT_TABLET = 1024
+const BREAKPOINT_MOBILE = 640
 
 const diffDays = (a: Date, b: Date) =>
   Math.floor((a.getTime() - b.getTime()) / (24 * 60 * 60 * 1000))
@@ -48,26 +50,32 @@ export default function CalendarWeekView({
   start?: string
   onCreated?: () => void
 }) {
-  const [isMobile, setIsMobile] = useState(false)
+  const [layout, setLayout] = useState<'mobile' | 'tablet' | 'desktop'>('desktop')
 
   useEffect(() => {
-    const update = () => setIsMobile(window.innerWidth < 768)
+    const update = () => {
+      const w = window.innerWidth
+      if (w < BREAKPOINT_MOBILE) return setLayout('mobile')
+      if (w < BREAKPOINT_TABLET) return setLayout('tablet')
+      return setLayout('desktop')
+    }
     update()
     window.addEventListener('resize', update)
     return () => window.removeEventListener('resize', update)
   }, [])
 
   const weekDays = useMemo(() => {
-  const base = start ? parseISO(start) : new Date()
-  const daysCount = isMobile ? 3 : 7
-  return Array.from({ length: daysCount }, (_, i) => addDays(base, i))
-}, [start, isMobile])
+    const base = start ? parseISO(start) : new Date()
+    const daysCount = layout === 'mobile' ? 3 : layout === 'tablet' ? 5 : 7
+    return Array.from({ length: daysCount }, (_, i) => addDays(base, i))
+  }, [start, layout])
 
 
   const spans = useMemo(() => {
     if (!weekDays.length) return [] as Span[]
     const weekStart = weekDays[0]
     const spans: Span[] = []
+    const lastDayIdx = weekDays.length - 1
 
     deals.forEach((ev) => {
       const sIso = pickDateIso(ev, ['DataInici', 'Data'])
@@ -77,8 +85,8 @@ export default function CalendarWeekView({
       const sDate = parseISO(sIso)
       const eDate = parseISO(eIso)
       const startIdx = Math.max(0, diffDays(sDate, weekStart))
-      const endIdx = Math.min(6, diffDays(eDate, weekStart))
-      if (endIdx < 0 || startIdx > 6) return
+      const endIdx = Math.min(lastDayIdx, diffDays(eDate, weekStart))
+      if (endIdx < 0 || startIdx > lastDayIdx) return
 
       spans.push({
         ev,
@@ -103,12 +111,18 @@ export default function CalendarWeekView({
 
   const maxLane = spans.reduce((m, s) => Math.max(m, s.lane), -1)
   const laneCount = maxLane + 1
-  const laneLimit = isMobile ? VISIBLE_LANES_MOBILE : VISIBLE_LANES_DESKTOP
+  const laneLimit = layout === 'mobile' ? VISIBLE_LANES_MOBILE : VISIBLE_LANES_DESKTOP
   const visibleLaneCount = Math.min(laneLimit, laneCount)
   const visibleSpans = spans.filter((s) => s.lane < visibleLaneCount)
 
-  const minHeight = Math.max(260, visibleLaneCount * 48 + 120)
-  const minColWidth = isMobile ? 110 : 160
+  const baseHeight =
+    layout === 'mobile' ? 200 : layout === 'tablet' ? 230 : 260
+  const rowHeight =
+    layout === 'mobile' ? 36 : layout === 'tablet' ? 42 : 48
+  const paddingExtra = layout === 'mobile' ? 60 : layout === 'tablet' ? 90 : 120
+  const minHeight = Math.max(baseHeight, visibleLaneCount * rowHeight + paddingExtra)
+  const minColWidth =
+    layout === 'mobile' ? 140 : layout === 'tablet' ? 155 : 170
 
 
   const weekCells = weekDays.map((d) => ({
@@ -119,14 +133,13 @@ export default function CalendarWeekView({
   return (
     <div className="w-full overflow-x-auto pb-2">
       <div
-  className="relative overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm min-w-full sm:min-w-0"
-
+        className="relative min-w-full overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm sm:min-w-0"
         style={{ minHeight }}
       >
         {/* Header */}
         <div
-          className="grid grid-cols-7 border-b bg-slate-50 text-[10px] text-gray-600 sm:text-xs"
-          style={{ gridTemplateColumns: `repeat(7, minmax(${minColWidth}px, 1fr))` }}
+          className="grid border-b bg-slate-50 text-[10px] text-gray-600 sm:text-xs"
+          style={{ gridTemplateColumns: `repeat(${weekDays.length}, minmax(${minColWidth}px, 1fr))` }}
         >
           {weekDays.map((d) => (
             <div key={d.toISOString()} className="py-1 text-center font-medium sm:py-2">
@@ -137,20 +150,25 @@ export default function CalendarWeekView({
 
         {/* Cells + events */}
         <div
-          className="relative grid grid-cols-7 bg-gray-50"
-          style={{ gridTemplateColumns: `repeat(7, minmax(${minColWidth}px, 1fr))` }}
+          className="relative grid bg-gray-50"
+          style={{ gridTemplateColumns: `repeat(${weekDays.length}, minmax(${minColWidth}px, 1fr))` }}
         >
           {weekCells.map((c) => (
             <div
               key={c.iso}
-              className="relative min-h-[180px] border-r bg-white"
+              className="relative border-r bg-white"
               style={{ minHeight }}
             />
           ))}
 
           <div
-            className="pointer-events-none absolute inset-0 grid grid-cols-7 gap-2 px-2 pb-2 pt-6"
-            style={{ gridAutoRows: 'minmax(28px, auto)' }}
+            className={`pointer-events-none absolute inset-0 grid ${
+              layout === 'mobile' ? 'gap-1.5 px-1.5 pb-2 pt-4' : 'gap-2 px-2 pb-2 pt-6'
+            }`}
+            style={{
+              gridTemplateColumns: `repeat(${weekDays.length}, minmax(${minColWidth}px, 1fr))`,
+              gridAutoRows: layout === 'mobile' ? 'minmax(32px, auto)' : 'minmax(38px, auto)',
+            }}
           >
             {visibleSpans.map((span, idx) => {
               const isSingleDay = span.startIdx === span.endIdx
