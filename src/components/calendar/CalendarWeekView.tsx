@@ -66,9 +66,8 @@ export default function CalendarWeekView({
 
   const weekDays = useMemo(() => {
     const base = start ? parseISO(start) : new Date()
-    const daysCount = layout === 'mobile' ? 3 : layout === 'tablet' ? 5 : 7
-    return Array.from({ length: daysCount }, (_, i) => addDays(base, i))
-  }, [start, layout])
+    return Array.from({ length: 7 }, (_, i) => addDays(base, i))
+  }, [start])
 
 
   const spans = useMemo(() => {
@@ -122,7 +121,7 @@ export default function CalendarWeekView({
   const paddingExtra = layout === 'mobile' ? 60 : layout === 'tablet' ? 90 : 120
   const minHeight = Math.max(baseHeight, visibleLaneCount * rowHeight + paddingExtra)
   const minColWidth =
-    layout === 'mobile' ? 140 : layout === 'tablet' ? 155 : 170
+    layout === 'mobile' ? 120 : layout === 'tablet' ? 150 : 170
 
 
   const weekCells = weekDays.map((d) => ({

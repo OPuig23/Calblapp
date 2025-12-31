@@ -89,22 +89,16 @@ export default function EventDocumentsSheet({
   const handleOpenDoc = (url: string) => {
     if (typeof window === 'undefined' || typeof document === 'undefined') return
 
-    // Open in a dedicated tab/window without replacing the current view.
-    const newWin = window.open('', '_blank', 'noopener,noreferrer')
-    if (newWin) {
-      newWin.opener = null
-      newWin.location.href = url
-    } else {
-      const a = document.createElement('a')
-      a.href = url
-      a.target = '_blank'
-      a.rel = 'noopener noreferrer'
-      a.style.position = 'absolute'
-      a.style.left = '-9999px'
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-    }
+    // Always drive a real _blank anchor click to avoid reusing the current tab (Android/PWA friendly).
+    const a = document.createElement('a')
+    a.href = url
+    a.target = '_blank'
+    a.rel = 'noopener noreferrer'
+    a.style.position = 'absolute'
+    a.style.left = '-9999px'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
 
     if (forceWindowOpen) onOpenChange(false)
   }

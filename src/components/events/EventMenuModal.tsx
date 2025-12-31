@@ -266,11 +266,18 @@ const treballadorsPersons =
     isDireccio ||
     (isCapDept && !deptNoBudget.has(deptN) && DEPT_TO_LN[deptN] === lnKey)
 
+  // Producció ha de veure/crear modificacions sempre; altres dep. només si són caps o admins/direcció
   const canSeeModifications =
-    isAdmin || isDireccio || (isCapDept && ['logistica', 'cuina', 'produccio'].includes(norm(deptN)))
+    isAdmin ||
+    isDireccio ||
+    isProduccio ||
+    (isCapDept && ['logistica', 'cuina'].includes(norm(deptN)))
 
   const canCreateModification =
-    isAdmin || isDireccio || (isCapDept && ['logistica', 'cuina', 'produccio'].includes(norm(deptN)))
+    isAdmin ||
+    isDireccio ||
+    isProduccio ||
+    (isCapDept && ['logistica', 'cuina'].includes(norm(deptN)))
 
   const navigateTo = (path: string) => {
     onClose()
