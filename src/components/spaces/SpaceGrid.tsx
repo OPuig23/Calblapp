@@ -37,6 +37,25 @@ export default function SpaceGrid({ data, totals = [], baseDate }: SpaceGridProp
   const [selectedEvent, setSelectedEvent] = useState<any | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
 
+  const openInNewTab = (url: string) => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return
+    const win = window.open('', '_blank', 'noopener,noreferrer')
+    if (win) {
+      win.opener = null
+      win.location.href = url
+    } else {
+      const a = document.createElement('a')
+      a.href = url
+      a.target = '_blank'
+      a.rel = 'noopener noreferrer'
+      a.style.position = 'absolute'
+      a.style.left = '-9999px'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+    }
+  }
+
   const handleEventClick = (ev: any) => {
     if (typeof window !== 'undefined') {
       const isMobile = window.innerWidth < 768
@@ -156,12 +175,13 @@ export default function SpaceGrid({ data, totals = [], baseDate }: SpaceGridProp
                       rel="noopener noreferrer"
                       className="hover:underline text-left"
                       onClick={(e) => {
+                        e.preventDefault()
                         e.stopPropagation()
                         const url = new URL(
                           `/menu/spaces/info/${row.fincaId}?readonly=1`,
                           window.location.origin
                         ).toString()
-                        window.open(url, '_blank', 'noopener,noreferrer')
+                        openInNewTab(url)
                       }}
                     >
                       {row.finca}

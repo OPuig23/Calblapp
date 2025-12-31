@@ -87,11 +87,25 @@ export default function EventDocumentsSheet({
   const forceWindowOpen = isStandalone || isNarrow
 
   const handleOpenDoc = (url: string) => {
-    if (typeof window === 'undefined') return
-    const newWin = window.open(url, '_blank', 'noopener,noreferrer')
-    if (!newWin) {
-      window.location.href = url
+    if (typeof window === 'undefined' || typeof document === 'undefined') return
+
+    // Open in a dedicated tab/window without replacing the current view.
+    const newWin = window.open('', '_blank', 'noopener,noreferrer')
+    if (newWin) {
+      newWin.opener = null
+      newWin.location.href = url
+    } else {
+      const a = document.createElement('a')
+      a.href = url
+      a.target = '_blank'
+      a.rel = 'noopener noreferrer'
+      a.style.position = 'absolute'
+      a.style.left = '-9999px'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
     }
+
     if (forceWindowOpen) onOpenChange(false)
   }
 
@@ -183,14 +197,10 @@ export default function EventDocumentsSheet({
                 {/* BOTÓ */}
                 <a
                   href={d.url}
-                  onClick={
-                    forceWindowOpen
-                      ? (e) => {
-                          e.preventDefault()
-                          handleOpenDoc(d.url)
-                        }
-                      : undefined
-                  }
+                  onClick={(e) => {
+                    e.preventDefault()
+                    handleOpenDoc(d.url)
+                  }}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-blue-600 text-sm font-semibold hover:underline"
