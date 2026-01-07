@@ -89,16 +89,25 @@ export default function EventDocumentsSheet({
   const handleOpenDoc = (url: string) => {
     if (typeof window === 'undefined' || typeof document === 'undefined') return
 
-    // Always drive a real _blank anchor click to avoid reusing the current tab (Android/PWA friendly).
-    const a = document.createElement('a')
-    a.href = url
-    a.target = '_blank'
-    a.rel = 'noopener noreferrer'
-    a.style.position = 'absolute'
-    a.style.left = '-9999px'
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
+    let opened = false
+    const win = window.open(url, '_blank', 'noopener,noreferrer')
+    if (win) {
+      win.opener = null
+      opened = true
+    }
+
+    if (!opened) {
+      // Fallback if the popup was blocked or reused the same view.
+      const a = document.createElement('a')
+      a.href = url
+      a.target = '_blank'
+      a.rel = 'noopener noreferrer'
+      a.style.position = 'absolute'
+      a.style.left = '-9999px'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+    }
 
     if (forceWindowOpen) onOpenChange(false)
   }

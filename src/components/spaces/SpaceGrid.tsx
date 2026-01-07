@@ -151,9 +151,9 @@ export default function SpaceGrid({ data, totals = [], baseDate }: SpaceGridProp
                           : 'text-green-700'
                       }`}
                     >
-                      <span>ðŸ‘¤ {totalPaxVerd} pax</span>
-                      <span className="opacity-40">Â·</span>
-                      <span>ðŸ“… {totalEventsVerd} events</span>
+                      <span>Pax: {totalPaxVerd}</span>
+                      <span className="opacity-40">|</span>
+                      <span>Events: {totalEventsVerd}</span>
                     </div>
                   </div>
                 </th>

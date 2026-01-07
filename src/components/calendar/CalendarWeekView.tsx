@@ -122,6 +122,7 @@ export default function CalendarWeekView({
   const minHeight = Math.max(baseHeight, visibleLaneCount * rowHeight + paddingExtra)
   const minColWidth =
     layout === 'mobile' ? 120 : layout === 'tablet' ? 150 : 170
+  const gridMinWidth = weekDays.length * minColWidth
 
 
   const weekCells = weekDays.map((d) => ({
@@ -132,8 +133,8 @@ export default function CalendarWeekView({
   return (
     <div className="w-full overflow-x-auto pb-2">
       <div
-        className="relative min-w-full overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm sm:min-w-0"
-        style={{ minHeight }}
+        className="relative min-w-full overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm"
+        style={{ minHeight, minWidth: gridMinWidth }}
       >
         {/* Header */}
         <div
@@ -181,7 +182,7 @@ export default function CalendarWeekView({
                     <div
                       onClick={(e) => e.stopPropagation()}
                       className={`
-                        pointer-events-auto whitespace-normal
+                        pointer-events-auto whitespace-normal min-w-0
                         ${isSingleDay ? 'px-2 py-[2px]' : 'px-2 py-[4px]'}
                         rounded-md border 
                         flex items-center gap-2

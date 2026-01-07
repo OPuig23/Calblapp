@@ -1,4 +1,4 @@
-// file: src/app/menu/spaces/reserves/page.tsx
+﻿// file: src/app/menu/spaces/reserves/page.tsx
 'use client'
 
 import { useState } from 'react'
@@ -15,7 +15,7 @@ import SpacesFilters from '@/components/spaces/SpacesFilters'
 export default function SpacesPage() {
 
   // -------------------------------
-  // 🔹 Estat de filtres
+  // ðŸ”¹ Estat de filtres
   // -------------------------------
   const [filters, setFilters] = useState({
     stage: 'all',
@@ -26,25 +26,25 @@ export default function SpacesPage() {
   })
 
   // -------------------------------
-  // 🔹 Carrega dades segons filtres
+  // ðŸ”¹ Carrega dades segons filtres
   // -------------------------------
 const {
   spaces,
   totals,
   fincas,
   comercials,
-  lns,        // ✅ AFEGIT
+  lns,        // âœ… AFEGIT
   loading
 } = useSpaces(filters)
 
 
   // -------------------------------
-  // 🔹 Control del panell de filtres
+  // ðŸ”¹ Control del panell de filtres
   // -------------------------------
   const { setOpen: openFilters, setContent: setFiltersContent } = useFilters()
 
   // -------------------------------
-  // 🔹 Canvi de setmana
+  // ðŸ”¹ Canvi de setmana
   // -------------------------------
   const shiftWeek = (direction: 'prev' | 'next') => {
     const base = new Date(filters.baseDate)
@@ -57,7 +57,7 @@ const {
   }
 
   // -------------------------------
-  // 🔹 Etiqueta setmana
+  // ðŸ”¹ Etiqueta setmana
   // -------------------------------
   const weekLabel = (() => {
     const base = new Date(filters.baseDate)
@@ -73,15 +73,15 @@ const {
         month: '2-digit'
       })
 
-    return `${f(monday)} — ${f(sunday)}`
+    return `${f(monday)} - ${f(sunday)}`
   })()
 
   // -------------------------------
-  // 🔹 Render
+  // ðŸ”¹ Render
   // -------------------------------
   return (
     <>
-      {/* Capçalera general */}
+      {/* CapÃ§alera general */}
       <ModuleHeader
         title="Espais / Reserves"
         subtitle="Disponibilitat setmanal de finques"
@@ -89,9 +89,9 @@ const {
 
       <section className="relative w-full h-full bg-white">
 
-        {/* ───────────────────────────────
-             📅 Controls de setmana + Filtres
-           ─────────────────────────────── */}
+        {/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+             ðŸ“… Controls de setmana + Filtres
+           â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <div className="flex items-center justify-between mt-4 mb-2 px-4">
 
           {/* Controls esquerra */}
@@ -100,7 +100,7 @@ const {
               onClick={() => shiftWeek('prev')}
               className="px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 text-sm"
             >
-              ◀
+              {'<'}
             </button>
 
             <span className="font-semibold text-gray-700 text-sm sm:text-base">
@@ -111,11 +111,11 @@ const {
               onClick={() => shiftWeek('next')}
               className="px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 text-sm"
             >
-              ▶
+              {'>'}
             </button>
           </div>
 
-          {/* Botó filtres */}
+          {/* BotÃ³ filtres */}
           <FilterButton
             onClick={() => {
               setFiltersContent(
@@ -136,9 +136,9 @@ const {
           />
         </div>
 
-        {/* ───────────────────────────────
-             ⏳ Loading
-           ─────────────────────────────── */}
+        {/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+             â³ Loading
+           â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         {loading && (
           <motion.div
             className="mt-10 flex flex-col gap-3 items-center"
@@ -151,9 +151,9 @@ const {
           </motion.div>
         )}
 
-        {/* ───────────────────────────────
-             🧩 Taula de dades
-           ─────────────────────────────── */}
+        {/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+             ðŸ§© Taula de dades
+           â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         {!loading && (
           <SpaceGrid
             data={spaces}
@@ -166,3 +166,4 @@ const {
     </>
   )
 }
+
