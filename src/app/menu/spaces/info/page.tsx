@@ -1,4 +1,5 @@
 // file: src/app/menu/spaces/info/page.tsx
+export const dynamic = 'force-dynamic'
 import ModuleHeader from '@/components/layout/ModuleHeader'
 import { firestoreAdmin } from '@/lib/firebaseAdmin'
 import SpacesInfoClient from './SpacesInfoClient'

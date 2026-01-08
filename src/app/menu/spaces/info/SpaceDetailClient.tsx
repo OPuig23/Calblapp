@@ -287,8 +287,8 @@ const handleDelete = async () => {
     if (onClose) {
       onClose()
     } else {
-      router.push('/menu/spaces/info')
-      router.refresh()
+      const ts = Date.now()
+      router.push(`/menu/spaces/info?refresh=${ts}`)
     }
   } catch (err) {
     console.error('Error eliminant espai:', err)
