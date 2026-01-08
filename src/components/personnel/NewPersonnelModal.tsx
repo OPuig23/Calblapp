@@ -59,6 +59,18 @@ export default function NewPersonnelModal({
   defaultDepartment = ''
 }: NewPersonnelModalProps) {
   const { mutateAsync, loading: isCreating, error } = useCreatePersonnel()
+  const today = new Date().toISOString().slice(0, 10)
+  const tomorrow = new Date()
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  const tomorrowIso = tomorrow.toISOString().slice(0, 10)
+  const computeMinUnavailableUntil = (from?: string) => {
+    const base = (from || today).trim()
+    const parsed = new Date(base)
+    if (Number.isNaN(parsed.getTime())) return tomorrowIso
+    parsed.setDate(parsed.getDate() + 1)
+    const baseIso = parsed.toISOString().slice(0, 10)
+    return baseIso > tomorrowIso ? baseIso : tomorrowIso
+  }
 
   const [autoId, setAutoId] = useState(true)
 
@@ -69,6 +81,9 @@ export default function NewPersonnelModal({
     department: defaultDepartment,
     driver: { isDriver: false, camioGran: false, camioPetit: false },
     available: true,
+    unavailableFrom: '',
+    unavailableUntil: '',
+    unavailableIndefinite: false,
     email: '',
     phone: '',
     maxHoursWeek: 40,
@@ -76,6 +91,7 @@ export default function NewPersonnelModal({
 
   const [nameError, setNameError] = useState(false)
   const [suggestions, setSuggestions] = useState<string[]>([])
+  const [availabilityError, setAvailabilityError] = useState<string | null>(null)
 
   // Reinici al obrir modal
   useEffect(() => {
@@ -88,12 +104,16 @@ export default function NewPersonnelModal({
         department: defaultDepartment,
         driver: { isDriver: false, camioGran: false, camioPetit: false },
         available: true,
+        unavailableFrom: '',
+        unavailableUntil: '',
+        unavailableIndefinite: false,
         email: '',
         phone: '',
         maxHoursWeek: 40,
       })
       setNameError(false)
       setSuggestions([])
+      setAvailabilityError(null)
     }
   }, [isOpen, defaultDepartment])
 
@@ -123,12 +143,46 @@ export default function NewPersonnelModal({
   }
 
   const handleChange = <K extends keyof NewPerson>(field: K, value: NewPerson[K]) => {
+    if (field === 'available' || field === 'unavailableUntil' || field === 'unavailableIndefinite') {
+      setAvailabilityError(null)
+    }
     setForm(prev => ({ ...prev, [field]: value }))
   }
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (nameError) return
+
+    const isUnavailable = form.available === false
+    const endDate = (form.unavailableUntil || '').trim()
+    if (isUnavailable && !form.unavailableIndefinite && !endDate) {
+      setAvailabilityError('Cal indicar una data o marcar indefinit.')
+      return
+    }
+    const minEndDate = computeMinUnavailableUntil(form.unavailableFrom || '')
+    if (
+      isUnavailable &&
+      !form.unavailableIndefinite &&
+      endDate &&
+      endDate < minEndDate
+    ) {
+      setAvailabilityError(`La data ha de ser com a minim ${minEndDate}.`)
+      return
+    }
+
+    const availabilityPayload = isUnavailable
+      ? {
+          unavailableFrom: (form.unavailableFrom || today).trim(),
+          unavailableUntil: form.unavailableIndefinite ? null : endDate,
+          unavailableIndefinite: form.unavailableIndefinite === true,
+          unavailableNotifiedFor: null,
+          unavailableNotifiedAt: null,
+        }
+      : {
+          unavailableFrom: null,
+          unavailableUntil: null,
+          unavailableIndefinite: false,
+        }
 
     const payload: NewPerson = {
       ...form,
@@ -138,6 +192,7 @@ export default function NewPersonnelModal({
       department: form.department.trim(),
       email: form.email.trim(),
       phone: form.phone.trim(),
+      ...availabilityPayload,
     }
 
     await mutateAsync(payload)
@@ -281,13 +336,73 @@ export default function NewPersonnelModal({
             <Label>Disponible</Label>
             <select
               value={form.available ? 'si' : 'no'}
-              onChange={e => handleChange('available', e.target.value === 'si')}
+              onChange={(e) => {
+                const isAvailable = e.target.value === 'si'
+                setAvailabilityError(null)
+                if (isAvailable) {
+                  setForm((prev) => ({
+                    ...prev,
+                    available: true,
+                    unavailableFrom: '',
+                    unavailableUntil: '',
+                    unavailableIndefinite: false,
+                  }))
+                  return
+                }
+                setForm((prev) => ({
+                  ...prev,
+                  available: false,
+                  unavailableFrom: prev.unavailableFrom || today,
+                }))
+              }}
               className="border rounded px-2 py-1 w-full"
             >
               <option value="si">Sí</option>
               <option value="no">No</option>
             </select>
           </div>
+
+          {!form.available && (
+            <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
+              <div className="text-xs text-gray-600">Indisponibilitat</div>
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={form.unavailableIndefinite ?? false}
+                  onChange={(e) => {
+                    const checked = e.target.checked
+                    setAvailabilityError(null)
+                    setForm((prev) => ({
+                      ...prev,
+                      unavailableIndefinite: checked,
+                      unavailableUntil: checked ? '' : prev.unavailableUntil,
+                    }))
+                  }}
+                />
+                Indefinit
+              </label>
+
+              <div>
+                <Label htmlFor="unavailableUntil">Fins a</Label>
+                <Input
+                  id="unavailableUntil"
+                  type="date"
+                  value={form.unavailableUntil || ''}
+                  onChange={(e) => handleChange('unavailableUntil', e.target.value as any)}
+                  disabled={form.unavailableIndefinite === true}
+                  min={computeMinUnavailableUntil(form.unavailableFrom || '')}
+                />
+              </div>
+
+              <p className="text-xs text-gray-500">
+                Des de: {form.unavailableFrom || today}
+              </p>
+
+              {availabilityError && (
+                <p className="text-xs text-red-600">{availabilityError}</p>
+              )}
+            </div>
+          )}
 
           {/* CONTACTE */}
           <div>

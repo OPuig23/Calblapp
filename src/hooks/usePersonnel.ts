@@ -20,6 +20,11 @@ export interface Personnel {
   email?:     string | null
   phone?:     string | null
   available?: boolean
+  unavailableFrom?: string | null
+  unavailableUntil?: string | null
+  unavailableIndefinite?: boolean
+  unavailableNotifiedFor?: string | null
+  unavailableNotifiedAt?: number | null
   hasUser: boolean
   requestStatus: 'none' | 'pending' | 'approved' | 'rejected'
 }
@@ -52,6 +57,11 @@ export function usePersonnel(department?: string) {
         ? body.data.map((p: Personnel) => ({
             ...p,
             available: p.available ?? true,
+            unavailableFrom: p.unavailableFrom ?? null,
+            unavailableUntil: p.unavailableUntil ?? null,
+            unavailableIndefinite: p.unavailableIndefinite ?? false,
+            unavailableNotifiedFor: p.unavailableNotifiedFor ?? null,
+            unavailableNotifiedAt: p.unavailableNotifiedAt ?? null,
           }))
         : []
 

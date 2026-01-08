@@ -147,17 +147,17 @@ export function canEditFinca(user?: AccessUser): boolean {
   if (!user) return false
 
   const role = normalizeRole(user.role)
- const dept = (user.department || '')
-  .normalize('NFD')
-  .replace(/\p{Diacritic}/gu, '')
-  .toLowerCase()
-  .trim()
+  const dept = (user.department || '')
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .trim()
 
+  if (role === 'admin' || role === 'direccio' || role === 'comercial') return true
+  if (dept === 'produccio') return true
 
   return (
-    role === 'admin' ||
-    role === 'direccio' ||
-    role === 'comercial' ||
-    dept === 'produccio'
+    role === 'cap' &&
+    (dept === 'empresa' || dept === 'casaments' || dept === 'foodlovers')
   )
 }

@@ -2,16 +2,31 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
 import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
+import { normalizeRole } from '@/lib/roles'
 
 export const runtime = 'nodejs'
 
 export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions)
-    const role = session?.user?.role?.toLowerCase() || ''
+    const role = normalizeRole(session?.user?.role)
+    const dept = ((session?.user as { departmentLower?: string; department?: string })?.departmentLower ||
+      (session?.user as { department?: string })?.department ||
+      '')
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '')
+      .toLowerCase()
+      .trim()
+    const canEdit =
+      role === 'admin' ||
+      role === 'direccio' ||
+      role === 'comercial' ||
+      dept === 'produccio' ||
+      (role === 'cap' &&
+        (dept === 'empresa' || dept === 'casaments' || dept === 'foodlovers'))
 
-    // NOMÉS Admin, Direcció o Caps poden editar espais
-    if (!['admin', 'direccio', 'cap'].includes(role)) {
+    // Permisos d'edició d'espais
+    if (!canEdit) {
       return NextResponse.json(
         { error: 'No tens permisos per editar espais.' },
         { status: 403 }

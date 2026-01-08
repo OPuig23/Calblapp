@@ -1,4 +1,4 @@
-// file: src/app/menu/reports/page.tsx
+﻿// file: src/app/menu/reports/page.tsx
 'use client'
 
 import { useState } from 'react'
@@ -19,7 +19,7 @@ const TABS = [
   { key: 'events', label: 'Events' },
   { key: 'financial', label: 'Financial' },
   { key: 'vehicles', label: 'Vehicles' },
-  { key: 'incidencies', label: 'IncidÇùncies' },
+  { key: 'incidencies', label: 'Incidències' },
   { key: 'modificacions', label: 'Modificacions' },
 ] as const
 

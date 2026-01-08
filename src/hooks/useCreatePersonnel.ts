@@ -14,6 +14,11 @@ export interface NewPerson {
     camioPetit: boolean
   }
   available: boolean
+  unavailableFrom?: string | null
+  unavailableUntil?: string | null
+  unavailableIndefinite?: boolean
+  unavailableNotifiedFor?: string | null
+  unavailableNotifiedAt?: number | null
   email: string
   phone: string
   maxHoursWeek: number

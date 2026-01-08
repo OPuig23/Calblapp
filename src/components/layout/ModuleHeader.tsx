@@ -76,11 +76,14 @@ export default function ModuleHeader({ title, subtitle, icon }: Props) {
               {/* SEPARADOR */}
               {subLabel && <span className="text-gray-500">/</span>}
 
-              {/* SUBMÒDUL (no clicable) */}
+              {/* SUBMÒDUL (clicable) */}
               {subLabel && (
-                <span className="text-gray-700">
+                <a
+                  href={`/menu/${module}/${submodule}`}
+                  className="text-gray-700 hover:underline"
+                >
                   {subLabel}
-                </span>
+                </a>
               )}
             </div>
 

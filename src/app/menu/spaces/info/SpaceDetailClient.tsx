@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import { useEffect } from 'react'
 import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
 import { canEditFinca } from '@/lib/accessControl'
 
 
@@ -57,6 +58,7 @@ export default function SpaceDetailClient({
   // ─────────────────────────────────────────────
   // 1) Estat local (còpia editable de la finca)
   // ─────────────────────────────────────────────
+  const router = useRouter()
   const { data: session } = useSession()
 
   const canEditRole = canEditFinca({
@@ -66,6 +68,7 @@ export default function SpaceDetailClient({
   const canEdit = !forceReadOnly && canEditRole
   const readOnly = !canEdit
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
@@ -261,6 +264,40 @@ const handleSave = async () => {
   }
 }
 
+const handleDelete = async () => {
+  if (!canEdit || deleting) return
+
+  const confirmDelete = window.confirm(
+    `Vols eliminar l'espai "${nom || espai.nom}"? Aquesta accio no es pot desfer.`
+  )
+  if (!confirmDelete) return
+
+  setError(null)
+  setSuccess(null)
+  setDeleting(true)
+
+  try {
+    const res = await fetch(`/api/spaces/${espai.id}`, { method: 'DELETE' })
+    const json = await res.json().catch(() => ({}))
+
+    if (!res.ok) {
+      throw new Error(json.error || 'Error eliminant espai')
+    }
+
+    if (onClose) {
+      onClose()
+    } else {
+      router.push('/menu/spaces/info')
+      router.refresh()
+    }
+  } catch (err) {
+    console.error('Error eliminant espai:', err)
+    setError('Hi ha hagut un error en eliminar el registre.')
+  } finally {
+    setDeleting(false)
+  }
+}
+
 
   // ─────────────────────────────────────────────
   // 4) Render
@@ -289,16 +326,26 @@ const handleSave = async () => {
               Tancar
             </button>
           )}
-{canEdit && (
-  <button
-    type="button"
-    disabled={saving}
-    onClick={handleSave}
-    className="px-4 py-2 text-sm rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700 disabled:opacity-60"
-  >
-    {saving ? 'Desant…' : 'Desar canvis'}
-  </button>
-)}
+          {canEdit && (
+            <>
+              <button
+                type="button"
+                disabled={saving || deleting}
+                onClick={handleDelete}
+                className="px-4 py-2 text-sm rounded-lg border border-red-200 text-red-700 bg-red-50 hover:bg-red-100 disabled:opacity-60"
+              >
+                {deleting ? 'Eliminant...' : 'Eliminar'}
+              </button>
+              <button
+                type="button"
+                disabled={saving || deleting}
+                onClick={handleSave}
+                className="px-4 py-2 text-sm rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700 disabled:opacity-60"
+              >
+                {saving ? 'Desant...' : 'Desar canvis'}
+              </button>
+            </>
+          )}
 
 
         </div>

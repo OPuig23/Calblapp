@@ -64,6 +64,7 @@ type Props = {
 export default function PersonnelList({ personnel, mutate, onEdit }: Props) {
   const { deletePersonnel, requestUser } = usePersonnel()
   const [loadingMap, setLoadingMap] = React.useState<Record<string, boolean>>({})
+  const today = new Date().toISOString().slice(0, 10)
 
   // 🔥 Accions
   async function handleDelete(p: Personnel) {
@@ -117,6 +118,11 @@ export default function PersonnelList({ personnel, mutate, onEdit }: Props) {
       {personnel.map((p) => {
         const isLoading = !!loadingMap[p.id]
         const role = (p.role || '').toLowerCase()
+        const unavailableUntil = (p.unavailableUntil || '').toString().trim()
+        const isIndefinite = p.unavailableIndefinite === true
+        const isUnavailable = p.available === false
+        const isExpired =
+          isUnavailable && !isIndefinite && unavailableUntil && unavailableUntil <= today
 
         return (
           <div
@@ -201,6 +207,17 @@ export default function PersonnelList({ personnel, mutate, onEdit }: Props) {
                 </span>
               )}
             </div>
+
+            {isUnavailable && (
+              <div className="mt-2 text-xs text-gray-600">
+                {isIndefinite
+                  ? 'No disponible (indefinit)'
+                  : unavailableUntil
+                  ? `No disponible fins ${unavailableUntil}`
+                  : 'No disponible'}
+                {isExpired && <span className="text-red-600"> (caducat)</span>}
+              </div>
+            )}
 
             {/* Estat usuari */}
             <div className="mt-3">

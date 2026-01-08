@@ -57,9 +57,7 @@ function Portal({ children }: { children: React.ReactNode }) {
 
 /* Utils */
 const safeUrl = (url?: string | null) => {
-  if (!url) return ''
-  const u = String(url).trim()
-  // bloqueig bàsic
+  const u = String(url || '').trim()
   if (!u) return ''
   if (u.startsWith('javascript:')) return ''
   return u
@@ -77,19 +75,9 @@ export default function EventDocumentsSheet({
   open: boolean
   onOpenChange: (v: boolean) => void
 }) {
-  // ✅ Hooks sempre a dalt (rules of hooks)
   const { docs, loading, error } = useEventDocuments(eventId, eventCode || undefined)
 
   const [isNarrow, setIsNarrow] = useState(false)
-
-  // Detecta PWA/standalone
-  const isStandalone = useMemo(() => {
-    if (typeof window === 'undefined') return false
-    return (
-      window.matchMedia?.('(display-mode: standalone)')?.matches ||
-      (window.navigator as any).standalone === true
-    )
-  }, [])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -99,10 +87,23 @@ export default function EventDocumentsSheet({
     return () => window.removeEventListener('resize', update)
   }, [])
 
-  // Quan és PWA o pantalla estreta, sí que forcem l'obertura i tanquem el sheet.
-  const forceWindowOpen = isStandalone || isNarrow
+  const isStandalone = useMemo(() => {
+    if (typeof window === 'undefined') return false
+    return (
+      window.matchMedia?.('(display-mode: standalone)')?.matches ||
+      (window.navigator as any).standalone === true
+    )
+  }, [])
 
-  // Bloqueja scroll del body mentre està obert (millor UX mòbil)
+  const isAndroid = useMemo(() => {
+    if (typeof navigator === 'undefined') return false
+    return /Android/i.test(navigator.userAgent || '')
+  }, [])
+
+  // IMPORTANT: per operativa, en Android/PWA obrim a la mateixa vista (100% fiable).
+  const shouldOpenSameWindow = isStandalone || isNarrow
+
+  // Bloqueja scroll del body mentre està obert (UX)
   useEffect(() => {
     if (typeof document === 'undefined') return
     if (!open) return
@@ -113,50 +114,41 @@ export default function EventDocumentsSheet({
     }
   }, [open])
 
-  const handleOpenDoc = useCallback(
+  // ESC per tancar (desktop)
+  useEffect(() => {
+    if (!open) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onOpenChange(false)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [open, onOpenChange])
+
+  const openDoc = useCallback(
     (rawUrl: string) => {
       const url = safeUrl(rawUrl)
-      if (!url || typeof window === 'undefined' || typeof document === 'undefined') return
+      if (!url || typeof window === 'undefined') return
 
-      // IMPORTANT:
-      // - En Android PWA, '_blank' sovint reusa la mateixa vista.
-      // - Usem un "name" únic per forçar finestreta/tab nova quan es pugui.
-      const name = `doc_${Date.now()}`
-      let opened = false
-
-      // 1) Si NO cal forçar (desktop ample), deixem comportament normal amb window.open (sense tancar sheet).
-      // 2) Si cal forçar (PWA / narrow), fem window.open + fallback i tanquem el sheet amb petit delay.
-      const tryWindowOpen = () => {
-        const win = window.open(url, name, 'noopener,noreferrer')
-        if (win) {
-          try {
-            win.opener = null
-          } catch {}
-          opened = true
-        }
+      if (shouldOpenSameWindow) {
+        // ✅ Android/PWA: fiable a la primera
+        onOpenChange(false)
+        window.location.assign(url)
+        return
       }
 
-      tryWindowOpen()
-
-      if (!opened) {
-        // Fallback: anchor click (alguns Android bloquegen window.open però permeten click)
-        const a = document.createElement('a')
-        a.href = url
-        a.target = '_blank'
-        a.rel = 'noopener noreferrer'
-        a.style.position = 'absolute'
-        a.style.left = '-9999px'
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-      }
-
-      if (forceWindowOpen) {
-        // Delay curt per evitar “parpelleig” i que el navegador tingui temps d'obrir
-        window.setTimeout(() => onOpenChange(false), 150)
-      }
+      // ✅ Desktop/ample: obrim en pestanya nova de forma nativa
+      // (evitem window.open perquè pot ser bloquejat si no cal)
+      const a = document.createElement('a')
+      a.href = url
+      a.target = '_blank'
+      a.rel = 'noopener noreferrer'
+      a.style.position = 'absolute'
+      a.style.left = '-9999px'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
     },
-    [forceWindowOpen, onOpenChange]
+    [onOpenChange, shouldOpenSameWindow]
   )
 
   const kindLabel = (d: EventDoc) => {
@@ -245,7 +237,7 @@ export default function EventDocumentsSheet({
                   onClick={(e) => {
                     e.preventDefault()
                     e.stopPropagation()
-                    handleOpenDoc(d.url)
+                    openDoc(d.url)
                   }}
                 >
                   Obrir

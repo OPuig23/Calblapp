@@ -8,6 +8,9 @@ import { db, firestoreAdmin } from '@/lib/firebaseAdmin'
 /** Estructura mínima d’un document de personnel */
 interface PersonnelDoc {
   available?: boolean
+  unavailableFrom?: string | null
+  unavailableUntil?: string | null
+  unavailableIndefinite?: boolean
   name?: string
   role?: string
   department?: string
@@ -17,6 +20,11 @@ interface PersonnelDoc {
 /** Body del PUT */
 interface UpdatePersonnelBody {
   available: boolean
+  unavailableFrom?: string | null
+  unavailableUntil?: string | null
+  unavailableIndefinite?: boolean
+  unavailableNotifiedFor?: string | null
+  unavailableNotifiedAt?: number
 }
 
 /**

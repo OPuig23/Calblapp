@@ -19,6 +19,11 @@ interface FirestorePersonnelDoc {
   email?: string | null
   phone?: string | null
   available?: boolean
+  unavailableFrom?: string | null
+  unavailableUntil?: string | null
+  unavailableIndefinite?: boolean
+  unavailableNotifiedFor?: string | null
+  unavailableNotifiedAt?: number
   driver?: {
     isDriver: boolean
     camioGran: boolean
@@ -55,12 +60,135 @@ export interface PersonnelItem {
   email?: string | null
   phone?: string | null
   available?: boolean
+  unavailableFrom?: string | null
+  unavailableUntil?: string | null
+  unavailableIndefinite?: boolean
+  unavailableNotifiedFor?: string | null
+  unavailableNotifiedAt?: number
   hasUser: boolean
   requestStatus: 'none' | 'pending' | 'approved' | 'rejected'
 }
 
 const unaccent = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 const normLower = (s?: string) => unaccent((s || '').toString().trim()).toLowerCase()
+const todayIsoDate = () => new Date().toISOString().slice(0, 10)
+
+async function notifyAvailabilityExpired(
+  docs: FirebaseFirestore.QueryDocumentSnapshot<FirestorePersonnelDoc>[],
+  baseUrl: string
+) {
+  try {
+    const today = todayIsoDate()
+    const expired = docs
+      .map((doc) => {
+        const data = doc.data() as FirestorePersonnelDoc
+        const end = typeof data.unavailableUntil === 'string' ? data.unavailableUntil : ''
+        const isUnavailable = data.available === false
+        const isIndefinite = data.unavailableIndefinite === true
+        const alreadyNotified = data.unavailableNotifiedFor === end
+        if (!isUnavailable || isIndefinite || !end || alreadyNotified) return null
+        if (end > today) return null
+        const deptLower = normLower(data.departmentLower || data.department)
+        return { doc, data, end, deptLower }
+      })
+      .filter(Boolean) as Array<{
+        doc: FirebaseFirestore.QueryDocumentSnapshot<FirestorePersonnelDoc>
+        data: FirestorePersonnelDoc
+        end: string
+        deptLower: string
+      }>
+
+    if (!expired.length) return
+
+    const capsSnap = await firestoreAdmin
+      .collection('users')
+      .where('role', '==', 'cap')
+      .get()
+
+    const capsByDept = new Map<string, string[]>()
+    capsSnap.docs.forEach((d) => {
+      const data = d.data() as { department?: string; departmentLower?: string }
+      const dept = normLower(data.departmentLower || data.department)
+      if (!dept) return
+      const list = capsByDept.get(dept) || []
+      list.push(d.id)
+      capsByDept.set(dept, list)
+    })
+
+    const byDept = new Map<string, typeof expired>()
+    expired.forEach((e) => {
+      const list = byDept.get(e.deptLower) || []
+      list.push(e)
+      byDept.set(e.deptLower, list)
+    })
+
+    const batch = firestoreAdmin.batch()
+
+    for (const [dept, items] of byDept.entries()) {
+      const targets = capsByDept.get(dept) || []
+      if (!targets.length) continue
+
+      const names = items
+        .map((it) => (it.data.name || it.doc.id || '').toString().trim())
+        .filter(Boolean)
+      const body = names.length
+        ? `Ha finalitzat el període d'indisponibilitat de: ${names.join(', ')}.`
+        : `Ha finalitzat un període d'indisponibilitat del teu departament.`
+
+      const now = Date.now()
+      await Promise.all(
+        targets.map(async (uid) => {
+          try {
+            const userRef = firestoreAdmin.collection('users').doc(uid)
+            const userSnap = await userRef.get()
+            if (userSnap.exists) {
+              const userData = userSnap.data() as { notificationsUnread?: number }
+              await userRef.set(
+                { notificationsUnread: (userData.notificationsUnread || 0) + 1 },
+                { merge: true }
+              )
+              await userRef.collection('notifications').add({
+                title: 'Indisponibilitat finalitzada',
+                body,
+                createdAt: now,
+                read: false,
+                type: 'personnel_unavailable_expired',
+              })
+            }
+          } catch (err) {
+            console.error('[personnel] error creant notificacio:', err)
+          }
+
+          try {
+            await fetch(`${baseUrl}/api/push/send`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                userId: uid,
+                title: 'Indisponibilitat finalitzada',
+                body,
+                url: '/menu/personnel',
+              }),
+            })
+          } catch (pushErr) {
+            console.error('[personnel] error enviant push:', pushErr)
+          }
+        })
+      )
+
+      items.forEach((it) => {
+        batch.update(it.doc.ref, {
+          unavailableNotifiedFor: it.end,
+          unavailableNotifiedAt: now,
+        })
+      })
+    }
+
+    await batch.commit()
+  } catch (err) {
+    console.error('[personnel] error enviant push indisponibilitat:', err)
+  }
+}
 
 /* -------------------------------------------------------------------------- */
 /*                                   GET LIST                                 */
@@ -141,6 +269,8 @@ export async function GET(request: NextRequest) {
 
     const baseDocs = Array.from(byId.values())
 
+    await notifyAvailabilityExpired(baseDocs, request.nextUrl.origin)
+
     dbg.steps.push({
       step: 'merge-queries',
       used: stepUsed,
@@ -182,6 +312,11 @@ export async function GET(request: NextRequest) {
         email: data.email ?? null,
         phone: data.phone ?? null,
         available: data.available ?? true,
+        unavailableFrom: data.unavailableFrom ?? null,
+        unavailableUntil: data.unavailableUntil ?? null,
+        unavailableIndefinite: data.unavailableIndefinite ?? false,
+        unavailableNotifiedFor: data.unavailableNotifiedFor ?? null,
+        unavailableNotifiedAt: data.unavailableNotifiedAt ?? null,
         hasUser: hasUser.get(doc.id) || false,
         requestStatus: reqStatus.get(doc.id) || 'none',
       }
