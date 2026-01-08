@@ -1,7 +1,7 @@
 ﻿//file: src/components/events/EventDocumentsSheet.tsx
 'use client'
 
-import React, { useEffect, useMemo, useState, useCallback } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   ExternalLink,
@@ -95,11 +95,6 @@ export default function EventDocumentsSheet({
     )
   }, [])
 
-  const isAndroid = useMemo(() => {
-    if (typeof navigator === 'undefined') return false
-    return /Android/i.test(navigator.userAgent || '')
-  }, [])
-
   // IMPORTANT: per operativa, en Android/PWA obrim a la mateixa vista (100% fiable).
   const shouldOpenSameWindow = isStandalone || isNarrow
 
@@ -124,32 +119,8 @@ export default function EventDocumentsSheet({
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [open, onOpenChange])
 
-  const openDoc = useCallback(
-    (rawUrl: string) => {
-      const url = safeUrl(rawUrl)
-      if (!url || typeof window === 'undefined') return
-
-      if (shouldOpenSameWindow) {
-        // ✅ Android/PWA: fiable a la primera
-        onOpenChange(false)
-        window.location.assign(url)
-        return
-      }
-
-      // ✅ Desktop/ample: obrim en pestanya nova de forma nativa
-      // (evitem window.open perquè pot ser bloquejat si no cal)
-      const a = document.createElement('a')
-      a.href = url
-      a.target = '_blank'
-      a.rel = 'noopener noreferrer'
-      a.style.position = 'absolute'
-      a.style.left = '-9999px'
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-    },
-    [onOpenChange, shouldOpenSameWindow]
-  )
+  const linkTarget = shouldOpenSameWindow ? '_self' : '_blank'
+  const linkRel = linkTarget === '_blank' ? 'noopener noreferrer' : undefined
 
   const kindLabel = (d: EventDoc) => {
     if (d.icon === 'pdf') return 'PDF'
@@ -202,48 +173,66 @@ export default function EventDocumentsSheet({
               <p className="text-sm text-gray-600">Sense documents.</p>
             )}
 
-            {docs.map((d) => (
-              <div
-                key={d.id}
-                className="w-full rounded-xl border p-3 flex items-center gap-3 bg-white"
-              >
-                {/* ICONA */}
-                <div className="p-2 bg-gray-100 rounded-lg">
-                  <DocIcon d={d} />
-                </div>
+            {docs.map((d) => {
+              const url = safeUrl(d.url)
+              const isDisabled = !url
 
-                {/* INFO */}
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium truncate" title={d.title || d.id}>
-                    {displayTitle(d)}
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 mt-1">
-                    <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold shrink-0">
-                      {kindLabel(d)}
-                    </span>
-                    <span className="capitalize">{d.source.replace('-', ' ')}</span>
-                    {d.id && (
-                      <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 shrink-0">
-                        {d.id}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* BOTÓ */}
-                <button
-                  type="button"
-                  className="text-blue-600 text-sm font-semibold hover:underline"
-                  onClick={(e) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    openDoc(d.url)
-                  }}
+              return (
+                <div
+                  key={d.id}
+                  className="w-full rounded-xl border p-3 flex items-center gap-3 bg-white"
                 >
-                  Obrir
-                </button>
-              </div>
-            ))}
+                  {/* ICONA */}
+                  <div className="p-2 bg-gray-100 rounded-lg">
+                    <DocIcon d={d} />
+                  </div>
+
+                  {/* INFO */}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium truncate" title={d.title || d.id}>
+                      {displayTitle(d)}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 mt-1">
+                      <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold shrink-0">
+                        {kindLabel(d)}
+                      </span>
+                      <span className="capitalize">{d.source.replace('-', ' ')}</span>
+                      {d.id && (
+                        <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 shrink-0">
+                          {d.id}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* BOTO */}
+                  <a
+                    href={url || '#'}
+                    target={linkTarget}
+                    rel={linkRel}
+                    className={[
+                      'text-sm font-semibold',
+                      isDisabled
+                        ? 'text-gray-400 cursor-not-allowed'
+                        : 'text-blue-600 hover:underline',
+                    ].join(' ')}
+                    aria-disabled={isDisabled}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (!url) {
+                        e.preventDefault()
+                        return
+                      }
+                      if (shouldOpenSameWindow) {
+                        onOpenChange(false)
+                      }
+                    }}
+                  >
+                    Obrir
+                  </a>
+                </div>
+              )
+            })}
           </div>
         </div>
       </div>
