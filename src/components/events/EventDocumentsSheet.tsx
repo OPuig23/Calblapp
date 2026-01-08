@@ -1,6 +1,7 @@
-﻿'use client'
+﻿//file: src/components/events/EventDocumentsSheet.tsx
+'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import {
   ExternalLink,
@@ -54,6 +55,16 @@ function Portal({ children }: { children: React.ReactNode }) {
   return createPortal(children, el)
 }
 
+/* Utils */
+const safeUrl = (url?: string | null) => {
+  if (!url) return ''
+  const u = String(url).trim()
+  // bloqueig bàsic
+  if (!u) return ''
+  if (u.startsWith('javascript:')) return ''
+  return u
+}
+
 /* Component */
 export default function EventDocumentsSheet({
   eventId,
@@ -66,51 +77,87 @@ export default function EventDocumentsSheet({
   open: boolean
   onOpenChange: (v: boolean) => void
 }) {
+  // ✅ Hooks sempre a dalt (rules of hooks)
   const { docs, loading, error } = useEventDocuments(eventId, eventCode || undefined)
 
-  if (!open) return null
-
-  // En mobil/PWA target="_blank" pot obrir sobre la mateixa vista.
-  // Forcem window.open per pantalles estretes o mode standalone.
   const [isNarrow, setIsNarrow] = useState(false)
+
+  // Detecta PWA/standalone
+  const isStandalone = useMemo(() => {
+    if (typeof window === 'undefined') return false
+    return (
+      window.matchMedia?.('(display-mode: standalone)')?.matches ||
+      (window.navigator as any).standalone === true
+    )
+  }, [])
+
   useEffect(() => {
+    if (typeof window === 'undefined') return
     const update = () => setIsNarrow(window.innerWidth < 900)
     update()
     window.addEventListener('resize', update)
     return () => window.removeEventListener('resize', update)
   }, [])
 
-  const isStandalone =
-    typeof window !== 'undefined' &&
-    (window.matchMedia('(display-mode: standalone)').matches ||
-      (window.navigator as any).standalone === true)
+  // Quan és PWA o pantalla estreta, sí que forcem l'obertura i tanquem el sheet.
   const forceWindowOpen = isStandalone || isNarrow
 
-  const handleOpenDoc = (url: string) => {
-    if (typeof window === 'undefined' || typeof document === 'undefined') return
-
-    let opened = false
-    const win = window.open(url, '_blank', 'noopener,noreferrer')
-    if (win) {
-      win.opener = null
-      opened = true
+  // Bloqueja scroll del body mentre està obert (millor UX mòbil)
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    if (!open) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prev
     }
+  }, [open])
 
-    if (!opened) {
-      // Fallback if the popup was blocked or reused the same view.
-      const a = document.createElement('a')
-      a.href = url
-      a.target = '_blank'
-      a.rel = 'noopener noreferrer'
-      a.style.position = 'absolute'
-      a.style.left = '-9999px'
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-    }
+  const handleOpenDoc = useCallback(
+    (rawUrl: string) => {
+      const url = safeUrl(rawUrl)
+      if (!url || typeof window === 'undefined' || typeof document === 'undefined') return
 
-    if (forceWindowOpen) onOpenChange(false)
-  }
+      // IMPORTANT:
+      // - En Android PWA, '_blank' sovint reusa la mateixa vista.
+      // - Usem un "name" únic per forçar finestreta/tab nova quan es pugui.
+      const name = `doc_${Date.now()}`
+      let opened = false
+
+      // 1) Si NO cal forçar (desktop ample), deixem comportament normal amb window.open (sense tancar sheet).
+      // 2) Si cal forçar (PWA / narrow), fem window.open + fallback i tanquem el sheet amb petit delay.
+      const tryWindowOpen = () => {
+        const win = window.open(url, name, 'noopener,noreferrer')
+        if (win) {
+          try {
+            win.opener = null
+          } catch {}
+          opened = true
+        }
+      }
+
+      tryWindowOpen()
+
+      if (!opened) {
+        // Fallback: anchor click (alguns Android bloquegen window.open però permeten click)
+        const a = document.createElement('a')
+        a.href = url
+        a.target = '_blank'
+        a.rel = 'noopener noreferrer'
+        a.style.position = 'absolute'
+        a.style.left = '-9999px'
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+      }
+
+      if (forceWindowOpen) {
+        // Delay curt per evitar “parpelleig” i que el navegador tingui temps d'obrir
+        window.setTimeout(() => onOpenChange(false), 150)
+      }
+    },
+    [forceWindowOpen, onOpenChange]
+  )
 
   const kindLabel = (d: EventDoc) => {
     if (d.icon === 'pdf') return 'PDF'
@@ -127,24 +174,20 @@ export default function EventDocumentsSheet({
   const displayTitle = (d: EventDoc) => {
     const title = d.title?.trim()
     if (title && title.toLowerCase() !== 'file') return title
-    // SharePoint proxiat sol retorna "file"; fem servir la clau (file1, file2…) com a fallback
     return d.id || title || 'Document'
   }
+
+  if (!open) return null
 
   return (
     <Portal>
       <div className="relative w-full h-full">
         {/* OVERLAY */}
-        <div
-          className="absolute inset-0 bg-black/50 z-10"
-          onClick={() => onOpenChange(false)}
-        />
+        <div className="absolute inset-0 bg-black/50 z-10" onClick={() => onOpenChange(false)} />
 
         {/* DRAWER */}
         <div
-          className="absolute bottom-0 left-0 right-0 z-20
-                     bg-white rounded-t-2xl shadow-2xl
-                     max-h-[92vh] flex flex-col"
+          className="absolute bottom-0 left-0 right-0 z-20 bg-white rounded-t-2xl shadow-2xl max-h-[92vh] flex flex-col"
           onClick={(e) => e.stopPropagation()}
         >
           {/* HEADER */}
@@ -170,9 +213,7 @@ export default function EventDocumentsSheet({
             {docs.map((d) => (
               <div
                 key={d.id}
-                className="w-full rounded-xl border p-3
-                           flex items-center gap-3
-                           bg-white"
+                className="w-full rounded-xl border p-3 flex items-center gap-3 bg-white"
               >
                 {/* ICONA */}
                 <div className="p-2 bg-gray-100 rounded-lg">
@@ -198,18 +239,17 @@ export default function EventDocumentsSheet({
                 </div>
 
                 {/* BOTÓ */}
-                <a
-                  href={d.url}
+                <button
+                  type="button"
+                  className="text-blue-600 text-sm font-semibold hover:underline"
                   onClick={(e) => {
                     e.preventDefault()
+                    e.stopPropagation()
                     handleOpenDoc(d.url)
                   }}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-600 text-sm font-semibold hover:underline"
                 >
                   Obrir
-                </a>
+                </button>
               </div>
             ))}
           </div>
@@ -218,5 +258,3 @@ export default function EventDocumentsSheet({
     </Portal>
   )
 }
-
-

@@ -69,7 +69,6 @@ export default function CalendarWeekView({
     return Array.from({ length: 7 }, (_, i) => addDays(base, i))
   }, [start])
 
-
   const spans = useMemo(() => {
     if (!weekDays.length) return [] as Span[]
     const weekStart = weekDays[0]
@@ -83,20 +82,17 @@ export default function CalendarWeekView({
 
       const sDate = parseISO(sIso)
       const eDate = parseISO(eIso)
+
       const startIdx = Math.max(0, diffDays(sDate, weekStart))
       const endIdx = Math.min(lastDayIdx, diffDays(eDate, weekStart))
       if (endIdx < 0 || startIdx > lastDayIdx) return
 
-      spans.push({
-        ev,
-        startIdx,
-        endIdx,
-        lane: 0,
-      })
+      spans.push({ ev, startIdx, endIdx, lane: 0 })
     })
 
     spans.sort((a, b) => a.startIdx - b.startIdx || a.endIdx - b.endIdx)
 
+    // assignació de lanes evitant solapaments
     const laneEnds: number[] = []
     spans.forEach((span) => {
       let lane = laneEnds.findIndex((end) => span.startIdx > end)
@@ -114,21 +110,22 @@ export default function CalendarWeekView({
   const visibleLaneCount = Math.min(laneLimit, laneCount)
   const visibleSpans = spans.filter((s) => s.lane < visibleLaneCount)
 
-  const baseHeight =
-    layout === 'mobile' ? 200 : layout === 'tablet' ? 230 : 260
-  const rowHeight =
-    layout === 'mobile' ? 36 : layout === 'tablet' ? 42 : 48
+  const baseHeight = layout === 'mobile' ? 200 : layout === 'tablet' ? 230 : 260
+  const rowHeight = layout === 'mobile' ? 36 : layout === 'tablet' ? 42 : 48
   const paddingExtra = layout === 'mobile' ? 60 : layout === 'tablet' ? 90 : 120
   const minHeight = Math.max(baseHeight, visibleLaneCount * rowHeight + paddingExtra)
-  const minColWidth =
-    layout === 'mobile' ? 120 : layout === 'tablet' ? 150 : 170
-  const gridMinWidth = weekDays.length * minColWidth
 
+  // amplada mínima per columna només per scroll/UX; el grid intern fa minmax(0,1fr)
+  const minColWidth = layout === 'mobile' ? 120 : layout === 'tablet' ? 150 : 170
+  const gridMinWidth = weekDays.length * minColWidth
 
   const weekCells = weekDays.map((d) => ({
     date: d,
-    iso: d.toISOString().slice(0, 10),
+    // IMPORTANT: no dependre d'ISO per càlcul; aquí només per key estable
+    iso: format(d, 'yyyy-MM-dd'),
   }))
+
+  const gridCols = `repeat(${weekDays.length}, minmax(0, 1fr))`
 
   return (
     <div className="w-full overflow-x-auto pb-2">
@@ -139,7 +136,7 @@ export default function CalendarWeekView({
         {/* Header */}
         <div
           className="grid border-b bg-slate-50 text-[10px] text-gray-600 sm:text-xs"
-          style={{ gridTemplateColumns: `repeat(${weekDays.length}, minmax(${minColWidth}px, 1fr))` }}
+          style={{ gridTemplateColumns: gridCols }}
         >
           {weekDays.map((d) => (
             <div key={d.toISOString()} className="py-1 text-center font-medium sm:py-2">
@@ -149,24 +146,18 @@ export default function CalendarWeekView({
         </div>
 
         {/* Cells + events */}
-        <div
-          className="relative grid bg-gray-50"
-          style={{ gridTemplateColumns: `repeat(${weekDays.length}, minmax(${minColWidth}px, 1fr))` }}
-        >
+        <div className="relative grid bg-gray-50" style={{ gridTemplateColumns: gridCols }}>
           {weekCells.map((c) => (
-            <div
-              key={c.iso}
-              className="relative border-r bg-white"
-              style={{ minHeight }}
-            />
+            <div key={c.iso} className="relative border-r bg-white" style={{ minHeight }} />
           ))}
 
+          {/* Layer d'events: IMPORTANT overflow-hidden per evitar "bleed" en Android horitzontal */}
           <div
-            className={`pointer-events-none absolute inset-0 grid ${
+            className={`pointer-events-none absolute inset-0 isolate grid overflow-hidden ${
               layout === 'mobile' ? 'gap-1.5 px-1.5 pb-2 pt-4' : 'gap-2 px-2 pb-2 pt-6'
             }`}
             style={{
-              gridTemplateColumns: `repeat(${weekDays.length}, minmax(${minColWidth}px, 1fr))`,
+              gridTemplateColumns: gridCols,
               gridAutoRows: layout === 'mobile' ? 'minmax(32px, auto)' : 'minmax(38px, auto)',
             }}
           >
@@ -182,21 +173,23 @@ export default function CalendarWeekView({
                     <div
                       onClick={(e) => e.stopPropagation()}
                       className={`
-                        pointer-events-auto whitespace-normal min-w-0
+                        pointer-events-auto min-w-0 overflow-hidden bg-clip-padding
+                        whitespace-normal
                         ${isSingleDay ? 'px-2 py-[2px]' : 'px-2 py-[4px]'}
-                        rounded-md border 
+                        rounded-md
+                        ring-1 ring-inset ring-slate-200
                         flex items-center gap-2
-                        text-[11px] sm:text-[12px]  font-medium
+                        text-[11px] font-medium sm:text-[12px]
                         ${colorByLN(span.ev.LN)}
                       `}
                       style={{
                         gridColumn: `${span.startIdx + 1} / ${span.endIdx + 2}`,
                         gridRowStart: span.lane + 1,
+                        // ajuda en alguns Android a evitar artefactes de subpíxel
+                        transform: 'translateZ(0)',
                       }}
                     >
-                      <span
-                        className={`h-2 w-2 rounded-full ${dotColorByCollection(span.ev.collection)}`}
-                      />
+                      <span className={`h-2 w-2 shrink-0 rounded-full ${dotColorByCollection(span.ev.collection)}`} />
                       <span className="min-w-0 flex-1 text-left leading-tight line-clamp-2">
                         {span.ev.NomEvent}
                       </span>
@@ -206,10 +199,12 @@ export default function CalendarWeekView({
               )
             })}
 
+            {/* +X més per dia */}
             {weekDays.map((d, dayIdx) => {
               const segments = spans
                 .filter((s) => s.startIdx <= dayIdx && s.endIdx >= dayIdx)
                 .sort((a, b) => a.lane - b.lane)
+
               const hidden = segments.filter((s) => s.lane >= visibleLaneCount)
               if (!hidden.length) return null
 
@@ -238,15 +233,16 @@ function MoreEventsPopup({ date, events }: { date: Date; events: Deal[] }) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <div
-        className="cursor-pointer text-[10px] italic text-gray-400 hover:text-blue-500"
+      <button
+        type="button"
+        className="rounded px-2 py-1 text-xs italic text-gray-400 hover:text-blue-500"
         onClick={(e) => {
           e.stopPropagation()
           setOpen(true)
         }}
       >
         +{events.length} més
-      </div>
+      </button>
 
       <DialogContent className="h-[80dvh] w-[95dvw] max-w-sm sm:h-auto sm:max-w-md">
         <DialogHeader>
@@ -255,10 +251,7 @@ function MoreEventsPopup({ date, events }: { date: Date; events: Deal[] }) {
           </DialogTitle>
         </DialogHeader>
 
-        <div
-          className="mt-2 max-h-[60dvh] space-y-1 overflow-y-auto"
-          onClick={(e) => e.stopPropagation()}
-        >
+        <div className="mt-2 max-h-[60dvh] space-y-1 overflow-y-auto" onClick={(e) => e.stopPropagation()}>
           {events.map((ev) => (
             <CalendarModal
               key={`more-${ev.id}`}
@@ -266,13 +259,10 @@ function MoreEventsPopup({ date, events }: { date: Date; events: Deal[] }) {
               trigger={
                 <div
                   onClick={(e) => e.stopPropagation()}
-                  className="
-                    flex items-center gap-2 truncate
-                    rounded-md border bg-white px-1.5 py-[3px]
-                    text-[11px] sm:text-[12px]
-                  "
+                  className="flex items-center gap-2 truncate rounded-md ring-1 ring-inset ring-slate-200 bg-white px-2 py-1 text-[11px] sm:text-[12px]"
+                  style={{ transform: 'translateZ(0)' }}
                 >
-                  <span className={`h-2 w-2 rounded-full ${dotColorByCollection(ev.collection)}`} />
+                  <span className={`h-2 w-2 shrink-0 rounded-full ${dotColorByCollection(ev.collection)}`} />
                   <span className="truncate">{ev.NomEvent}</span>
                 </div>
               }
