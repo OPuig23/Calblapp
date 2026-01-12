@@ -23,6 +23,8 @@ export interface ModuleDef {
 }
 
 /** 🔐 CATÀLEG ÚNIC DE MÒDULS */
+const TORNS_CAP_DEPARTMENTS = new Set(['logistica', 'cuina', 'serveis'])
+
 export const MODULES: ModuleDef[] = [
   { label: 'Torns', path: '/menu/torns', roles: ['admin','direccio','cap','treballador'] },
 
@@ -93,7 +95,7 @@ export const MODULES: ModuleDef[] = [
     label: 'Calendar',
     path: '/menu/calendar',
     roles: ['admin','direccio','cap','comercial','usuari'],
-    departments: ['produccio','empresa','casaments','foodlovers'],
+    departments: ['produccio','empresa','casaments','foodlovers','food lover'],
   },
 
   { label: 'Espais', path: '/menu/spaces',
@@ -112,6 +114,13 @@ export function getVisibleModules(user: AccessUser): ModuleDef[] {
 
   return MODULES
     .filter(mod => {
+      if (mod.path === '/menu/torns') {
+        if (role === 'admin' || role === 'direccio') return true
+        if (role === 'treballador') return true
+        if (role === 'cap') return TORNS_CAP_DEPARTMENTS.has(dept)
+        return false
+      }
+
       if (!mod.roles.includes(role)) return false
 
       if (mod.departments) {
@@ -161,3 +170,4 @@ export function canEditFinca(user?: AccessUser): boolean {
     (dept === 'empresa' || dept === 'casaments' || dept === 'foodlovers')
   )
 }
+

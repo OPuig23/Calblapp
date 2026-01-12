@@ -6,6 +6,7 @@ import { useSession } from 'next-auth/react'
 import ModuleHeader from '@/components/layout/ModuleHeader'
 import { CalendarDays } from 'lucide-react'
 import { TornNotificationsList } from '@/components/torns/TornNotificationsList'
+import { RoleGuard } from '@/lib/withRoleGuard'
 import SmartFilters, { SmartFiltersChange } from '@/components/filters/SmartFilters'
 import TornsList from './components/TornsList'
 import TornDetailModal from './components/TornDetailModal'
@@ -246,7 +247,8 @@ export default function TornsPage() {
   // RENDER
   // ============================
   return (
-    <div className="p-4">
+    <RoleGuard allowedRoles={['admin', 'direccio', 'treballador']}>
+      <div className="p-4">
       <ModuleHeader
         icon={<CalendarDays className="w-7 h-7 text-blue-600" />}
         title="Torns Assignats"
@@ -341,6 +343,8 @@ export default function TornsPage() {
         onClose={() => setAvisosOpen(false)}
         eventCode={avisosEventCode}
       />
-    </div>
+      </div>
+    </RoleGuard>
   )
 }
+

@@ -30,6 +30,8 @@ function ensureOrdered(a: string, b: string): [string, string] {
   return a <= b ? [a, b] : [b, a]
 }
 
+const TORNS_CAP_DEPARTMENTS = new Set(['logistica', 'cuina', 'serveis'])
+
 type TokenLike = {
   role?: string
   department?: string
@@ -80,20 +82,37 @@ export async function GET(req: NextRequest) {
     // 1. Rol i departament de sessió
     // ─────────────────────────────────────────────
     const roleRaw = norm(token?.role || token?.user?.role || '')
-    const role: 'Admin' | 'Direcció' | 'Cap Departament' | 'Treballador' =
+    const role:
+      | 'Admin'
+      | 'Direcció'
+      | 'Cap Departament'
+      | 'Treballador'
+      | 'Other' =
       roleRaw.startsWith('admin')
         ? 'Admin'
         : roleRaw.includes('dire')
         ? 'Direcció'
         : roleRaw.includes('cap')
         ? 'Cap Departament'
-        : 'Treballador'
+        : roleRaw.includes('treballador') ||
+          roleRaw.includes('trabajador') ||
+          roleRaw.includes('worker') ||
+          roleRaw.includes('empleat')
+        ? 'Treballador'
+        : 'Other'
 
     const rawDept = token?.department || token?.user?.department || ''
     const sessionDept =
       role === 'Admin' || role === 'Direcció'
         ? '' // Admin / Direcció veuen tots els departaments
         : norm(rawDept)
+    if (role === 'Other') {
+      return Response.json({ ok: false, error: 'Unauthorized' }, { status: 403 })
+    }
+
+    if (role === 'Cap Departament' && !TORNS_CAP_DEPARTMENTS.has(sessionDept)) {
+      return Response.json({ ok: false, error: 'Unauthorized' }, { status: 403 })
+    }
 
     const userName = String(token?.name || token?.user?.name || '')
 
@@ -262,3 +281,8 @@ export async function GET(req: NextRequest) {
     return Response.json({ ok: false, error: 'Internal Server Error' }, { status: 500 })
   }
 }
+
+
+
+
+
