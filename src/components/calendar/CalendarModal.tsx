@@ -37,6 +37,8 @@ export default function CalendarModal({ deal, trigger, onSaved, readonly }: Prop
 
   const { data: session } = useSession()
   const [open, setOpen] = useState(false)
+  const [comercialOptions, setComercialOptions] = useState<string[]>([])
+  const [comercialLoading, setComercialLoading] = useState(false)
 
   const norm = (s?: string | null) =>
     (s || '')
@@ -82,17 +84,92 @@ export default function CalendarModal({ deal, trigger, onSaved, readonly }: Prop
     deal.origen === 'zoho'
   const isManual = deal.origen !== 'zoho'
 
+  const normalizeDept = (value?: string | null) => {
+    const base = norm(value)
+    const compact = base.replace(/\s+/g, '')
+    if (compact === 'foodlover' || compact === 'foodlovers') return 'foodlovers'
+    if (compact === 'grupsrestaurants') return 'grups restaurants'
+    return base
+  }
+
   const role = norm((session?.user as any)?.role)
-  const department = norm((session?.user as any)?.department)
+  const department = normalizeDept((session?.user as any)?.department)
   const isAdmin = role === 'admin'
   const isDireccio = role === 'direccio' || role === 'direccion'
   const isProduccio = department === 'produccio'
   const isComercial = department === 'comercial'
+  const isCap = role.includes('cap')
+  const isCapCalendarDept =
+    isCap &&
+    [
+      'casaments',
+      'empresa',
+      'restauracio',
+      'restaurants',
+      'grups restaurants',
+      'foodlovers',
+      'food lover',
+    ].includes(department)
 
-  const canEditStageVerd = isZohoVerd && (isAdmin || isDireccio || isProduccio || isComercial)
-  const canEditManual = isManual && (isAdmin || isDireccio || isProduccio || isComercial)
+  const canEditStageVerd =
+    isZohoVerd &&
+    (isAdmin || isDireccio || isProduccio || isComercial || isCapCalendarDept)
+  const canEditManual =
+    isManual &&
+    (isAdmin || isDireccio || isProduccio || isComercial || isCapCalendarDept)
 
   const canEdit = !readonly && (canEditStageVerd || canEditManual)
+
+  const comercialOptionsWithCurrent = useMemo(() => {
+    const current = String(editData.Comercial || '').trim()
+    if (!current) return comercialOptions
+    const exists = comercialOptions.some((n) => norm(n) === norm(current))
+    return exists ? comercialOptions : [current, ...comercialOptions]
+  }, [comercialOptions, editData.Comercial])
+
+  useEffect(() => {
+    if (!open) return
+    if (comercialOptions.length > 0) return
+
+    let active = true
+    const load = async () => {
+      try {
+        setComercialLoading(true)
+        const res = await fetch('/api/users')
+        const data = await res.json()
+        if (!Array.isArray(data)) return
+
+        const names = data
+          .filter((u: any) => {
+            const roleRaw = u?.role ?? ''
+            const r = norm(String(roleRaw))
+            return (
+              r === 'comercial' ||
+              r === 'cap' ||
+              r === 'cap departament' ||
+              r === 'capdepartament'
+            )
+          })
+          .map((u: any) => String(u?.name || '').trim())
+          .filter((n: string) => n.length > 0)
+
+        const uniq = Array.from(
+          new Map(names.map((n: string) => [norm(n), n])).values()
+        ).sort((a, b) => a.localeCompare(b, 'ca'))
+
+        if (active) setComercialOptions(uniq)
+      } catch (err) {
+        console.error('Error carregant comercials:', err)
+      } finally {
+        if (active) setComercialLoading(false)
+      }
+    }
+
+    load()
+    return () => {
+      active = false
+    }
+  }, [open, comercialOptions.length])
 
   // Col·lecció: sempre guardem a stage_verd (segons decisió)
   const COLLECTION = 'stage_verd' as const
@@ -482,10 +559,21 @@ export default function CalendarModal({ deal, trigger, onSaved, readonly }: Prop
           <div>
             <label className="block text-xs text-gray-500 mb-1">Comercial</label>
             {isManual && !readonly ? (
-              <Input
+              <select
                 value={editData.Comercial}
                 onChange={(e) => handleChange('Comercial', e.target.value)}
-              />
+                className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                disabled={comercialLoading}
+              >
+                <option value="">
+                  {comercialLoading ? 'Carregant...' : '-- Selecciona --'}
+                </option>
+                {comercialOptionsWithCurrent.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
             ) : (
               <p>{editData.Comercial || '—'}</p>
             )}

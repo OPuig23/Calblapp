@@ -50,6 +50,8 @@ export default function CalendarNewEventModal({ date, trigger, onSaved }: Props)
   const [createdId, setCreatedId] = useState<string | null>(null)
   const [files, setFiles] = useState<{ key: string; url: string }[]>([])
   const [multiDay, setMultiDay] = useState(false)
+  const [comercialOptions, setComercialOptions] = useState<string[]>([])
+  const [comercialLoading, setComercialLoading] = useState(false)
 
   const norm = (s?: string | null) =>
     (s || '')
@@ -89,6 +91,50 @@ export default function CalendarNewEventModal({ date, trigger, onSaved }: Props)
     field: keyof EventFormData,
     value: EventFormData[keyof EventFormData]
   ) => setFormData((prev) => ({ ...prev, [field]: value }))
+
+  useEffect(() => {
+    if (!open) return
+    if (comercialOptions.length > 0) return
+
+    let active = true
+    const load = async () => {
+      try {
+        setComercialLoading(true)
+        const res = await fetch('/api/users')
+        const data = await res.json()
+        if (!Array.isArray(data)) return
+
+        const names = data
+          .filter((u: any) => {
+            const roleRaw = u?.role ?? ''
+            const r = norm(String(roleRaw))
+            return (
+              r === 'comercial' ||
+              r === 'cap' ||
+              r === 'cap departament' ||
+              r === 'capdepartament'
+            )
+          })
+          .map((u: any) => String(u?.name || '').trim())
+          .filter((n: string) => n.length > 0)
+
+        const uniq = Array.from(
+          new Map(names.map((n: string) => [norm(n), n])).values()
+        ).sort((a, b) => a.localeCompare(b, 'ca'))
+
+        if (active) setComercialOptions(uniq)
+      } catch (err) {
+        console.error('Error carregant comercials:', err)
+      } finally {
+        if (active) setComercialLoading(false)
+      }
+    }
+
+    load()
+    return () => {
+      active = false
+    }
+  }, [open, comercialOptions.length])
 
   // Comprova si existeix una finca o servei i el crea si cal
   const ensureExists = async (collection: 'finques' | 'serveis', nom: string) => {
@@ -361,11 +407,21 @@ export default function CalendarNewEventModal({ date, trigger, onSaved }: Props)
 
           <div>
             <label className="block text-xs text-gray-500 mb-1">Comercial</label>
-            <Input
+            <select
               value={formData.Comercial}
               onChange={(e) => handleChange('Comercial', e.target.value)}
-              placeholder="Nom del comercial"
-            />
+              className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              disabled={comercialLoading}
+            >
+              <option value="">
+                {comercialLoading ? 'Carregant...' : '-- Selecciona --'}
+              </option>
+              {comercialOptions.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>
@@ -442,7 +498,11 @@ export default function CalendarNewEventModal({ date, trigger, onSaved }: Props)
               No tens permisos per crear esdeveniments.
             </p>
           )}
-          <Button onClick={handleSave} disabled={saving || !canEdit} className="w-full">
+          <Button
+            onClick={handleSave}
+            disabled={saving || !canEdit}
+            className="w-full bg-emerald-500 text-white hover:bg-emerald-600"
+          >
             Desa esdeveniment
           </Button>
           <Button onClick={handleClear} variant="outline" className="w-full" disabled={!canEdit}>

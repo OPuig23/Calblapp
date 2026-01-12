@@ -252,12 +252,14 @@ export async function syncZohoDealsToFirestore(): Promise<{
   // 4️⃣ Classifica etapes (Stage)
   const classifyStage = (stage: string): 'groc' | 'taronja' | 'verd' | null => {
     const s = stage.toLowerCase()
-    if (s.includes('prereserva') || s.includes('calentet')) return 'taronja'
+    if (s.includes('calentet')) return 'taronja'
     if (s.includes('pagament') || s.includes('cerrada ganada') || s.includes('rq'))
       return 'verd'
     if (
   s.includes('pendent') ||
+  s.includes('prereserva') ||
   s.includes('proposta') ||
+  s.includes('propuesta') ||
   s.includes('pressupost enviat')
 ) return 'groc'
 

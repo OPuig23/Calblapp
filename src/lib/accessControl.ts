@@ -25,6 +25,17 @@ export interface ModuleDef {
 /** 🔐 CATÀLEG ÚNIC DE MÒDULS */
 const TORNS_CAP_DEPARTMENTS = new Set(['logistica', 'cuina', 'serveis'])
 
+const normalizeDept = (raw?: string) => {
+  const base = (raw || '')
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .trim()
+  const compact = base.replace(/\s+/g, '')
+  if (compact === 'foodlover' || compact === 'foodlovers') return 'foodlovers'
+  return base
+}
+
 export const MODULES: ModuleDef[] = [
   { label: 'Torns', path: '/menu/torns', roles: ['admin','direccio','cap','treballador'] },
 
@@ -35,7 +46,9 @@ export const MODULES: ModuleDef[] = [
     roles: ['admin','direccio','cap','comercial','usuari'] },
 
   { label: 'Personal', path: '/menu/personnel',
-    roles: ['admin','direccio','cap'] },
+    roles: ['admin','direccio','cap'],
+    departments: ['logistica','cuina','serveis'],
+  },
 
   { label: 'Quadrants', path: '/menu/quadrants',
     roles: ['admin','direccio','cap'] ,
@@ -105,12 +118,8 @@ export const MODULES: ModuleDef[] = [
 /** 🧠 VISIBILITAT DE MÒDULS + SUBMÒDULS */
 export function getVisibleModules(user: AccessUser): ModuleDef[] {
   const role = normalizeRole(user.role)
-  const dept = (user.department || '')
-  .normalize('NFD')
-  .replace(/\p{Diacritic}/gu, '')
-  .toLowerCase()
-  .trim()
-
+  const dept = normalizeDept(user.department)
+  const matchesDept = (d?: string) => normalizeDept(d) === dept
 
   return MODULES
     .filter(mod => {
@@ -125,7 +134,7 @@ export function getVisibleModules(user: AccessUser): ModuleDef[] {
 
       if (mod.departments) {
         if (role === 'admin' || role === 'direccio') return true
-        return mod.departments.includes(dept)
+        return mod.departments.some(matchesDept)
       }
 
       return true
@@ -138,7 +147,7 @@ export function getVisibleModules(user: AccessUser): ModuleDef[] {
 
         if (sub.departments) {
           if (role === 'admin' || role === 'direccio') return true
-          return sub.departments.includes(dept)
+          return sub.departments.some(matchesDept)
         }
 
         return true
