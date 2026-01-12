@@ -20,7 +20,7 @@ interface ZohoDeal {
   Espai_2?: string[] | null
   Fecha_del_evento?: string | null
   Fecha_y_hora_del_evento?: string | null
-  Durac_n_del_evento?: number | string | null
+  Duraci_n_del_evento?: number | string | null
   C_digo?: string | null
   Owner: ZohoOwner
   Fecha_de_petici_n?: string | null
@@ -153,7 +153,7 @@ export async function syncZohoDealsToFirestore(): Promise<{
   const todayISO = new Date().toISOString().slice(0, 10)
   const moduleName = process.env.ZOHO_CRM_MODULE || 'Deals'
   const fields =
-  'id,Deal_Name,Stage,Servicio_texto,Men_texto,C_digo,N_mero_de_invitados,N_mero_de_personas_del_evento,Finca_2,Espai_2,Fecha_del_evento,Fecha_y_hora_del_evento,Durac_n_del_evento,Owner,Fecha_de_petici_n,Precio_Total,Amount,Observacions,Description'
+  'id,Deal_Name,Stage,Servicio_texto,Men_texto,C_digo,N_mero_de_invitados,N_mero_de_personas_del_evento,Finca_2,Espai_2,Fecha_del_evento,Fecha_y_hora_del_evento,Duraci_n_del_evento,Owner,Fecha_de_petici_n,Precio_Total,Amount,Observacions,Description'
 
 
   // 1️⃣ Llegir oportunitats amb paginació
@@ -283,7 +283,7 @@ export async function syncZohoDealsToFirestore(): Promise<{
     }
 
     let dataFiISO = dateISO
-    const duracio = Number(d.Durac_n_del_evento ?? 1)
+    const duracio = Number(d.Duraci_n_del_evento ?? 1)
     if (dateISO && !isNaN(duracio) && duracio > 1) {
       const fi = new Date(dateISO)
       fi.setDate(fi.getDate() + (duracio - 1))
