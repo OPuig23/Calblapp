@@ -77,6 +77,8 @@ export default function TornsPage() {
     isResponsible?: boolean
     fincaId?: string | null
     fincaCode?: string | null
+    pax?: number
+    importAmount?: number
   } | null>(null)
   const [avisosOpen, setAvisosOpen] = useState(false)
   const [avisosEventCode, setAvisosEventCode] = useState<string | null>(null)

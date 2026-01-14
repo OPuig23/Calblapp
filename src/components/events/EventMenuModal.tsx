@@ -68,6 +68,8 @@ interface EventMenuModalProps {
     treballadors?: WorkerLite[]
     fincaId?: string | null
     fincaCode?: string | null
+    pax?: number
+    importAmount?: number
   }
   user: {
     id?: string | number
@@ -189,6 +191,7 @@ export default function EventMenuModal({
   const [showCreateModification, setShowCreateModification] = useState(false)
   const [showAvisos, setShowAvisos] = useState(false)
   const [showClosing, setShowClosing] = useState(false)
+  const [showBudget, setShowBudget] = useState(false)
 
 
   // ✅ Nou botó: Espais (placeholder fins que ens diguis on ha d'anar)
@@ -285,6 +288,20 @@ const treballadorsPersons =
   }
 
   const dateStr = useMemo(() => event.start?.substring(0, 10) || '-', [event.start])
+  const budgetPax = Number((event as any).pax ?? (event as any).NumPax ?? (event as any).numPax ?? 0) || 0
+  const budgetAmount =
+    Number((event as any).importAmount ?? (event as any).Import ?? (event as any).import ?? 0) || 0
+  const budgetTicket = budgetPax > 0 ? budgetAmount / budgetPax : 0
+  const hasBudgetAmount = budgetAmount > 0
+  const hasBudgetPax = budgetPax > 0
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat('ca-ES', {
+      style: 'currency',
+      currency: 'EUR',
+      maximumFractionDigits: 2,
+    }).format(value)
+  const formatNumber = (value: number) =>
+    new Intl.NumberFormat('ca-ES', { maximumFractionDigits: 0 }).format(value)
   const incidentEvent = {
   id: String(event.id),
   summary: event.summary,
@@ -443,7 +460,7 @@ onClick: () => {
               badge: 'Econòmic',
               icon: FileBarChart2,
               tone: 'success' as const,
-              onClick: () => navigateTo(`/menu/events/${event.id}/budget`),
+              onClick: () => setShowBudget(true),
             }
           : null,
       ].filter(Boolean) as any[],
@@ -537,6 +554,39 @@ onClick: () => {
           </div>
         </DialogContent>
       </Dialog>
+      <Dialog open={showBudget} onOpenChange={setShowBudget}>
+        <DialogContent className="w-[90vw] max-w-sm rounded-2xl p-4">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold text-slate-900">
+              Pressupost
+            </DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground">
+              {event.summary}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="mt-3 space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-slate-500">Import:</span>
+              <span className="font-semibold text-slate-900">
+                {hasBudgetAmount ? formatCurrency(budgetAmount) : '-'}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Num pax:</span>
+              <span className="font-semibold text-slate-900">
+                {hasBudgetPax ? formatNumber(budgetPax) : '-'}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Tiquet / pax:</span>
+              <span className="font-semibold text-slate-900">
+                {hasBudgetAmount && hasBudgetPax ? formatCurrency(budgetTicket) : '-'}
+              </span>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
       {pendingDocsOpen && (
   <EventDocumentsSheet
     eventId={String(event.id)}
@@ -624,3 +674,5 @@ treballadors={treballadorsPersons}
     </>
   )
 }
+
+

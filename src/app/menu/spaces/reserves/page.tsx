@@ -13,16 +13,22 @@ import { useFilters } from '@/context/FiltersContext'
 import SpacesFilters from '@/components/spaces/SpacesFilters'
 
 export default function SpacesPage() {
+  const toISODate = (date: Date) => date.toISOString().split('T')[0]
 
   // -------------------------------
   // ðŸ”¹ Estat de filtres
   // -------------------------------
-  const [filters, setFilters] = useState({
-    stage: 'all',
-    finca: '',
-    comercial: '',
-    ln: '',
-    baseDate: new Date().toISOString().split('T')[0],  // Setmana inicial
+  const [filters, setFilters] = useState(() => {
+    const today = new Date()
+    return {
+      stage: 'all',
+      finca: '',
+      comercial: '',
+      ln: '',
+      baseDate: toISODate(today),  // Setmana inicial
+      month: today.getMonth(),
+      year: today.getFullYear(),
+    }
   })
 
   // -------------------------------
@@ -37,6 +43,13 @@ const {
   loading
 } = useSpaces(filters)
 
+  const monthFormatter = new Intl.DateTimeFormat('ca-ES', { month: 'long' })
+  const monthOptions = Array.from({ length: 12 }, (_, month) => ({
+    value: month,
+    label: monthFormatter.format(new Date(2024, month, 1)),
+  }))
+  const yearOptions = Array.from({ length: 21 }, (_, i) => filters.year - 10 + i)
+
 
   // -------------------------------
   // ðŸ”¹ Control del panell de filtres
@@ -47,13 +60,17 @@ const {
   // ðŸ”¹ Canvi de setmana
   // -------------------------------
   const shiftWeek = (direction: 'prev' | 'next') => {
-    const base = new Date(filters.baseDate)
-    base.setDate(base.getDate() + (direction === 'next' ? 7 : -7))
+    setFilters(prev => {
+      const base = new Date(prev.baseDate)
+      base.setDate(base.getDate() + (direction === 'next' ? 7 : -7))
 
-    setFilters(prev => ({
-      ...prev,
-      baseDate: base.toISOString().split('T')[0]
-    }))
+      return {
+        ...prev,
+        baseDate: toISODate(base),
+        month: base.getMonth(),
+        year: base.getFullYear(),
+      }
+    })
   }
 
   // -------------------------------
@@ -76,6 +93,36 @@ const {
     return `${f(monday)} - ${f(sunday)}`
   })()
 
+  const updateMonth = (nextMonth: number) => {
+    setFilters(prev => {
+      const base = new Date(prev.baseDate)
+      const currentDay = base.getDate()
+      const lastDay = new Date(prev.year, nextMonth + 1, 0).getDate()
+      const nextDate = new Date(prev.year, nextMonth, Math.min(currentDay, lastDay))
+
+      return {
+        ...prev,
+        month: nextMonth,
+        baseDate: toISODate(nextDate),
+      }
+    })
+  }
+
+  const updateYear = (nextYear: number) => {
+    setFilters(prev => {
+      const base = new Date(prev.baseDate)
+      const currentDay = base.getDate()
+      const lastDay = new Date(nextYear, prev.month + 1, 0).getDate()
+      const nextDate = new Date(nextYear, prev.month, Math.min(currentDay, lastDay))
+
+      return {
+        ...prev,
+        year: nextYear,
+        baseDate: toISODate(nextDate),
+      }
+    })
+  }
+
   // -------------------------------
   // ðŸ”¹ Render
   // -------------------------------
@@ -95,24 +142,54 @@ const {
         <div className="flex items-center justify-between mt-4 mb-2 px-4">
 
           {/* Controls esquerra */}
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => shiftWeek('prev')}
-              className="px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 text-sm"
-            >
-              {'<'}
-            </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => shiftWeek('prev')}
+                className="px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 text-sm"
+              >
+                {'<'}
+              </button>
 
-            <span className="font-semibold text-gray-700 text-sm sm:text-base">
-              Setmana: {weekLabel}
-            </span>
+              <span className="font-semibold text-gray-700 text-sm sm:text-base">
+                Setmana: {weekLabel}
+              </span>
 
-            <button
-              onClick={() => shiftWeek('next')}
-              className="px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 text-sm"
-            >
-              {'>'}
-            </button>
+              <button
+                onClick={() => shiftWeek('next')}
+                className="px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 text-sm"
+              >
+                {'>'}
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-gray-500">Mes</span>
+              <select
+                value={filters.month}
+                onChange={(e) => updateMonth(Number(e.target.value))}
+                className="border rounded-md px-2 py-1 text-xs bg-white"
+              >
+                {monthOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+
+              <span className="text-xs font-semibold text-gray-500">Any</span>
+              <select
+                value={filters.year}
+                onChange={(e) => updateYear(Number(e.target.value))}
+                className="border rounded-md px-2 py-1 text-xs bg-white"
+              >
+                {yearOptions.map((year) => (
+                  <option key={year} value={year}>
+                    {year}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {/* BotÃ³ filtres */}

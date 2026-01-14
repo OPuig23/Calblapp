@@ -27,6 +27,8 @@ export default function SpaceEventModal({ open, onOpenChange, event }: SpaceEven
   // Assegurem que el camp code es llegeix correctament
  const eventCode = event.code || event.Code || '-'
  const observacions = (event.observacions || '').trim()
+ const ubicacio =
+   event.Ubicacio || event.ubicacio || event.finca || event.Finca || ''
 
 
 
@@ -38,7 +40,7 @@ export default function SpaceEventModal({ open, onOpenChange, event }: SpaceEven
             {event.NomEvent || event.eventName || 'Esdeveniment'}
           </DialogTitle>
           <p className="text-sm text-gray-500">
-            {event.Ubicacio || 'Sense ubicació definida'}
+            {ubicacio || 'Sense ubicació definida'}
           </p>
         </DialogHeader>
 
@@ -59,9 +61,9 @@ export default function SpaceEventModal({ open, onOpenChange, event }: SpaceEven
           </div>
 
           <div className="flex justify-between">
-  <span className="text-gray-500">Servei:</span>
-  <span>{event.Servei || event.service || '-'}</span>
-</div>
+            <span className="text-gray-500">Servei:</span>
+            <span>{event.Servei || event.service || '-'}</span>
+          </div>
 
 
           <div className="flex justify-between">
@@ -77,11 +79,6 @@ export default function SpaceEventModal({ open, onOpenChange, event }: SpaceEven
           <div className="flex justify-between">
             <span className="text-gray-500">Hora Inici:</span>
             <span>{event.HoraInici || event.startTime || '-'}</span>
-          </div>
-
-          <div className="flex justify-between">
-            <span className="text-gray-500">Ubicació:</span>
-            <span>{event.Ubicacio || '-'}</span>
           </div>
 
           <div className="flex justify-between">
@@ -106,3 +103,5 @@ export default function SpaceEventModal({ open, onOpenChange, event }: SpaceEven
     </Dialog>
   )
 }
+
+

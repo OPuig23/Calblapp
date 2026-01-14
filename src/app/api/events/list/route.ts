@@ -213,6 +213,7 @@ export async function GET(req: NextRequest) {
       const startISO = d?.DataInici ? `${d.DataInici}T00:00:00.000Z` : null
       const endISO = d?.DataFi ? `${d.DataFi}T00:00:00.000Z` : startISO
       const pax = Number(d?.NumPax ?? 0) || 0
+      const importAmount = Number(d?.Import ?? d?.import ?? d?.importAmount ?? 0) || 0
       const eventCode = d?.code || null
 
 
@@ -242,6 +243,7 @@ const location = rawLocation
         day: startISO ? dayKey(startISO) : '',
         location,
         pax,
+        importAmount,
         eventCode,
         htmlLink: null,
         lnKey: lnValue.toLowerCase(),

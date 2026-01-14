@@ -101,11 +101,17 @@ export default function SpaceGrid({ data, totals = [], baseDate }: SpaceGridProp
   }
 
   return (
-    <div className="overflow-x-auto snap-x scroll-smooth mt-4 w-full">
-      <table className="min-w-full md:min-w-[960px] lg:min-w-[1200px] text-[10px] sm:text-xs border-collapse text-center w-full">
-        <thead>
-          <tr className="sticky top-0 bg-gray-100 z-20">
-            <th className="p-2 text-left bg-white sticky left-0 shadow-sm z-30">
+    <div className="overflow-x-auto overflow-y-auto max-h-[80vh] snap-x scroll-smooth mt-4 w-full">
+      <table className="min-w-full md:min-w-[960px] lg:min-w-[1200px] text-[10px] sm:text-xs border-collapse text-center w-full table-fixed">
+        <colgroup>
+          <col className="w-[160px]" />
+          {days.map((_, i) => (
+            <col key={`col-${i}`} className="w-[150px]" />
+          ))}
+        </colgroup>
+        <thead className="sticky top-0 z-20">
+          <tr className="bg-gray-100">
+            <th className="p-2 text-left bg-white sticky left-0 top-0 shadow-sm z-30 w-[160px] min-w-[160px] max-w-[160px]">
               Finca
             </th>
 
@@ -134,7 +140,7 @@ export default function SpaceGrid({ data, totals = [], baseDate }: SpaceGridProp
               return (
                 <th
                   key={`head-${i}`}
-                  className={`p-2 border transition-colors ${
+                  className={`p-2 border transition-colors sticky top-0 z-20 w-[150px] min-w-[150px] max-w-[150px] ${
                     totalPaxVerd > 1000
                       ? 'bg-red-100 text-red-700 font-semibold'
                       : 'bg-gray-100 text-gray-700'
@@ -167,7 +173,7 @@ export default function SpaceGrid({ data, totals = [], baseDate }: SpaceGridProp
             data.map((row, rIdx) => (
               <tr key={`row-${rIdx}`} className="border-t align-top">
                 {/* FINCA */}
-                <td className="p-2 text-left font-semibold sticky left-0 bg-white border-r shadow-sm z-10">
+                <td className="p-2 text-left font-semibold sticky left-0 bg-white border-r shadow-sm z-10 w-[160px] min-w-[160px] max-w-[160px]">
                   {row.fincaId ? (
                     <a
                       href={`/menu/spaces/info/${row.fincaId}?readonly=1`}
@@ -193,7 +199,10 @@ export default function SpaceGrid({ data, totals = [], baseDate }: SpaceGridProp
 
                 {/* CELÂ·LES */}
                 {(row.dies ?? []).map((cell, cIdx) => (
-                  <td key={`cell-${rIdx}-${cIdx}`} className="p-1 space-y-1">
+                  <td
+                    key={`cell-${rIdx}-${cIdx}`}
+                    className="p-1 space-y-1 w-[150px] min-w-[150px] max-w-[150px]"
+                  >
                     {(cell?.events ?? []).map((ev: any, eIdx: number) => {
                       const cellEvent = adaptEventForCell(ev)
 

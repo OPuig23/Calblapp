@@ -16,6 +16,7 @@ export interface EventData {
   day: string
   location: string
   pax: number
+  importAmount?: number
   state: 'pending' | 'draft' | 'confirmed'
   name: string
   eventCode: string | null
@@ -46,6 +47,7 @@ interface EventPayload {
   end?: string
   location?: string
   pax?: number
+  importAmount?: number
   state?: string
   status?: string
   eventCode?: string

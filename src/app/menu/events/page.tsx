@@ -37,6 +37,8 @@ type EventMenuData = {
   isResponsible?: boolean
   fincaId?: string | null
   fincaCode?: string | null
+  pax?: number
+  importAmount?: number
 }
 
 export default function EventsPage() {
@@ -139,6 +141,8 @@ export default function EventsPage() {
       fincaId: ev.fincaId ?? null,
       fincaCode: ev.fincaCode ?? null,
       eventCode: ev.eventCode ?? null,
+      pax: ev.pax ?? 0,
+      importAmount: ev.importAmount ?? 0,
     })
 
     setMenuOpen(true)

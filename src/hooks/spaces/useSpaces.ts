@@ -4,7 +4,9 @@
 import { useEffect, useState } from 'react'
 import { SpacesFilterState } from '@/components/spaces/SpacesFilters'
 
-export function useSpaces(filters: SpacesFilterState & { baseDate: string }) {
+export function useSpaces(
+  filters: SpacesFilterState & { baseDate: string; month?: number; year?: number }
+) {
   const [spaces, setSpaces] = useState<any[]>([])
   const [totals, setTotals] = useState<number[]>([])
   const [fincas, setFincas] = useState<string[]>([])
@@ -27,7 +29,9 @@ export function useSpaces(filters: SpacesFilterState & { baseDate: string }) {
         if (filters.stage) params.append('stage', filters.stage)
         if (filters.finca) params.append('finca', filters.finca)
         if (filters.comercial) params.append('comercial', filters.comercial)
-        if (filters.ln) params.append('ln', filters.ln)  
+        if (filters.ln) params.append('ln', filters.ln)
+        if (typeof filters.month === 'number') params.append('month', String(filters.month))
+        if (typeof filters.year === 'number') params.append('year', String(filters.year))
         if (filters.baseDate) params.append('baseDate', filters.baseDate)
 
         const res = await fetch(`/api/spaces?${params.toString()}`)
