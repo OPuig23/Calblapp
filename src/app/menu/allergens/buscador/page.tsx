@@ -94,11 +94,13 @@ export default function AllergensSearchPage() {
   const [allergenFilters, setAllergenFilters] = useState(() =>
     buildAllergenFilters(DEFAULT_ALLERGENS)
   )
+  const [inverseMode, setInverseMode] = useState(false)
+  const [avoidedAllergens, setAvoidedAllergens] = useState<string[]>([])
   const [consumptionFilters, setConsumptionFilters] = useState({
     vegan: false,
     vegetarian: false,
   })
-  const [showAllergens, setShowAllergens] = useState(false)
+  const [showAdvanced, setShowAdvanced] = useState(false)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -161,12 +163,14 @@ export default function AllergensSearchPage() {
     return Array.from(set).sort()
   }, [plats])
 
-  const activeAllergenCount = useMemo(
+  const activeAdvancedCount = useMemo(
     () =>
       Object.values(allergenFilters).filter(value => value !== 'ANY')
         .length,
     [allergenFilters]
   )
+
+  const avoidedCount = avoidedAllergens.length
 
   useEffect(() => {
     setAllergenFilters(prev => {
@@ -209,8 +213,15 @@ export default function AllergensSearchPage() {
       if (consumptionFilters.vegan && !plat.consumption?.vegan) return false
       if (consumptionFilters.vegetarian && !plat.consumption?.vegetarian) return false
 
+      if (inverseMode && avoidedAllergens.length > 0) {
+        for (const key of avoidedAllergens) {
+          const value = plat.allergens?.[key]
+          if (value !== 'NO') return false
+        }
+      }
+
       for (const allergen of allergensCatalog) {
-        const filterValue = allergenFilters[allergen.key]
+        const filterValue = allergenFilters[allergen.key] || 'ANY'
         if (filterValue === 'ANY') continue
         const value = plat.allergens?.[allergen.key]
         if (value !== filterValue) return false
@@ -225,6 +236,8 @@ export default function AllergensSearchPage() {
     familyFilter,
     menuFilters,
     allergenFilters,
+    inverseMode,
+    avoidedAllergens,
     consumptionFilters,
   ])
 
@@ -240,7 +253,16 @@ export default function AllergensSearchPage() {
     setFamilyFilter('all')
     setMenuFilters([])
     setAllergenFilters(buildAllergenFilters(allergensCatalog))
+    setInverseMode(false)
+    setAvoidedAllergens([])
+    setShowAdvanced(false)
     setConsumptionFilters({ vegan: false, vegetarian: false })
+  }
+
+  const toggleAvoidedAllergen = (key: string) => {
+    setAvoidedAllergens(prev =>
+      prev.includes(key) ? prev.filter(item => item !== key) : [...prev, key]
+    )
   }
 
   if (!allowed) {
@@ -327,18 +349,52 @@ export default function AllergensSearchPage() {
                 Vegà
               </label>
 
+              <label className="flex items-center gap-2 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={inverseMode}
+                  onChange={e => setInverseMode(e.target.checked)}
+                />
+                Cerca inversa (apta per al·lèrgics)
+              </label>
+
               <Button variant="outline" onClick={resetFilters}>
                 Neteja filtres
               </Button>
 
               <Button
                 variant="secondary"
-                onClick={() => setShowAllergens(prev => !prev)}
+                onClick={() => setShowAdvanced(prev => !prev)}
               >
-                {showAllergens ? 'Amaga al·lèrgens' : 'Mostra al·lèrgens'}
-                {activeAllergenCount > 0 && ` (${activeAllergenCount})`}
+                {showAdvanced ? 'Amaga avançat' : 'Avançat'}
+                {activeAdvancedCount > 0 && ` (${activeAdvancedCount})`}
               </Button>
             </div>
+
+            {inverseMode && (
+              <div>
+                <p className="text-sm font-medium text-slate-700 mb-2">
+                  Al·lèrgens a evitar (NO, sense traces)
+                  {avoidedCount > 0 && ` · ${avoidedCount}`}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {allergensCatalog.map(allergen => (
+                    <button
+                      key={allergen.key}
+                      type="button"
+                      onClick={() => toggleAvoidedAllergen(allergen.key)}
+                      className={`px-3 py-1 rounded-full text-xs font-medium border transition ${
+                        avoidedAllergens.includes(allergen.key)
+                          ? 'bg-red-100 border-red-300 text-red-800'
+                          : 'bg-white border-slate-200 text-slate-600'
+                      }`}
+                    >
+                      {allergen.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {menuOptions.length > 0 && (
               <div>
@@ -364,15 +420,15 @@ export default function AllergensSearchPage() {
           </div>
         </div>
 
-        {showAllergens && (
+        {showAdvanced && (
           <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-slate-800">
                 Filtres d'al·lèrgens
               </h2>
               <p className="text-xs text-slate-500">
-                {activeAllergenCount > 0
-                  ? `${activeAllergenCount} seleccionats`
+                {activeAdvancedCount > 0
+                  ? `${activeAdvancedCount} seleccionats`
                   : 'Cap filtre actiu'}
               </p>
             </div>
