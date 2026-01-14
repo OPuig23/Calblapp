@@ -113,6 +113,24 @@ export const MODULES: ModuleDef[] = [
 
   { label: 'Espais', path: '/menu/spaces',
     roles: ['admin','direccio','cap','comercial','usuari'] },
+
+  {
+    label: 'Al·lèrgens',
+    path: '/menu/allergens',
+    roles: ['admin','direccio','cap','treballador','comercial','usuari'],
+    submodules: [
+      {
+        label: 'BBDD plats',
+        path: '/menu/allergens/bbdd',
+        roles: ['admin','direccio','cap'],
+      },
+      {
+        label: 'Buscador',
+        path: '/menu/allergens/buscador',
+        roles: ['admin','direccio','cap','treballador','comercial','usuari'],
+      },
+    ],
+  },
 ]
 
 /** 🧠 VISIBILITAT DE MÒDULS + SUBMÒDULS */
@@ -143,6 +161,10 @@ export function getVisibleModules(user: AccessUser): ModuleDef[] {
       if (!mod.submodules) return mod
 
       const visibleSubmodules = mod.submodules.filter(sub => {
+        if (sub.path === '/menu/allergens/bbdd') {
+          return role === 'admin' || dept === 'qualitat'
+        }
+
         if (!sub.roles.includes(role)) return false
 
         if (sub.departments) {

@@ -53,6 +53,7 @@ const DEPARTS = [
   'Logistica',
   'Cuina',
   'Food Lover',
+  'Qualitat',
   'Producció',
   'Casaments',
   'Transports',

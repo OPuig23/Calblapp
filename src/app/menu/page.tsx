@@ -16,6 +16,7 @@ import {
   Truck,
   FileEdit,
   User,
+  Leaf,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useUnreadCountsByType } from '@/hooks/notifications'
@@ -97,6 +98,11 @@ const UI_MAP: Record<
     icon: CalendarDays,
     color: 'from-emerald-100 to-green-50',
     iconColor: 'text-emerald-600',
+  },
+  '/menu/allergens': {
+    icon: Leaf,
+    color: 'from-amber-100 to-yellow-50',
+    iconColor: 'text-amber-600',
   },
 }
 

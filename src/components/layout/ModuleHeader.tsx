@@ -26,6 +26,7 @@ export default function ModuleHeader({ title, subtitle, icon }: Props) {
     spaces: 'from-emerald-100 to-green-50',
     torns: 'from-blue-100 to-blue-50',
     quadrants: 'from-indigo-100 to-indigo-50',
+    allergens: 'from-amber-100 to-yellow-50',
   }
 
   const color = colorMap[module] ?? 'from-gray-50 to-gray-100'
@@ -37,6 +38,7 @@ export default function ModuleHeader({ title, subtitle, icon }: Props) {
     quadrants: 'Quadrants',
     personnel: 'Personal',
     events: 'Esdeveniments',
+    allergens: 'Al·lèrgens',
   }
 
   const mainLabel = moduleLabels[module] || module
@@ -48,6 +50,8 @@ export default function ModuleHeader({ title, subtitle, icon }: Props) {
     drafts: 'Esborranys',
     info: 'Informació',
     assigned: 'Assignats',
+    bbdd: 'BBDD plats',
+    buscador: 'Buscador',
   }
 
   const subLabel = subLabels[submodule] || ''
