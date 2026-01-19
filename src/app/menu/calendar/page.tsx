@@ -1,9 +1,11 @@
-'use client'
+﻿'use client'
 
 import React, { useEffect, useState, useCallback } from 'react'
 import {
   RefreshCw,
   CalendarDays,
+  ChevronLeft,
+  ChevronRight,
   ChevronDown,
   ChevronUp,
 } from 'lucide-react'
@@ -13,6 +15,7 @@ import { useCalendarData } from '@/hooks/useCalendarData'
 import CalendarMonthView from '@/components/calendar/CalendarMonthView'
 import CalendarWeekView from '@/components/calendar/CalendarWeekView'
 import CalendarNewEventModal from '@/components/calendar/CalendarNewEventModal'
+import CalendarRangeView from '@/components/calendar/CalendarRangeView'
 import Legend from '@/components/calendar/CalendarLegend'
 import CalendarFilters from '@/components/calendar/CalendarFilters'
 import { useSession } from 'next-auth/react'
@@ -31,10 +34,10 @@ import {
   parseISO,
 } from 'date-fns'
 
-/* ────────────────────────────────────────────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 /* TYPES */
-/* ────────────────────────────────────────────── */
-type ViewMode = 'month' | 'week'
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+type ViewMode = 'month' | 'week' | 'range'
 
 type CalendarViewState = {
   mode: ViewMode
@@ -43,14 +46,15 @@ type CalendarViewState = {
   commercial: string
   start: string
   end: string
+  rangeMonths: number
 }
 
 const STORAGE_KEY = 'calblay.calendar.filters.v1'
 const toIso = (d: Date) => format(d, 'yyyy-MM-dd')
 
-/* ────────────────────────────────────────────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 /* ESTAT INICIAL */
-/* ────────────────────────────────────────────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 const makeInitialState = (): CalendarViewState => {
   const today = new Date()
 
@@ -61,6 +65,7 @@ const makeInitialState = (): CalendarViewState => {
     commercial: 'all',
     start: toIso(startOfMonth(today)),
     end: toIso(endOfMonth(today)),
+    rangeMonths: 6,
   }
 
   if (typeof window === 'undefined') return base
@@ -79,13 +84,13 @@ const makeInitialState = (): CalendarViewState => {
   }
 }
 
-/* ────────────────────────────────────────────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 /* COMPONENT */
-/* ────────────────────────────────────────────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 export default function CalendarPage() {
   const [state, setState] = useState<CalendarViewState>(makeInitialState)
-  const { ln, stage, commercial, start, end, mode } = state
-/* 🔒 Quan canvia la LN, tanquem el panell de filtres */
+  const { ln, stage, commercial, start, end, mode, rangeMonths } = state
+/* ðŸ”’ Quan canvia la LN, tanquem el panell de filtres */
 useEffect(() => {
   openFiltersPanel(false)
 }, [ln])
@@ -227,7 +232,7 @@ useEffect(() => {
       alert(`Sincronització: ${json.updated} actualitzats, ${json.created} nous`)
       reload()
     } catch {
-      alert('❌ Error sincronitzant amb Zoho.')
+      alert('âŒ Error sincronitzant amb Zoho.')
     } finally {
       setSyncing(false)
     }
@@ -265,7 +270,7 @@ useEffect(() => {
     `${parseISO(start).toLocaleDateString('ca-ES', {
       day: 'numeric',
       month: 'short',
-    })} – ${parseISO(end).toLocaleDateString('ca-ES', {
+    })} â€“ ${parseISO(end).toLocaleDateString('ca-ES', {
       day: 'numeric',
       month: 'short',
     })}`
@@ -290,9 +295,65 @@ useEffect(() => {
     }))
   }
 
-  /* ────────────────────────────────────────────── */
+  /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   /* RENDER */
-  /* ────────────────────────────────────────────── */
+  /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  const rangeLabel =
+    `${parseISO(start).toLocaleDateString('ca-ES', {
+      month: 'short',
+      year: 'numeric',
+    })} - ${parseISO(end).toLocaleDateString('ca-ES', {
+      month: 'short',
+      year: 'numeric',
+    })}`
+
+  const buildRange = (base: Date, months: number) => {
+    const safeMonths = Math.max(1, months)
+    const rangeStart = startOfMonth(base)
+    const rangeEnd = endOfMonth(addMonths(rangeStart, safeMonths - 1))
+    return {
+      start: toIso(rangeStart),
+      end: toIso(rangeEnd),
+    }
+  }
+
+  const switchToRange = (months = rangeMonths) => {
+    const base = parseISO(start)
+    const next = buildRange(base, months)
+    setState((prev) => ({
+      ...prev,
+      mode: 'range',
+      rangeMonths: months,
+      start: next.start,
+      end: next.end,
+      stage: prev.stage === 'all' ? 'confirmat' : prev.stage,
+    }))
+  }
+
+  const goToRange = (delta: number) => {
+    const base = startOfMonth(parseISO(start))
+    const shifted = addMonths(base, delta * rangeMonths)
+    const next = buildRange(shifted, rangeMonths)
+    setState((prev) => ({
+      ...prev,
+      mode: 'range',
+      start: next.start,
+      end: next.end,
+    }))
+  }
+
+  const setRangeMonths = (months: number) => {
+    const base = parseISO(start)
+    const next = buildRange(base, months)
+    setState((prev) => ({
+      ...prev,
+      mode: 'range',
+      rangeMonths: months,
+      start: next.start,
+      end: next.end,
+      stage: prev.stage === 'all' ? 'confirmat' : prev.stage,
+    }))
+  }
   return (
     <div className="relative w-full">
       {/* CAPÇALERA */}
@@ -350,29 +411,54 @@ useEffect(() => {
         <div className="inline-flex bg-gray-100 rounded-full p-1">
           <button onClick={switchToMonth} className={`px-3 py-1 text-sm rounded-full ${mode === 'month' ? 'bg-white shadow' : ''}`}>Mes</button>
           <button onClick={switchToWeek} className={`px-3 py-1 text-sm rounded-full ${mode === 'week' ? 'bg-white shadow' : ''}`}>Setmana</button>
+          <button onClick={() => switchToRange()} className={`px-3 py-1 text-sm rounded-full ${mode === 'range' ? 'bg-white shadow' : ''}`}>6-12 mesos</button>
         </div>
 
         {mode === 'month' ? (
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" onClick={() => goToMonth(-1)}>‹</Button>
+            <Button variant="ghost" size="icon" onClick={() => goToMonth(-1)}>
+              <ChevronLeft size={16} />
+            </Button>
             <span className="capitalize">{monthLabel}</span>
-            <Button variant="ghost" size="icon" onClick={() => goToMonth(1)}>›</Button>
+            <Button variant="ghost" size="icon" onClick={() => goToMonth(1)}>
+              <ChevronRight size={16} />
+            </Button>
+          </div>
+        ) : mode === 'week' ? (
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" onClick={() => goToWeek(-1)}>
+              <ChevronLeft size={16} />
+            </Button>
+            <span>{weekLabel}</span>
+            <Button variant="ghost" size="icon" onClick={() => goToWeek(1)}>
+              <ChevronRight size={16} />
+            </Button>
           </div>
         ) : (
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" onClick={() => goToWeek(-1)}>‹</Button>
-            <span>{weekLabel}</span>
-            <Button variant="ghost" size="icon" onClick={() => goToWeek(1)}>›</Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="ghost" size="icon" onClick={() => goToRange(-1)}>
+              <ChevronLeft size={16} />
+            </Button>
+            <span className="capitalize">{rangeLabel}</span>
+            <Button variant="ghost" size="icon" onClick={() => goToRange(1)}>
+              <ChevronRight size={16} />
+            </Button>
+            <div className="inline-flex bg-gray-100 rounded-full p-1 text-xs">
+              <button onClick={() => setRangeMonths(6)} className={`px-2 py-1 rounded-full ${rangeMonths === 6 ? 'bg-white shadow' : ''}`}>6m</button>
+              <button onClick={() => setRangeMonths(12)} className={`px-2 py-1 rounded-full ${rangeMonths === 12 ? 'bg-white shadow' : ''}`}>12m</button>
+            </div>
           </div>
         )}
       </div>
 
       {/* CONTINGUT */}
       {error && <p className="text-red-600 text-sm">{error}</p>}
-      {loading && <p className="text-gray-500 text-sm">Carregant dades…</p>}
+      {loading && <p className="text-gray-500 text-sm">Carregant dades...</p>}
 
       <div className="rounded-xl bg-white border shadow-sm overflow-hidden">
-        {mode === 'week' ? (
+        {mode === 'range' ? (
+          <CalendarRangeView deals={deals} start={start} months={rangeMonths} />
+        ) : mode === 'week' ? (
           <CalendarWeekView deals={deals} start={start} end={end} onCreated={reload} />
         ) : (
           <CalendarMonthView deals={deals} start={start} end={end} onCreated={reload} />
@@ -388,3 +474,7 @@ useEffect(() => {
     </div>
   )
 }
+
+
+
+

@@ -1,7 +1,7 @@
 // file: src/components/calendar/CalendarNewEventModal.tsx
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import {
   Dialog,
@@ -50,6 +50,9 @@ export default function CalendarNewEventModal({ date, trigger, onSaved }: Props)
   const [createdId, setCreatedId] = useState<string | null>(null)
   const [files, setFiles] = useState<{ key: string; url: string }[]>([])
   const [multiDay, setMultiDay] = useState(false)
+  const [comercialCandidates, setComercialCandidates] = useState<
+    { name: string; department: string }[]
+  >([])
   const [comercialOptions, setComercialOptions] = useState<string[]>([])
   const [comercialLoading, setComercialLoading] = useState(false)
 
@@ -60,8 +63,26 @@ export default function CalendarNewEventModal({ date, trigger, onSaved }: Props)
       .toLowerCase()
       .trim()
 
+  const mapDepartmentToLN = (dep?: string) => {
+    const d = norm(dep || '')
+    if (d === 'empresa') return 'Empresa'
+    if (d === 'casaments') return 'Casaments'
+    if (d === 'food lover' || d === 'foodlover' || d === 'foodlovers') return 'Foodlovers'
+    return ''
+  }
+
+  const mapLNToDepartment = (ln?: string) => {
+    const l = norm(ln || '')
+    if (l === 'empresa') return 'empresa'
+    if (l === 'casaments') return 'casaments'
+    if (l === 'foodlovers' || l === 'food lover' || l === 'foodlover') return 'food lover'
+    return ''
+  }
+
   const role = norm((session?.user as any)?.role)
   const department = norm((session?.user as any)?.department)
+  const userName = String((session?.user as any)?.name || '').trim()
+  const defaultLN = mapDepartmentToLN((session?.user as any)?.department)
   const isAdmin = role === 'admin'
   const isDireccio = role === 'direccio' || role === 'direccion'
   const isProduccio = department === 'produccio'
@@ -92,9 +113,19 @@ export default function CalendarNewEventModal({ date, trigger, onSaved }: Props)
     value: EventFormData[keyof EventFormData]
   ) => setFormData((prev) => ({ ...prev, [field]: value }))
 
+  const currentComercial = useMemo(
+    () => String(formData.Comercial || '').trim(),
+    [formData.Comercial]
+  )
+
+  const hasCurrentComercialOption = useMemo(() => {
+    if (!currentComercial) return false
+    return comercialOptions.some((n) => norm(n) === norm(currentComercial))
+  }, [comercialOptions, currentComercial])
+
   useEffect(() => {
     if (!open) return
-    if (comercialOptions.length > 0) return
+    if (comercialCandidates.length > 0) return
 
     let active = true
     const load = async () => {
@@ -104,25 +135,45 @@ export default function CalendarNewEventModal({ date, trigger, onSaved }: Props)
         const data = await res.json()
         if (!Array.isArray(data)) return
 
-        const names = data
-          .filter((u: any) => {
-            const roleRaw = u?.role ?? ''
-            const r = norm(String(roleRaw))
-            return (
-              r === 'comercial' ||
-              r === 'cap' ||
-              r === 'cap departament' ||
-              r === 'capdepartament'
-            )
+        const candidates = data
+          .map((u: any) => {
+            const name = String(u?.name || '').trim()
+            const roleRaw =
+              u?.role ??
+              u?.Role ??
+              u?.rol ??
+              u?.Rol ??
+              ''
+            const categoryRaw =
+              u?.categoria ??
+              u?.Categoria ??
+              u?.category ??
+              u?.Category ??
+              ''
+            const depRaw =
+              u?.department ??
+              u?.Department ??
+              u?.departament ??
+              u?.Departament ??
+              ''
+
+            const roleText = norm(String(roleRaw))
+            const categoryText = norm(String(categoryRaw))
+            const roleBucket = `${roleText} ${categoryText}`.trim()
+
+            return {
+              name,
+              department: norm(String(depRaw)),
+              roleBucket,
+            }
           })
-          .map((u: any) => String(u?.name || '').trim())
-          .filter((n: string) => n.length > 0)
+          .filter((c: any) => {
+            if (!c.name) return false
+            return c.roleBucket.includes('comercial') || c.roleBucket.includes('cap')
+          })
+          .map((c: any) => ({ name: c.name, department: c.department }))
 
-        const uniq = Array.from(
-          new Map(names.map((n: string) => [norm(n), n])).values()
-        ).sort((a, b) => a.localeCompare(b, 'ca'))
-
-        if (active) setComercialOptions(uniq)
+        if (active) setComercialCandidates(candidates)
       } catch (err) {
         console.error('Error carregant comercials:', err)
       } finally {
@@ -134,7 +185,42 @@ export default function CalendarNewEventModal({ date, trigger, onSaved }: Props)
     return () => {
       active = false
     }
-  }, [open, comercialOptions.length])
+  }, [open, comercialCandidates.length])
+
+  useEffect(() => {
+    const targetDept = mapLNToDepartment(formData.LN)
+    const filtered = targetDept
+      ? comercialCandidates.filter((c) => c.department === targetDept)
+      : comercialCandidates
+
+    const names = filtered
+      .map((c) => c.name)
+      .filter((n) => n && String(n).trim().length > 0)
+
+    const uniq = Array.from(
+      new Map(names.map((n: string) => [norm(n), n])).values()
+    ).sort((a, b) => a.localeCompare(b, 'ca'))
+
+    setComercialOptions(uniq)
+  }, [comercialCandidates, formData.LN])
+
+  useEffect(() => {
+    if (!open) return
+    if (!userName) return
+    setFormData((prev) => {
+      if (String(prev.Comercial || '').trim()) return prev
+      return { ...prev, Comercial: userName }
+    })
+  }, [open, userName])
+
+  useEffect(() => {
+    if (!open) return
+    if (!defaultLN) return
+    setFormData((prev) => {
+      if (String(prev.LN || '').trim()) return prev
+      return { ...prev, LN: defaultLN }
+    })
+  }, [open, defaultLN])
 
   // Comprova si existeix una finca o servei i el crea si cal
   const ensureExists = async (collection: 'finques' | 'serveis', nom: string) => {
@@ -259,7 +345,8 @@ export default function CalendarNewEventModal({ date, trigger, onSaved }: Props)
       NumPax: '',
       Ubicacio: '',
       Servei: '',
-      Comercial: '',
+      Comercial: userName || '',
+      LN: defaultLN || '',
     })
   }
 
@@ -416,6 +503,11 @@ export default function CalendarNewEventModal({ date, trigger, onSaved }: Props)
               <option value="">
                 {comercialLoading ? 'Carregant...' : '-- Selecciona --'}
               </option>
+              {currentComercial && !hasCurrentComercialOption && (
+                <option value={currentComercial} hidden>
+                  {currentComercial}
+                </option>
+              )}
               {comercialOptions.map((name) => (
                 <option key={name} value={name}>
                   {name}
