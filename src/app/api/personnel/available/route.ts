@@ -24,6 +24,11 @@ interface PersonnelDoc {
   role?: string
   department?: string
   isDriver?: boolean
+  driver?: {
+    isDriver?: boolean
+    camioGran?: boolean
+    camioPetit?: boolean
+  }
   [key: string]: unknown
 }
 
@@ -179,7 +184,13 @@ try {
       if (TREBALLADOR_ROLES.has(roleNorm)) {
         soldats.push(entry)
       }
-      if (data.isDriver === true) {
+      const isDriver =
+        data.isDriver === true ||
+        data.driver?.isDriver === true ||
+        data.driver?.camioGran === true ||
+        data.driver?.camioPetit === true
+
+      if (isDriver) {
         conductors.push(entry)
       }
     }

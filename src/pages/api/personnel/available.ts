@@ -9,6 +9,11 @@ type Personnel = {
   role?: string
   department?: string
   isDriver?: boolean
+  driver?: {
+    isDriver?: boolean
+    camioGran?: boolean
+    camioPetit?: boolean
+  }
   active?: boolean
 }
 
@@ -43,23 +48,33 @@ export default async function handler(
   res: NextApiResponse
 ) {
   try {
-    const { departament, startDate, endDate, startTime, endTime } =
+    const { departament, department, startDate, endDate, startTime, endTime } =
       req.query as {
         departament: string
+        department?: string
         startDate: string
         endDate: string
         startTime?: string
         endTime?: string
       }
+    const dept = (department || departament || '').toString().trim()
 
     /* ────────────────────────────────────────────────────────
        1) OBTENIR PERSONAL DEL DEPARTAMENT
        (Només roles útils: Treballador, Cap Departament, Personal)
     ───────────────────────────────────────────────────────── */
-    const personnelSnap = await db
+    let personnelSnap = await db
       .collection('personnel')
-      .where('department', '==', departament)
+      .where('department', '==', dept)
       .get()
+
+    if (personnelSnap.empty) {
+      const deptLower = dept.toLowerCase()
+      personnelSnap = await db
+        .collection('personnel')
+        .where('departmentLower', '==', deptLower)
+        .get()
+    }
 
 const allPersonnel = personnelSnap.docs.map((doc) => ({
   id: doc.id,
@@ -122,7 +137,14 @@ const allPersonnel = personnelSnap.docs.map((doc) => ({
       return role === 'cap departament' || role === 'responsable'
     })
 
-    const conductors = disponibles.filter((p) => p.isDriver === true)
+    const conductors = disponibles.filter((p) => {
+      return (
+        p.isDriver === true ||
+        p.driver?.isDriver === true ||
+        p.driver?.camioGran === true ||
+        p.driver?.camioPetit === true
+      )
+    })
 
     const treballadors = disponibles.filter((p) => {
       const role = p.role?.toLowerCase().trim()

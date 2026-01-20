@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useCallback } from 'react'
 import { ChevronDown, ChevronUp, Truck } from 'lucide-react'
 import VehiclesTable from './VehiclesTable'
 
@@ -9,6 +9,7 @@ type VehicleRow = {
   department?: string
   startDate?: string
   startTime?: string
+  arrivalTime?: string
   endTime?: string
   plate?: string
   vehicleType?: string
@@ -33,6 +34,7 @@ export default function TransportAssignmentCard({
   onChanged: () => void
 }) {
   const [open, setOpen] = useState(false)
+  const [editingRowKeys, setEditingRowKeys] = useState<Record<string, boolean>>({})
 
   const rows = Array.isArray(item.rows) ? item.rows : []
 
@@ -41,6 +43,7 @@ export default function TransportAssignmentCard({
       r.department &&
       r.startDate &&
       r.startTime &&
+      r.arrivalTime &&
       r.endTime &&
       r.vehicleType &&
       r.plate &&
@@ -48,14 +51,39 @@ export default function TransportAssignmentCard({
     )
 
   const totalVehicles = rows.length
-  const completedVehicles = rows.filter(isRowComplete).length
+  const completedVehicles = rows.filter(
+    (r) => isRowComplete(r) && !editingRowKeys[String(r.id)]
+  ).length
 
   const statusColor = useMemo(
     () => (item.status === 'confirmed' ? 'bg-green-500' : 'bg-blue-500'),
     [item.status]
   )
 
-  const toggleOpen = () => setOpen((v) => !v)
+  const hasPendingEdits = Object.keys(editingRowKeys).length > 0
+
+  const toggleOpen = () => {
+    if (open && hasPendingEdits) {
+      const ok = window.confirm(
+        'Tens canvis pendents de guardar. Vols tancar igualment?'
+      )
+      if (!ok) return
+    }
+    setOpen((v) => !v)
+  }
+
+  const handleEditingChange = useCallback((rowKey: string, isEditing: boolean) => {
+    setEditingRowKeys((prev) => {
+      if (isEditing) {
+        if (prev[rowKey]) return prev
+        return { ...prev, [rowKey]: true }
+      }
+      if (!prev[rowKey]) return prev
+      const next = { ...prev }
+      delete next[rowKey]
+      return next
+    })
+  }, [])
 
   return (
     <div className="rounded-xl border bg-white shadow-sm">
@@ -131,7 +159,11 @@ export default function TransportAssignmentCard({
 
       {open && (
         <div className="border-t bg-gray-50">
-          <VehiclesTable item={item} onChanged={onChanged} />
+          <VehiclesTable
+            item={item}
+            onChanged={onChanged}
+            onEditingChange={handleEditingChange}
+          />
         </div>
       )}
     </div>

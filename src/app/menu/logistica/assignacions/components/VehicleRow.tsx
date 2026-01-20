@@ -23,6 +23,8 @@ interface Props {
   eventEndTime: string
   onChanged: () => void
   isNew: boolean
+  rowKey: string
+  onEditingChange?: (rowKey: string, isEditing: boolean) => void
 }
 
 const VEHICLE_TYPES = [
@@ -51,15 +53,24 @@ export default function VehicleRow({
   eventEndTime,
   onChanged,
   isNew,
+  rowKey,
+  onEditingChange,
 }: Props) {
   const [department, setDepartment] = useState(
     (row?.department || 'logistica').toString().toLowerCase()
   )
-  const [date, setDate] = useState((row?.startDate || eventDay || '').toString())
-  const [startTime, setStartTime] = useState(toTime5(row?.startTime || eventStartTime || ''))
-  const [endTime, setEndTime] = useState(toTime5(row?.endTime || eventEndTime || ''))
+  const [date, setDate] = useState((row?.startDate ?? eventDay ?? '').toString())
+  const [startTime, setStartTime] = useState(
+    toTime5(row?.startTime ?? eventStartTime ?? '')
+  )
+  const [arrivalTime, setArrivalTime] = useState(
+    toTime5(row?.arrivalTime ?? eventStartTime ?? '')
+  )
+  const [endTime, setEndTime] = useState(
+    toTime5(row?.endTime ?? eventEndTime ?? '')
+  )
   const [vehicleType, setVehicleType] = useState(
-    (row?.vehicleType || expectedVehicleType || '').toString()
+    (row?.vehicleType ?? expectedVehicleType ?? '').toString()
   )
 
   const normalizedPlate =
@@ -79,14 +90,25 @@ export default function VehicleRow({
   // Sync when row arrives async
   useEffect(() => {
     if (!row) return
-    if (row.name) setDriverName(row.name)
+    setDriverName(row.name ?? '')
     if (row.department) setDepartment(row.department)
-    if (row.startDate) setDate(row.startDate)
-    if (row.startTime) setStartTime(toTime5(row.startTime))
-    if (row.endTime) setEndTime(toTime5(row.endTime))
-    if (row.vehicleType) setVehicleType(row.vehicleType)
-    if (row.plate) setPlate(row.plate)
+    setDate(row.startDate ?? '')
+    setStartTime(toTime5(row.startTime ?? ''))
+    setArrivalTime(toTime5(row.arrivalTime ?? ''))
+    setEndTime(toTime5(row.endTime ?? ''))
+    setVehicleType(row.vehicleType ?? '')
+    setPlate(row.plate ?? '')
   }, [row])
+
+  useEffect(() => {
+    if (onEditingChange) onEditingChange(rowKey, isEditing)
+  }, [isEditing, onEditingChange, rowKey])
+
+  useEffect(() => {
+    return () => {
+      if (onEditingChange) onEditingChange(rowKey, false)
+    }
+  }, [onEditingChange, rowKey])
 
   const [drivers, setDrivers] = useState<Driver[]>([])
   const [driversLoading, setDriversLoading] = useState(false)
@@ -188,33 +210,14 @@ export default function VehicleRow({
     return options
   }, [availableVehicles, vehicleType, plate])
 
-  const safeDateForValidation = date || eventDay
-  const safeStartForValidation = startTime || eventStartTime || ''
-  const safeEndForValidation = endTime || eventEndTime || ''
-  const safeDeptForValidation = department || row?.department || ''
-
-  const missingRequired =
-    !safeDeptForValidation ||
-    !safeDateForValidation ||
-    !safeStartForValidation ||
-    !safeEndForValidation ||
-    !vehicleType ||
-    !plate ||
-    (isNew && !driverName)
-
   const handleSave = async () => {
-    const safeDate = date || eventDay
-    const safeStartTime = startTime || eventStartTime || ''
-    const safeEndTime = endTime || eventEndTime || ''
-    const safeDepartment = department || row?.department || ''
-
     try {
       setSaveError(null)
       setSaving(true)
 
       const payload = {
         eventCode,
-        department: safeDepartment,
+        department,
         isNew: isNew || !row?.id,
         rowId: row?.id,
         rowIndex,
@@ -223,10 +226,11 @@ export default function VehicleRow({
           name: driverName,
           plate,
           vehicleType,
-          startDate: safeDate,
-          endDate: safeDate,
-          startTime: safeStartTime,
-          endTime: safeEndTime,
+          startDate: date,
+          endDate: date,
+          startTime,
+          arrivalTime,
+          endTime,
         },
       }
 
@@ -269,12 +273,13 @@ export default function VehicleRow({
   }
 
   return (
-    <div className="space-y-3 rounded-xl border bg-white p-4">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="rounded-xl border bg-white p-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[140px_120px_80px_90px_80px_140px_140px_minmax(160px,1fr)_96px] lg:items-end lg:gap-2">
         <div>
-          <label className="text-xs text-gray-500">Departament</label>
+          <label className="text-xs text-gray-500 lg:sr-only">Departament</label>
           <select
-            className="mt-1 w-full rounded border px-2 py-1 text-sm disabled:bg-gray-100"
+            aria-label="Departament"
+            className="mt-1 w-full rounded border px-2 py-1 text-sm disabled:bg-gray-100 lg:mt-0"
             value={department}
             onChange={(e) => setDepartment(e.target.value)}
             disabled={!isEditing}
@@ -288,10 +293,11 @@ export default function VehicleRow({
         </div>
 
         <div>
-          <label className="text-xs text-gray-500">Dia</label>
+          <label className="text-xs text-gray-500 lg:sr-only">Dia</label>
           <input
             type="date"
-            className="mt-1 w-full rounded border px-2 py-1 text-sm disabled:bg-gray-100"
+            aria-label="Dia"
+            className="mt-1 w-full rounded border px-2 py-1 text-sm disabled:bg-gray-100 lg:mt-0"
             value={date}
             onChange={(e) => setDate(e.target.value)}
             disabled={!isEditing}
@@ -299,10 +305,11 @@ export default function VehicleRow({
         </div>
 
         <div>
-          <label className="text-xs text-gray-500">Sortida</label>
+          <label className="text-xs text-gray-500 lg:sr-only">Sortida</label>
           <input
             type="time"
-            className="mt-1 w-full rounded border px-2 py-1 text-sm disabled:bg-gray-100"
+            aria-label="Sortida"
+            className="mt-1 w-full rounded border px-2 py-1 text-sm disabled:bg-gray-100 lg:mt-0"
             value={startTime}
             onChange={(e) => setStartTime(e.target.value)}
             disabled={!isEditing}
@@ -310,10 +317,23 @@ export default function VehicleRow({
         </div>
 
         <div>
-          <label className="text-xs text-gray-500">Arribada</label>
+          <label className="text-xs text-gray-500 lg:sr-only">Arribada desti</label>
           <input
             type="time"
-            className="mt-1 w-full rounded border px-2 py-1 text-sm disabled:bg-gray-100"
+            aria-label="Arribada desti"
+            className="mt-1 w-full rounded border px-2 py-1 text-sm disabled:bg-gray-100 lg:mt-0"
+            value={arrivalTime}
+            onChange={(e) => setArrivalTime(e.target.value)}
+            disabled={!isEditing}
+          />
+        </div>
+
+        <div>
+          <label className="text-xs text-gray-500 lg:sr-only">Tornada</label>
+          <input
+            type="time"
+            aria-label="Tornada"
+            className="mt-1 w-full rounded border px-2 py-1 text-sm disabled:bg-gray-100 lg:mt-0"
             value={endTime}
             onChange={(e) => setEndTime(e.target.value)}
             disabled={!isEditing}
@@ -321,9 +341,10 @@ export default function VehicleRow({
         </div>
 
         <div>
-          <label className="text-xs text-gray-500">Vehicle</label>
+          <label className="text-xs text-gray-500 lg:sr-only">Vehicle</label>
           <select
-            className="mt-1 w-full rounded border px-2 py-1 text-sm disabled:bg-gray-100"
+            aria-label="Vehicle"
+            className="mt-1 w-full rounded border px-2 py-1 text-sm disabled:bg-gray-100 lg:mt-0"
             value={vehicleType}
             onChange={(e) => {
               setVehicleType(e.target.value)
@@ -341,9 +362,10 @@ export default function VehicleRow({
         </div>
 
         <div>
-          <label className="text-xs text-gray-500">Matricula</label>
+          <label className="text-xs text-gray-500 lg:sr-only">Matricula</label>
           <select
-            className="mt-1 w-full rounded border px-2 py-1 text-sm disabled:bg-gray-100"
+            aria-label="Matricula"
+            className="mt-1 w-full rounded border px-2 py-1 text-sm disabled:bg-gray-100 lg:mt-0"
             value={plate}
             onChange={(e) => setPlate(e.target.value)}
             disabled={!isEditing || !vehicleType || loadingVehicles}
@@ -358,11 +380,12 @@ export default function VehicleRow({
         </div>
 
         <div>
-          <label className="text-xs text-gray-500">Conductor</label>
+          <label className="text-xs text-gray-500 lg:sr-only">Conductor</label>
           <select
+            aria-label="Conductor"
             className={`mt-1 w-full rounded border px-2 py-1 text-sm disabled:bg-gray-100 ${
               !driverName && isEditing ? 'border-amber-400 bg-amber-50' : ''
-            }`}
+            } lg:mt-0`}
             value={driverName}
             onChange={(e) => setDriverName(e.target.value)}
             disabled={!isEditing || driversLoading}
@@ -379,7 +402,7 @@ export default function VehicleRow({
           </select>
         </div>
 
-        <div className="flex items-end justify-end gap-2 sm:col-span-2 xl:col-span-1">
+        <div className="flex items-end justify-end gap-2 sm:col-span-2 lg:col-span-1 lg:items-center lg:justify-end">
           {!isEditing ? (
             <Button
               size="icon"
@@ -393,9 +416,9 @@ export default function VehicleRow({
             <Button
               size="icon"
               onClick={handleSave}
-              disabled={saving || missingRequired}
+              disabled={saving}
               className="bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40"
-              title={missingRequired ? 'Falten camps obligatoris' : 'Desar'}
+              title="Desar"
             >
               {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
             </Button>
@@ -414,7 +437,7 @@ export default function VehicleRow({
       </div>
 
       {saveError && (
-        <div className="text-xs text-red-600">
+        <div className="mt-2 text-xs text-red-600">
           {saveError}
         </div>
       )}

@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { usePersonnel, Personnel } from '@/hooks/usePersonnel'
 import {
   GraduationCap,
@@ -127,25 +128,32 @@ export default function PersonnelList({ personnel, mutate, onEdit }: Props) {
         return (
           <div
             key={p.id}
-            className="relative rounded-xl bg-white shadow-sm hover:shadow-md transition border border-gray-200 p-3"
+            className="relative rounded-2xl bg-white shadow-sm hover:shadow-md transition border border-gray-200 p-3"
           >
-            {/* Franja superior */}
-            <div className={cn('absolute top-0 left-0 w-full h-1 rounded-t-xl', deptColor(p.department))} />
+            {/* Franja lateral */}
+            <div
+              className={cn(
+                'absolute left-0 top-0 h-full w-1 rounded-l-2xl',
+                deptColor(p.department)
+              )}
+            />
+            <div className="pl-3">
 
             {/* Línia superior */}
-            <div className="flex items-center justify-between mt-2">
+            <div className="flex items-start justify-between gap-2">
               {/* Identitat */}
-              <div className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-full bg-gray-100 border flex items-center justify-center text-gray-700 font-semibold">
+              <div className="flex items-center gap-3">
+                <div className="h-9 w-9 rounded-xl bg-gray-50 border flex items-center justify-center text-gray-700 font-semibold">
                   {p.name?.[0]?.toUpperCase() || <User size={14} />}
                 </div>
 
                 <div className="flex flex-col">
-                  <span className="font-semibold text-sm text-gray-900">{p.name}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-sm text-gray-900">{p.name}</span>
+                    {roleIcon[role] || roleIcon['treballador']}
+                  </div>
                   <span className="text-xs text-gray-500">{p.department}</span>
                 </div>
-
-                {roleIcon[role] || roleIcon['treballador']}
               </div>
 
               {/* Botons */}
@@ -174,26 +182,28 @@ export default function PersonnelList({ personnel, mutate, onEdit }: Props) {
             </div>
 
             {/* Línia info */}
-            <div className="flex items-center gap-3 text-xs text-gray-700 mt-2">
-              <span
-                className={cn(
-                  'inline-block w-2.5 h-2.5 rounded-full',
-                  p.available ? 'bg-green-500' : 'bg-red-500'
-                )}
-              />
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+              <Badge variant={p.available ? 'success' : 'destructive'}>
+                {p.available ? 'Disponible' : 'No disponible'}
+              </Badge>
 
               {p.driver?.isDriver && (
-                <VehicleIcon
-                  type={
-                    p.driver.camioGran
-                      ? 'camioGran'
-                      : p.driver.camioPetit
-                      ? 'camioPetit'
-                      : 'furgoneta'
-                  }
-                />
+                <Badge variant="secondary" className="gap-1">
+                  <VehicleIcon
+                    type={
+                      p.driver.camioGran
+                        ? 'camioGran'
+                        : p.driver.camioPetit
+                        ? 'camioPetit'
+                        : 'furgoneta'
+                    }
+                  />
+                  Conductor
+                </Badge>
               )}
+            </div>
 
+            <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-gray-600">
               {p.phone && (
                 <span className="flex items-center gap-1 text-gray-600">
                   <Phone size={12} /> {p.phone}
@@ -201,7 +211,7 @@ export default function PersonnelList({ personnel, mutate, onEdit }: Props) {
               )}
 
               {p.email && (
-                <span className="flex items-center gap-1 text-gray-600 truncate max-w-[120px]">
+                <span className="flex items-center gap-1 text-gray-600 truncate max-w-[160px]">
                   <AtSign size={12} />
                   <span className="truncate">{p.email}</span>
                 </span>
@@ -220,7 +230,7 @@ export default function PersonnelList({ personnel, mutate, onEdit }: Props) {
             )}
 
             {/* Estat usuari */}
-            <div className="mt-3">
+            <div className="mt-2 border-t border-gray-100 pt-1">
               {p.hasUser && (
                 <div className="flex items-center gap-2 text-green-600 text-xs font-medium">
                   <CheckCircle2 size={16} /> Usuari creat
@@ -239,18 +249,38 @@ export default function PersonnelList({ personnel, mutate, onEdit }: Props) {
                 </div>
               )}
 
+              {!p.hasUser && p.requestStatus === 'approved' && (
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-amber-600 text-xs font-medium">
+                    <XCircle size={16} /> Usuari eliminat
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 px-2 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 flex items-center gap-1"
+                    disabled={isLoading}
+                    onClick={() => handleRequestUser(p)}
+                  >
+                    <UserPlus size={14} />
+                    Sol·licitar usuari
+                  </Button>
+                </div>
+              )}
+
               {!p.hasUser && p.requestStatus === 'none' && (
                 <Button
                   size="sm"
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 mt-1"
+                  variant="ghost"
+                  className="h-6 px-2 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 inline-flex items-center gap-1"
                   disabled={isLoading}
                   onClick={() => handleRequestUser(p)}
                 >
-                  <UserPlus size={16} />
+                  <UserPlus size={14} />
                   Sol·licitar usuari
                 </Button>
               )}
             </div>
+          </div>
           </div>
         )
       })}

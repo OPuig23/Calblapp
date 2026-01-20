@@ -104,10 +104,11 @@ export async function GET(req: Request) {
               name: c.name || '',
               plate: c.plate || '',
               vehicleType: c.vehicleType || '',
-              startDate: c.startDate || q.startDate,
-              endDate: c.endDate || q.endDate || q.startDate,
-              startTime: c.startTime || q.startTime,
-              endTime: c.endTime || q.endTime,
+              startDate: c.startDate ?? q.startDate ?? '',
+              endDate: c.endDate ?? q.endDate ?? q.startDate ?? '',
+              startTime: c.startTime ?? q.startTime ?? '',
+              arrivalTime: c.arrivalTime ?? q.arrivalTime ?? '',
+              endTime: c.endTime ?? q.endTime ?? '',
             })
           })
         }

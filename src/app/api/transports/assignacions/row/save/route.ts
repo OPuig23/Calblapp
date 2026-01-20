@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { eventCode, department, rowId, rowIndex, data, originalPlate } = body || {}
 
-    if (!eventCode || !department || !data?.plate) {
+    if (!eventCode || !department || !data) {
       return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
     }
 
@@ -59,13 +59,20 @@ export async function POST(req: NextRequest) {
           ...c,
           id: c?.id || idToUse,
           department,
-          name: data.name || c.name || '',
-          plate: data.plate,
-          vehicleType: data.vehicleType || c.vehicleType || '',
-          startDate: data.startDate || c.startDate || current.startDate || '',
-          endDate: data.endDate || data.startDate || c.endDate || c.startDate || '',
-          startTime: data.startTime || c.startTime || current.startTime || '',
-          endTime: data.endTime || c.endTime || current.endTime || '',
+          name: data.name ?? c.name ?? '',
+          plate: data.plate ?? c.plate ?? '',
+          vehicleType: data.vehicleType ?? c.vehicleType ?? '',
+          startDate: data.startDate ?? c.startDate ?? current.startDate ?? '',
+          endDate:
+            data.endDate ??
+            data.startDate ??
+            c.endDate ??
+            c.startDate ??
+            '',
+          startTime: data.startTime ?? c.startTime ?? current.startTime ?? '',
+          arrivalTime:
+            data.arrivalTime ?? c.arrivalTime ?? current.arrivalTime ?? '',
+          endTime: data.endTime ?? c.endTime ?? current.endTime ?? '',
           updatedAt: now,
           updatedBy: user,
         }
@@ -77,13 +84,14 @@ export async function POST(req: NextRequest) {
       const newRow = {
         id: idToUse,
         department,
-        name: data.name || '',
-        plate: data.plate,
-        vehicleType: data.vehicleType || '',
-        startDate: data.startDate || current.startDate || '',
-        endDate: data.endDate || data.startDate || current.startDate || '',
-        startTime: data.startTime || current.startTime || '',
-        endTime: data.endTime || current.endTime || '',
+        name: data.name ?? '',
+        plate: data.plate ?? '',
+        vehicleType: data.vehicleType ?? '',
+        startDate: data.startDate ?? current.startDate ?? '',
+        endDate: data.endDate ?? data.startDate ?? current.startDate ?? '',
+        startTime: data.startTime ?? current.startTime ?? '',
+        arrivalTime: data.arrivalTime ?? current.arrivalTime ?? '',
+        endTime: data.endTime ?? current.endTime ?? '',
         createdAt: now,
         createdBy: user,
       }

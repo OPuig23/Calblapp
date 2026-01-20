@@ -138,7 +138,7 @@ export async function PUT(
 }
 
 // ──────────────────────────────────────────────────────────────
-// DELETE: eliminar usuari
+// DELETE: eliminar usuari (no elimina personnel)
 // ──────────────────────────────────────────────────────────────
 export async function DELETE(
   _req: Request,
@@ -148,7 +148,6 @@ export async function DELETE(
     const { id } = await context.params
 
     await db.collection('users').doc(id).delete()
-    await db.collection('personnel').doc(id).delete().catch(() => {})
 
     return new NextResponse(null, { status: 204 })
   } catch (error: unknown) {
