@@ -43,15 +43,19 @@ export function usePushNotifications() {
       if (typeof window === 'undefined') throw new Error('No window')
       if (!('serviceWorker' in navigator)) throw new Error('No SW disponible')
 
-      const registration = await navigator.serviceWorker.getRegistration()
-
-if (!registration || !registration.pushManager) {
-  throw new Error(
-    'Les notificacions encara no estan disponibles en aquest dispositiu'
-  )
-}
-
-
+      let registration = await navigator.serviceWorker.getRegistration()
+      if (!registration) {
+        registration = await navigator.serviceWorker.register('/sw.js')
+      }
+      if (!registration) throw new Error('No SW disponible')
+      if (!registration.active) {
+        registration = await navigator.serviceWorker.ready
+      }
+      if (!registration || !registration.pushManager) {
+        throw new Error(
+          'Les notificacions encara no estan disponibles en aquest dispositiu'
+        )
+      }
       // Fem servir la VAPID pÇ§blica correcta en producciÇü
       const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
       if (!vapidKey) {
@@ -60,10 +64,14 @@ if (!registration || !registration.pushManager) {
 
       const convertedKey = urlBase64ToUint8Array(vapidKey)
 
-      const sub = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: convertedKey,
-      })
+      const existingSub = await registration.pushManager.getSubscription()
+      const sub =
+        existingSub ??
+        (await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: convertedKey,
+        }))
+      const createdSub = !existingSub
 
       setSubscription(sub)
 
@@ -74,7 +82,9 @@ if (!registration || !registration.pushManager) {
       })
 
       if (!res.ok) {
-        await sub.unsubscribe().catch(() => {})
+        if (createdSub) {
+          await sub.unsubscribe().catch(() => {})
+        }
         throw new Error('Error enviant subscripciÇü')
       }
       return true

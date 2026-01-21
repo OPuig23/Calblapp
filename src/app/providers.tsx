@@ -10,6 +10,8 @@ const queryClient = new QueryClient()
 
 export function Providers({ children }: { children: React.ReactNode }) {
   useEffect(() => {
+    // Only clear SW/cache in development to avoid breaking push subscriptions.
+    if (process.env.NODE_ENV !== 'development') return
     if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return
 
     navigator.serviceWorker

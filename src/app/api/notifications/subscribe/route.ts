@@ -1,7 +1,6 @@
 // src/app/api/notifications/subscribe/route.ts
 import { NextResponse } from "next/server";
 import { firestoreAdmin as db } from "@/lib/firebaseAdmin";
-import webpush from "web-push";
 
 export async function POST(req: Request) {
   const body = await req.json();
@@ -11,9 +10,13 @@ export async function POST(req: Request) {
   }
 
   await db
+    .collection("users")
+    .doc(String(body.userId))
     .collection("pushSubscriptions")
-    .doc(body.userId)
-    .set(body.subscription, { merge: true });
+    .add({
+      subscription: body.subscription,
+      createdAt: Date.now(),
+    });
 
   return NextResponse.json({ ok: true });
 }

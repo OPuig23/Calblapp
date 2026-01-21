@@ -33,8 +33,8 @@ self.addEventListener('push', (event) => {
   const title = data.title || 'Cal Blay'
   const options = {
     body: data.body || 'Tens una nova notificació',
-    icon: data.icon || '/icons/icon-192x192.png',   // ajustarem si cal
-    badge: data.badge || '/icons/icon-72x72.png',   // ajustarem si cal
+    icon: data.icon || '/icons/icon-192.png',   // ajustarem si cal
+    badge: data.badge || '/icons/icon-192.png',   // ajustarem si cal
     data: {
       // URL on volem portar l’usuari quan fa clic
       url: data.url || '/',
