@@ -157,6 +157,7 @@ useEffect(() => {
 
   /* UI */
   const [syncing, setSyncing] = useState(false)
+  const [syncingAda, setSyncingAda] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const [showLegend, setShowLegend] = useState(false)
 
@@ -317,6 +318,24 @@ useEffect(() => {
     }
   }
 
+  /* Sync ADA */
+  const handleSyncAda = async () => {
+    try {
+      setSyncingAda(true)
+      const res = await fetch('/api/sync/ada-to-firestore?mode=manual')
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Error')
+      alert(
+        `Sync ADA: ${json.updated} actualitzats (3/3: ${json.matched3}, 2/3: ${json.matched2})`
+      )
+      reload()
+    } catch {
+      alert('Error sincronitzant amb ADA.')
+    } finally {
+      setSyncingAda(false)
+    }
+  }
+
   const switchToRange = (months = rangeMonths) => {
     const base = parseISO(start)
     const next = buildRange(base, months)
@@ -375,19 +394,34 @@ useEffect(() => {
         <div className="flex items-center gap-2">
           <FilterButton onClick={openFilters} />
           {!isMobile && role === 'admin' && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleSync}
-              disabled={syncing}
-              className="flex items-center gap-1"
-            >
-              <RefreshCw
-                size={14}
-                className={syncing ? 'animate-spin text-blue-500' : ''}
-              />
-              {syncing ? 'Sincronitzant...' : 'Sincronitzar Zoho'}
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSync}
+                disabled={syncing}
+                className="flex items-center gap-1"
+              >
+                <RefreshCw
+                  size={14}
+                  className={syncing ? 'animate-spin text-blue-500' : ''}
+                />
+                {syncing ? 'Sincronitzant...' : 'Sincronitzar Zoho'}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSyncAda}
+                disabled={syncingAda}
+                className="flex items-center gap-1"
+              >
+                <RefreshCw
+                  size={14}
+                  className={syncingAda ? 'animate-spin text-blue-500' : ''}
+                />
+                {syncingAda ? 'Sincronitzant...' : 'Sincronitzar ADA'}
+              </Button>
+            </>
           )}
         </div>
       </div>

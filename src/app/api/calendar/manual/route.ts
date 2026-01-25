@@ -1,11 +1,11 @@
-// ✅ file: src/app/api/calendar/manual/route.ts
+﻿// âœ… file: src/app/api/calendar/manual/route.ts
 import { NextResponse } from 'next/server'
 import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
 
 export const runtime = 'nodejs'
 
 /* ----------------------------------------------------
-   POST → Crear esdeveniment manual
+   POST â†’ Crear esdeveniment manual
 ---------------------------------------------------- */
 export async function POST(req: Request) {
   try {
@@ -20,7 +20,10 @@ export async function POST(req: Request) {
 
     const id = `manual_${Date.now()}`
 
-    const newEvent = {
+    const codeValue = String(body.code || '').trim()
+    const hasManualCode = codeValue !== ''
+
+    const newEvent: Record<string, unknown> = {
       NomEvent: body.NomEvent,
       Servei: body.Servei || '',
       Comercial: body.Comercial || '',
@@ -29,7 +32,7 @@ export async function POST(req: Request) {
       DataFi: body.DataFi || body.DataInici,
       NumPax: body.NumPax ? Number(body.NumPax) : null,
       Ubicacio: body.Ubicacio || '',
-      code: body.code || '',            // 🟢 IMPORTANT
+      code: codeValue, // IMPORTANT
       Hora: body.Hora || '',
       StageGroup: 'Confirmat',
       origen: 'manual',
@@ -39,11 +42,16 @@ export async function POST(req: Request) {
       updatedAt: new Date().toISOString(),
     }
 
+    if (hasManualCode) {
+      newEvent.codeSource = 'manual'
+      newEvent.codeConfirmed = true
+    }
+
     await db.collection('stage_verd').doc(id).set(newEvent)
 
     return NextResponse.json({ ok: true, id })
   } catch (err: any) {
-    console.error('❌ Error POST manual:', err)
+    console.error('âŒ Error POST manual:', err)
     return NextResponse.json(
       { error: 'Error desant a Firestore', details: err.message },
       { status: 500 }
@@ -52,7 +60,7 @@ export async function POST(req: Request) {
 }
 
 /* ----------------------------------------------------
-   GET → Llistar esdeveniments manuals
+   GET â†’ Llistar esdeveniments manuals
 ---------------------------------------------------- */
 export async function GET() {
   try {
@@ -68,10 +76,12 @@ export async function GET() {
 
     return NextResponse.json({ data })
   } catch (err: any) {
-    console.error('❌ Error GET manuals:', err)
+    console.error('âŒ Error GET manuals:', err)
     return NextResponse.json(
       { error: 'Error llegint de Firestore', details: err.message },
       { status: 500 }
     )
   }
 }
+
+

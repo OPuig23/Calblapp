@@ -215,6 +215,10 @@ export async function GET(req: NextRequest) {
       const pax = Number(d?.NumPax ?? 0) || 0
       const importAmount = Number(d?.Import ?? d?.import ?? d?.importAmount ?? 0) || 0
       const eventCode = d?.code || null
+      const codeConfirmed =
+        typeof d?.codeConfirmed === 'boolean' ? d.codeConfirmed : undefined
+      const codeMatchScore =
+        typeof d?.codeMatchScore === 'number' ? d.codeMatchScore : null
 
 
       // 🟢 Nom de l’esdeveniment: només fins al primer “/”
@@ -245,6 +249,8 @@ const location = rawLocation
         pax,
         importAmount,
         eventCode,
+        codeConfirmed,
+        codeMatchScore,
         htmlLink: null,
         lnKey: lnValue.toLowerCase(),
         lnLabel: lnValue,

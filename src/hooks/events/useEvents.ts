@@ -20,6 +20,8 @@ export interface EventData {
   state: 'pending' | 'draft' | 'confirmed'
   name: string
   eventCode: string | null
+  codeConfirmed?: boolean
+  codeMatchScore?: number | null
   commercial?: string
   locationShort?: string
   mapsUrl?: string
@@ -52,6 +54,8 @@ interface EventPayload {
   status?: string
   eventCode?: string
   code?: string
+  codeConfirmed?: boolean
+  codeMatchScore?: number | null
   responsableName?: string
   responsable?: { name?: string }
   LN?: string
@@ -212,6 +216,8 @@ export default function useEvents(
             state: normalizeStatus(q?.status || ev.state || ev.status),
             eventCode,
             lastAviso,
+            codeConfirmed: (ev as any).codeConfirmed ?? undefined,
+            codeMatchScore: (ev as any).codeMatchScore ?? undefined,
 
             responsable: q?.responsableName || q?.responsable?.name,
             responsableName: q?.responsableName || q?.responsable?.name || '',

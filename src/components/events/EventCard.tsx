@@ -22,6 +22,7 @@ interface EventData {
   location?: string
   Ubicacio?: string
   eventCode?: string | null
+  codeConfirmed?: boolean
   LN?: string
   lnKey?: string
   lnLabel?: string
@@ -46,6 +47,7 @@ function cleanEventName(s?: string) {
 export default function EventCard({ event, onOpenMenu, onOpenAvisos }: Props) {
   const name = event.NomEvent || event.summary || ''
   const displaySummary = cleanEventName(name)
+  const isCodeUnconfirmed = event.codeConfirmed === false
 
   const ln = event.LN || event.lnKey || event.lnLabel || 'altres'
   const lnColor = colorByLN(ln)
@@ -83,7 +85,9 @@ export default function EventCard({ event, onOpenMenu, onOpenAvisos }: Props) {
             {event.eventCode && (
               <span className="flex items-center gap-1">
                 <Tag className="h-3 w-3 text-gray-400" />
-                {event.eventCode}
+                <span className={isCodeUnconfirmed ? 'text-red-600 font-semibold' : ''}>
+                  {event.eventCode}
+                </span>
               </span>
             )}
 

@@ -56,10 +56,23 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       return NextResponse.json({ error: 'Falta la col·lecció' }, { status: 400 })
     }
 
-    await db
-      .collection(collection)
-      .doc(id)
-      .set({ ...data, updatedAt: new Date().toISOString() }, { merge: true })
+    const docRef = db.collection(collection).doc(id)
+    const now = new Date().toISOString()
+    let codeMeta: Record<string, unknown> = {}
+
+    if (Object.prototype.hasOwnProperty.call(data, 'code')) {
+      const snap = await docRef.get()
+      const prevCode = String(snap.get('code') || '').trim()
+      const nextCode = String((data as Record<string, any>).code || '').trim()
+      if (prevCode !== nextCode) {
+        codeMeta = {
+          codeSource: 'manual',
+          codeConfirmed: Boolean(nextCode),
+        }
+      }
+    }
+
+    await docRef.set({ ...data, ...codeMeta, updatedAt: now }, { merge: true })
 
     console.log(`✅ Esdeveniment ${id} actualitzat correctament a ${collection}`)
     return NextResponse.json({ ok: true })

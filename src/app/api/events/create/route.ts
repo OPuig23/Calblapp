@@ -23,7 +23,10 @@ export async function POST(req: Request) {
     const id = `manual_${Date.now()}`
 
     // 🧠 Prepara el payload final
-    const payload = {
+    const codeValue = String(data.code || '').trim()
+    const hasManualCode = codeValue !== ''
+
+    const payload: Record<string, unknown> = {
       id,
       NomEvent: data.NomEvent,
       Servei: data.Servei || '',
@@ -37,9 +40,14 @@ export async function POST(req: Request) {
       HoraInici: data.HoraInici || null,
       Ubicacio: data.Ubicacio || '',
       NumPax: data.NumPax ? Number(data.NumPax) : null,
-      code: data.code || '',
+      code: codeValue,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+    }
+
+    if (hasManualCode) {
+      payload.codeSource = 'manual'
+      payload.codeConfirmed = true
     }
 
     console.log('🔥 Event manual creat:', payload)
