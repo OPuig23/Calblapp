@@ -1,4 +1,4 @@
-// file: src/components/calendar/CalendarWeekView.tsx
+﻿// file: src/components/calendar/CalendarWeekView.tsx
 'use client'
 
 import React, { useEffect, useMemo, useState } from 'react'
@@ -34,6 +34,18 @@ function dotColorByCollection(collection?: string) {
   return 'bg-gray-300'
 }
 
+const codeBadgeFor = (ev: Deal) => {
+  const status = ev.codeStatus
+  if (!status) return null
+  if (status === 'confirmed') {
+    return { label: 'C', className: 'border-slate-200 bg-slate-50 text-slate-700' }
+  }
+  if (status === 'review') {
+    return { label: 'R', className: 'border-rose-200 bg-rose-50 text-rose-700' }
+  }
+  return { label: '-', className: 'border-gray-200 bg-gray-50 text-gray-600' }
+}
+
 type Span = {
   ev: Deal
   startIdx: number
@@ -45,10 +57,12 @@ export default function CalendarWeekView({
   deals,
   start,
   onCreated,
+  showCodeStatus,
 }: {
   deals: Deal[]
   start?: string
   onCreated?: () => void
+  showCodeStatus?: boolean
 }) {
   const [layout, setLayout] = useState<'mobile' | 'tablet' | 'desktop'>('desktop')
 
@@ -92,7 +106,7 @@ export default function CalendarWeekView({
 
     spans.sort((a, b) => a.startIdx - b.startIdx || a.endIdx - b.endIdx)
 
-    // assignació de lanes evitant solapaments
+    // assignacio de lanes evitant solapaments
     const laneEnds: number[] = []
     spans.forEach((span) => {
       let lane = laneEnds.findIndex((end) => span.startIdx > end)
@@ -115,13 +129,13 @@ export default function CalendarWeekView({
   const paddingExtra = layout === 'mobile' ? 60 : layout === 'tablet' ? 90 : 120
   const minHeight = Math.max(baseHeight, visibleLaneCount * rowHeight + paddingExtra)
 
-  // amplada mínima per columna només per scroll/UX; el grid intern fa minmax(0,1fr)
+  // amplada minima per columna nomes per scroll/UX; el grid intern fa minmax(0,1fr)
   const minColWidth = layout === 'mobile' ? 120 : layout === 'tablet' ? 150 : 170
   const gridMinWidth = weekDays.length * minColWidth
 
   const weekCells = weekDays.map((d) => ({
     date: d,
-    // IMPORTANT: no dependre d'ISO per càlcul; aquí només per key estable
+    // IMPORTANT: no dependre d'ISO per calcul; aqui nomes per key estable
     iso: format(d, 'yyyy-MM-dd'),
   }))
 
@@ -163,6 +177,7 @@ export default function CalendarWeekView({
           >
             {visibleSpans.map((span, idx) => {
               const isSingleDay = span.startIdx === span.endIdx
+              const badge = showCodeStatus ? codeBadgeFor(span.ev) : null
 
               return (
                 <CalendarModal
@@ -185,7 +200,7 @@ export default function CalendarWeekView({
                       style={{
                         gridColumn: `${span.startIdx + 1} / ${span.endIdx + 2}`,
                         gridRowStart: span.lane + 1,
-                        // ajuda en alguns Android a evitar artefactes de subpíxel
+                        // ajuda en alguns Android a evitar artefactes de subpixel
                         transform: 'translateZ(0)',
                       }}
                     >
@@ -193,13 +208,20 @@ export default function CalendarWeekView({
                       <span className="min-w-0 flex-1 text-left leading-tight line-clamp-2">
                         {span.ev.NomEvent}
                       </span>
+                      {badge && (
+                        <span
+                          className={`ml-1 shrink-0 rounded-full border px-1.5 py-[1px] text-[10px] font-semibold ${badge.className}`}
+                        >
+                          {badge.label}
+                        </span>
+                      )}
                     </div>
                   }
                 />
               )
             })}
 
-            {/* +X més per dia */}
+            {/* +X mes per dia */}
             {weekDays.map((d, dayIdx) => {
               const segments = spans
                 .filter((s) => s.startIdx <= dayIdx && s.endIdx >= dayIdx)
@@ -217,7 +239,11 @@ export default function CalendarWeekView({
                   }}
                   className="flex items-center pointer-events-auto"
                 >
-                  <MoreEventsPopup date={d} events={hidden.map((h) => h.ev)} />
+                  <MoreEventsPopup
+                    date={d}
+                    events={hidden.map((h) => h.ev)}
+                    showCodeStatus={showCodeStatus}
+                  />
                 </div>
               )
             })}
@@ -228,7 +254,15 @@ export default function CalendarWeekView({
   )
 }
 
-function MoreEventsPopup({ date, events }: { date: Date; events: Deal[] }) {
+function MoreEventsPopup({
+  date,
+  events,
+  showCodeStatus,
+}: {
+  date: Date
+  events: Deal[]
+  showCodeStatus?: boolean
+}) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -241,7 +275,7 @@ function MoreEventsPopup({ date, events }: { date: Date; events: Deal[] }) {
           setOpen(true)
         }}
       >
-        +{events.length} més
+        +{events.length} mes
       </button>
 
       <DialogContent className="h-[80dvh] w-[95dvw] max-w-sm sm:h-auto sm:max-w-md">
@@ -252,22 +286,32 @@ function MoreEventsPopup({ date, events }: { date: Date; events: Deal[] }) {
         </DialogHeader>
 
         <div className="mt-2 max-h-[60dvh] space-y-1 overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-          {events.map((ev) => (
-            <CalendarModal
-              key={`more-${ev.id}`}
-              deal={ev}
-              trigger={
-                <div
-                  onClick={(e) => e.stopPropagation()}
-                  className="flex items-center gap-2 truncate rounded-md ring-1 ring-inset ring-slate-200 bg-white px-2 py-1 text-[11px] sm:text-[12px]"
-                  style={{ transform: 'translateZ(0)' }}
-                >
-                  <span className={`h-2 w-2 shrink-0 rounded-full ${dotColorByCollection(ev.collection)}`} />
-                  <span className="truncate">{ev.NomEvent}</span>
-                </div>
-              }
-            />
-          ))}
+          {events.map((ev) => {
+            const badge = showCodeStatus ? codeBadgeFor(ev) : null
+            return (
+              <CalendarModal
+                key={`more-${ev.id}`}
+                deal={ev}
+                trigger={
+                  <div
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex items-center gap-2 truncate rounded-md ring-1 ring-inset ring-slate-200 bg-white px-2 py-1 text-[11px] sm:text-[12px]"
+                    style={{ transform: 'translateZ(0)' }}
+                  >
+                    <span className={`h-2 w-2 shrink-0 rounded-full ${dotColorByCollection(ev.collection)}`} />
+                    <span className="truncate flex-1">{ev.NomEvent}</span>
+                    {badge && (
+                      <span
+                        className={`ml-1 shrink-0 rounded-full border px-1.5 py-[1px] text-[10px] font-semibold ${badge.className}`}
+                      >
+                        {badge.label}
+                      </span>
+                    )}
+                  </div>
+                }
+              />
+            )
+          })}
         </div>
       </DialogContent>
     </Dialog>

@@ -90,6 +90,47 @@ const slugify = (t: string) =>
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
 
+const parseZohoDate = (raw?: string | null): string | null => {
+  if (!raw) return null
+  let value = String(raw).trim()
+  if (!value) return null
+
+  if (value.includes('T')) value = value.split('T')[0].trim()
+  if (value.includes(' ')) value = value.split(' ')[0].trim()
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value
+  if (/^\d{4}\/\d{2}\/\d{2}$/.test(value)) return value.replace(/\//g, '-')
+
+  const dmy = value.match(/^(\d{2})[\/-](\d{2})[\/-](\d{4})$/)
+  if (dmy) {
+    const [, day, month, year] = dmy
+    return `${year}-${month}-${day}`
+  }
+
+  const ymd = value.match(/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})$/)
+  if (ymd) {
+    const [, year, monthRaw, dayRaw] = ymd
+    const month = monthRaw.padStart(2, '0')
+    const day = dayRaw.padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
+  const parsed = new Date(value)
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString().slice(0, 10)
+  }
+
+  return null
+}
+
+const parseZohoTime = (raw?: string | null): string | null => {
+  if (!raw) return null
+  const value = String(raw)
+  const timePart = value.split('T')[1] || value.split(' ')[1] || ''
+  const match = timePart.match(/(\d{2}:\d{2})/)
+  return match ? match[1] : null
+}
+
 const isBadCode = (code?: string | null) =>
   code === 'CCB00001' || code === 'CCE00004'
 
@@ -172,8 +213,10 @@ export async function syncZohoDealsToFirestore(): Promise<{
   // 2️⃣ Filtrar només oportunitats amb data d’avui o futura
   const today = new Date().toISOString().slice(0, 10)
   const filteredDeals = allDeals.filter((d) => {
-    const eventDate = (d.Fecha_del_evento || d.Fecha_y_hora_del_evento || '').slice(0, 10)
-    return eventDate >= today
+    const eventDate =
+      parseZohoDate(d.Fecha_del_evento) ||
+      parseZohoDate(d.Fecha_y_hora_del_evento)
+    return !!eventDate && eventDate >= today
   })
 
   // 3️⃣ Funció per determinar LN segons propietari (Owner)
@@ -274,15 +317,10 @@ export async function syncZohoDealsToFirestore(): Promise<{
     if (!group) continue
 
     // Data inici / fi i hora
-    const eventDateTime = d.Fecha_y_hora_del_evento || d.Fecha_del_evento
-    let dateISO: string | null = null
-    let hora: string | null = null
-
-    if (eventDateTime) {
-      const parts = eventDateTime.split('T')
-      dateISO = parts[0]
-      hora = parts[1]?.slice(0, 5) || null
-    }
+    const dateISO =
+      parseZohoDate(d.Fecha_del_evento) ||
+      parseZohoDate(d.Fecha_y_hora_del_evento)
+    const hora = parseZohoTime(d.Fecha_y_hora_del_evento)
 
     let dataFiISO = dateISO
     const duracio = Number(d.Duraci_n_del_evento ?? 1)

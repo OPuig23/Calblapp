@@ -4,11 +4,20 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { startOfWeek, endOfWeek, format } from 'date-fns'
 import { useSession } from 'next-auth/react'
+import * as XLSX from 'xlsx'
+import { MoreVertical } from 'lucide-react'
 
 import useFetch from '@/hooks/useFetch'
 import type { QuadrantEvent } from '@/types/QuadrantEvent'
 import ModuleHeader from '@/components/layout/ModuleHeader'
 import FiltersBar, { type FiltersState } from '@/components/layout/FiltersBar'
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { useQuadrants } from '@/app/menu/quadrants/hooks/useQuadrants'
 import QuadrantModal from './[id]/components/QuadrantModal'
 import QuadrantCard from './drafts/components/QuadrantCard'
@@ -201,7 +210,9 @@ const eventsWithStatus = useMemo<UnifiedEvent[]>(() => {
          3) Horaris (prioritat a quadrants)
       --------------------------------------------------- */
       const displayStartTime =
-        match?.startTime || (ev.start ? String(ev.start).slice(11, 16) : null)
+        match?.startTime ||
+        ev.horaInici ||
+        (ev.start ? String(ev.start).slice(11, 16) : null)
 
       const displayEndTime =
         match?.endTime || (ev.end ? String(ev.end).slice(11, 16) : null)
@@ -309,17 +320,142 @@ const eventsWithStatus = useMemo<UnifiedEvent[]>(() => {
     return Object.entries(map).sort(([a, b]) => a.localeCompare(b))
   }, [filteredEvents])
 
+  const exportBase = `quadrants-${String(department || 'dept').replace(
+    /\\s+/g,
+    '-'
+  )}-${filters.start}-${filters.end}`
+
+  const statusLabel = (status?: string) => {
+    if (status === 'confirmed') return 'Confirmat'
+    if (status === 'draft') return 'Esborrany'
+    if (status === 'pending') return 'Pendent'
+    return ''
+  }
+
+  const exportRows = useMemo(
+    () =>
+      filteredEvents.map((ev) => {
+        const startDate = String(ev.start || '').slice(0, 10)
+        const startTime = ev.displayStartTime || ''
+        const endTime = ev.displayEndTime || ''
+        const timeRange =
+          startTime || endTime ? `${startTime} - ${endTime}`.trim() : ''
+
+        return {
+          Data: startDate,
+          Responsable: ev.responsable || '',
+          Esdeveniment: ev.summary || '',
+          LN: ev.ln || '',
+          PAX: ev.numPax ?? '',
+          Ubicacio: ev.location || '',
+          Servei: (ev as any).service || '',
+          Treballadors: ev.workersSummary || '',
+          Horari: timeRange,
+          Estat: statusLabel(ev.quadrantStatus),
+        }
+      }),
+    [filteredEvents]
+  )
+
+  const handleExportExcel = () => {
+    const ws = XLSX.utils.json_to_sheet(exportRows)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Quadrants')
+    XLSX.writeFile(wb, `${exportBase}.xlsx`)
+  }
+
+  const escapeHtml = (value: string) =>
+    value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\"/g, '&quot;')
+      .replace(/'/g, '&#39;')
+
+  const buildPdfTableHtml = () => {
+    const cols = [
+      'Data',
+      'Responsable',
+      'Esdeveniment',
+      'LN',
+      'PAX',
+      'Ubicacio',
+      'Servei',
+      'Treballadors',
+      'Horari',
+      'Estat',
+    ]
+
+    const header = cols.map((c) => `<th>${escapeHtml(c)}</th>`).join('')
+    const body = exportRows
+      .map((row) => {
+        const cells = cols
+          .map((key) => `<td>${escapeHtml(String((row as any)[key] ?? ''))}</td>`)
+          .join('')
+        return `<tr>${cells}</tr>`
+      })
+      .join('')
+
+    return `<!doctype html>
+<html>
+  <head>
+    <meta charset=\"utf-8\" />
+    <title>${escapeHtml(exportBase)}</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 24px; color: #111; }
+      h1 { font-size: 16px; margin-bottom: 8px; }
+      .meta { font-size: 12px; color: #555; margin-bottom: 16px; }
+      table { width: 100%; border-collapse: collapse; font-size: 11px; }
+      th, td { border: 1px solid #ddd; padding: 6px 8px; vertical-align: top; }
+      th { background: #f3f4f6; text-align: left; }
+      tr:nth-child(even) td { background: #fafafa; }
+    </style>
+  </head>
+  <body>
+    <h1>Quadrants</h1>
+    <div class=\"meta\">Rang: ${escapeHtml(filters.start)} - ${escapeHtml(
+      filters.end
+    )}</div>
+    <table>
+      <thead><tr>${header}</tr></thead>
+      <tbody>${body}</tbody>
+    </table>
+  </body>
+</html>`
+  }
+
+  const handleExportPdfTable = () => {
+    const html = buildPdfTableHtml()
+    const win = window.open('', '_blank', 'width=1200,height=900')
+    if (!win) return
+    win.document.open()
+    win.document.write(html)
+    win.document.close()
+    win.focus()
+    setTimeout(() => win.print(), 300)
+  }
+
+  const handleExportPdfView = () => {
+    window.print()
+  }
+
   /* ────────────────────────────────────────────────
      RENDER
   ───────────────────────────────────────────────── */
   return (
     <main className="space-y-6 px-4 pb-12">
+      <style>{`
+        @media print {
+          body * { visibility: hidden; }
+          #quadrants-print-root, #quadrants-print-root * { visibility: visible; }
+          #quadrants-print-root { position: absolute; left: 0; top: 0; width: 100%; }
+        }
+      `}</style>
       <ModuleHeader
         icon="📋"
         title="Quadrants"
         subtitle="Gestió setmanal per departament"
       />
-{}
       {/* ✔ Barra de filtres (setmana, LN, responsable, ubicació, estat) */}
       <FiltersBar
         id="filters-bar"
@@ -333,7 +469,7 @@ const eventsWithStatus = useMemo<UnifiedEvent[]>(() => {
       />
 
       {/* ✔ Comptadors d’estat */}
-      <div className="flex items-center justify-between bg-indigo-50 border rounded-2xl p-3 shadow-sm text-sm font-medium">
+      <div className="flex flex-wrap items-center justify-between gap-2 bg-indigo-50 border rounded-2xl p-3 shadow-sm text-sm font-medium">
         <div className="flex gap-6 sm:gap-10">
           <span className="flex items-center gap-2 text-yellow-700">
             <span className="w-2.5 h-2.5 bg-yellow-400 rounded-full" />
@@ -349,6 +485,49 @@ const eventsWithStatus = useMemo<UnifiedEvent[]>(() => {
             <span className="w-2.5 h-2.5 bg-green-500 rounded-full" />
             Confirmats: {counts.confirmed}
           </span>
+        </div>
+        <div className="hidden md:flex">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                size="sm"
+                className="bg-indigo-600 text-white hover:bg-indigo-700"
+              >
+                Exportar
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleExportExcel}>
+                Excel (.xlsx)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportPdfView}>
+                PDF (vista)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportPdfTable}>
+                PDF (taula)
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+        <div className="md:hidden">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="icon" variant="ghost" aria-label="Exportar">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleExportExcel}>
+                Excel (.xlsx)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportPdfView}>
+                PDF (vista)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportPdfTable}>
+                PDF (taula)
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -373,7 +552,10 @@ const eventsWithStatus = useMemo<UnifiedEvent[]>(() => {
 
       {/* ✔ Taula compacta agrupada per dies */}
       {!loading && !error && grouped.length > 0 && (
-        <div className="overflow-x-auto rounded-xl border bg-white shadow-sm">
+        <div
+          id="quadrants-print-root"
+          className="overflow-x-auto rounded-xl border bg-white shadow-sm"
+        >
           <table className="w-full text-sm">
             <thead className="bg-indigo-100 text-indigo-900 font-semibold">
               <tr>
@@ -383,6 +565,7 @@ const eventsWithStatus = useMemo<UnifiedEvent[]>(() => {
                 <th className="px-3 py-2 text-left">PAX</th>
                 <th className="px-3 py-2 text-left">Finca / Ubicació</th>
                 <th className="px-3 py-2 text-left">Servei</th>
+                <th className="px-3 py-2 text-left">Hora inici</th>
                 <th className="px-3 py-2 text-left">Treballadors</th>
                 <th className="px-3 py-2 text-left">Horari</th>
                 <th className="px-3 py-2 text-center">●</th>
@@ -440,6 +623,9 @@ const eventsWithStatus = useMemo<UnifiedEvent[]>(() => {
                           </td>
                           <td className="px-3 py-2">
                             {ev.service || '—'}
+                          </td>
+                          <td className="px-3 py-2">
+                            {startTime}
                           </td>
                           <td className="px-3 py-2">
                             {ev.workersSummary || '—'}

@@ -7,7 +7,7 @@ import SmartFilters, { SmartFiltersChange } from '@/components/filters/SmartFilt
 import { useModifications } from '@/hooks/useModifications'
 import ModificationsTable from './components/ModificationsTable'
 import ModuleHeader from '@/components/layout/ModuleHeader'
-import { FileEdit } from 'lucide-react'
+import { FileEdit, MoreVertical } from 'lucide-react'
 import FilterButton from '@/components/ui/filter-button'
 import { useFilters } from '@/context/FiltersContext'
 import FloatingAddButton from '@/components/ui/floating-add-button'
@@ -16,6 +16,7 @@ import useEvents from '@/hooks/events/useEvents'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { useSession } from 'next-auth/react'
+import * as XLSX from 'xlsx'
 import {
   Select,
   SelectTrigger,
@@ -23,6 +24,12 @@ import {
   SelectItem,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 export default function ModificationsPage() {
   const { data: session } = useSession()
@@ -207,8 +214,122 @@ export default function ModificationsPage() {
     return events.find((e) => e.id === selectedEventId) || null
   }, [events, selectedEventId])
 
+  const exportBase = `modificacions-${filters.from || 'start'}-${filters.to || 'end'}`
+
+  const exportRows = useMemo(
+    () =>
+      modifications.map((m) => ({
+        DataEvent: (m.eventDate || '').slice(0, 10),
+        Event: m.eventTitle || '',
+        Codi: m.eventCode || '',
+        Ubicacio: m.eventLocation || '',
+        Comercial: m.eventCommercial || '',
+        Departament: m.department || '',
+        Importancia: m.importance || '',
+        Categoria: m.category?.label || '',
+        Tipus: m.tipus || '',
+        Descripcio: m.description || '',
+        Creada: (m.createdAt || '').slice(0, 19),
+        Creador: m.createdBy || '',
+        Correu: m.createdByEmail || '',
+      })),
+    [modifications]
+  )
+
+  const handleExportExcel = () => {
+    const ws = XLSX.utils.json_to_sheet(exportRows)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Modificacions')
+    XLSX.writeFile(wb, `${exportBase}.xlsx`)
+  }
+
+  const escapeHtml = (value: string) =>
+    value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\"/g, '&quot;')
+      .replace(/'/g, '&#39;')
+
+  const buildPdfTableHtml = () => {
+    const cols = [
+      'DataEvent',
+      'Event',
+      'Codi',
+      'Ubicacio',
+      'Comercial',
+      'Departament',
+      'Importancia',
+      'Categoria',
+      'Tipus',
+      'Descripcio',
+      'Creada',
+      'Creador',
+      'Correu',
+    ]
+
+    const header = cols.map((c) => `<th>${escapeHtml(c)}</th>`).join('')
+    const body = exportRows
+      .map((row) => {
+        const cells = cols
+          .map((key) => `<td>${escapeHtml(String((row as any)[key] ?? ''))}</td>`)
+          .join('')
+        return `<tr>${cells}</tr>`
+      })
+      .join('')
+
+    return `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>${escapeHtml(exportBase)}</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 24px; color: #111; }
+      h1 { font-size: 16px; margin-bottom: 8px; }
+      .meta { font-size: 12px; color: #555; margin-bottom: 16px; }
+      table { width: 100%; border-collapse: collapse; font-size: 11px; }
+      th, td { border: 1px solid #ddd; padding: 6px 8px; vertical-align: top; }
+      th { background: #f3f4f6; text-align: left; }
+      tr:nth-child(even) td { background: #fafafa; }
+    </style>
+  </head>
+  <body>
+    <h1>Modificacions</h1>
+    <div class="meta">Rang: ${escapeHtml(filters.from || '')} - ${escapeHtml(
+      filters.to || ''
+    )}</div>
+    <table>
+      <thead><tr>${header}</tr></thead>
+      <tbody>${body}</tbody>
+    </table>
+  </body>
+</html>`
+  }
+
+  const handleExportPdfTable = () => {
+    const html = buildPdfTableHtml()
+    const win = window.open('', '_blank', 'width=1200,height=900')
+    if (!win) return
+    win.document.open()
+    win.document.write(html)
+    win.document.close()
+    win.focus()
+    setTimeout(() => win.print(), 300)
+  }
+
+  const handleExportPdfView = () => {
+    window.print()
+  }
+
   return (
     <div className="p-4 flex flex-col gap-4">
+      <style>{`
+        @media print {
+          body * { visibility: hidden; }
+          #modificacions-print-root, #modificacions-print-root * { visibility: visible; }
+          #modificacions-print-root { position: absolute; left: 0; top: 0; width: 100%; }
+        }
+      `}</style>
       <ModuleHeader
         icon={<FileEdit className="w-7 h-7 text-purple-700" />}
         title="Registre de modificacions"
@@ -235,20 +356,62 @@ export default function ModificationsPage() {
           compact
         />
         <div className="flex-1 min-w-[8px]" />
+        <div className="md:hidden">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="icon" variant="ghost" aria-label="Exportar">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleExportExcel}>
+                Excel (.xlsx)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportPdfView}>
+                PDF (vista)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportPdfTable}>
+                PDF (taula)
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+        <div className="hidden md:flex">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button className="bg-purple-600 text-white hover:bg-purple-700">
+                Exportar
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleExportExcel}>
+                Excel (.xlsx)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportPdfView}>
+                PDF (vista)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportPdfTable}>
+                PDF (taula)
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
         <FilterButton onClick={openFiltersPanel} />
       </div>
 
       {loading && <p className="text-center py-10">Carregant...</p>}
       {error && <p className="text-center py-10 text-red-500">{error}</p>}
       {!loading && (
-        <ModificationsTable
-          modifications={modifications}
-          onUpdate={updateModification}
-          onDelete={deleteModification}
-          currentUserId={(session?.user as any)?.id}
-          currentUserName={(session?.user as any)?.name || (session?.user as any)?.email}
-          currentUserEmail={(session?.user as any)?.email}
-        />
+        <div id="modificacions-print-root">
+          <ModificationsTable
+            modifications={modifications}
+            onUpdate={updateModification}
+            onDelete={deleteModification}
+            currentUserId={(session?.user as any)?.id}
+            currentUserName={(session?.user as any)?.name || (session?.user as any)?.email}
+            currentUserEmail={(session?.user as any)?.email}
+          />
+        </div>
       )}
 
       <FloatingAddButton onClick={() => setShowAdd(true)} />

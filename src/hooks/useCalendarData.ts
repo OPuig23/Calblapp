@@ -15,17 +15,21 @@ export interface Deal {
   Ubicacio?: string
   Color: string
   StageDot?: string
+  HoraInici?: string
   origen?: 'zoho' | 'manual' | 'firestore'
   NumPax?: number | string | null
   ObservacionsZoho?: string
   code?: string
+  codeConfirmed?: boolean
+  codeMatchScore?: number | null
+  codeStatus?: 'confirmed' | 'review' | 'missing'
   files?: { key: string; url: string }[]
 }
 
 export function useCalendarData(filters?: {
-  ln?: string
+  ln?: string | string[]
   stage?: string
-  commercial?: string
+  commercial?: string | string[]
   start?: string
   end?: string
 }) {
@@ -42,6 +46,18 @@ export function useCalendarData(filters?: {
     if (n === 'all') return true
     if (n.startsWith('tots') || n.startsWith('totes')) return true
     return false
+  }
+
+  const toArrayFilter = (value?: string | string[]) => {
+    if (Array.isArray(value)) {
+      return value.filter(
+        (v) => typeof v === 'string' && v.trim() && !isAll(v)
+      )
+    }
+    const single = String(value || '').trim()
+    if (!single) return []
+    if (isAll(single)) return []
+    return [single]
   }
 
   const normalizeCollection = (
@@ -86,9 +102,30 @@ export function useCalendarData(filters?: {
           .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
           .map(([key, url]) => ({ key, url: url as string }))
 
+        const codeValue = String(ev.code || '').trim()
+        const codeMatchScore =
+          typeof ev.codeMatchScore === 'number' ? ev.codeMatchScore : null
+        const codeConfirmed =
+          typeof ev.codeConfirmed === 'boolean' ? ev.codeConfirmed : undefined
+        let codeStatus: Deal['codeStatus'] = 'missing'
+        if (codeValue) {
+          if (codeConfirmed === true) {
+            codeStatus = 'confirmed'
+          } else if (codeConfirmed === false || codeMatchScore === 2) {
+            codeStatus = 'review'
+          } else {
+            codeStatus = 'confirmed'
+          }
+        }
+
+        const horaRaw =
+          ev.HoraInici || ev.horaInici || ev.Hora || ev.hora || ''
+        const horaInici =
+          typeof horaRaw === 'string' ? horaRaw.trim().slice(0, 5) : ''
+
         return {
           id: ev.id,
-          NomEvent: ev.summary || '(Sense títol)',
+          NomEvent: ev.summary || '(Sense titol)',
           Comercial: ev.Comercial || ev.comercial || '',
           LN: ev.LN || ev.lnLabel || 'Altres',
           Servei: ev.Servei || ev.servei || '',
@@ -100,8 +137,9 @@ export function useCalendarData(filters?: {
           Ubicacio: ev.Ubicacio || ev.ubicacio || ev.location || ev.Location || '',
           Color: ev.Color || '',
           StageDot: ev.StageDot || '',
+          HoraInici: horaInici,
 
-          // 🔐 FIX CRÍTIC
+          // FIX: Pax robust
           NumPax:
             ev.NumPax ??
             ev.numPax ??
@@ -109,7 +147,7 @@ export function useCalendarData(filters?: {
             ev.PAX ??
             null,
 
-          // 🔐 FIX CRÍTIC
+          // FIX: Observacions Zoho
           ObservacionsZoho:
             ev.ObservacionsZoho ??
             ev.observacionsZoho ??
@@ -117,16 +155,20 @@ export function useCalendarData(filters?: {
             ev.observacions ??
             '',
 
-          code: ev.code || '',
+          code: codeValue,
+          codeConfirmed,
+          codeMatchScore,
+          codeStatus,
           origen: ev.origen || 'firestore',
           files: fileEntries,
         }
       })
 
       /* ---------- LN ---------- */
-      if (!isAll(filters?.ln)) {
-        const ln = normalize(filters!.ln!)
-        data = data.filter((d) => normalize(d.LN || '') === ln)
+      const lnValues = toArrayFilter(filters?.ln)
+      if (lnValues.length) {
+        const lnSet = new Set(lnValues.map(normalize))
+        data = data.filter((d) => lnSet.has(normalize(d.LN || '')))
       }
 
       /* ---------- STAGE ---------- */
@@ -142,9 +184,10 @@ export function useCalendarData(filters?: {
       }
 
       /* ---------- COMERCIAL ---------- */
-      if (!isAll(filters?.commercial)) {
-        const c = normalize(filters!.commercial!)
-        data = data.filter((d) => normalize(d.Comercial || '') === c)
+      const commercialValues = toArrayFilter(filters?.commercial)
+      if (commercialValues.length) {
+        const cSet = new Set(commercialValues.map(normalize))
+        data = data.filter((d) => cSet.has(normalize(d.Comercial || '')))
       }
 
       data.sort(

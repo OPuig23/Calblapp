@@ -4,6 +4,7 @@ export interface QuadrantEvent {
   summary: string
   start: string
   end: string
+  horaInici?: string
   location?: string
   department?: string
   totalWorkers?: number

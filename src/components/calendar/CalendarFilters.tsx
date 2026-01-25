@@ -1,4 +1,4 @@
-// file: src/components/calendar/CalendarFilters.tsx
+﻿// file: src/components/calendar/CalendarFilters.tsx
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
@@ -12,6 +12,7 @@ import {
 import ResetFilterButton from '@/components/ui/ResetFilterButton'
 
 export type CalendarStage = 'all' | 'confirmat' | 'pressupost' | 'calentet'
+export type CalendarCodeStatus = 'all' | 'missing' | 'review' | 'confirmed'
 
 export type CalendarLN =
   | 'all'
@@ -23,15 +24,18 @@ export type CalendarLN =
   | 'altres'
 
 export interface CalendarFilterChange {
-  ln?: CalendarLN
+  ln?: CalendarLN[]
   stage?: CalendarStage
-  commercial?: string
+  commercial?: string[]
+  codeStatus?: CalendarCodeStatus
 }
 
 export interface CalendarFiltersProps {
-  ln?: CalendarLN | string
+  ln?: CalendarLN[] | CalendarLN | string
   stage?: CalendarStage | string
-  commercial?: string
+  commercial?: string[] | string
+  codeStatus?: CalendarCodeStatus | string
+  showCodeStatus?: boolean
   comercialOptions?: string[]
   onChange: (f: CalendarFilterChange) => void
   onReset?: () => void
@@ -54,6 +58,13 @@ const STAGE_OPTIONS: { label: string; value: CalendarStage }[] = [
   { label: 'Prereserva / Calentet', value: 'calentet' },
 ]
 
+const CODE_STATUS_OPTIONS: { label: string; value: CalendarCodeStatus }[] = [
+  { label: 'Tots', value: 'all' },
+  { label: 'Sense codi', value: 'missing' },
+  { label: 'A revisar', value: 'review' },
+  { label: 'Confirmats', value: 'confirmed' },
+]
+
 const normalize = (v = '') =>
   v.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
 
@@ -65,17 +76,43 @@ function coerceAll(v?: string) {
   return v || 'all'
 }
 
+function toArray(value?: string | string[]): string[] {
+  if (Array.isArray(value)) {
+    const normalized = value
+      .filter((v) => typeof v === 'string' && v.trim())
+      .map((v) => v.trim())
+      .filter((v) => coerceAll(v) !== 'all')
+    const sameLength = normalized.length === value.length
+    const sameValues =
+      sameLength && normalized.every((v, i) => v === value[i])
+    return sameValues ? value : normalized
+  }
+  const single = String(value || '').trim()
+  if (!single) return []
+  if (coerceAll(single) === 'all') return []
+  return [single]
+}
+
 export default function CalendarFilters({
   ln: lnProp,
   stage: stageProp,
   commercial: commercialProp,
+  codeStatus: codeStatusProp,
+  showCodeStatus,
   comercialOptions,
   onChange,
   onReset,
 }: CalendarFiltersProps) {
-  const [ln, setLn] = useState<CalendarLN>(() => coerceAll(String(lnProp || 'all')) as CalendarLN)
+  const [lnValues, setLnValues] = useState<CalendarLN[]>(() =>
+    toArray(lnProp) as CalendarLN[]
+  )
   const [stage, setStage] = useState<CalendarStage>(() => coerceAll(String(stageProp || 'all')) as CalendarStage)
-  const [commercial, setCommercial] = useState<string>(() => commercialProp || 'all')
+  const [commercialValues, setCommercialValues] = useState<string[]>(() =>
+    toArray(commercialProp)
+  )
+  const [codeStatus, setCodeStatus] = useState<CalendarCodeStatus>(() =>
+    coerceAll(String(codeStatusProp || 'all')) as CalendarCodeStatus
+  )
 
   const showCommercial = useMemo(
     () => Array.isArray(comercialOptions) && comercialOptions.length > 0,
@@ -84,48 +121,92 @@ export default function CalendarFilters({
 
   const [initialized, setInitialized] = useState(false)
 
-  // Si la pàgina canvia valors (ex: reset), sincronitza aquí
-  useEffect(() => setLn(coerceAll(String(lnProp || 'all')) as CalendarLN), [lnProp])
+  // Si la pagina canvia valors (ex: reset), sincronitza aqui
+  useEffect(() => setLnValues(toArray(lnProp) as CalendarLN[]), [lnProp])
   useEffect(() => setStage(coerceAll(String(stageProp || 'all')) as CalendarStage), [stageProp])
-  useEffect(() => setCommercial(commercialProp || 'all'), [commercialProp])
-  
+  useEffect(() => setCommercialValues(toArray(commercialProp)), [commercialProp])
+  useEffect(
+    () =>
+      setCodeStatus(
+        coerceAll(String(codeStatusProp || 'all')) as CalendarCodeStatus
+      ),
+    [codeStatusProp]
+  )
 
   useEffect(() => {
     if (!initialized) {
       setInitialized(true)
       return
     }
-    onChange({ ln, stage, commercial })
+    onChange({
+      ln: lnValues,
+      stage,
+      commercial: commercialValues,
+      codeStatus,
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ln, stage, commercial])
+  }, [lnValues, stage, commercialValues, codeStatus])
 
   const resetAll = () => {
-    setLn('all')
+    setLnValues([])
     setStage('all')
-    setCommercial('all')
+    setCommercialValues([])
+    setCodeStatus('all')
     onReset?.()
+  }
+
+  const lnOptions = LN_OPTIONS.filter((o) => o.value !== 'all')
+
+  const toggleLn = (value: CalendarLN) => {
+    if (value === 'all') {
+      setLnValues([])
+      return
+    }
+    setLnValues((prev) =>
+      prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]
+    )
+  }
+
+  const toggleCommercial = (value: string) => {
+    if (value === 'all') {
+      setCommercialValues([])
+      return
+    }
+    setCommercialValues((prev) =>
+      prev.includes(value)
+        ? prev.filter((v) => v !== value)
+        : [...prev, value]
+    )
   }
 
   return (
     <div className="flex flex-col gap-4 w-full p-3">
-      {/* 🧩 LN */}
+      {/* LN */}
       <div>
-        <label className="text-[11px] text-gray-500">Línia de negoci</label>
-        <Select value={ln} onValueChange={(v) => setLn(v as CalendarLN)}>
-          <SelectTrigger className="w-full h-9">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {LN_OPTIONS.map((o) => (
-              <SelectItem key={o.value} value={o.value}>
-                {o.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <label className="text-[11px] text-gray-500">Linia de negoci</label>
+        <div className="mt-1 rounded-md border bg-white p-2 space-y-2 max-h-40 overflow-y-auto">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={lnValues.length === 0}
+              onChange={() => toggleLn('all')}
+            />
+            Totes
+          </label>
+          {lnOptions.map((o) => (
+            <label key={o.value} className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={lnValues.includes(o.value)}
+                onChange={() => toggleLn(o.value)}
+              />
+              {o.label}
+            </label>
+          ))}
+        </div>
       </div>
 
-      {/* 🎨 Stage */}
+      {/* Stage */}
       <div>
         <label className="text-[11px] text-gray-500">Estat</label>
         <Select value={stage} onValueChange={(v) => setStage(v as CalendarStage)}>
@@ -142,28 +223,51 @@ export default function CalendarFilters({
         </Select>
       </div>
 
-      {/* 👤 Comercial (opcional) */}
-      {showCommercial && (
+      {/* Codi */}
+      {showCodeStatus && (
         <div>
-          <label className="text-[11px] text-gray-500">Comercial</label>
-         <Select
-  key={`${ln}-${comercialOptions?.join('|')}`}
-  value={commercial}
-  onValueChange={(v) => setCommercial(v)}
->
-
+          <label className="text-[11px] text-gray-500">Codi</label>
+          <Select
+            value={codeStatus}
+            onValueChange={(v) => setCodeStatus(v as CalendarCodeStatus)}
+          >
             <SelectTrigger className="w-full h-9">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Tots</SelectItem>
-              {comercialOptions!.map((c) => (
-                <SelectItem key={c} value={c}>
-                  {c}
+              {CODE_STATUS_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
+        </div>
+      )}
+      {/* Comercial (opcional) */}
+      {showCommercial && (
+        <div>
+          <label className="text-[11px] text-gray-500">Comercial</label>
+          <div className="mt-1 rounded-md border bg-white p-2 space-y-2 max-h-48 overflow-y-auto">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={commercialValues.length === 0}
+                onChange={() => toggleCommercial('all')}
+              />
+              Tots
+            </label>
+            {comercialOptions!.map((c) => (
+              <label key={c} className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={commercialValues.includes(c)}
+                  onChange={() => toggleCommercial(c)}
+                />
+                {c}
+              </label>
+            ))}
+          </div>
         </div>
       )}
 

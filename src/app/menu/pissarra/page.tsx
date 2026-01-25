@@ -4,7 +4,8 @@
 import { useMemo, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { startOfWeek, endOfWeek } from 'date-fns'
-import { Loader2 } from 'lucide-react'
+import { Loader2, MoreVertical } from 'lucide-react'
+import * as XLSX from 'xlsx'
 import { normalizeRole } from '@/lib/roles'
 import { RoleGuard } from '@/lib/withRoleGuard'
 import usePissarra from '@/hooks/usePissarra'
@@ -12,6 +13,12 @@ import PissarraList from './components/PissarraList'
 import SmartFilters from '@/components/filters/SmartFilters'
 import { Button } from '@/components/ui/button'
 import FilterButton from '@/components/ui/filter-button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { useFilters } from '@/context/FiltersContext'
 
 export default function PissarraPage() {
@@ -51,23 +58,176 @@ export default function PissarraPage() {
     [flat]
   )
 
-  const filteredDataByDay = useMemo(() => {
-    const grouped: Record<string, typeof flat> = {}
-
-    const filtered = flat.filter((ev) => {
+  const filteredFlat = useMemo(() => {
+    return flat.filter((ev) => {
       if (lnFilter !== '__all__' && ev.LN !== lnFilter) return false
       if (commercialFilter !== '__all__' && ev.comercial !== commercialFilter) return false
       return true
     })
+  }, [flat, lnFilter, commercialFilter])
 
-    filtered.forEach((ev) => {
+  const filteredDataByDay = useMemo(() => {
+    const grouped: Record<string, typeof flat> = {}
+
+    filteredFlat.forEach((ev) => {
       const day = ev.startDate || 'sense-data'
       if (!grouped[day]) grouped[day] = []
       grouped[day].push(ev)
     })
 
     return grouped
-  }, [flat, lnFilter, commercialFilter])
+  }, [filteredFlat])
+
+  const exportBase = `pissarra-${mode}-${week.startISO}-${week.endISO}`
+
+  const formatVehicles = (vehicles: typeof flat[number]['vehicles']) => {
+    if (!Array.isArray(vehicles) || vehicles.length === 0) return ''
+    return vehicles
+      .map((v) => {
+        const plate = v?.plate || ''
+        const driver = v?.conductor || ''
+        const type = v?.type || ''
+        return [plate, driver, type].filter(Boolean).join(' ')
+      })
+      .filter(Boolean)
+      .join(' | ')
+  }
+
+  const formatWorkers = (workers: typeof flat[number]['workers']) => {
+    if (!Array.isArray(workers) || workers.length === 0) return ''
+    return workers.filter(Boolean).join(', ')
+  }
+
+  const exportRows = useMemo(
+    () =>
+      filteredFlat.map((ev) => ({
+        Data: ev.startDate || '',
+        Hora: ev.startTime || '',
+        Arribada: ev.arrivalTime || '',
+        Esdeveniment: ev.eventName || '',
+        Ubicacio: ev.location || '',
+        LN: ev.LN || '',
+        Servei: ev.servei || '',
+        Comercial: ev.comercial || '',
+        Responsable: ev.responsableName || '',
+        Pax: ev.pax ?? '',
+        Vehicles: formatVehicles(ev.vehicles),
+        Treballadors: formatWorkers(ev.workers),
+      })),
+    [filteredFlat]
+  )
+
+  const handleExportExcel = () => {
+    const ws = XLSX.utils.json_to_sheet(exportRows)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Pissarra')
+    XLSX.writeFile(wb, `${exportBase}.xlsx`)
+  }
+
+  const escapeHtml = (value: string) =>
+    value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;')
+
+  const buildPdfTableHtml = () => {
+    const rows = [...filteredFlat].sort((a, b) => {
+      const dA = (a.startDate || '').localeCompare(b.startDate || '')
+      if (dA !== 0) return dA
+      return (a.startTime || '').localeCompare(b.startTime || '')
+    })
+
+    const cols =
+      mode === 'logistica'
+        ? [
+            'Data',
+            'Hora',
+            'Arribada',
+            'Esdeveniment',
+            'Ubicacio',
+            'Vehicles',
+            'Treballadors',
+          ]
+        : [
+            'Data',
+            'Hora',
+            'Esdeveniment',
+            'Ubicacio',
+            'LN',
+            'Servei',
+            'Comercial',
+            'Responsable',
+            'Pax',
+          ]
+
+    const header = cols.map((c) => `<th>${escapeHtml(c)}</th>`).join('')
+    const body = rows
+      .map((ev) => {
+        const base = {
+          Data: ev.startDate || '',
+          Hora: ev.startTime || '',
+          Arribada: ev.arrivalTime || '',
+          Esdeveniment: ev.eventName || '',
+          Ubicacio: ev.location || '',
+          LN: ev.LN || '',
+          Servei: ev.servei || '',
+          Comercial: ev.comercial || '',
+          Responsable: ev.responsableName || '',
+          Pax: ev.pax ?? '',
+          Vehicles: formatVehicles(ev.vehicles),
+          Treballadors: formatWorkers(ev.workers),
+        }
+        const cells = cols
+          .map((key) => `<td>${escapeHtml(String((base as any)[key] ?? ''))}</td>`)
+          .join('')
+        return `<tr>${cells}</tr>`
+      })
+      .join('')
+
+    return `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>${escapeHtml(exportBase)}</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 24px; color: #111; }
+      h1 { font-size: 16px; margin-bottom: 8px; }
+      .meta { font-size: 12px; color: #555; margin-bottom: 16px; }
+      table { width: 100%; border-collapse: collapse; font-size: 11px; }
+      th, td { border: 1px solid #ddd; padding: 6px 8px; vertical-align: top; }
+      th { background: #f3f4f6; text-align: left; }
+      tr:nth-child(even) td { background: #fafafa; }
+    </style>
+  </head>
+  <body>
+    <h1>Pissarra (${escapeHtml(mode)})</h1>
+    <div class="meta">Setmana: ${escapeHtml(week.startISO)} - ${escapeHtml(
+      week.endISO
+    )}</div>
+    <table>
+      <thead><tr>${header}</tr></thead>
+      <tbody>${body}</tbody>
+    </table>
+  </body>
+</html>`
+  }
+
+  const handleExportPdfTable = () => {
+    const html = buildPdfTableHtml()
+    const win = window.open('', '_blank', 'width=1200,height=900')
+    if (!win) return
+    win.document.open()
+    win.document.write(html)
+    win.document.close()
+    win.focus()
+    setTimeout(() => win.print(), 300)
+  }
+
+  const handleExportPdfView = () => {
+    window.print()
+  }
 
   const openFiltersPanel = () => {
     setContent(
@@ -140,9 +300,17 @@ export default function PissarraPage() {
       ]}
     >
       <main className="flex flex-col h-full w-full overflow-y-auto bg-gray-50">
+        <style>{`
+          @media print {
+            body * { visibility: hidden; }
+            #pissarra-print-root, #pissarra-print-root * { visibility: visible; }
+            #pissarra-print-root { position: absolute; left: 0; top: 0; width: 100%; }
+            #pissarra-print-root [data-print='content'] { max-height: none !important; overflow: visible !important; }
+          }
+        `}</style>
 
         {/* Barra filtres i mode */}
-        <div className="border-b bg-white sticky top-0 z-10 px-3 py-2">
+        <div className="border-b bg-white sticky top-0 z-10 px-3 py-2 no-print">
           <div className="flex flex-wrap items-center gap-2">
             <SmartFilters
               modeDefault="week"
@@ -168,6 +336,46 @@ export default function PissarraPage() {
               }}
             />
             <FilterButton onClick={openFiltersPanel} />
+            <div className="md:hidden">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="icon" variant="ghost" aria-label="Exportar">
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={handleExportExcel}>
+                    Excel (.xlsx)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleExportPdfView}>
+                    PDF (vista)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleExportPdfTable}>
+                    PDF (taula)
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            <div className="hidden md:flex">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" variant="outline">
+                    Exportar
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={handleExportExcel}>
+                    Excel (.xlsx)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleExportPdfView}>
+                    PDF (vista)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleExportPdfTable}>
+                    PDF (taula)
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
             <div className="flex gap-2">
               <Button
                 size="sm"
@@ -202,14 +410,16 @@ export default function PissarraPage() {
 
         {/* Llista */}
         {!loading && !error && (
-          <PissarraList
-            key={`${week.startISO}-${mode}`}
-            dataByDay={filteredDataByDay}
-            canEdit={canEdit}
-            onUpdate={updateField}
-            weekStart={new Date(week.startISO)}
-            variant={mode}
-          />
+          <div id="pissarra-print-root">
+            <PissarraList
+              key={`${week.startISO}-${mode}`}
+              dataByDay={filteredDataByDay}
+              canEdit={canEdit}
+              onUpdate={updateField}
+              weekStart={new Date(week.startISO)}
+              variant={mode}
+            />
+          </div>
         )}
 
       </main>

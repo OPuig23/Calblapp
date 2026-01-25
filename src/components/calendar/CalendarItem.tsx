@@ -20,7 +20,7 @@ export default function CalendarItem({ event }: { event: Deal }) {
     Servei,
     Comercial,
     Ubicacio,
-    Hora,
+    HoraInici,
     StageDot,
     Color,
     LN,
@@ -75,7 +75,7 @@ export default function CalendarItem({ event }: { event: Deal }) {
                     month: 'short',
                     year: 'numeric',
                   })}
-                  {Hora ? ` · ${Hora}` : ''}
+                  {HoraInici ? ` · ${HoraInici}` : ''}
                 </p>
               )}
               {Ubicacio && (

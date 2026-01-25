@@ -108,7 +108,7 @@ export const MODULES: ModuleDef[] = [
     label: 'Calendar',
     path: '/menu/calendar',
     roles: ['admin','direccio','cap','comercial','usuari'],
-    departments: ['produccio','empresa','casaments','foodlovers','food lover'],
+    departments: ['produccio','empresa','casaments','foodlovers','food lover', 'logistica', 'cuina','serveis'],
   },
 
   { label: 'Espais', path: '/menu/spaces',

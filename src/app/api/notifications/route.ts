@@ -43,30 +43,47 @@ if (!(session.user as SessionUser)?.id) {
   const { searchParams } = new URL(req.url)
   const mode = searchParams.get('mode')
   const limit = parseInt(searchParams.get('limit') || '20', 10)
+  const type = (searchParams.get('type') || '').trim()
 
   try {
-    const ref = firestore
+    let baseRef = firestore
       .collection('users')
       .doc(userId)
       .collection('notifications')
-      .orderBy('createdAt', 'desc')
-
-    const snap = await ref.get()
-    const docs: NotificationDoc[] = snap.docs.map(d => ({
-      id: d.id,
-      ...(d.data() as unknown as Omit<NotificationDoc, 'id'>)
-    }))
+    if (type) {
+      baseRef = baseRef.where('type', '==', type)
+    }
 
     if (mode === 'count') {
-      const count = docs.filter(d => !d.read).length
-      return NextResponse.json({ count })
+      const countRef = baseRef.where('read', '==', false)
+      const countSnap = await countRef.get()
+      return NextResponse.json({ count: countSnap.size })
+    }
+
+    const listSnap = type
+      ? await baseRef.get()
+      : await baseRef.orderBy('createdAt', 'desc').get()
+    const listDocs: NotificationDoc[] = listSnap.docs.map(d => ({
+      id: d.id,
+      ...(d.data() as unknown as Omit<NotificationDoc, 'id'>),
+    }))
+    if (type) {
+      const asMillis = (v: any) => {
+        if (!v) return 0
+        if (typeof v === 'number') return v
+        if (v instanceof Date) return v.getTime()
+        if (typeof v.toMillis === 'function') return v.toMillis()
+        const parsed = new Date(v).getTime()
+        return Number.isNaN(parsed) ? 0 : parsed
+      }
+      listDocs.sort((a, b) => asMillis(b.createdAt) - asMillis(a.createdAt))
     }
 
     if (mode === 'list') {
-      return NextResponse.json({ notifications: docs.slice(0, limit) })
+      return NextResponse.json({ notifications: listDocs.slice(0, limit) })
     }
 
-    return NextResponse.json({ notifications: docs })
+    return NextResponse.json({ notifications: listDocs })
   } catch (err: unknown) {
     console.error('[notifications GET] Error:', err)
     if (err instanceof Error) {

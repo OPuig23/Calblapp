@@ -3,7 +3,7 @@
 
 import React from 'react'
 import { Card } from '@/components/ui/card'
-import { MapPin, Users, Tag, Info } from 'lucide-react'
+import { MapPin, Users, Tag, Info, Clock } from 'lucide-react'
 import { colorByLN } from '@/lib/colors'
 
 interface LastAviso {
@@ -102,6 +102,13 @@ export default function EventCard({ event, onOpenMenu, onOpenAvisos }: Props) {
                 <MapPin className="h-3.5 w-3.5 shrink-0" />
                 <span className="truncate">{location}</span>
               </a>
+            )}
+
+            {event.horaInici && (
+              <span className="flex items-center gap-1">
+                <Clock className="h-3 w-3 text-gray-400" />
+                <span>{event.horaInici}</span>
+              </span>
             )}
           </div>
         </div>

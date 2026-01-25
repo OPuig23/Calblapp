@@ -39,10 +39,19 @@ export async function GET(req: NextRequest) {
           .replace(/^ZZRestaurant\s*/i, '')
           .replace(/^ZZ\s*/i, '')
           .trim()
+        const rawSummary =
+          typeof d?.NomEvent === 'string' ? d.NomEvent : ''
+        const summary = rawSummary
+          ? rawSummary.split('/')[0].trim()
+          : '(Sense titol)'
+        const rawHora =
+          d?.HoraInici ?? d?.horaInici ?? d?.Hora ?? d?.hora ?? ''
+        const horaInici =
+          typeof rawHora === 'string' ? rawHora.trim().slice(0, 5) : ''
 
         return {
           id: doc.id,
-          summary: d?.NomEvent || '(Sense títol)',
+          summary,
           start: startISO,
           end: endISO,
           day,
@@ -53,6 +62,8 @@ export async function GET(req: NextRequest) {
           commercial: d?.Comercial || '',
           numPax: d?.NumPax || '',
           code: d?.code || d?.C_digo || '',
+
+          horaInici,
           status: d?.StageGroup?.toLowerCase().includes('confirmat')
             ? 'confirmed'
             : d?.StageGroup?.toLowerCase().includes('proposta')
@@ -78,3 +89,5 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
   }
 }
+
+

@@ -3,10 +3,18 @@
 import React, { useMemo, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { startOfWeek, endOfWeek, format } from 'date-fns'
-import { Truck } from 'lucide-react'
+import { MoreVertical, Truck } from 'lucide-react'
+import * as XLSX from 'xlsx'
 
 import ModuleHeader from '@/components/layout/ModuleHeader'
 import FiltersBar, { type FiltersState } from '@/components/layout/FiltersBar'
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { useTransportAssignments } from './hooks/useTransportAssignments'
 import TransportAssignmentCard from './components/TransportAssignmentCard'
 
@@ -39,8 +47,159 @@ export default function TransportAssignacionsPage() {
     return Object.entries(map).sort(([a, b]) => a.localeCompare(b))
   }, [items])
 
+  const exportBase = `assignacions-logistica-${filters.start}-${filters.end}`
+
+  const exportRows = useMemo(() => {
+    const rows: Record<string, string | number>[] = []
+
+    items.forEach((it) => {
+      const vehicles = Array.isArray(it.rows) ? it.rows : []
+      const base = {
+        Data: it.day || '',
+        HoraEvent: it.eventStartTime || '',
+        HoraFiEvent: it.eventEndTime || '',
+        Event: it.eventName || '',
+        Ubicacio: it.location || '',
+        Pax: it.pax ?? '',
+        Estat: it.status || '',
+        Servei: it.service || '',
+        Codi: it.eventCode || '',
+      }
+
+      if (vehicles.length === 0) {
+        rows.push({
+          ...base,
+          Departament: '',
+          Conductor: '',
+          Matricula: '',
+          Vehicle: '',
+          Sortida: '',
+          Arribada: '',
+          Fi: '',
+          DataSortida: '',
+          DataArribada: '',
+        })
+        return
+      }
+
+      vehicles.forEach((v: any) => {
+        rows.push({
+          ...base,
+          Departament: v.department || '',
+          Conductor: v.name || '',
+          Matricula: v.plate || '',
+          Vehicle: v.vehicleType || '',
+          Sortida: v.startTime || '',
+          Arribada: v.arrivalTime || '',
+          Fi: v.endTime || '',
+          DataSortida: v.startDate || '',
+          DataArribada: v.endDate || '',
+        })
+      })
+    })
+
+    return rows
+  }, [items])
+
+  const handleExportExcel = () => {
+    const ws = XLSX.utils.json_to_sheet(exportRows)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Assignacions')
+    XLSX.writeFile(wb, `${exportBase}.xlsx`)
+  }
+
+  const escapeHtml = (value: string) =>
+    value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\"/g, '&quot;')
+      .replace(/'/g, '&#39;')
+
+  const buildPdfTableHtml = () => {
+    const cols = [
+      'Data',
+      'HoraEvent',
+      'HoraFiEvent',
+      'Event',
+      'Ubicacio',
+      'Pax',
+      'Estat',
+      'Servei',
+      'Codi',
+      'Departament',
+      'Conductor',
+      'Matricula',
+      'Vehicle',
+      'Sortida',
+      'Arribada',
+      'Fi',
+      'DataSortida',
+      'DataArribada',
+    ]
+
+    const header = cols.map((c) => `<th>${escapeHtml(c)}</th>`).join('')
+    const body = exportRows
+      .map((row) => {
+        const cells = cols
+          .map((key) => `<td>${escapeHtml(String((row as any)[key] ?? ''))}</td>`)
+          .join('')
+        return `<tr>${cells}</tr>`
+      })
+      .join('')
+
+    return `<!doctype html>
+<html>
+  <head>
+    <meta charset=\"utf-8\" />
+    <title>${escapeHtml(exportBase)}</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 24px; color: #111; }
+      h1 { font-size: 16px; margin-bottom: 8px; }
+      .meta { font-size: 12px; color: #555; margin-bottom: 16px; }
+      table { width: 100%; border-collapse: collapse; font-size: 10px; }
+      th, td { border: 1px solid #ddd; padding: 6px 8px; vertical-align: top; }
+      th { background: #f3f4f6; text-align: left; }
+      tr:nth-child(even) td { background: #fafafa; }
+    </style>
+  </head>
+  <body>
+    <h1>Assignacions de transport</h1>
+    <div class=\"meta\">Rang: ${escapeHtml(filters.start)} - ${escapeHtml(
+      filters.end
+    )}</div>
+    <table>
+      <thead><tr>${header}</tr></thead>
+      <tbody>${body}</tbody>
+    </table>
+  </body>
+</html>`
+  }
+
+  const handleExportPdfTable = () => {
+    const html = buildPdfTableHtml()
+    const win = window.open('', '_blank', 'width=1200,height=900')
+    if (!win) return
+    win.document.open()
+    win.document.write(html)
+    win.document.close()
+    win.focus()
+    setTimeout(() => win.print(), 300)
+  }
+
+  const handleExportPdfView = () => {
+    window.print()
+  }
+
   return (
     <main className="space-y-6 px-4 pb-12">
+      <style>{`
+        @media print {
+          body * { visibility: hidden; }
+          #assignacions-print-root, #assignacions-print-root * { visibility: visible; }
+          #assignacions-print-root { position: absolute; left: 0; top: 0; width: 100%; }
+        }
+      `}</style>
       <ModuleHeader
         icon={<Truck className="h-6 w-6 text-emerald-600" />}
         title="Assignacions de transport"
@@ -51,6 +210,49 @@ export default function TransportAssignacionsPage() {
         filters={filters}
         setFilters={(patch) => setFilters((prev) => ({ ...prev, ...patch }))}
       />
+
+      <div className="flex justify-end">
+        <div className="md:hidden">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="icon" variant="ghost" aria-label="Exportar">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleExportExcel}>
+                Excel (.xlsx)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportPdfView}>
+                PDF (vista)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportPdfTable}>
+                PDF (taula)
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+        <div className="hidden md:flex">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button className="bg-emerald-600 text-white hover:bg-emerald-700">
+                Exportar
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleExportExcel}>
+                Excel (.xlsx)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportPdfView}>
+                PDF (vista)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportPdfTable}>
+                PDF (taula)
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
 
       {loading && (
         <p className="py-10 text-center text-gray-500">
@@ -69,7 +271,7 @@ export default function TransportAssignacionsPage() {
       )}
 
       {!loading && !error && grouped.length > 0 && (
-        <div className="space-y-6">
+        <div id="assignacions-print-root" className="space-y-6">
           {grouped.map(([day, evs]) => (
             <section key={day} className="space-y-3">
               <div className="rounded-xl border bg-emerald-50 px-3 py-2 font-semibold text-emerald-800">

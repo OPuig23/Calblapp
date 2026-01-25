@@ -1,6 +1,6 @@
 ﻿'use client'
 
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import {
   RefreshCw,
   CalendarDays,
@@ -34,35 +34,64 @@ import {
   parseISO,
 } from 'date-fns'
 
-/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ------------------------------ */
 /* TYPES */
-/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ------------------------------ */
 type ViewMode = 'month' | 'week' | 'range'
 
 type CalendarViewState = {
   mode: ViewMode
-  ln: string
+  ln: string[]
   stage: string
-  commercial: string
+  commercial: string[]
+  codeStatus: string
   start: string
   end: string
   rangeMonths: number
 }
 
+type CalendarFilterChange = {
+  ln?: string[]
+  stage?: string
+  commercial?: string[]
+  codeStatus?: string
+}
+
 const STORAGE_KEY = 'calblay.calendar.filters.v1'
 const toIso = (d: Date) => format(d, 'yyyy-MM-dd')
+const EMPTY_FILTER_LIST: string[] = []
+const toArray = (value: unknown) => {
+  if (Array.isArray(value)) {
+    return value.filter((v) => typeof v === 'string' && v.trim())
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return []
+    const normalized = trimmed.toLowerCase()
+    if (
+      normalized === 'all' ||
+      normalized.startsWith('tots') ||
+      normalized.startsWith('totes')
+    ) {
+      return []
+    }
+    return [trimmed]
+  }
+  return []
+}
 
-/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ------------------------------ */
 /* ESTAT INICIAL */
-/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ------------------------------ */
 const makeInitialState = (): CalendarViewState => {
   const today = new Date()
 
   const base: CalendarViewState = {
     mode: 'month',
-    ln: 'all',
+    ln: [],
     stage: 'all',
-    commercial: 'all',
+    commercial: [],
+    codeStatus: 'all',
     start: toIso(startOfMonth(today)),
     end: toIso(endOfMonth(today)),
     rangeMonths: 6,
@@ -76,7 +105,7 @@ const makeInitialState = (): CalendarViewState => {
     const saved = JSON.parse(raw)
     return {
       ...base,
-      ln: saved?.ln || 'all',
+      ln: toArray(saved?.ln),
       stage: saved?.stage || 'all',
     }
   } catch {
@@ -84,16 +113,39 @@ const makeInitialState = (): CalendarViewState => {
   }
 }
 
-/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ------------------------------ */
 /* COMPONENT */
-/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ------------------------------ */
 export default function CalendarPage() {
   const [state, setState] = useState<CalendarViewState>(makeInitialState)
-  const { ln, stage, commercial, start, end, mode, rangeMonths } = state
-/* ðŸ”’ Quan canvia la LN, tanquem el panell de filtres */
-useEffect(() => {
-  openFiltersPanel(false)
-}, [ln])
+  const { ln, stage, commercial, codeStatus, start, end, mode, rangeMonths } = state
+  const { setOpen: openFiltersPanel, setContent } = useFilters()
+  const arraysEqual = (a: string[], b: string[]) =>
+    a.length === b.length && a.every((v, i) => v === b[i])
+
+  const applyFilterChange = (f: CalendarFilterChange) => {
+    setState((prev) => {
+      const nextLn = f.ln ?? prev.ln
+      const nextStage = f.stage ?? prev.stage
+      const nextCommercial = f.commercial ?? prev.commercial
+      const nextCodeStatus = f.codeStatus ?? prev.codeStatus
+
+      const changed =
+        !arraysEqual(prev.ln, nextLn) ||
+        prev.stage !== nextStage ||
+        !arraysEqual(prev.commercial, nextCommercial) ||
+        prev.codeStatus !== nextCodeStatus
+
+      if (!changed) return prev
+      return {
+        ...prev,
+        ln: nextLn,
+        stage: nextStage,
+        commercial: nextCommercial,
+        codeStatus: nextCodeStatus,
+      }
+    })
+  }
 
   /* Persistència LN + Stage */
   useEffect(() => {
@@ -123,7 +175,7 @@ useEffect(() => {
   const { deals: dealsForFilters } = useCalendarData({
     ln,
     stage,
-    commercial: 'all',
+    commercial: EMPTY_FILTER_LIST,
     start,
     end,
   })
@@ -140,20 +192,57 @@ useEffect(() => {
 
   /* Netejar comercial si deixa de ser vàlid */
   useEffect(() => {
-    if (
-      commercial !== 'all' &&
-      !comercialOptions.includes(commercial)
-    ) {
+    if (!commercial.length) return
+    const valid = commercial.filter((c) => comercialOptions.includes(c))
+    if (valid.length !== commercial.length) {
       setState((prev) => ({
         ...prev,
-        commercial: 'all',
+        commercial: valid,
       }))
     }
-  }, [ln, start, end, comercialOptions])
+  }, [commercial, ln, start, end, comercialOptions])
 
   /* Sessió */
   const { data: session } = useSession()
-  const role = String(session?.user?.role || '').toLowerCase()
+  const normalize = (value: string) =>
+    value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
+
+  const role = normalize(String(session?.user?.role || ''))
+  const department = normalize(String((session?.user as any)?.department || ''))
+  const canManageCodes =
+    role === 'admin' || (role.includes('cap') && department === 'produccio')
+
+  const codeCounts = useMemo(() => {
+    const anchor = parseISO(start)
+    const monthStart = startOfMonth(anchor)
+    const monthEnd = endOfMonth(anchor)
+
+    const inMonth = (d: (typeof deals)[number]) => {
+      const s = d.DataInici || ''
+      const e = d.DataFi || d.DataInici || ''
+      if (!s) return false
+      const sDate = parseISO(s)
+      const eDate = parseISO(e)
+      if (Number.isNaN(sDate.getTime()) || Number.isNaN(eDate.getTime()))
+        return false
+      return sDate <= monthEnd && eDate >= monthStart
+    }
+
+    const counts = { confirmed: 0, review: 0, missing: 0 }
+    deals.filter(inMonth).forEach((d) => {
+      const status = d.codeStatus
+      if (status === 'review') counts.review += 1
+      else if (status === 'confirmed') counts.confirmed += 1
+      else counts.missing += 1
+    })
+    return counts
+  }, [deals, start])
+
+  const visibleDeals = useMemo(() => {
+    if (!canManageCodes) return deals
+    if (codeStatus === 'all') return deals
+    return deals.filter((d) => d.codeStatus === codeStatus)
+  }, [deals, codeStatus, canManageCodes])
 
   /* UI */
   const [syncing, setSyncing] = useState(false)
@@ -161,58 +250,52 @@ useEffect(() => {
   const [isMobile, setIsMobile] = useState(false)
   const [showLegend, setShowLegend] = useState(false)
 
-  const { setOpen: openFiltersPanel, setContent } = useFilters()
-
-  /* Render filtres (únic punt) */
+  /* Render filtres (unic punt) */
   const renderFilters = useCallback(() => (
     <CalendarFilters
       ln={ln}
       stage={stage}
       commercial={commercial}
+      codeStatus={codeStatus}
+      showCodeStatus={canManageCodes}
       comercialOptions={comercialOptions}
-      onChange={(f) =>
-        setState((prev) => ({
-          ...prev,
-          ...f,
-        }))
-      }
+      onChange={applyFilterChange}
       onReset={() =>
         setState((prev) => ({
           ...prev,
-          ln: 'all',
+          ln: [],
           stage: 'all',
-          commercial: 'all',
+          commercial: [],
+          codeStatus: 'all',
         }))
       }
     />
-  ), [ln, stage, commercial, comercialOptions])
+  ), [ln, stage, commercial, codeStatus, canManageCodes, comercialOptions])
 
   /* Obrir filtres */
- const openFilters = () => {
-  setContent(
-    <CalendarFilters
-      ln={ln}
-      stage={stage}
-      commercial={commercial}
-      comercialOptions={comercialOptions}
-      onChange={(f) =>
-        setState((prev) => ({
-          ...prev,
-          ...f,
-        }))
-      }
-      onReset={() =>
-        setState((prev) => ({
-          ...prev,
-          ln: 'all',
-          stage: 'all',
-          commercial: 'all',
-        }))
-      }
-    />
-  )
-  openFiltersPanel(true)
-}
+  const openFilters = () => {
+    setContent(
+      <CalendarFilters
+        ln={ln}
+        stage={stage}
+        commercial={commercial}
+        codeStatus={codeStatus}
+        showCodeStatus={canManageCodes}
+        comercialOptions={comercialOptions}
+        onChange={applyFilterChange}
+        onReset={() =>
+          setState((prev) => ({
+            ...prev,
+            ln: [],
+            stage: 'all',
+            commercial: [],
+            codeStatus: 'all',
+          }))
+        }
+      />
+    )
+    openFiltersPanel(true)
+  }
 
 
   /* Detectar mobile */
@@ -233,7 +316,7 @@ useEffect(() => {
       alert(`Sincronització: ${json.updated} actualitzats, ${json.created} nous`)
       reload()
     } catch {
-      alert('âŒ Error sincronitzant amb Zoho.')
+      alert('Error sincronitzant amb Zoho.')
     } finally {
       setSyncing(false)
     }
@@ -271,7 +354,7 @@ useEffect(() => {
     `${parseISO(start).toLocaleDateString('ca-ES', {
       day: 'numeric',
       month: 'short',
-    })} â€“ ${parseISO(end).toLocaleDateString('ca-ES', {
+    })} - ${parseISO(end).toLocaleDateString('ca-ES', {
       day: 'numeric',
       month: 'short',
     })}`
@@ -296,9 +379,9 @@ useEffect(() => {
     }))
   }
 
-  /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ------------------------------ */
   /* RENDER */
-  /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ------------------------------ */
   const rangeLabel =
     `${parseISO(start).toLocaleDateString('ca-ES', {
       month: 'short',
@@ -393,7 +476,7 @@ useEffect(() => {
 
         <div className="flex items-center gap-2">
           <FilterButton onClick={openFilters} />
-          {!isMobile && role === 'admin' && (
+          {!isMobile && canManageCodes && (
             <>
               <Button
                 variant="outline"
@@ -438,7 +521,12 @@ useEffect(() => {
         )}
       </button>
 
-      {showLegend && <Legend />}
+      {showLegend && (
+        <Legend
+          showCodeStatus={canManageCodes}
+          codeCounts={codeCounts}
+        />
+      )}
 
       {/* MODE */}
       <div className="flex justify-between items-center mb-3">
@@ -491,11 +579,21 @@ useEffect(() => {
 
       <div className="rounded-xl bg-white border shadow-sm overflow-hidden">
         {mode === 'range' ? (
-          <CalendarRangeView deals={deals} start={start} months={rangeMonths} />
+          <CalendarRangeView deals={visibleDeals} start={start} months={rangeMonths} />
         ) : mode === 'week' ? (
-          <CalendarWeekView deals={deals} start={start} end={end} onCreated={reload} />
+          <CalendarWeekView
+            deals={visibleDeals}
+            start={start}
+            onCreated={reload}
+            showCodeStatus={canManageCodes}
+          />
         ) : (
-          <CalendarMonthView deals={deals} start={start} end={end} onCreated={reload} />
+          <CalendarMonthView
+            deals={visibleDeals}
+            start={start}
+            onCreated={reload}
+            showCodeStatus={canManageCodes}
+          />
         )}
       </div>
 

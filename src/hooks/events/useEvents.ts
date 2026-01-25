@@ -33,6 +33,7 @@ export interface EventData {
   responsable?: string
   conductors?: string[]
   treballadors?: string[]
+  horaInici?: string
 
   // 🆕 Últim avís de producció
   lastAviso?: {
@@ -61,6 +62,10 @@ interface EventPayload {
   LN?: string
   lnKey?: string
   lnLabel?: string
+  HoraInici?: string
+  horaInici?: string
+  Hora?: string
+  hora?: string
   [key: string]: unknown
 }
 
@@ -204,8 +209,8 @@ export default function useEvents(
 
           const pax = Number(ev.pax ?? 0)
 
-          return {
-            ...(ev as any),
+        return {
+          ...(ev as any),
 
             pax,
             location,
@@ -230,6 +235,14 @@ export default function useEvents(
 
             fincaId: (ev as any).fincaId ?? null,
             fincaCode: (ev as any).fincaCode ?? null,
+            horaInici:
+              String(
+                (ev as any).HoraInici ||
+                  (ev as any).horaInici ||
+                  (ev as any).Hora ||
+                  (ev as any).hora ||
+                  ''
+              ).slice(0, 5) || undefined,
           }
         })
 

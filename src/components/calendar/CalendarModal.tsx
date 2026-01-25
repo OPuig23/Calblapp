@@ -66,6 +66,7 @@ export default function CalendarModal({ deal, trigger, onSaved, readonly }: Prop
     NomEvent: get(deal, 'NomEvent', 'nomEvent', 'summary') || '',
     DataInici: get(deal, 'DataInici', 'dataInici', 'Data', 'dateStart') || '',
     DataFi: get(deal, 'DataFi', 'dataFi', 'dateEnd') || '',
+    HoraInici: get(deal, 'HoraInici', 'horaInici', 'Hora', 'hora') || '',
     NumPax: get(deal, 'NumPax', 'numPax', 'pax') ?? '',
     Ubicacio: get(deal, 'Ubicacio', 'ubicacio', 'location') || '',
     Servei: get(deal, 'Servei', 'servei', 'service') || '',
@@ -242,6 +243,8 @@ export default function CalendarModal({ deal, trigger, onSaved, readonly }: Prop
     const DataInici =
       get(deal, 'DataInici', 'dataInici', 'Data', 'dateStart') || ''
     const DataFi = get(deal, 'DataFi', 'dataFi', 'dateEnd') || ''
+    const HoraInici =
+      get(deal, 'HoraInici', 'horaInici', 'Hora', 'hora') || ''
 
     console.log('📊 Extracte camps:', {
       NomEvent: deal.NomEvent,
@@ -260,6 +263,7 @@ export default function CalendarModal({ deal, trigger, onSaved, readonly }: Prop
       NomEvent: NomEventRaw.split('/')[0].trim(),
       DataInici,
       DataFi,
+      HoraInici,
       NumPax,
       Ubicacio,
       Servei,
@@ -489,6 +493,20 @@ export default function CalendarModal({ deal, trigger, onSaved, readonly }: Prop
               />
             ) : (
               <p>{editData.DataInici}</p>
+            )}
+          </div>
+
+          {/* Hora inici */}
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Hora inici</label>
+            {isManual && !readonly ? (
+              <Input
+                type="time"
+                value={editData.HoraInici || ''}
+                onChange={(e) => handleChange('HoraInici', e.target.value)}
+              />
+            ) : (
+              <p>{editData.HoraInici || '—'}</p>
             )}
           </div>
 

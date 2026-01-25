@@ -1,4 +1,4 @@
-// file: src/components/calendar/CalendarMonthView.tsx
+﻿// file: src/components/calendar/CalendarMonthView.tsx
 'use client'
 
 import React, { useMemo, useState } from 'react'
@@ -14,6 +14,18 @@ function dotColorByCollection(collection?: string) {
   if (c.includes('taronja')) return 'bg-amber-500'
   if (c.includes('taronja')) return 'bg-blue-500'
   return 'bg-gray-300'
+}
+
+const codeBadgeFor = (ev: Deal) => {
+  const status = ev.codeStatus
+  if (!status) return null
+  if (status === 'confirmed') {
+    return { label: 'C', className: 'border-slate-200 bg-slate-50 text-slate-700' }
+  }
+  if (status === 'review') {
+    return { label: 'R', className: 'border-rose-200 bg-rose-50 text-rose-700' }
+  }
+  return { label: '-', className: 'border-gray-200 bg-gray-50 text-gray-600' }
 }
 
 type WeekCell = { date: Date; iso: string; isOther: boolean }
@@ -58,10 +70,12 @@ export default function CalendarMonthView({
   deals,
   start,
   onCreated,
+  showCodeStatus,
 }: {
   deals: Deal[]
   start?: string
   onCreated?: () => void
+  showCodeStatus?: boolean
 }) {
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const firstIso = deals.length ? pickDateIso(deals[0], ['DataInici', 'Data']) : ''
@@ -168,7 +182,7 @@ export default function CalendarMonthView({
               "
               style={{ minHeight }}
             >
-              {/* Dia + número */}
+              {/* Dia + numero */}
               {week.map((c) => (
                 <div
                   key={c.iso}
@@ -202,6 +216,7 @@ export default function CalendarMonthView({
               >
                 {visibleSpans.map((span, idx) => {
                   const isSingleDay = span.startIdx === span.endIdx
+                  const badge = showCodeStatus ? codeBadgeFor(span.ev) : null
 
                   return (
                     <CalendarModal
@@ -227,16 +242,23 @@ export default function CalendarMonthView({
                           <span
                             className={`w-2 h-2 rounded-full ${dotColorByCollection(span.ev.collection)}`}
                           />
-                          <span className={`truncate ${isSingleDay ? 'text-left' : 'text-center'}`}>
+                          <span className={`truncate ${isSingleDay ? 'text-left' : 'text-center'} flex-1`}>
                             {span.ev.NomEvent}
                           </span>
+                          {badge && (
+                            <span
+                              className={`ml-1 shrink-0 rounded-full border px-1.5 py-[1px] text-[10px] font-semibold ${badge.className}`}
+                            >
+                              {badge.label}
+                            </span>
+                          )}
                         </div>
                       }
                     />
                   )
                 })}
 
-                {/* Botons +X més per dies amb lanes ocultes */}
+                {/* Botons +X mes per dies amb lanes ocultes */}
                 {week.map((c, dayIdx) => {
                   const segments = spans
                     .filter((s) => s.startIdx <= dayIdx && s.endIdx >= dayIdx)
@@ -253,7 +275,11 @@ export default function CalendarMonthView({
                       }}
                       className="flex items-center pointer-events-auto"
                     >
-                      <MoreEventsPopup events={hidden.map((h) => h.ev)} date={c.date} />
+                      <MoreEventsPopup
+                        events={hidden.map((h) => h.ev)}
+                        date={c.date}
+                        showCodeStatus={showCodeStatus}
+                      />
                     </div>
                   )
                 })}
@@ -278,7 +304,15 @@ export default function CalendarMonthView({
   )
 }
 
-function MoreEventsPopup({ events, date }: { events: Deal[]; date: Date }) {
+function MoreEventsPopup({
+  events,
+  date,
+  showCodeStatus,
+}: {
+  events: Deal[]
+  date: Date
+  showCodeStatus?: boolean
+}) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -290,7 +324,7 @@ function MoreEventsPopup({ events, date }: { events: Deal[]; date: Date }) {
           setOpen(true)
         }}
       >
-        +{events.length} més
+        +{events.length} mes
       </div>
 
       <DialogContent className="max-w-sm sm:max-w-md">
@@ -304,28 +338,38 @@ function MoreEventsPopup({ events, date }: { events: Deal[]; date: Date }) {
         </DialogHeader>
 
         <div className="space-y-1 max-h-[60dvh] overflow-y-auto">
-          {events.map((ev) => (
-            <CalendarModal
-              key={ev.id}
-              deal={ev}
-              trigger={
-                <div
-                  onClick={(e) => e.stopPropagation()}
-                  className={`
-                    flex items-center gap-2 
-                    truncate px-1.5 py-[3px] rounded-md border
-                    text-[11px] sm:text-[12px]
-                    ${colorByLN(ev.LN)}
-                  `}
-                >
-                  <span
-                    className={`w-2 h-2 rounded-full ${dotColorByCollection(ev.collection)}`}
-                  />
-                  <span className="truncate">{ev.NomEvent}</span>
-                </div>
-              }
-            />
-          ))}
+          {events.map((ev) => {
+            const badge = showCodeStatus ? codeBadgeFor(ev) : null
+            return (
+              <CalendarModal
+                key={ev.id}
+                deal={ev}
+                trigger={
+                  <div
+                    onClick={(e) => e.stopPropagation()}
+                    className={`
+                      flex items-center gap-2
+                      truncate px-1.5 py-[3px] rounded-md border
+                      text-[11px] sm:text-[12px]
+                      ${colorByLN(ev.LN)}
+                    `}
+                  >
+                    <span
+                      className={`w-2 h-2 rounded-full ${dotColorByCollection(ev.collection)}`}
+                    />
+                    <span className="truncate flex-1">{ev.NomEvent}</span>
+                    {badge && (
+                      <span
+                        className={`ml-1 shrink-0 rounded-full border px-1.5 py-[1px] text-[10px] font-semibold ${badge.className}`}
+                      >
+                        {badge.label}
+                      </span>
+                    )}
+                  </div>
+                }
+              />
+            )
+          })}
         </div>
       </DialogContent>
     </Dialog>

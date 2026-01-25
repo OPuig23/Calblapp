@@ -29,6 +29,7 @@ type BuiltEvent = {
   name: string
   eventCode: string
   commercial: string
+  horaInici?: string
   isResponsible: boolean
 }
 
@@ -98,6 +99,18 @@ export async function GET(request: Request) {
     const commercial = d.Comercial || ''
     const summary = d.NomEvent || ''
     const name = d.NomEvent || ''
+    const rawHora =
+      typeof d?.HoraInici === 'string'
+        ? d.HoraInici
+        : typeof d?.horaInici === 'string'
+        ? d.horaInici
+        : typeof d?.Hora === 'string'
+        ? d.Hora
+        : typeof d?.hora === 'string'
+        ? d.hora
+        : ''
+    const horaInici =
+      typeof rawHora === 'string' ? rawHora.trim().slice(0, 5) : ''
 
     built.push({
       id: doc.id,
@@ -112,6 +125,7 @@ export async function GET(request: Request) {
       name,
       eventCode,
       commercial,
+      horaInici,
       isResponsible: false,
     })
   })

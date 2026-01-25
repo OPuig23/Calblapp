@@ -1,4 +1,4 @@
-// ✅ filename: src/app/api/sync/zoho-to-firestore/route.ts
+// filename: src/app/api/sync/zoho-to-firestore/route.ts
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
@@ -11,7 +11,7 @@ export async function GET(req: Request) {
     const url = new URL(req.url)
     const mode = url.searchParams.get('mode')
 
-    // 🟢 1️⃣ SI ÉS CRON → SALTEM AUTH COMPLETAMENT
+    // Si es cron, saltem auth completament
     if (mode === 'cron') {
       const result = await syncZohoDealsToFirestore()
       return NextResponse.json({
@@ -22,13 +22,18 @@ export async function GET(req: Request) {
       })
     }
 
-    // 🔐 2️⃣ SI NO ÉS CRON → ÉS MANUAL → VALIDAR ADMIN
+    // Si no es cron, es manual: validar permisos
     const session = await getServerSession(authOptions)
-    const role = String(session?.user?.role || '').toLowerCase()
+    const normalize = (value: string) =>
+      value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
+    const role = normalize(String(session?.user?.role || ''))
+    const department = normalize(String((session?.user as any)?.department || ''))
+    const canManualSync =
+      role === 'admin' || (role.includes('cap') && department === 'produccio')
 
-    if (role !== 'admin') {
+    if (!canManualSync) {
       return NextResponse.json(
-        { error: 'Accés denegat: només ADMIN pot sincronitzar manualment.' },
+        { error: 'Acces denegat: nomes admin o cap produccio pot sincronitzar manualment.' },
         { status: 403 }
       )
     }
@@ -42,9 +47,9 @@ export async function GET(req: Request) {
       timestamp: new Date().toISOString(),
     })
   } catch (error) {
-    console.error('❌ Error a /api/sync/zoho-to-firestore:', error)
+    console.error('Error a /api/sync/zoho-to-firestore:', error)
     return NextResponse.json(
-      { error: 'Error durant la sincronització Zoho → Firestore' },
+      { error: 'Error durant la sincronitzacio Zoho a Firestore' },
       { status: 500 }
     )
   }

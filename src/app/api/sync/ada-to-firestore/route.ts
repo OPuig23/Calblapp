@@ -30,11 +30,16 @@ export async function GET(req: Request) {
     }
 
     const session = await getServerSession(authOptions)
-    const role = String(session?.user?.role || '').toLowerCase()
+    const normalize = (value: string) =>
+      value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
+    const role = normalize(String(session?.user?.role || ''))
+    const department = normalize(String((session?.user as any)?.department || ''))
+    const canManualSync =
+      role === 'admin' || (role.includes('cap') && department === 'produccio')
 
-    if (role !== 'admin') {
+    if (!canManualSync) {
       return NextResponse.json(
-        { error: 'Acces denegat: nomes ADMIN pot sincronitzar manualment.' },
+        { error: 'Acces denegat: nomes admin o cap produccio pot sincronitzar manualment.' },
         { status: 403 }
       )
     }

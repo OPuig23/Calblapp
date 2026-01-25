@@ -13,12 +13,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Falten start i end' }, { status: 400 })
     }
 
-    // 🔹 Llegim totes les col·leccions del Firestore
+    // Llegim totes les colleccions del Firestore
     const collections = ['stage_verd', 'stage_taronja']
     const base: Record<string, unknown>[] = []
 
     for (const coll of collections) {
-      console.log(`[events/calendar] 🔍 Llegint Firestore: ${coll}`)
+      console.log(`[events/calendar] Llegint Firestore: ${coll}`)
       const snap = await db.collection(coll).get()
 
       snap.forEach((doc) => {
@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
             : startISO
 
         const rawSummary =
-          typeof d.NomEvent === 'string' ? d.NomEvent : '(Sense títol)'
+          typeof d.NomEvent === 'string' ? d.NomEvent : '(Sense titol)'
 
         const summary = rawSummary.split('/')[0].trim()
 
@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
 
         const lnValue = typeof d.LN === 'string' ? d.LN : 'Altres'
 
-        // 🗂️ Extreure tots els fileN del document
+        // Extreure tots els fileN del document
         const fileFields: Record<string, string> = {}
         Object.entries(d).forEach(([k, v]) => {
           if (
@@ -75,18 +75,22 @@ export async function GET(req: NextRequest) {
           collection: coll,
 
           code: d.code || d.Code || d.codi || '',
+          codeConfirmed:
+            typeof d.codeConfirmed === 'boolean' ? d.codeConfirmed : undefined,
+          codeMatchScore:
+            typeof d.codeMatchScore === 'number' ? d.codeMatchScore : undefined,
 
           comercial: d.Comercial || d.comercial || '',
           servei: d.Servei || d.servei || '',
 
-          // 🔧 FIX: Pax robust
+          // FIX: Pax robust
           numPax:
             d.NumPax ??
             d.numPax ??
             d.PAX ??
             null,
 
-          // 🔧 FIX: Observacions Zoho
+          // FIX: Observacions Zoho
           ObservacionsZoho:
             d.ObservacionsZoho ??
             d.observacionsZoho ??
@@ -100,13 +104,11 @@ export async function GET(req: NextRequest) {
       })
     }
 
-    console.log(
-      `[events/calendar] 📦 Total esdeveniments trobats: ${base.length}`
-    )
+    console.log(`[events/calendar] Total esdeveniments trobats: ${base.length}`)
 
     return NextResponse.json({ events: base }, { status: 200 })
   } catch (err) {
-    console.error('[api/events/calendar] ❌ Error:', err)
+    console.error('[api/events/calendar] Error:', err)
     return NextResponse.json(
       { error: 'Internal Server Error' },
       { status: 500 }

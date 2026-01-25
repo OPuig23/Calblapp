@@ -30,7 +30,7 @@ export function TornNotificationsList({ onAfterAction }: Props) {
   const { notifications, refresh } = useNotificationsList(50, 'NEW_SHIFTS')
   const router = useRouter()
 
-  const tornNotis = notifications.filter(n => !n.read)
+  const tornNotis = notifications.filter(n => !n.read && n.type === 'NEW_SHIFTS')
 
   const openTorn = async (n: Notification) => {
     let url = '/menu/torns'

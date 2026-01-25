@@ -251,6 +251,26 @@ function mapDocToTorn(
 // ───────────────── Fetchs Firestore ─────────────────
 
 const KNOWN_DEPARTMENTS = ['logistica', 'serveis', 'cuina']
+const ASSIGNMENT_COLLECTION = 'transportAssignmentsV2'
+const ACTIVE_ASSIGNMENT_STATUSES = new Set(['pending', 'confirmed', 'addedToTorns'])
+
+function dayKeyRange(startISO: string, endISO: string): string[] {
+  const out: string[] = []
+  const start = new Date(`${startISO}T00:00:00`)
+  const end = new Date(`${endISO}T00:00:00`)
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) return out
+  if (end < start) return out
+
+  const cur = new Date(start)
+  while (cur <= end) {
+    const y = cur.getFullYear()
+    const m = String(cur.getMonth() + 1).padStart(2, '0')
+    const d = String(cur.getDate()).padStart(2, '0')
+    out.push(`${y}-${m}-${d}`)
+    cur.setDate(cur.getDate() + 1)
+  }
+  return out
+}
 
 async function fetchDeptCollectionRange(
   db: FirebaseFirestore.Firestore,
@@ -293,6 +313,88 @@ async function fetchDeptCollectionRange(
   })
 }
 
+async function fetchTransportAssignmentsRange(
+  db: FirebaseFirestore.Firestore,
+  startISO: string,
+  endISO: string,
+  out: Torn[],
+  deptFilter?: string | null
+) {
+  const dayKeys = dayKeyRange(startISO, endISO)
+  if (!dayKeys.length) return
+
+  let docs: FirebaseFirestore.QueryDocumentSnapshot[] = []
+  try {
+    const chunks: string[][] = []
+    for (let i = 0; i < dayKeys.length; i += 10) {
+      chunks.push(dayKeys.slice(i, i + 10))
+    }
+    for (const chunk of chunks) {
+      const snap = await db
+        .collection(ASSIGNMENT_COLLECTION)
+        .where('dayKeys', 'array-contains-any', chunk)
+        .get()
+      docs.push(...snap.docs)
+    }
+  } catch {
+    const snap = await db.collection(ASSIGNMENT_COLLECTION).get()
+    docs = snap.docs
+  }
+
+  for (const doc of docs) {
+    const data = doc.data() as any
+    const status = String(data?.status || 'pending')
+    if (!ACTIVE_ASSIGNMENT_STATUSES.has(status)) continue
+
+    const department = norm(data?.department || 'logistica')
+    if (deptFilter && norm(deptFilter) !== department) continue
+
+    const startDate = parseAnyDateToISO(data?.startDate)
+    const endDate = parseAnyDateToISO(data?.endDate || data?.startDate)
+    if (!startDate) continue
+    const realEnd = endDate || startDate
+
+    if (!rangesOverlap(startDate, realEnd, startISO, endISO)) continue
+
+    const eventName = data?.destination
+      ? `Transport - ${String(data.destination)}`
+      : `Transport ${String(data?.plate || '').trim()}`
+
+    const worker = normalizeTornWorker({
+      id: data?.conductorId,
+      name: data?.conductorName,
+      role: 'conductor',
+      startTime: data?.startTime,
+      endTime: data?.endTime,
+      department,
+    })
+
+    const base: Torn = {
+      id: `assign:${doc.id}`,
+      eventId: '',
+      eventName,
+      date: startDate,
+      startDate,
+      endDate: realEnd,
+      startTime: toTimeHHmm(data?.startTime),
+      endTime: toTimeHHmm(data?.endTime),
+      arrivalTime: '',
+      meetingPoint: '',
+      location: data?.destination ? String(data.destination) : undefined,
+      department,
+      __rawWorkers: [worker],
+    }
+
+    const cur = new Date(startDate)
+    const endLoop = new Date(realEnd)
+    while (cur <= endLoop) {
+      const iso = toISODate(cur)
+      out.push({ ...base, date: iso })
+      cur.setDate(cur.getDate() + 1)
+    }
+  }
+}
+
 export async function fetchAllTorns(
   startISO: string,
   endISO: string,
@@ -315,6 +417,7 @@ export async function fetchAllTorns(
     if (role === 'Treballador') {
       if (dep) {
         await fetchDeptCollectionRange(db, dep, startISO, endISO, out)
+        await fetchTransportAssignmentsRange(db, startISO, endISO, out, dep)
         return out.filter((t) => {
           if (!Array.isArray(t.__rawWorkers)) return false
           const matchWorker = t.__rawWorkers.find(
@@ -335,6 +438,7 @@ export async function fetchAllTorns(
     if (role === 'Cap Departament') {
       if (dep) {
         await fetchDeptCollectionRange(db, dep, startISO, endISO, out)
+        await fetchTransportAssignmentsRange(db, startISO, endISO, out, dep)
         return out
       }
       return []

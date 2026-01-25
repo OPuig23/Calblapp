@@ -2,7 +2,8 @@
 'use client'
 
 import React, { useState, useMemo } from 'react'
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, MoreVertical } from 'lucide-react'
+import * as XLSX from 'xlsx'
 import {
   Select,
   SelectTrigger,
@@ -16,7 +17,14 @@ import SmartFilters, { SmartFiltersChange } from '@/components/filters/SmartFilt
 import { useIncidents } from '@/hooks/useIncidents'
 import IncidentsTable from './components/IncidentsTable'
 import FilterButton from '@/components/ui/filter-button'
+import { Button } from '@/components/ui/button'
 import { useFilters } from '@/context/FiltersContext'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 export default function IncidentsPage() {
   const [filters, setFilters] = useState({
@@ -134,8 +142,124 @@ export default function IncidentsPage() {
     setOpen(true)
   }
 
+  const exportBase = `incidencies-${filters.from || 'start'}-${filters.to || 'end'}`
+
+  const exportRows = useMemo(
+    () =>
+      incidents.map((i) => ({
+        DataEvent: (i.eventDate || '').slice(0, 10),
+        Event: i.eventTitle || '',
+        Codi: i.eventCode || '',
+        Ubicacio: i.eventLocation || '',
+        Departament: i.department || '',
+        Importancia: i.importance || '',
+        Categoria: i.category?.label || '',
+        Estat: i.status || '',
+        Descripcio: i.description || '',
+        Creada: (i.createdAt || '').slice(0, 19),
+        Creador: i.createdBy || '',
+        LN: i.ln || '',
+        Pax: i.pax ?? '',
+        Servei: i.serviceType || '',
+      })),
+    [incidents]
+  )
+
+  const handleExportExcel = () => {
+    const ws = XLSX.utils.json_to_sheet(exportRows)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Incidencies')
+    XLSX.writeFile(wb, `${exportBase}.xlsx`)
+  }
+
+  const escapeHtml = (value: string) =>
+    value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\"/g, '&quot;')
+      .replace(/'/g, '&#39;')
+
+  const buildPdfTableHtml = () => {
+    const cols = [
+      'DataEvent',
+      'Event',
+      'Codi',
+      'Ubicacio',
+      'Departament',
+      'Importancia',
+      'Categoria',
+      'Estat',
+      'Descripcio',
+      'Creada',
+      'Creador',
+      'LN',
+      'Pax',
+      'Servei',
+    ]
+
+    const header = cols.map((c) => `<th>${escapeHtml(c)}</th>`).join('')
+    const body = exportRows
+      .map((row) => {
+        const cells = cols
+          .map((key) => `<td>${escapeHtml(String((row as any)[key] ?? ''))}</td>`)
+          .join('')
+        return `<tr>${cells}</tr>`
+      })
+      .join('')
+
+    return `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>${escapeHtml(exportBase)}</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 24px; color: #111; }
+      h1 { font-size: 16px; margin-bottom: 8px; }
+      .meta { font-size: 12px; color: #555; margin-bottom: 16px; }
+      table { width: 100%; border-collapse: collapse; font-size: 11px; }
+      th, td { border: 1px solid #ddd; padding: 6px 8px; vertical-align: top; }
+      th { background: #f3f4f6; text-align: left; }
+      tr:nth-child(even) td { background: #fafafa; }
+    </style>
+  </head>
+  <body>
+    <h1>Incidencies</h1>
+    <div class="meta">Rang: ${escapeHtml(filters.from || '')} - ${escapeHtml(
+      filters.to || ''
+    )}</div>
+    <table>
+      <thead><tr>${header}</tr></thead>
+      <tbody>${body}</tbody>
+    </table>
+  </body>
+</html>`
+  }
+
+  const handleExportPdfTable = () => {
+    const html = buildPdfTableHtml()
+    const win = window.open('', '_blank', 'width=1200,height=900')
+    if (!win) return
+    win.document.open()
+    win.document.write(html)
+    win.document.close()
+    win.focus()
+    setTimeout(() => win.print(), 300)
+  }
+
+  const handleExportPdfView = () => {
+    window.print()
+  }
+
   return (
     <div className="p-4 flex flex-col gap-4">
+      <style>{`
+        @media print {
+          body * { visibility: hidden; }
+          #incidencies-print-root, #incidencies-print-root * { visibility: visible; }
+          #incidencies-print-root { position: absolute; left: 0; top: 0; width: 100%; }
+        }
+      `}</style>
       {/* Capçalera principal */}
       <ModuleHeader
         icon={<AlertTriangle className="w-7 h-7 text-yellow-600" />}
@@ -164,6 +288,46 @@ export default function IncidentsPage() {
           compact
         />
         <div className="flex-1 min-w-[8px]" />
+        <div className="md:hidden">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="icon" variant="ghost" aria-label="Exportar">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleExportExcel}>
+                Excel (.xlsx)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportPdfView}>
+                PDF (vista)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportPdfTable}>
+                PDF (taula)
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+        <div className="hidden md:flex">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button className="bg-yellow-500 text-white hover:bg-yellow-600">
+                Exportar
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleExportExcel}>
+                Excel (.xlsx)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportPdfView}>
+                PDF (vista)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportPdfTable}>
+                PDF (taula)
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
         <FilterButton onClick={openFiltersPanel} />
       </div>
 
@@ -172,10 +336,12 @@ export default function IncidentsPage() {
       {error && <p className="text-center py-10 text-red-500">{error}</p>}
 
       {!loading && !error && (
-        <IncidentsTable
-          incidents={incidents}
-          onUpdate={updateIncident}
-        />
+        <div id="incidencies-print-root">
+          <IncidentsTable
+            incidents={incidents}
+            onUpdate={updateIncident}
+          />
+        </div>
       )}
     </div>
   )

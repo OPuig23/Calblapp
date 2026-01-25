@@ -1,4 +1,4 @@
-// ✅ file: src/app/api/events/list/route.ts
+﻿// â file: src/app/api/events/list/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
@@ -43,7 +43,7 @@ function normalizeColId(id: string): string {
     .toLowerCase()
 }
 
-// Deriva la línia de negoci segons codi/summary (fallback)
+// Deriva la lÃ­nia de negoci segons codi/summary (fallback)
 const lnFromCodeOrSummary = (code?: string | null, summary?: string | null) => {
   const src = String(code || '').trim() || String(summary || '').trim()
   const m = src.match(/([A-Za-z])/)
@@ -80,7 +80,7 @@ async function loadCollectionsMap() {
     if (key) COLS_MAP[key] = c.id
   })
   COLS_LOADED = true
-  console.log('[events/list] 🔄 Collections map carregat:', COLS_MAP)
+  console.log('[events/list] ð Collections map carregat:', COLS_MAP)
 }
 
 async function resolveColForDept(dept: string): Promise<string | undefined> {
@@ -91,9 +91,9 @@ async function resolveColForDept(dept: string): Promise<string | undefined> {
     const alt = Object.entries(COLS_MAP).find(([k]) => k.includes(normDept))
     if (alt) {
       result = alt[1]
-      console.log('[resolveColForDept] ⚠️ Fallback match:', { dept, normDept, result })
+      console.log('[resolveColForDept] â ï¸ Fallback match:', { dept, normDept, result })
     } else {
-      console.log('[resolveColForDept] ❌ No col·lecció per dept:', { dept, normDept })
+      console.log('[resolveColForDept] â No colÂ·lecciÃ³ per dept:', { dept, normDept })
     }
   }
   return result
@@ -129,7 +129,7 @@ async function fetchQuadrantsRange(
       out.push({ id: doc.id, ...data })
     })
   }
-  console.log(`[events/list] 📂 ${coll} → ${out.length} docs`)
+  console.log(`[events/list] ð ${coll} â ${out.length} docs`)
   return out
 }
 
@@ -185,7 +185,7 @@ export async function GET(req: NextRequest) {
         ''
     )
 
-    console.log('[events/list] 🟢 Token info:', { role, sessDept, qsDept, scope, userName })
+    console.log('[events/list] ð¢ Token info:', { role, sessDept, qsDept, scope, userName })
 
     /* ==== Dept policy ==== */
     let deptsToUse: string[] = []
@@ -203,7 +203,7 @@ export async function GET(req: NextRequest) {
     const timeMin = `${start}T00:00:00.000Z`
     const timeMaxExclusive = addDaysUTC(end, 1)
 
-    console.log('[events/list] 🔍 Llegint Firestore: stage_verd')
+    console.log('[events/list] ð Llegint Firestore: stage_verd')
 
     const snap = await db.collection('stage_verd').get()
 
@@ -221,22 +221,32 @@ export async function GET(req: NextRequest) {
         typeof d?.codeMatchScore === 'number' ? d.codeMatchScore : null
 
 
-      // 🟢 Nom de l’esdeveniment: només fins al primer “/”
+      // ð¢ Nom de lesdeveniment: només fins al primer /
       const rawSummary = d?.NomEvent || '(Sense títol)'
       const summary = rawSummary.split('/')[0].trim()
 
-      // 🟢 Ubicació sense codi (fins al primer parèntesi o barra)
-      // 🟢 Ubicació sense codi ni prefixos “ZZ”
-const rawLocation = d?.Ubicacio || ''
-const location = rawLocation
-  .split('(')[0]           // elimina el codi entre parèntesis
-  .split('/')[0]           // elimina qualsevol barra
-  .replace(/^ZZRestaurant\s*/i, '')  // elimina “ZZRestaurant” inicial
-  .replace(/^ZZ\s*/i, '')             // elimina “ZZ” sol
-  .trim()
+      // ð¢ Ubicació sense codi (fins al primer parèntesi o barra)
+      // ð¢ Ubicació sense codi ni prefixos ZZ
+      const rawLocation = d?.Ubicacio || ''
+      const location = rawLocation
+        .split('(')[0]
+        .split('/')[0]
+        .replace(/^ZZRestaurant\s*/i, '')
+        .replace(/^ZZ\s*/i, '')
+        .trim()
 
-
-      // 🟢 Línia de negoci
+      const rawHora =
+        typeof d?.HoraInici === 'string'
+          ? d.HoraInici
+          : typeof d?.horaInici === 'string'
+          ? d.horaInici
+          : typeof d?.Hora === 'string'
+          ? d.Hora
+          : typeof d?.hora === 'string'
+          ? d.hora
+          : ''
+      const horaInici =
+        typeof rawHora === 'string' ? rawHora.trim().slice(0, 5) : ''
       const lnValue = d?.LN || 'Altres'
 
       return {
@@ -254,12 +264,13 @@ const location = rawLocation
         htmlLink: null,
         lnKey: lnValue.toLowerCase(),
         lnLabel: lnValue,
+        horaInici,
         fincaId: d?.FincaId ?? null,
         fincaCode: d?.FincaCode ?? null,
       }
     })
 
-    // 🔍 Filtre per rang de dates
+    // ð Filtre per rang de dates
     const filteredByRange = base.filter((ev) => {
       if (!ev.start) return false
       const s = new Date(ev.start).toISOString()
@@ -320,7 +331,7 @@ const location = rawLocation
         }
       }
 
-      console.log(`[events/list] 📌 Responsables trobats a ${coll} (${dept}):`, foundInColl)
+      console.log(`[events/list] ð Responsables trobats a ${coll} (${dept}):`, foundInColl)
     }
 
     /* ==== Enriquiment ==== */
@@ -357,10 +368,18 @@ const location = rawLocation
       { status: 200 }
     )
   } catch (err: unknown) {
-    console.error('[api/events/list] ❌ error', err)
+    console.error('[api/events/list] â error', err)
     if (err instanceof Error) {
       return NextResponse.json({ error: err.message }, { status: 500 })
     }
     return NextResponse.json({ error: 'Internal Error' }, { status: 500 })
   }
 }
+
+
+
+
+
+
+
+

@@ -11,16 +11,29 @@ const GOOGLE_KEY = process.env.NEXT_PUBLIC_GOOGLE_API_KEY
 /* ------------------ Tipus ------------------ */
 interface QuadrantDoc {
   status?: string
-  responsable?: { name?: string }
+  responsable?: { id?: string; name?: string }
   responsableName?: string
-  conductors?: Array<{ name?: string }>
-  treballadors?: Array<{ name?: string }>
+  responsableId?: string
+  responsables?: Array<{ id?: string; name?: string }>
+  conductors?: Array<{ id?: string; name?: string }>
+  treballadors?: Array<{ id?: string; name?: string }>
   numDrivers?: number
   totalWorkers?: number
-  responsableId?: string
   startDate?: string
   meetingPoint?: string
   distanceKm?: number
+}
+
+type AssignedUser = {
+  id?: string
+  name?: string
+  startDate?: string
+  startTime?: string
+  endDate?: string
+  endTime?: string
+  meetingPoint?: string
+  vehicleType?: string
+  plate?: string
 }
 
 type TokenLike = {
@@ -57,13 +70,14 @@ async function calcDistanceKm(destination: string): Promise<number | null> {
   }
 }
 
-async function lookupUidByName(name: string): Promise<string | null> {
-  const folded = norm(name)
+async function lookupUidForAssigned(user: AssignedUser): Promise<string | null> {
+  const rawId = String(user?.id || '').trim()
+  if (!rawId) return null
 
-  let q = await db.collection('users').where('nameFold', '==', folded).limit(1).get()
-  if (!q.empty) return q.docs[0].id
+  const direct = await db.collection('users').doc(rawId).get()
+  if (direct.exists) return rawId
 
-  q = await db.collection('users').where('name', '==', name).limit(1).get()
+  const q = await db.collection('users').where('userId', '==', rawId).limit(1).get()
   if (!q.empty) return q.docs[0].id
 
   return null
@@ -124,9 +138,13 @@ export async function POST(req: NextRequest) {
 
     const extract = (q?: QuadrantDoc) => {
       if (!q) return []
-      const arr: Array<any> = []
-      const pushUser = (name: string, src: any) => {
+      const arr: AssignedUser[] = []
+      const pushUser = (src: any, fallbackName?: string) => {
+        const name = String(fallbackName || src?.name || '').trim()
+        const id = String(src?.id || src?.userId || src?.personId || '').trim()
+        if (!name && !id) return
         arr.push({
+          id: id || undefined,
           name,
           startDate: src.startDate,
           startTime: src.startTime,
@@ -137,10 +155,16 @@ export async function POST(req: NextRequest) {
           plate: src.plate,
         })
       }
-      const rName = q.responsable?.name || q.responsableName
-      if (rName) pushUser(rName, q.responsable || q)
-      ;(q.conductors || []).forEach(c => c?.name && pushUser(c.name, c))
-      ;(q.treballadors || []).forEach(t => t?.name && pushUser(t.name, t))
+      const respFallback = q.responsable || {
+        id: q.responsableId,
+        name: q.responsableName,
+      }
+      if (respFallback?.name || respFallback?.id) {
+        pushUser(respFallback, respFallback.name)
+      }
+      ;(q.responsables || []).forEach(r => pushUser(r, r?.name))
+      ;(q.conductors || []).forEach(c => pushUser(c, c?.name))
+      ;(q.treballadors || []).forEach(t => pushUser(t, t?.name))
       return arr
     }
 
@@ -150,7 +174,9 @@ export async function POST(req: NextRequest) {
     let changed = newUsers
     if (!isFirstConfirm) {
       changed = newUsers.filter(nu => {
-        const old = oldUsers.find(ou => ou.name === nu.name)
+        const old = nu.id
+          ? oldUsers.find(ou => ou.id === nu.id)
+          : oldUsers.find(ou => ou.name === nu.name)
         if (!old) return true
         return (
           old.startDate !== nu.startDate ||
@@ -165,7 +191,8 @@ export async function POST(req: NextRequest) {
     }
 
     if (changed.length > 0) {
-      const uids = (await Promise.all(changed.map(u => lookupUidByName(u.name)))).filter(Boolean) as string[]
+      const rawUids = await Promise.all(changed.map(u => lookupUidForAssigned(u)))
+      const uids = Array.from(new Set(rawUids.filter(Boolean) as string[]))
       if (uids.length > 0) {
         const notifs = uids.map(uid => ({
           userId: uid,
@@ -179,7 +206,7 @@ export async function POST(req: NextRequest) {
         await createNotificationsForQuadrant(notifs)
 
         for (const u of changed) {
-          const uid = await lookupUidByName(u.name)
+          const uid = await lookupUidForAssigned(u)
           if (!uid) continue
           await fetch(`${process.env.NEXTAUTH_URL}/api/push/send`, {
             method: 'POST',

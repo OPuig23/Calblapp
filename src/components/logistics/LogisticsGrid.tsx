@@ -4,10 +4,18 @@
 import { useEffect, useMemo, useState } from 'react'
 import { format, parseISO } from 'date-fns'
 import { ca } from 'date-fns/locale'
-import { RefreshCcw, CalendarClock } from 'lucide-react'
+import { RefreshCcw, CalendarClock, MoreVertical } from 'lucide-react'
+import * as XLSX from 'xlsx'
 import { useSession } from 'next-auth/react'
 import SmartFilters, { SmartFiltersChange } from '@/components/filters/SmartFilters'
 import { useLogisticsData } from '@/hooks/useLogisticsData'
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 type EditedMap = Record<string, { PreparacioData?: string; PreparacioHora?: string }>
 
@@ -117,27 +125,175 @@ export default function LogisticsGrid() {
     }
   }
 
+  const exportBase = dateRange?.start && dateRange?.end
+    ? `preparacio-logistica-${dateRange.start}-${dateRange.end}`
+    : 'preparacio-logistica-setmana'
+
+  const exportRows = useMemo(() => {
+    return rows.map((ev) => ({
+      PreparacioData: ev.PreparacioData || '',
+      PreparacioHora: ev.PreparacioHora || '',
+      Event: ev.NomEvent || '',
+      Ubicacio: ev.Ubicacio || '',
+      Pax: ev.NumPax ?? '',
+      DataEvent: ev.DataInici || '',
+      HoraEvent: ev.HoraInici || '',
+    }))
+  }, [rows])
+
+  const handleExportExcel = () => {
+    const ws = XLSX.utils.json_to_sheet(exportRows)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Preparacio')
+    XLSX.writeFile(wb, `${exportBase}.xlsx`)
+  }
+
+  const escapeHtml = (value: string) =>
+    value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\"/g, '&quot;')
+      .replace(/'/g, '&#39;')
+
+  const buildPdfTableHtml = () => {
+    const cols = [
+      'PreparacioData',
+      'PreparacioHora',
+      'Event',
+      'Ubicacio',
+      'Pax',
+      'DataEvent',
+      'HoraEvent',
+    ]
+
+    const header = cols.map((c) => `<th>${escapeHtml(c)}</th>`).join('')
+    const body = exportRows
+      .map((row) => {
+        const cells = cols
+          .map((key) => `<td>${escapeHtml(String((row as any)[key] ?? ''))}</td>`)
+          .join('')
+        return `<tr>${cells}</tr>`
+      })
+      .join('')
+
+    return `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>${escapeHtml(exportBase)}</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 24px; color: #111; }
+      h1 { font-size: 16px; margin-bottom: 8px; }
+      .meta { font-size: 12px; color: #555; margin-bottom: 16px; }
+      table { width: 100%; border-collapse: collapse; font-size: 11px; }
+      th, td { border: 1px solid #ddd; padding: 6px 8px; vertical-align: top; }
+      th { background: #f3f4f6; text-align: left; }
+      tr:nth-child(even) td { background: #fafafa; }
+    </style>
+  </head>
+  <body>
+    <h1>Preparacio logistica</h1>
+    <div class="meta">Rang: ${escapeHtml(
+      dateRange?.start || ''
+    )} - ${escapeHtml(dateRange?.end || '')}</div>
+    <table>
+      <thead><tr>${header}</tr></thead>
+      <tbody>${body}</tbody>
+    </table>
+  </body>
+</html>`
+  }
+
+  const handleExportPdfTable = () => {
+    const html = buildPdfTableHtml()
+    const win = window.open('', '_blank', 'width=1200,height=900')
+    if (!win) return
+    win.document.open()
+    win.document.write(html)
+    win.document.close()
+    win.focus()
+    setTimeout(() => win.print(), 300)
+  }
+
+  const handleExportPdfView = () => {
+    window.print()
+  }
+
   return (
     <div className="mt-4 w-full overflow-hidden rounded-xl border bg-white shadow-sm">
+      <style>{`
+        @media print {
+          body * { visibility: hidden; }
+          #preparacio-print-root, #preparacio-print-root * { visibility: visible; }
+          #preparacio-print-root { position: absolute; left: 0; top: 0; width: 100%; }
+        }
+      `}</style>
       <div className="border-b bg-gray-50 px-4 py-3">
-        <SmartFilters
-          showStatus={false}
-          modeDefault="week"
-          onChange={handleFilterChange}
-        />
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <SmartFilters
+            showStatus={false}
+            modeDefault="week"
+            onChange={handleFilterChange}
+          />
+          <div className="flex items-center gap-2">
+            <div className="md:hidden">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="icon" variant="ghost" aria-label="Exportar">
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={handleExportExcel}>
+                    Excel (.xlsx)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleExportPdfView}>
+                    PDF (vista)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleExportPdfTable}>
+                    PDF (taula)
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            <div className="hidden md:flex">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button className="bg-emerald-600 text-white hover:bg-emerald-700">
+                    Exportar
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={handleExportExcel}>
+                    Excel (.xlsx)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleExportPdfView}>
+                    PDF (vista)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleExportPdfTable}>
+                    PDF (taula)
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {isWorker ? (
-        <WorkerGroupedView events={rows} loading={loading} />
-      ) : (
-        <EditableTable
-          rows={rows}
-          edited={edited}
-          setEdited={setEdited}
-          isManager={isManager}
-          loading={loading}
-        />
-      )}
+      <div id="preparacio-print-root">
+        {isWorker ? (
+          <WorkerGroupedView events={rows} loading={loading} />
+        ) : (
+          <EditableTable
+            rows={rows}
+            edited={edited}
+            setEdited={setEdited}
+            isManager={isManager}
+            loading={loading}
+          />
+        )}
+      </div>
 
       {isManager && (
         <div className="flex justify-between border-t bg-gray-50 p-4">
