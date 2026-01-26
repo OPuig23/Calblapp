@@ -2,7 +2,7 @@
 'use client'
 
 import React, { useState, useMemo } from 'react'
-import { AlertTriangle, MoreVertical } from 'lucide-react'
+import { AlertTriangle } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import {
   Select,
@@ -17,14 +17,8 @@ import SmartFilters, { SmartFiltersChange } from '@/components/filters/SmartFilt
 import { useIncidents } from '@/hooks/useIncidents'
 import IncidentsTable from './components/IncidentsTable'
 import FilterButton from '@/components/ui/filter-button'
-import { Button } from '@/components/ui/button'
 import { useFilters } from '@/context/FiltersContext'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+import ExportMenu from '@/components/export/ExportMenu'
 
 export default function IncidentsPage() {
   const [filters, setFilters] = useState({
@@ -251,6 +245,12 @@ export default function IncidentsPage() {
     window.print()
   }
 
+  const exportItems = [
+    { label: 'Excel (.xlsx)', onClick: handleExportExcel },
+    { label: 'PDF (vista)', onClick: handleExportPdfView },
+    { label: 'PDF (taula)', onClick: handleExportPdfTable },
+  ]
+
   return (
     <div className="p-4 flex flex-col gap-4">
       <style>{`
@@ -265,6 +265,7 @@ export default function IncidentsPage() {
         icon={<AlertTriangle className="w-7 h-7 text-yellow-600" />}
         title="Incidències"
         subtitle="Tauler de treball setmanal"
+        actions={<ExportMenu items={exportItems} />}
       />
 
       {/* Total incidències de la setmana */}
@@ -288,46 +289,6 @@ export default function IncidentsPage() {
           compact
         />
         <div className="flex-1 min-w-[8px]" />
-        <div className="md:hidden">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="icon" variant="ghost" aria-label="Exportar">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={handleExportExcel}>
-                Excel (.xlsx)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleExportPdfView}>
-                PDF (vista)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleExportPdfTable}>
-                PDF (taula)
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-        <div className="hidden md:flex">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button className="bg-yellow-500 text-white hover:bg-yellow-600">
-                Exportar
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={handleExportExcel}>
-                Excel (.xlsx)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleExportPdfView}>
-                PDF (vista)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleExportPdfTable}>
-                PDF (taula)
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
         <FilterButton onClick={openFiltersPanel} />
       </div>
 

@@ -5,26 +5,19 @@ import React, { useState, useMemo, useEffect } from 'react'
 import { startOfWeek, endOfWeek, format, parseISO } from 'date-fns'
 import { useSession } from 'next-auth/react'
 import * as XLSX from 'xlsx'
-import { MoreVertical } from 'lucide-react'
+import ExportMenu from '@/components/export/ExportMenu'
 
 import useFetch from '@/hooks/useFetch'
 import type { QuadrantEvent } from '@/types/QuadrantEvent'
 import ModuleHeader from '@/components/layout/ModuleHeader'
 import FiltersBar, { type FiltersState } from '@/components/layout/FiltersBar'
-import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import { useQuadrants } from '@/app/menu/quadrants/hooks/useQuadrants'
 import QuadrantModal from './[id]/components/QuadrantModal'
 import QuadrantCard from './drafts/components/QuadrantCard'
 
-/* ────────────────────────────────────────────────
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    Tipus interns
-──────────────────────────────────────────────── */
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 type UnifiedEvent = QuadrantEvent & {
   id: string
   summary: string
@@ -43,15 +36,15 @@ type UnifiedEvent = QuadrantEvent & {
   draft?: any // dades del quadrant a Firestore (Draft)
 }
 
-/* ────────────────────────────────────────────────
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    Component principal
-──────────────────────────────────────────────── */
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 export default function QuadrantsPage() {
-  // 📅 Rang inicial: setmana actual
+  // ðŸ“… Rang inicial: setmana actual
   const start = startOfWeek(new Date(), { weekStartsOn: 1 })
   const end = endOfWeek(new Date(), { weekStartsOn: 1 })
 
-  // 🔹 Estat de filtres (compatible amb FiltersBar)
+  // ðŸ”¹ Estat de filtres (compatible amb FiltersBar)
   const [filters, setFilters] = useState<FiltersState>(() => ({
     start: format(start, 'yyyy-MM-dd'),
     end: format(end, 'yyyy-MM-dd'),
@@ -62,14 +55,14 @@ export default function QuadrantsPage() {
     status: '__all__',
   }))
 
-  // 🔹 Carrega esdeveniments per fer quadrants
+  // ðŸ”¹ Carrega esdeveniments per fer quadrants
   const {
     data: events = [],
     loading,
     error,
   } = useFetch('/api/events/quadrants', filters.start, filters.end)
 
-  // 🔹 Sessió usuari → departament
+  // ðŸ”¹ SessiÃ³ usuari â†’ departament
   const { data: session } = useSession()
   const department =
     (
@@ -81,14 +74,14 @@ export default function QuadrantsPage() {
       .toString()
       .toLowerCase()
 
-  // 🔹 Quadrants existents a Firestore
+  // ðŸ”¹ Quadrants existents a Firestore
   const { quadrants, reload } = useQuadrants(
     department,
     filters.start,
     filters.end
   )
 
-  // 🔄 Auto reload quan es crea / modifica un quadrant
+  // ðŸ”„ Auto reload quan es crea / modifica un quadrant
 useEffect(() => {
   const handler = () => reload()
 
@@ -102,15 +95,15 @@ useEffect(() => {
 }, [reload])
 
 
-  // 🔹 Event seleccionat per obrir el QuadrantModal (autogenerar)
+  // ðŸ”¹ Event seleccionat per obrir el QuadrantModal (autogenerar)
   const [selected, setSelected] = useState<UnifiedEvent | null>(null)
 
-  // 🔹 Identificador del quadrant expandit (vista d’edició inline)
+  // ðŸ”¹ Identificador del quadrant expandit (vista dâ€™ediciÃ³ inline)
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
-  /* ────────────────────────────────────────────────
-     Opcions filtres (LN / Responsable / Ubicació)
-  ───────────────────────────────────────────────── */
+  /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+     Opcions filtres (LN / Responsable / UbicaciÃ³)
+  â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   const lnOptions = useMemo(() => {
     const set = new Set<string>()
     events.forEach((ev: any) => {
@@ -141,12 +134,12 @@ useEffect(() => {
     return Array.from(set).sort()
   }, [events])
 
-  /* ────────────────────────────────────────────────
+  /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
      Fusionar events + estat + info del quadrant
-  ───────────────────────────────────────────────── */
-/* ────────────────────────────────────────────────
+  â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    Fusionar events + estat + info del quadrant
-──────────────────────────────────────────────── */
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 const eventsWithStatus = useMemo<UnifiedEvent[]>(() => {
   const normalize = (v?: string) =>
     (v || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase()
@@ -259,9 +252,9 @@ const eventsWithStatus = useMemo<UnifiedEvent[]>(() => {
 
 
 
-  /* ────────────────────────────────────────────────
+  /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
      Comptadors resum
-  ───────────────────────────────────────────────── */
+  â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   const counts = useMemo(() => {
     let pending = 0
     let draft = 0
@@ -276,9 +269,9 @@ const eventsWithStatus = useMemo<UnifiedEvent[]>(() => {
     return { pending, draft, confirmed }
   }, [eventsWithStatus])
 
-  /* ────────────────────────────────────────────────
-     Aplicació filtres
-  ───────────────────────────────────────────────── */
+  /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+     AplicaciÃ³ filtres
+  â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   const filteredEvents = useMemo<UnifiedEvent[]>(() => {
     return eventsWithStatus.filter((ev) => {
       const evLn = (ev.ln || '').toString().trim().toLowerCase()
@@ -300,16 +293,16 @@ const eventsWithStatus = useMemo<UnifiedEvent[]>(() => {
       if (filters.responsable !== '__all__' && !evResp.includes(fResp))
         return false
 
-      // Ubicació
+      // UbicaciÃ³
       if (filters.location !== '__all__' && fLoc !== evLoc) return false
 
       return true
     })
   }, [eventsWithStatus, filters])
 
-  /* ────────────────────────────────────────────────
-     Agrupació per dia (vista 1: agrupada per data)
-  ───────────────────────────────────────────────── */
+  /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+     AgrupaciÃ³ per dia (vista 1: agrupada per data)
+  â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   const grouped = useMemo(() => {
     const map: Record<string, UnifiedEvent[]> = {}
     for (const ev of filteredEvents) {
@@ -439,9 +432,15 @@ const eventsWithStatus = useMemo<UnifiedEvent[]>(() => {
     window.print()
   }
 
-  /* ────────────────────────────────────────────────
+  const exportItems = [
+    { label: 'Excel (.xlsx)', onClick: handleExportExcel },
+    { label: 'PDF (vista)', onClick: handleExportPdfView },
+    { label: 'PDF (taula)', onClick: handleExportPdfTable },
+  ]
+
+  /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
      RENDER
-  ───────────────────────────────────────────────── */
+  â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   return (
     <main className="space-y-6 px-4 pb-12">
       <style>{`
@@ -452,11 +451,12 @@ const eventsWithStatus = useMemo<UnifiedEvent[]>(() => {
         }
       `}</style>
       <ModuleHeader
-        icon="📋"
+        icon="ðŸ“‹"
         title="Quadrants"
-        subtitle="Gestió setmanal per departament"
+        subtitle="GestiÃ³ setmanal per departament"
+        actions={<ExportMenu items={exportItems} />}
       />
-      {/* ✔ Barra de filtres (setmana, LN, responsable, ubicació, estat) */}
+      {/* âœ” Barra de filtres (setmana, LN, responsable, ubicaciÃ³, estat) */}
       <FiltersBar
         id="filters-bar"
         filters={filters}
@@ -468,7 +468,7 @@ const eventsWithStatus = useMemo<UnifiedEvent[]>(() => {
         locations={locations}
       />
 
-      {/* ✔ Comptadors d’estat */}
+      {/* âœ” Comptadors dâ€™estat */}
       <div className="flex flex-wrap items-center justify-between gap-2 bg-indigo-50 border rounded-2xl p-3 shadow-sm text-sm font-medium">
         <div className="flex gap-6 sm:gap-10">
           <span className="flex items-center gap-2 text-yellow-700">
@@ -486,55 +486,12 @@ const eventsWithStatus = useMemo<UnifiedEvent[]>(() => {
             Confirmats: {counts.confirmed}
           </span>
         </div>
-        <div className="hidden md:flex">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                size="sm"
-                className="bg-indigo-600 text-white hover:bg-indigo-700"
-              >
-                Exportar
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={handleExportExcel}>
-                Excel (.xlsx)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleExportPdfView}>
-                PDF (vista)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleExportPdfTable}>
-                PDF (taula)
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-        <div className="md:hidden">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="icon" variant="ghost" aria-label="Exportar">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={handleExportExcel}>
-                Excel (.xlsx)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleExportPdfView}>
-                PDF (vista)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleExportPdfTable}>
-                PDF (taula)
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
       </div>
 
-      {/* ✔ Estat de càrrega / error */}
+      {/* âœ” Estat de cÃ rrega / error */}
       {loading && (
         <p className="text-center text-gray-500 py-10">
-          Carregant quadrants…
+          Carregant quadrantsâ€¦
         </p>
       )}
 
@@ -550,7 +507,7 @@ const eventsWithStatus = useMemo<UnifiedEvent[]>(() => {
         </p>
       )}
 
-      {/* ✔ Taula compacta agrupada per dies */}
+      {/* âœ” Taula compacta agrupada per dies */}
       {!loading && !error && grouped.length > 0 && (
         <div
           id="quadrants-print-root"
@@ -563,19 +520,19 @@ const eventsWithStatus = useMemo<UnifiedEvent[]>(() => {
                 <th className="px-3 py-2 text-left">Esdeveniment</th>
                 <th className="px-3 py-2 text-left">LN</th>
                 <th className="px-3 py-2 text-left">PAX</th>
-                <th className="px-3 py-2 text-left">Finca / Ubicació</th>
+                <th className="px-3 py-2 text-left">Finca / UbicaciÃ³</th>
                 <th className="px-3 py-2 text-left">Servei</th>
                 <th className="px-3 py-2 text-left">Hora inici</th>
                 <th className="px-3 py-2 text-left">Treballadors</th>
                 <th className="px-3 py-2 text-left">Horari</th>
-                <th className="px-3 py-2 text-center">●</th>
+                <th className="px-3 py-2 text-center">â—</th>
               </tr>
             </thead>
 
             <tbody>
               {grouped.map(([day, evs]) => (
                 <React.Fragment key={day}>
-                  {/* Subcapçalera per dia */}
+                  {/* SubcapÃ§alera per dia */}
                   <tr className="bg-indigo-50 text-indigo-800">
                     <td colSpan={9} className="px-3 py-2 font-semibold">
                       {format(parseISO(day), 'dd-MM-yyyy')}
@@ -602,14 +559,14 @@ const eventsWithStatus = useMemo<UnifiedEvent[]>(() => {
                           className="cursor-pointer hover:bg-indigo-50 transition"
                           onClick={() => {
                             if (ev.quadrantStatus === 'pending') {
-                              // No existeix quadrant → AUTOGENERAR
+                              // No existeix quadrant â†’ AUTOGENERAR
                               setSelected({
                                 ...ev,
                                 startTime: ev.displayStartTime || ev.startTime,
                                 endTime: ev.displayEndTime || ev.endTime,
                               })
                             } else if (draft && draft.id) {
-                              // Ja existeix draft → OBRIR / TANCAR EDICIÓ INLINE
+                              // Ja existeix draft â†’ OBRIR / TANCAR EDICIÃ“ INLINE
                               setExpandedId((prev) =>
                                 prev === draft.id ? null : draft.id
                               )
@@ -617,25 +574,25 @@ const eventsWithStatus = useMemo<UnifiedEvent[]>(() => {
                           }}
                         >
                           <td className="px-3 py-2">
-                            {ev.responsable || '—'}
+                            {ev.responsable || 'â€”'}
                           </td>
                           <td className="px-3 py-2">{ev.summary}</td>
-                          <td className="px-3 py-2">{ev.ln || '—'}</td>
-                          <td className="px-3 py-2">{ev.numPax ?? '—'}</td>
+                          <td className="px-3 py-2">{ev.ln || 'â€”'}</td>
+                          <td className="px-3 py-2">{ev.numPax ?? 'â€”'}</td>
                           <td className="px-3 py-2">
-                            {ev.location || '—'}
+                            {ev.location || 'â€”'}
                           </td>
                           <td className="px-3 py-2">
-                            {ev.service || '—'}
+                            {ev.service || 'â€”'}
                           </td>
                           <td className="px-3 py-2">
                             {startTime}
                           </td>
                           <td className="px-3 py-2">
-                            {ev.workersSummary || '—'}
+                            {ev.workersSummary || 'â€”'}
                           </td>
                           <td className="px-3 py-2">
-                            {startTime} – {endTime}
+                            {startTime} â€“ {endTime}
                           </td>
                           <td className="px-3 py-2 text-center">
                             <span
@@ -644,7 +601,7 @@ const eventsWithStatus = useMemo<UnifiedEvent[]>(() => {
                           </td>
                         </tr>
 
-                        {/* Fila d’ediciò inline del quadrant (DraftsTable via QuadrantCard) */}
+                        {/* Fila dâ€™ediciÃ² inline del quadrant (DraftsTable via QuadrantCard) */}
                         {draft && draft.id && expandedId === draft.id && (
                           <tr>
                             <td colSpan={9} className="bg-white border-t px-3 py-3">
@@ -665,7 +622,7 @@ const eventsWithStatus = useMemo<UnifiedEvent[]>(() => {
         </div>
       )}
 
-      {/* ✔ QuadrantModal per autogenerar quadrant quan està pendent */}
+      {/* âœ” QuadrantModal per autogenerar quadrant quan estÃ  pendent */}
       {selected && (
         <QuadrantModal
           open

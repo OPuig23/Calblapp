@@ -7,9 +7,10 @@ interface Props {
   title?: string | React.ReactNode
   subtitle?: string
   icon?: React.ReactNode
+  actions?: React.ReactNode
 }
 
-export default function ModuleHeader({ title, subtitle, icon }: Props) {
+export default function ModuleHeader({ title, subtitle, icon, actions }: Props) {
   const pathname = usePathname() ?? ''
 
   // Exemple: /menu/spaces/reserves → ['','menu','spaces','reserves']
@@ -99,6 +100,8 @@ export default function ModuleHeader({ title, subtitle, icon }: Props) {
           </div>
         </div>
 
+        {/* RIGHT SIDE */}
+        {actions && <div className="flex items-center gap-2">{actions}</div>}
       </div>
     </div>
   )

@@ -3,17 +3,12 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import useSWR from 'swr'
 import { format } from 'date-fns'
-import { Clock, Filter, MapPin, RefreshCw, Truck, MoreVertical } from 'lucide-react'
+import { Clock, Filter, MapPin, RefreshCw, Truck } from 'lucide-react'
 import * as XLSX from 'xlsx'
 
 import ModuleHeader from '@/components/layout/ModuleHeader'
 import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+import ExportMenu from '@/components/export/ExportMenu'
 import { cn } from '@/lib/utils'
 
 type VehicleAvailability = {
@@ -276,6 +271,14 @@ export default function DisponibilitatLogisticaPage() {
     window.print()
   }
 
+  const exportItems = [
+    { label: 'Excel (.xlsx)', onClick: handleExportExcel },
+    { label: 'PDF (vista)', onClick: handleExportPdfView },
+    { label: 'PDF (taula)', onClick: handleExportPdfTable },
+    { label: 'Excel (assignacions)', onClick: handleExportAssignmentsExcel },
+    { label: 'PDF (assignacions)', onClick: handleExportAssignmentsPdf },
+  ]
+
   const parseTime = (value?: string) => {
     if (!value) return null
     const [h, m] = value.split(':')
@@ -422,6 +425,7 @@ export default function DisponibilitatLogisticaPage() {
         icon={<Truck className="h-6 w-6 text-emerald-600" />}
         title="Disponibilitat de vehicles"
         subtitle="Consulta vehicles lliures i crea torns de transport"
+        actions={<ExportMenu items={exportItems} />}
       />
 
             {/* Botó per mostrar/ocultar paràmetres en mòbil */}
@@ -435,58 +439,6 @@ export default function DisponibilitatLogisticaPage() {
             <span>Paràmetres</span>
             <Filter className={`h-4 w-4 transition-transform ${showMobileParams ? 'rotate-90' : ''}`} />
           </Button>
-        </div>
-        <div className="md:hidden">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="icon" variant="ghost" aria-label="Exportar">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={handleExportExcel}>
-                Excel (.xlsx)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleExportPdfView}>
-                PDF (vista)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleExportPdfTable}>
-                PDF (taula)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleExportAssignmentsExcel}>
-                Excel (assignacions)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleExportAssignmentsPdf}>
-                PDF (assignacions)
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-        <div className="hidden md:flex ml-auto">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button className="bg-emerald-600 text-white hover:bg-emerald-700">
-                Exportar
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={handleExportExcel}>
-                Excel (.xlsx)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleExportPdfView}>
-                PDF (vista)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleExportPdfTable}>
-                PDF (taula)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleExportAssignmentsExcel}>
-                Excel (assignacions)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleExportAssignmentsPdf}>
-                PDF (assignacions)
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
         </div>
       </div>
 

@@ -7,7 +7,7 @@ import SmartFilters, { SmartFiltersChange } from '@/components/filters/SmartFilt
 import { useModifications } from '@/hooks/useModifications'
 import ModificationsTable from './components/ModificationsTable'
 import ModuleHeader from '@/components/layout/ModuleHeader'
-import { FileEdit, MoreVertical } from 'lucide-react'
+import { FileEdit } from 'lucide-react'
 import FilterButton from '@/components/ui/filter-button'
 import { useFilters } from '@/context/FiltersContext'
 import FloatingAddButton from '@/components/ui/floating-add-button'
@@ -15,6 +15,7 @@ import CreateModificationModal from '@/components/events/CreateModificationModal
 import useEvents from '@/hooks/events/useEvents'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import ExportMenu from '@/components/export/ExportMenu'
 import { useSession } from 'next-auth/react'
 import * as XLSX from 'xlsx'
 import {
@@ -24,12 +25,6 @@ import {
   SelectItem,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 
 export default function ModificationsPage() {
   const { data: session } = useSession()
@@ -321,6 +316,12 @@ export default function ModificationsPage() {
     window.print()
   }
 
+  const exportItems = [
+    { label: 'Excel (.xlsx)', onClick: handleExportExcel },
+    { label: 'PDF (vista)', onClick: handleExportPdfView },
+    { label: 'PDF (taula)', onClick: handleExportPdfTable },
+  ]
+
   return (
     <div className="p-4 flex flex-col gap-4">
       <style>{`
@@ -334,6 +335,7 @@ export default function ModificationsPage() {
         icon={<FileEdit className="w-7 h-7 text-purple-700" />}
         title="Registre de modificacions"
         subtitle="Consulta totes les modificacions registrades als esdeveniments"
+        actions={<ExportMenu items={exportItems} />}
       />
 
       <div className="text-sm font-medium px-1">
@@ -356,46 +358,6 @@ export default function ModificationsPage() {
           compact
         />
         <div className="flex-1 min-w-[8px]" />
-        <div className="md:hidden">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="icon" variant="ghost" aria-label="Exportar">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={handleExportExcel}>
-                Excel (.xlsx)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleExportPdfView}>
-                PDF (vista)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleExportPdfTable}>
-                PDF (taula)
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-        <div className="hidden md:flex">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button className="bg-purple-600 text-white hover:bg-purple-700">
-                Exportar
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={handleExportExcel}>
-                Excel (.xlsx)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleExportPdfView}>
-                PDF (vista)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleExportPdfTable}>
-                PDF (taula)
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
         <FilterButton onClick={openFiltersPanel} />
       </div>
 

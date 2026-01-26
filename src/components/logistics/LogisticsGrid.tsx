@@ -4,18 +4,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { format, parseISO } from 'date-fns'
 import { ca } from 'date-fns/locale'
-import { RefreshCcw, CalendarClock, MoreVertical } from 'lucide-react'
+import { RefreshCcw, CalendarClock } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { useSession } from 'next-auth/react'
 import SmartFilters, { SmartFiltersChange } from '@/components/filters/SmartFilters'
 import { useLogisticsData } from '@/hooks/useLogisticsData'
 import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+import ExportMenu from '@/components/export/ExportMenu'
 
 type EditedMap = Record<string, { PreparacioData?: string; PreparacioHora?: string }>
 
@@ -220,6 +215,12 @@ export default function LogisticsGrid() {
     window.print()
   }
 
+  const exportItems = [
+    { label: 'Excel (.xlsx)', onClick: handleExportExcel },
+    { label: 'PDF (vista)', onClick: handleExportPdfView },
+    { label: 'PDF (taula)', onClick: handleExportPdfTable },
+  ]
+
   return (
     <div className="mt-4 w-full overflow-hidden rounded-xl border bg-white shadow-sm">
       <style>{`
@@ -236,48 +237,7 @@ export default function LogisticsGrid() {
             modeDefault="week"
             onChange={handleFilterChange}
           />
-          <div className="flex items-center gap-2">
-            <div className="md:hidden">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button size="icon" variant="ghost" aria-label="Exportar">
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={handleExportExcel}>
-                    Excel (.xlsx)
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleExportPdfView}>
-                    PDF (vista)
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleExportPdfTable}>
-                    PDF (taula)
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-            <div className="hidden md:flex">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button className="bg-emerald-600 text-white hover:bg-emerald-700">
-                    Exportar
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={handleExportExcel}>
-                    Excel (.xlsx)
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleExportPdfView}>
-                    PDF (vista)
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleExportPdfTable}>
-                    PDF (taula)
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </div>
+          <ExportMenu items={exportItems} />
         </div>
       </div>
 

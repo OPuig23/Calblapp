@@ -4,7 +4,7 @@
 import { useMemo, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { startOfWeek, endOfWeek } from 'date-fns'
-import { Loader2, MoreVertical } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { normalizeRole } from '@/lib/roles'
 import { RoleGuard } from '@/lib/withRoleGuard'
@@ -13,12 +13,7 @@ import PissarraList from './components/PissarraList'
 import SmartFilters from '@/components/filters/SmartFilters'
 import { Button } from '@/components/ui/button'
 import FilterButton from '@/components/ui/filter-button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+import ExportMenu from '@/components/export/ExportMenu'
 import { useFilters } from '@/context/FiltersContext'
 
 export default function PissarraPage() {
@@ -292,6 +287,12 @@ export default function PissarraPage() {
     window.print()
   }
 
+  const exportItems = [
+    { label: 'Excel (.xlsx)', onClick: handleExportExcel },
+    { label: 'PDF (vista)', onClick: handleExportPdfView },
+    { label: 'PDF (taula)', onClick: handleExportPdfTable },
+  ]
+
   const openFiltersPanel = () => {
     setContent(
       <div className="p-4 space-y-3">
@@ -399,46 +400,7 @@ export default function PissarraPage() {
               }}
             />
             <FilterButton onClick={openFiltersPanel} />
-            <div className="md:hidden">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button size="icon" variant="ghost" aria-label="Exportar">
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={handleExportExcel}>
-                    Excel (.xlsx)
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleExportPdfView}>
-                    PDF (vista)
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleExportPdfTable}>
-                    PDF (taula)
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-            <div className="hidden md:flex">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button size="sm" variant="outline">
-                    Exportar
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={handleExportExcel}>
-                    Excel (.xlsx)
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleExportPdfView}>
-                    PDF (vista)
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleExportPdfTable}>
-                    PDF (taula)
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+            <ExportMenu items={exportItems} />
             <div className="flex gap-2">
               <Button
                 size="sm"
