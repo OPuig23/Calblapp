@@ -29,60 +29,58 @@ export default function PissarraCardCuina({ item }: Props) {
     responsible?: string | null,
     drivers?: string[],
     workers?: string[]
-  ) => (
-    <div className="border-t pt-2 mt-2">
-      <div className="flex items-center gap-2 text-[12px] text-gray-700 mb-1">
-        <Coffee className="w-3.5 h-3.5 text-gray-400" />
-        <span className="font-semibold">{label}</span>
-        <span className="text-gray-500">Hora inici:</span>
-        <span>{startTime || '-'}</span>
-      </div>
+  ) => {
+    const people = new Map<string, Set<'responsable' | 'conductor' | 'treballador'>>()
+    if (responsible) {
+      people.set(responsible, new Set(['responsable']))
+    }
+    drivers?.forEach((name) => {
+      if (!name) return
+      const roles = people.get(name) || new Set()
+      roles.add('conductor')
+      people.set(name, roles)
+    })
+    workers?.forEach((name) => {
+      if (!name) return
+      const roles = people.get(name) || new Set()
+      roles.add('treballador')
+      people.set(name, roles)
+    })
 
-      <div className="flex items-center gap-2 text-[12px] text-gray-700 mb-1">
-        <MapPin className="w-3.5 h-3.5 text-gray-400" />
-        <span className="truncate">{meetingPoint || '-'}</span>
-      </div>
+    const roleIcons = (roles: Set<'responsable' | 'conductor' | 'treballador'>) => (
+      <span className="flex items-center gap-1">
+        {roles.has('responsable') && <ChefHat className="w-3 h-3 text-gray-500" />}
+        {roles.has('conductor') && <Truck className="w-3 h-3 text-gray-500" />}
+        {roles.has('treballador') && <Users className="w-3 h-3 text-gray-500" />}
+      </span>
+    )
 
-      <div className="flex items-center gap-2 text-[12px] text-gray-700 mb-1">
-        <ChefHat className="w-3.5 h-3.5 text-gray-400" />
-        <span className="font-medium truncate">{responsible || '-'}</span>
-      </div>
+    return (
+      <div className="border-t pt-2 mt-2">
+        <div className="flex items-center gap-2 text-[12px] text-gray-700 mb-1">
+          <Coffee className="w-3.5 h-3.5 text-gray-400" />
+          <span className="font-semibold">{label}</span>
+          <span className="text-gray-500">Hora inici:</span>
+          <span>{startTime || '-'}</span>
+        </div>
 
-      <div className="flex items-start gap-2 text-[12px] text-gray-700 mb-1">
-        <Truck className="w-3.5 h-3.5 text-gray-400 mt-0.5" />
-        <div className="space-y-1 flex-1">
-          {(!drivers || drivers.length === 0) && (
-            <span className="text-gray-400">Sense conductors</span>
-          )}
-          {drivers?.map((d, idx) => (
-            <span
-              key={`${d || '-'}-${idx}`}
-              className="inline-block bg-orange-50 border border-orange-200 rounded-full px-2 py-0.5 mr-1 mb-1"
-            >
-              {d || '-'}
-            </span>
+        <div className="flex items-center gap-2 text-[12px] text-gray-700 mb-1">
+          <MapPin className="w-3.5 h-3.5 text-gray-400" />
+          <span className="truncate">{meetingPoint || '-'}</span>
+        </div>
+
+        <div className="flex flex-col gap-1 text-[12px] text-gray-700">
+          {people.size === 0 && <span className="text-gray-400">Sense personal</span>}
+          {[...people.entries()].map(([name, roles]) => (
+            <div key={name} className="flex items-center gap-2">
+              {roleIcons(roles)}
+              <span className="font-medium truncate">{name}</span>
+            </div>
           ))}
         </div>
       </div>
-
-      <div className="flex items-start gap-2 text-[12px] text-gray-700">
-        <Users className="w-3.5 h-3.5 text-gray-400 mt-0.5" />
-        <div className="space-y-1 flex-1">
-          {(!workers || workers.length === 0) && (
-            <span className="text-gray-400">Sense treballadors</span>
-          )}
-          {workers?.map((w, idx) => (
-            <span
-              key={`${w || '-'}-${idx}`}
-              className="inline-block bg-slate-100 border border-slate-200 rounded-full px-2 py-0.5 mr-1 mb-1"
-            >
-              {w || '-'}
-            </span>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
+    )
+  }
 
   return (
     <div className="rounded-xl border border-gray-300 bg-white shadow-sm p-3 sm:p-4 text-xs mb-3">

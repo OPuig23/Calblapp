@@ -4,6 +4,7 @@
 import React, { useMemo, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { useAvailablePersonnel } from '@/app/menu/quadrants/[id]/hooks/useAvailablePersonnel'
+import { GraduationCap, Truck, User, Users, ChevronDown, ChevronUp } from 'lucide-react'
 
 // Subcomponents
 import DraftRow from './DraftRow'
@@ -231,6 +232,7 @@ endTime:   b.endTime   || draft.endTime,
   const [rows, setRows] = useState<Row[]>(initialRows)
   const initialRef = useRef(JSON.stringify(initialRows))
   const dirty = JSON.stringify(rows) !== initialRef.current
+  const [expandedMerged, setExpandedMerged] = useState<Set<string>>(new Set())
 
   // --- Estat de confirmació
   const [confirmed, setConfirmed] = useState<boolean>(
@@ -443,6 +445,154 @@ const handleSaveAll = async (rowsOverride?: Row[]) => {
 
   const showCuinaGroups = hasCuinaGroups
 
+  const toggleMerged = (key: string) =>
+    setExpandedMerged((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+
+  type DisplayItem =
+    | { type: 'single'; row: Row; index: number }
+    | { type: 'merged'; key: string; rows: Array<{ row: Row; index: number }> }
+
+  const buildDisplayItems = (groupId?: string): DisplayItem[] => {
+    const order: string[] = []
+    const grouped = new Map<string, Array<{ row: Row; index: number }>>()
+
+    rows.forEach((row, index) => {
+      if (groupId && row.groupId !== groupId) return
+      if (!groupId && row.groupId) return
+
+      const name = row.name || ''
+      const canMerge = name && name !== 'Extra'
+      const key = canMerge
+        ? [
+            groupId || 'nogroup',
+            norm(name),
+            row.startDate,
+            row.startTime,
+            row.endDate,
+            row.endTime,
+            row.meetingPoint || ''
+          ].join('|')
+        : `single-${index}`
+
+      if (!grouped.has(key)) {
+        grouped.set(key, [])
+        order.push(key)
+      }
+      grouped.get(key)!.push({ row, index })
+    })
+
+    return order.map((key) => {
+      const groupRows = grouped.get(key) || []
+      if (groupRows.length <= 1) {
+        const single = groupRows[0]
+        return { type: 'single', row: single.row, index: single.index } as DisplayItem
+      }
+      return { type: 'merged', key, rows: groupRows } as DisplayItem
+    })
+  }
+
+  const roleIcon = {
+    responsable: <GraduationCap className="text-blue-700" size={20} />,
+    conductor: <Truck className="text-orange-500" size={18} />,
+    treballador: <User className="text-green-600" size={18} />,
+    brigada: <Users className="text-purple-600" size={18} />,
+  }
+
+  const renderMergedRowDesktop = (item: Extract<DisplayItem, { type: 'merged' }>) => {
+    const roleRows = item.rows.map((r) => r.row)
+    const roles = Array.from(new Set(roleRows.map((r) => r.role)))
+    const primary =
+      roleRows.find((r) => r.role === 'conductor') ||
+      roleRows.find((r) => r.role === 'responsable') ||
+      roleRows[0]
+    const isExpanded = expandedMerged.has(item.key)
+
+    return (
+      <div
+        className="border-b px-2 py-3 hover:bg-gray-50 grid gap-2 grid-cols-1 sm:grid-cols-[32px_1fr_5.5rem_5.5rem_minmax(10rem,1fr)_minmax(10rem,1fr)_3.5rem] items-center"
+      >
+        <div className="hidden sm:flex items-center justify-center gap-1">
+          {roles.map((role) => (
+            <span key={role}>{roleIcon[role]}</span>
+          ))}
+        </div>
+        <div className="hidden sm:block truncate font-medium">
+          {primary.name || <span className="italic text-gray-400">Sense nom</span>}
+        </div>
+        <div className="hidden sm:block w-[5.5rem] tabular-nums">
+          {primary.startDate ? primary.startDate.split('-').slice(1).reverse().join('/') : '--/--'}
+        </div>
+        <div className="hidden sm:block w-[5.5rem] tabular-nums">
+          {primary.startTime ? primary.startTime.substring(0, 5) : '--:--'}
+        </div>
+        <div className="hidden sm:block truncate text-xs text-gray-700">
+          {primary.meetingPoint || <span className="text-gray-400">—</span>}
+        </div>
+        <div className="hidden sm:flex items-center gap-2 text-xs font-medium text-gray-800">
+          {primary.role === 'conductor' ? (
+            <>
+              <span>{primary.plate || '—'}</span>
+              <Truck className="w-5 h-5 text-gray-500" />
+            </>
+          ) : (
+            <span className="text-gray-400">—</span>
+          )}
+        </div>
+        <div className="hidden sm:flex justify-center">
+          <button
+            onClick={() => toggleMerged(item.key)}
+            className="text-gray-500 hover:text-gray-700"
+            title={isExpanded ? 'Amaga rols' : 'Mostra rols'}
+          >
+            {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  const renderMergedRowMobile = (item: Extract<DisplayItem, { type: 'merged' }>) => {
+    const roleRows = item.rows.map((r) => r.row)
+    const roles = Array.from(new Set(roleRows.map((r) => r.role)))
+    const primary =
+      roleRows.find((r) => r.role === 'conductor') ||
+      roleRows.find((r) => r.role === 'responsable') ||
+      roleRows[0]
+    const isExpanded = expandedMerged.has(item.key)
+
+    return (
+      <div className="p-3 text-sm border-b">
+        <div className="flex items-center gap-2">
+          <div className="flex gap-1">
+            {roles.map((role) => (
+              <span key={role}>{roleIcon[role]}</span>
+            ))}
+          </div>
+          <div className="flex-1">
+            <div className="font-semibold text-gray-800">{primary.name || '—'}</div>
+            <div className="text-xs text-gray-600 mt-0.5">
+              {primary.startDate ? primary.startDate.split('-').slice(1).reverse().join('/') : '--/--'}
+              {' · '}
+              {primary.startTime ? primary.startTime.substring(0, 5) : '--:--'}
+            </div>
+          </div>
+          <button
+            onClick={() => toggleMerged(item.key)}
+            className="text-gray-500 hover:text-gray-700"
+            title={isExpanded ? 'Amaga rols' : 'Mostra rols'}
+          >
+            {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   const renderRow = (r: Row, i: number) => (
     <React.Fragment key={`${r.role}-${r.id || 'noid'}-${i}`}>
       <DraftRow
@@ -553,7 +703,17 @@ const handleSaveAll = async (rowsOverride?: Row[]) => {
                       Hora arribada {groupArrival} · Hora fi {groupEnd}
                     </div>
                   </div>
-                  {rows.map((r, i) => (r.groupId === groupId ? renderRow(r, i) : null))}
+                  {buildDisplayItems(groupId).map((item) =>
+                    item.type === 'single' ? (
+                      renderRow(item.row, item.index)
+                    ) : expandedMerged.has(item.key) ? (
+                      item.rows.map((r) => renderRow(r.row, r.index))
+                    ) : (
+                      <React.Fragment key={item.key}>
+                        {renderMergedRowDesktop(item)}
+                      </React.Fragment>
+                    )
+                  )}
                   {!isLocked && (
                     <div className="flex flex-wrap gap-2 justify-end sm:justify-start px-3 py-3 bg-slate-50 border-b">
                       <button
@@ -607,35 +767,41 @@ const handleSaveAll = async (rowsOverride?: Row[]) => {
                   <div>Hora arribada: {groupArrival}</div>
                   <div>Hora fi: {groupEnd}</div>
                 </div>
-                {rows.map((r, i) =>
-                  r.groupId === groupId ? (
-                    <div key={`${r.role}-${r.id || 'noid'}-${i}`} className="p-3 text-sm">
+                {buildDisplayItems(groupId).map((item) =>
+                  item.type === 'single' ? (
+                    <div key={`${item.row.role}-${item.row.id || 'noid'}-${item.index}`} className="p-3 text-sm">
                       <div className="flex justify-between items-center">
-                        <span className="font-semibold text-gray-800">{r.name || '—'}</span>
-                        <span className="text-xs text-gray-500">{r.role}</span>
+                        <span className="font-semibold text-gray-800">{item.row.name || '—'}</span>
+                        <span className="text-xs text-gray-500">{item.row.role}</span>
                       </div>
                       <div className="text-xs text-gray-600 mt-1 space-y-0.5">
-                        <div>📅 {r.startDate}</div>
-                        <div>🕒 {r.startTime || '—'}</div>
-                        <div>📍 {r.meetingPoint || '—'}</div>
-                        {r.vehicleType && <div>🚐 {r.vehicleType}</div>}
+                        <div>📅 {item.row.startDate}</div>
+                        <div>🕒 {item.row.startTime || '—'}</div>
+                        <div>📍 {item.row.meetingPoint || '—'}</div>
+                        {item.row.vehicleType && <div>🚐 {item.row.vehicleType}</div>}
                       </div>
                       <div className="flex justify-end gap-2 mt-2">
                         <button
-                          onClick={() => startEdit(i)}
+                          onClick={() => startEdit(item.index)}
                           className="px-2 py-1 rounded-md bg-blue-100 text-blue-700 text-xs"
                         >
                           Edita
                         </button>
                         <button
-                          onClick={() => deleteRow(i)}
+                          onClick={() => deleteRow(item.index)}
                           className="px-2 py-1 rounded-md bg-red-100 text-red-700 text-xs"
                         >
                           Elimina
                         </button>
                       </div>
                     </div>
-                  ) : null
+                  ) : expandedMerged.has(item.key) ? (
+                    item.rows.map((r) => renderRow(r.row, r.index))
+                  ) : (
+                    <React.Fragment key={item.key}>
+                      {renderMergedRowMobile(item)}
+                    </React.Fragment>
+                  )
                 )}
                 {!isLocked && (
                   <div className="flex flex-wrap gap-2 px-3 py-3 bg-slate-50">

@@ -215,7 +215,7 @@ const ledger = (await buildLedger(dept, ws, we, ms, me)) as any
 const baseCtx = {
   busyAssignments: ledger.busyAssignments,
   restHours: premises.restHours,
-  allowMultipleEventsSameDay: !!premises.allowMultipleEventsSameDay
+  allowMultipleEventsSameDay: dept === 'cuina' ? false : !!premises.allowMultipleEventsSameDay
 } as any
 
 

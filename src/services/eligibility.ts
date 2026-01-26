@@ -19,6 +19,9 @@ export type EligibilityCtx = {
   allowMultipleEventsSameDay: boolean
 }
 
+const unaccent = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+const norm = (s: string) => unaccent(s).toLowerCase().trim()
+
 const toISO = (d: string, t?: string) => `${d}T${(t || '00:00')}:00`
 const hoursBetween = (a: Date, b: Date) => (b.getTime() - a.getTime()) / 36e5
 
@@ -30,15 +33,16 @@ export function isEligibleByName(
 ) {
   const start = new Date(startISO)
   const end   = new Date(endISO)
+  const personKey = norm(personName)
 
   for (const q of ctx.busyAssignments) {
     const their = new Set<string>([
       ...(q.treballadors || []).map((x: AssignmentPerson) => x.name),
       ...(q.conductors || []).map((x: AssignmentPerson) => x.name),
       q.responsable?.name,
-    ].filter(Boolean) as string[])
+    ].filter(Boolean).map((name) => norm(String(name))) as string[])
 
-    if (!their.has(personName)) continue
+    if (!their.has(personKey)) continue
 
     const s2 = new Date(toISO(q.startDate, q.startTime))
     const e2 = new Date(toISO(q.endDate, q.endTime))
