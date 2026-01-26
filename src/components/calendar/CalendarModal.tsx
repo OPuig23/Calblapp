@@ -26,6 +26,11 @@ interface Props {
   readonly?: boolean
 }
 
+type ComercialCandidate = {
+  name: string
+  departmentBucket: string
+}
+
 /**
  * CalendarModal (consulta i enllaços SharePoint)
  * - No puja fitxers. Guarda enllaços (file1, file2, ...)
@@ -37,7 +42,7 @@ export default function CalendarModal({ deal, trigger, onSaved, readonly }: Prop
 
   const { data: session } = useSession()
   const [open, setOpen] = useState(false)
-  const [comercialOptions, setComercialOptions] = useState<string[]>([])
+  const [comercialPool, setComercialPool] = useState<ComercialCandidate[]>([])
   const [comercialLoading, setComercialLoading] = useState(false)
 
   const norm = (s?: string | null) =>
@@ -93,6 +98,16 @@ export default function CalendarModal({ deal, trigger, onSaved, readonly }: Prop
     return base
   }
 
+  const normalizeDeptForLnBucket = (value?: string | null) => {
+    const base = normalizeDept(value)
+    if (!base) return ''
+    const compact = base.replace(/\s+/g, '')
+    if (compact === 'restauracio' || compact === 'restaurants') return 'grups restaurants'
+    if (base === 'altres') return ''
+    if (base.includes('menjar')) return 'foodlovers'
+    return base
+  }
+
   const role = norm((session?.user as any)?.role)
   const department = normalizeDept((session?.user as any)?.department)
   const isAdmin = role === 'admin'
@@ -121,16 +136,33 @@ export default function CalendarModal({ deal, trigger, onSaved, readonly }: Prop
 
   const canEdit = !readonly && (canEditStageVerd || canEditManual)
 
+  const allowedDepartments = useMemo(() => {
+    const bucket = normalizeDeptForLnBucket(editData.LN)
+    return bucket ? [bucket] : []
+  }, [editData.LN])
+
+  const filteredComercialOptions = useMemo(() => {
+    const names = comercialPool
+      .filter((candidate) => {
+        if (allowedDepartments.length === 0) return true
+        return allowedDepartments.includes(candidate.departmentBucket)
+      })
+      .map((candidate) => candidate.name)
+    return names.sort((a, b) => a.localeCompare(b, 'ca'))
+  }, [comercialPool, allowedDepartments])
+
   const comercialOptionsWithCurrent = useMemo(() => {
     const current = String(editData.Comercial || '').trim()
-    if (!current) return comercialOptions
-    const exists = comercialOptions.some((n) => norm(n) === norm(current))
-    return exists ? comercialOptions : [current, ...comercialOptions]
-  }, [comercialOptions, editData.Comercial])
+    if (!current) return filteredComercialOptions
+    const exists = filteredComercialOptions.some(
+      (n) => norm(n) === norm(current)
+    )
+    return exists ? filteredComercialOptions : [current, ...filteredComercialOptions]
+  }, [filteredComercialOptions, editData.Comercial])
 
   useEffect(() => {
     if (!open) return
-    if (comercialOptions.length > 0) return
+    if (comercialPool.length > 0) return
 
     let active = true
     const load = async () => {
@@ -140,7 +172,7 @@ export default function CalendarModal({ deal, trigger, onSaved, readonly }: Prop
         const data = await res.json()
         if (!Array.isArray(data)) return
 
-        const names = data
+        const candidates: ComercialCandidate[] = data
           .filter((u: any) => {
             const roleRaw = u?.role ?? ''
             const r = norm(String(roleRaw))
@@ -151,14 +183,19 @@ export default function CalendarModal({ deal, trigger, onSaved, readonly }: Prop
               r === 'capdepartament'
             )
           })
-          .map((u: any) => String(u?.name || '').trim())
-          .filter((n: string) => n.length > 0)
+          .map((u: any) => ({
+            name: String(u?.name || '').trim(),
+            departmentBucket: normalizeDeptForLnBucket(u?.department),
+          }))
+          .filter((candidate) => candidate.name.length > 0)
 
         const uniq = Array.from(
-          new Map(names.map((n: string) => [norm(n), n])).values()
-        ).sort((a, b) => a.localeCompare(b, 'ca'))
+          new Map<string, ComercialCandidate>(
+            candidates.map((candidate) => [norm(candidate.name), candidate])
+          ).values()
+        ).sort((a, b) => a.name.localeCompare(b.name, 'ca'))
 
-        if (active) setComercialOptions(uniq)
+        if (active) setComercialPool(uniq)
       } catch (err) {
         console.error('Error carregant comercials:', err)
       } finally {
@@ -170,7 +207,7 @@ export default function CalendarModal({ deal, trigger, onSaved, readonly }: Prop
     return () => {
       active = false
     }
-  }, [open, comercialOptions.length])
+  }, [open, comercialPool.length])
 
   // Col·lecció: sempre guardem a stage_verd (segons decisió)
   const COLLECTION = 'stage_verd' as const
