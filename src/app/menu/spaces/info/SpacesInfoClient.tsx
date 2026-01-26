@@ -1,8 +1,13 @@
+// file: src/app/menu/spaces/info/SpacesInfoClient.tsx
 'use client'
 
 import { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import { useRouter } from 'next/navigation'
+import ModuleHeader from '@/components/layout/ModuleHeader'
+import ExportMenu from '@/components/export/ExportMenu'
+import { Map } from 'lucide-react'
+import * as XLSX from 'xlsx'
 
 type Espai = {
   id: string
@@ -47,9 +52,107 @@ export default function SpacesInfoClient({ espais, lnOptions }: Props) {
     })
   }, [espais, search, tipus, filterLn])
 
+  const exportRows = useMemo(
+    () =>
+      filtrats.map((e) => ({
+        Codi: e.code || '',
+        Nom: e.nom,
+        LN: e.ln || '',
+        Tipus: e.tipus || '',
+      })),
+    [filtrats]
+  )
+
+  const escapeHtml = (value: string) =>
+    value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;')
+
+  const buildPdfTableHtml = () => {
+    const cols = ['Codi', 'Nom', 'LN', 'Tipus']
+    const header = cols.map((c) => `<th>${escapeHtml(c)}</th>`).join('')
+    const body = exportRows
+      .map((row) => {
+        const cells = cols
+          .map((col) => `<td>${escapeHtml(row[col as keyof typeof row] ?? '')}</td>`)
+          .join('')
+        return `<tr>${cells}</tr>`
+      })
+      .join('')
+
+    return `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Espais</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 24px; color: #111; }
+      table { width: 100%; border-collapse: collapse; font-size: 11px; }
+      th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+      th { background: #f3f4f6; }
+      tr:nth-child(even) td { background: #fafafa; }
+    </style>
+  </head>
+  <body>
+    <h1>Espais</h1>
+    <table>
+      <thead><tr>${header}</tr></thead>
+      <tbody>${body}</tbody>
+    </table>
+  </body>
+</html>`
+  }
+
+  const handleExportExcel = () => {
+    const ws = XLSX.utils.json_to_sheet(exportRows)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Espais')
+    XLSX.writeFile(wb, 'espais.xlsx')
+  }
+
+  const handleExportPdfView = () => {
+    window.print()
+  }
+
+  const handleExportPdfTable = () => {
+    const html = buildPdfTableHtml()
+    const win = window.open('', '_blank', 'width=1200,height=900')
+    if (!win) return
+    win.document.open()
+    win.document.write(html)
+    win.document.close()
+    win.focus()
+    setTimeout(() => win.print(), 300)
+  }
+
+  const exportItems = [
+    { label: 'Excel (.xlsx)', onClick: handleExportExcel },
+    { label: 'PDF (vista)', onClick: handleExportPdfView },
+    { label: 'PDF (taula)', onClick: handleExportPdfTable },
+  ]
+
   return (
-    <section className="w-full max-w-5xl mx-auto p-4">
-      <motion.h1
+    <section className="w-full max-w-5xl mx-auto p-4 space-y-4">
+      <div className="-mx-6">
+        <ModuleHeader
+          icon={<Map className="h-7 w-7 text-emerald-600" />}
+          title="Espais"
+          subtitle="Consulta i filtra els espais disponibles"
+          actions={<ExportMenu items={exportItems} />}
+        />
+      </div>
+      <style>{`
+        @media print {
+          body * { visibility: hidden; }
+          #spaces-print-root, #spaces-print-root * { visibility: visible; }
+          #spaces-print-root { position: absolute; left: 0; top: 0; width: 100%; }
+        }
+      `}</style>
+      <div id="spaces-print-root" className="space-y-4">
+        <motion.h1
         initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
         className="text-xl font-semibold text-gray-800 mb-4"
@@ -165,6 +268,7 @@ export default function SpacesInfoClient({ espais, lnOptions }: Props) {
             )}
           </tbody>
         </table>
+      </div>
       </div>
     </section>
   )

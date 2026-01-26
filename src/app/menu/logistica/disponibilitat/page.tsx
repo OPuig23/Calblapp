@@ -271,14 +271,6 @@ export default function DisponibilitatLogisticaPage() {
     window.print()
   }
 
-  const exportItems = [
-    { label: 'Excel (.xlsx)', onClick: handleExportExcel },
-    { label: 'PDF (vista)', onClick: handleExportPdfView },
-    { label: 'PDF (taula)', onClick: handleExportPdfTable },
-    { label: 'Excel (assignacions)', onClick: handleExportAssignmentsExcel },
-    { label: 'PDF (assignacions)', onClick: handleExportAssignmentsPdf },
-  ]
-
   const parseTime = (value?: string) => {
     if (!value) return null
     const [h, m] = value.split(':')
@@ -411,6 +403,14 @@ export default function DisponibilitatLogisticaPage() {
       alert('No s ha pogut exportar les assignacions.')
     }
   }
+
+  const exportItems = [
+    { label: 'Excel (.xlsx)', onClick: handleExportExcel },
+    { label: 'PDF (vista)', onClick: handleExportPdfView },
+    { label: 'PDF (taula)', onClick: handleExportPdfTable },
+    { label: 'Excel (assignacions)', onClick: handleExportAssignmentsExcel },
+    { label: 'PDF (assignacions)', onClick: handleExportAssignmentsPdf },
+  ]
 
   return (
     <main className="space-y-6 px-4 pb-12">

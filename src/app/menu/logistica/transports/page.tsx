@@ -1,4 +1,4 @@
-//file: src/app/menu/logistica/transports/page.tsx
+﻿//file: src/app/menu/logistica/transports/page.tsx
 'use client'
 
 import React, { useMemo, useState } from 'react'
@@ -13,6 +13,9 @@ import { useFilters as useSlideFilters } from '@/context/FiltersContext'
 import TransportFilters, {
   TransportFiltersState,
 } from '@/components/transports/TransportFilters'
+import ExportMenu from '@/components/export/ExportMenu'
+import * as XLSX from 'xlsx'
+import { Truck } from 'lucide-react'
 
 export default function LogisticsTransportsPage() {
   const { data: transports = [], refetch } = useTransports()
@@ -53,8 +56,8 @@ export default function LogisticsTransportsPage() {
       if (!res.ok) throw new Error('Error esborrant vehicle')
       await refetch()
     } catch (err) {
-      console.error('❌ Error eliminant vehicle:', err)
-      alert('No s’ha pogut eliminar el vehicle.')
+      console.error('Error eliminant vehicle:', err)
+      alert(`No s'ha pogut eliminar el vehicle.`)
     }
   }
 
@@ -79,12 +82,100 @@ export default function LogisticsTransportsPage() {
     })
   }, [transports, search, filters])
 
+  const exportRows = useMemo(() => {
+    return filteredTransports.map((t) => ({
+      Matricula: t.plate || '',
+      Tipus: t.type || '',
+      Conductor: t.conductorName || t.conductor || '',
+      Disponible: t.available ? 'Sí' : 'No',
+      Estat: t.status || '',
+    }))
+  }, [filteredTransports])
+
+  const handleExportExcel = () => {
+    const ws = XLSX.utils.json_to_sheet(exportRows)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Transports')
+    XLSX.writeFile(wb, 'transports.xlsx')
+  }
+
+  const escapeHtml = (value: string) =>
+    value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;')
+
+  const buildPdfTableHtml = () => {
+    const cols = ['Matrícula', 'Tipus', 'Conductor', 'Disponible', 'Estat']
+    const header = cols.map((c) => `<th>${escapeHtml(c)}</th>`).join('')
+    const body = filteredTransports
+      .map((row) => {
+        const cells = [
+          row.plate || '',
+          row.type || '',
+          row.conductorName || row.conductor || '',
+          row.available ? 'Sí' : 'No',
+          row.status || '',
+        ].map((value) => `<td>${escapeHtml(String(value ?? ''))}</td>`)
+          .join('')
+        return `<tr>${cells}</tr>`
+      })
+      .join('')
+
+    return `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Transports</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 24px; color: #111; }
+      h1 { font-size: 16px; margin-bottom: 8px; }
+      table { width: 100%; border-collapse: collapse; font-size: 11px; }
+      th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+      th { background: #f3f4f6; }
+      tr:nth-child(even) td { background: #fafafa; }
+    </style>
+  </head>
+  <body>
+    <h1>Transports</h1>
+    <table>
+      <thead><tr>${header}</tr></thead>
+      <tbody>${body}</tbody>
+    </table>
+  </body>
+</html>`
+  }
+
+  const handleExportPdfView = () => {
+    window.print()
+  }
+
+  const handleExportPdfTable = () => {
+    const html = buildPdfTableHtml()
+    const win = window.open('', '_blank', 'width=1200,height=900')
+    if (!win) return
+    win.document.open()
+    win.document.write(html)
+    win.document.close()
+    win.focus()
+    setTimeout(() => win.print(), 300)
+  }
+
+  const exportItems = [
+    { label: 'Excel (.xlsx)', onClick: handleExportExcel },
+    { label: 'PDF (vista)', onClick: handleExportPdfView },
+    { label: 'PDF (taula)', onClick: handleExportPdfTable },
+  ]
+
   return (
     <section className="space-y-6">
       <ModuleHeader
-        icon="🚛"
+        icon={<Truck className="h-7 w-7 text-emerald-600" />}
         title="Transports"
         subtitle="Gestió de vehicles i conductors"
+        actions={<ExportMenu items={exportItems} />}
       />
 
       {/* Barra superior */}
@@ -117,11 +208,13 @@ export default function LogisticsTransportsPage() {
         </div>
       </div>
 
-      <TransportList
-        transports={filteredTransports}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
-      />
+      <div id="transports-print-root">
+        <TransportList
+          transports={filteredTransports}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+        />
+      </div>
 
       <NewTransportModal
         isOpen={isModalOpen}

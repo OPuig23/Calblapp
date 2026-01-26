@@ -152,7 +152,7 @@ const nextCEUCode = (currentMax: string | null): string => {
 function normalizeName(raw: string): string {
   if (!raw) return ''
 
-  return raw
+  const cleaned = raw
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '') // treure accents
     .toLowerCase()
@@ -164,6 +164,11 @@ function normalizeName(raw: string): string {
     .replace(/\bgrup\b/g, '')
     .replace(/\bcb\b/g, '')
     .replace(/-/g, ' ')
+    .replace(/\s+/g, ' ')
+
+  return cleaned
+    .trim()
+    .replace(/\b(?:de|del|la|las|el|els|les|l|lo|d|l')\b/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
     .split(' ')
