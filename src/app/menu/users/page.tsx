@@ -88,7 +88,7 @@ function UsersPage() {
       phone: '',
       available: true,
       isDriver: false,
-      workerRank: 'soldat',
+    workerRank: 'equip',
     })
   }
 />
@@ -117,7 +117,7 @@ function UsersPage() {
             phone: modalUser.phone ?? '',
             available: modalUser.available ?? true,
             driver: { isDriver: modalUser.isDriver ?? false },
-            workerRank: modalUser.workerRank ?? 'soldat',
+            workerRank: modalUser.workerRank ?? 'equip',
           }}
           onSubmit={(data) => {
             saveUser(modalUser.id, data)

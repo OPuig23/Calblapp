@@ -244,8 +244,20 @@ export default function PersonnelList({ personnel, mutate, onEdit }: Props) {
               )}
 
               {!p.hasUser && p.requestStatus === 'rejected' && (
-                <div className="flex items-center gap-2 text-red-600 text-xs font-medium">
-                  <XCircle size={16} /> Sol·licitud rebutjada
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-red-600 text-xs font-medium">
+                    <XCircle size={16} /> Sol·licitud rebutjada
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 px-2 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 flex items-center gap-1"
+                    disabled={isLoading}
+                    onClick={() => handleRequestUser(p)}
+                  >
+                    <UserPlus size={14} />
+                    Tornar a sol·licitar
+                  </Button>
                 </div>
               )}
 

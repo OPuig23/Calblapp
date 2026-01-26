@@ -13,7 +13,7 @@ export type User = {
   phone?: string
   available?: boolean
   isDriver?: boolean
-  workerRank?: 'soldat' | 'responsable'
+  workerRank?: 'equip' | 'responsable'
   pushEnabled?: boolean
 }
 

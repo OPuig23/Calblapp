@@ -16,13 +16,23 @@ export interface PissarraItem {
   servei?: string
   comercial?: string
   responsableName?: string
+  group1Responsible?: string | null
+  group1Drivers?: string[]
+  group1Workers?: string[]
+  group1MeetingPoint?: string
+  group1StartTime?: string
+  group2Responsible?: string | null
+  group2Drivers?: string[]
+  group2Workers?: string[]
+  group2MeetingPoint?: string
+  group2StartTime?: string
   HoraInici?: string
   horaInici?: string
   vehicles?: { plate?: string; type?: string; conductor?: string; source?: string }[]
   workers?: string[]
 }
 
-type Mode = 'produccio' | 'logistica'
+type Mode = 'produccio' | 'logistica' | 'cuina'
 
 export default function usePissarra(
   weekStart: string,
@@ -46,6 +56,8 @@ export default function usePissarra(
         const endpoint =
           mode === 'logistica'
             ? `/api/pissarra/logistica?start=${weekStart}&end=${weekEnd}`
+            : mode === 'cuina'
+            ? `/api/pissarra/cuina?start=${weekStart}&end=${weekEnd}`
             : `/api/pissarra?start=${weekStart}&end=${weekEnd}`
 
         const res = await fetch(endpoint, { cache: 'no-store' })

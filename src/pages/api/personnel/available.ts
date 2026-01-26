@@ -82,11 +82,29 @@ const allPersonnel = personnelSnap.docs.map((doc) => ({
 })) as Personnel[]
 
     // Rols que permetem seleccionar manualment o com a disponibles
-    const allowedRoles = ['treballador', 'personal', 'cap departament']
+    const normalizeRole = (role?: string | null) => {
+      const raw = (role || '').toString().trim().toLowerCase()
+      return raw === 'soldat' ? 'equip' : raw
+    }
+
+    const allowedRoles = new Set([
+      'treballador',
+      'treballadora',
+      'personal',
+      'responsable',
+      'cap departament',
+      'equip',
+      'cuina',
+      'cocinera',
+      'chef',
+      'operari',
+      'operaria',
+      'auxiliar',
+    ])
 
     const cleanPersonnel = allPersonnel.filter((p) => {
-      const role = p.role?.toLowerCase().trim()
-      return p.active !== false && allowedRoles.includes(role || '')
+      const role = normalizeRole(p.role)
+      return p.active !== false && allowedRoles.has(role)
     })
 
     /* ────────────────────────────────────────────────────────

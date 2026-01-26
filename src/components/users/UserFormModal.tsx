@@ -67,7 +67,7 @@ const DEPARTS = [
 ] as const
 
 const RANKS = [
-  { value: 'soldat', label: 'Soldat' },
+  { value: 'equip', label: 'Equip' },
   { value: 'responsable', label: 'Responsable' },
 ] as const
 
@@ -82,7 +82,7 @@ export function UserFormModal({ user, onSubmit, onClose }: Props) {
   const [email, setEmail] = React.useState('')
   const [available, setAvailable] = React.useState(true)
   const [isDriver, setIsDriver] = React.useState(false)
-  const [workerRank, setWorkerRank] = React.useState<string>('soldat')
+  const [workerRank, setWorkerRank] = React.useState<string>('equip')
 
   const isWorker =
     role?.toLowerCase().trim() === 'treballador' ||
@@ -106,7 +106,7 @@ export function UserFormModal({ user, onSubmit, onClose }: Props) {
         setEmail(data.email ?? '')
         setAvailable(data.available ?? true)
         setIsDriver(Boolean(data.driver?.isDriver))
-        setWorkerRank(data.workerRank ?? 'soldat')
+        setWorkerRank(data.workerRank ?? 'equip')
         setPassword(Math.random().toString(36).slice(-8))
       } catch (err) {
         console.error('Error carregant sol·licitud:', err)
@@ -132,7 +132,7 @@ export function UserFormModal({ user, onSubmit, onClose }: Props) {
     if (user.role?.toLowerCase() === 'treballador') {
       setAvailable(user.available ?? true)
       setIsDriver(user.driver?.isDriver ?? false)
-      setWorkerRank(user.workerRank ?? 'soldat')
+      setWorkerRank(user.workerRank ?? 'equip')
     }
   }, [user])
 

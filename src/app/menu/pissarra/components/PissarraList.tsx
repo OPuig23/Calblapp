@@ -6,9 +6,10 @@ import { ca } from "date-fns/locale"
 import { motion } from "framer-motion"
 import PissarraCard from "./PissarraCard"
 import PissarraCardLogistica from "./PissarraCardLogistica"
+import PissarraCardCuina from "./PissarraCardCuina"
 import type { PissarraItem } from "@/hooks/usePissarra"
 
-type Variant = "produccio" | "logistica"
+type Variant = "produccio" | "logistica" | "cuina"
 
 type Props = {
   dataByDay: Record<string, PissarraItem[]>
@@ -77,6 +78,8 @@ export default function PissarraList({
                   <motion.div key={ev.id} layout>
                     {variant === "logistica" ? (
                       <PissarraCardLogistica item={ev} />
+                    ) : variant === "cuina" ? (
+                      <PissarraCardCuina item={ev} />
                     ) : (
                       <PissarraCard item={ev} canEdit={canEdit} onUpdate={onUpdate} />
                     )}

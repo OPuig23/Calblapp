@@ -1,7 +1,7 @@
 // File: src/app/menu/quadrants/[id]/components/QuadrantModal.tsx
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
   DialogFooter, DialogClose,
@@ -21,7 +21,6 @@ import { useAvailablePersonnel } from '../hooks/useAvailablePersonnel'
 
 import QuadrantFieldsServeis from './QuadrantFieldsServeis'
 import QuadrantFieldsLogistica from './QuadrantFieldsLogistica'
-import QuadrantFieldsCuina from './QuadrantFieldsCuina'
 
 interface QuadrantModalProps {
   open: boolean
@@ -78,7 +77,16 @@ const splitTitle = (title = '') => {
 export default function QuadrantModal({ open, onOpenChange, event }: QuadrantModalProps) {
   const { data: session } = useSession()
   const router = useRouter()
-  const department = session?.user?.department || ''
+  const department =
+    (
+      session?.user?.department ||
+      (session as any)?.department ||
+      (session as any)?.dept ||
+      'serveis'
+    )
+      .toString()
+      .toLowerCase()
+  const isCuina = department === 'cuina'
 
   const rawTitle = event.summary || event.title || ''
   const { name: eventName, code: parsedCode } = splitTitle(rawTitle)
@@ -108,6 +116,107 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
     brigades: [] as { id: string; name: string; workers: number; startTime: string; endTime: string }[],
   })
 
+  type CuinaGroup = {
+    id: string
+    meetingPoint: string
+    startTime: string
+    arrivalTime: string
+    endTime: string
+    workers: number
+    drivers: number
+    responsibleId: string
+  }
+
+  const makeGroupId = () => `group-${Date.now()}-${Math.random().toString(16).slice(2)}`
+  const createGroup = (seed: Partial<CuinaGroup> = {}): CuinaGroup => ({
+    id: seed.id || makeGroupId(),
+    meetingPoint: seed.meetingPoint ?? meetingPoint ?? '',
+    startTime: seed.startTime ?? startTime ?? '',
+    arrivalTime: seed.arrivalTime ?? arrivalTime ?? '',
+    endTime: seed.endTime ?? endTime ?? '',
+    workers: (seed.workers ?? Number(totalWorkers)) || 0,
+    drivers: (seed.drivers ?? Number(numDrivers)) || 0,
+    responsibleId: seed.responsibleId ?? '',
+  })
+
+  const [cuinaGroups, setCuinaGroups] = useState<CuinaGroup[]>(() => [createGroup()])
+  const cuinaTotalsRef = useRef({
+    workers: Number(totalWorkers) || 0,
+    drivers: Number(numDrivers) || 0,
+  })
+
+  const cuinaTotals = useMemo(
+    () => ({
+      workers: cuinaGroups.reduce((sum, group) => sum + group.workers, 0),
+      drivers: cuinaGroups.reduce((sum, group) => sum + group.drivers, 0),
+      responsables: cuinaGroups.length,
+    }),
+    [cuinaGroups]
+  )
+
+  useEffect(() => {
+    if (!isCuina) return
+    const targetWorkers = Number(totalWorkers) || 0
+    const targetDrivers = Number(numDrivers) || 0
+    setCuinaGroups((prev) => {
+      if (!prev.length) {
+        return [
+          {
+            id: makeGroupId(),
+            meetingPoint: meetingPoint || '',
+            startTime: startTime || '',
+            arrivalTime: arrivalTime || '',
+            endTime: endTime || '',
+            workers: targetWorkers,
+            drivers: targetDrivers,
+          },
+        ]
+      }
+      const first = prev[0]
+      const shouldSync =
+        prev.length === 1 &&
+        first.workers === cuinaTotalsRef.current.workers &&
+        first.drivers === cuinaTotalsRef.current.drivers
+      if (!shouldSync) return prev
+      return [{ ...first, workers: targetWorkers, drivers: targetDrivers }, ...prev.slice(1)]
+    })
+    cuinaTotalsRef.current = { workers: targetWorkers, drivers: targetDrivers }
+  }, [isCuina, totalWorkers, numDrivers, meetingPoint, startTime, arrivalTime, endTime])
+
+  useEffect(() => {
+    if (!isCuina) return
+    const firstPoint = cuinaGroups[0]?.meetingPoint || ''
+    if (firstPoint !== meetingPoint) {
+      setMeetingPoint(firstPoint)
+    }
+  }, [cuinaGroups, isCuina, meetingPoint])
+
+  useEffect(() => {
+    if (!isCuina) return
+    const firstGroup = cuinaGroups[0]
+    if (!firstGroup) return
+    if (firstGroup.startTime !== startTime) setStartTime(firstGroup.startTime)
+    if (firstGroup.endTime !== endTime) setEndTime(firstGroup.endTime)
+    if (firstGroup.arrivalTime !== arrivalTime) setArrivalTime(firstGroup.arrivalTime)
+  }, [cuinaGroups, isCuina, startTime, endTime, arrivalTime])
+
+  const updateCuinaGroup = (id: string, patch: Partial<CuinaGroup>) => {
+    setCuinaGroups((prev) =>
+      prev.map((group) => (group.id === id ? { ...group, ...patch } : group))
+    )
+  }
+
+  const addCuinaGroup = () => {
+    setCuinaGroups((prev) => [...prev, createGroup({ workers: 0, drivers: 0 })])
+  }
+
+  const removeCuinaGroup = (id: string) => {
+    setCuinaGroups((prev) => {
+      const next = prev.filter((group) => group.id !== id)
+      return next.length ? next : [createGroup()]
+    })
+  }
+
   useEffect(() => {
     setStartDate(extractDate(event.start))
     setEndDate(extractDate(event.start))
@@ -128,6 +237,10 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
       drivers: Number(event.numDrivers || 0),
       brigades: [],
     })
+    const initialWorkers = Number(event.totalWorkers || 0)
+    const initialDrivers = Number(event.numDrivers || 0)
+    cuinaTotalsRef.current = { workers: initialWorkers, drivers: initialDrivers }
+    setCuinaGroups([createGroup({ workers: initialWorkers, drivers: initialDrivers })])
   }, [event, open])
 
   const { responsables, loading: availLoading } = useAvailablePersonnel({
@@ -193,13 +306,35 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
         endDate,
         endTime,
         arrivalTime: arrivalTime || null,
-        manualResponsibleId: manualResp || null,
+        manualResponsibleId: isCuina ? null : manualResp || null,
         service: event.service || null,
         numPax: event.numPax || null,
         commercial: event.commercial || null,
       }
 
-      if (department.toLowerCase() === 'serveis') {
+      if (isCuina) {
+        const groupsPayload = cuinaGroups.map((group) => {
+          const selected = responsables.find((r) => r.id === group.responsibleId)
+          return {
+          meetingPoint: group.meetingPoint || meetingPoint || '',
+          startTime: group.startTime,
+          arrivalTime: group.arrivalTime || null,
+          endTime: group.endTime,
+          workers: group.workers,
+          drivers: group.drivers,
+          responsibleId: group.responsibleId && group.responsibleId !== '__auto__'
+            ? group.responsibleId
+            : null,
+          responsibleName: selected?.name || null,
+          }
+        })
+
+        payload.groups = groupsPayload
+        payload.totalWorkers = cuinaTotals.workers
+        payload.numDrivers = cuinaTotals.drivers
+        payload.cuinaGroupCount = cuinaGroups.length
+
+      } else if (department.toLowerCase() === 'serveis') {
         payload.totalWorkers = serveisData.workers
         payload.numDrivers   = serveisData.drivers
         payload.brigades     = serveisData.brigades
@@ -277,7 +412,9 @@ onOpenChange(false)
         <DialogHeader>
           <DialogTitle className="text-lg font-bold">{eventName}</DialogTitle>
           <DialogDescription>
-            Quadrant per a <strong>{department}</strong>
+            Servei {event.service || '—'} · PAX {event.numPax ?? '—'} · Hora inici{' '}
+            {event.startTime || startTime || '—:—'}
+            {location ? ` · Ubicació ${location}` : ''}
           </DialogDescription>
         </DialogHeader>
 
@@ -292,18 +429,24 @@ onOpenChange(false)
               <Label>Data Final</Label>
               <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
             </div>
-            <div>
-              <Label>Hora Inici</Label>
-              <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
-            </div>
-            <div>
-              <Label>Hora arribada (esdeveniment)</Label>
-              <Input type="time" value={arrivalTime} onChange={(e) => setArrivalTime(e.target.value)} />
-            </div>
-            <div>
-              <Label>Hora Fi</Label>
-              <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
-            </div>
+            {!isCuina && (
+              <div>
+                <Label>Hora Inici</Label>
+                <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+              </div>
+            )}
+            {!isCuina && (
+              <div>
+                <Label>Hora arribada (esdeveniment)</Label>
+                <Input type="time" value={arrivalTime} onChange={(e) => setArrivalTime(e.target.value)} />
+              </div>
+            )}
+            {!isCuina && (
+              <div>
+                <Label>Hora Fi</Label>
+                <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+              </div>
+            )}
           </div>
 
           {/* Camps específics */}
@@ -321,52 +464,212 @@ onOpenChange(false)
               available={available}
             />
           )}
-          {department.toLowerCase() === 'cuina' && (
-            <QuadrantFieldsCuina
-              totalWorkers={totalWorkers}
-              numDrivers={numDrivers}
-              setTotalWorkers={setTotalWorkers}
-              setNumDrivers={setNumDrivers}
-              vehicleAssignments={vehicleAssignments}
-              setVehicleAssignments={setVehicleAssignments}
-              available={available}
-            />
-          )}
 
           {/* Meeting point */}
-          <div>
-            <Label>Lloc de concentració</Label>
-            <Input
-              type="text"
-              placeholder="Ex: Pàrquing camions"
-              value={meetingPoint}
-              onChange={(e) => setMeetingPoint(e.target.value)}
-            />
-          </div>
+          {!isCuina && (
+            <div>
+              <Label>Lloc de concentració</Label>
+              <Input
+                type="text"
+                placeholder="Ex: Pàrquing camions"
+                value={meetingPoint}
+                onChange={(e) => setMeetingPoint(e.target.value)}
+              />
+            </div>
+          )}
 
-          {/* Responsable */}
-          <div>
-            <Label>Responsable (manual)</Label>
-            {availLoading ? (
-              <p className="flex items-center gap-2 text-blue-600">
-                <Loader2 className="animate-spin" /> Carregant…
-              </p>
-            ) : (
-              <Select value={manualResp} onValueChange={setManualResp}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Selecciona un responsable…" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__auto__">— Automàtic —</SelectItem>
-                  {responsables.map(r => (
-                    <SelectItem key={r.id} value={r.id}>
-                      {r.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
+          {isCuina && (
+            <div className="mt-4 space-y-4 rounded-2xl border border-dashed border-slate-200 bg-white p-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>Número total de treballadors</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={totalWorkers}
+                      onChange={(e) => setTotalWorkers(e.target.value)}
+                    />
+                    <p className="text-xs text-slate-500 mt-1">
+                      Suma per grups: {cuinaTotals.workers}
+                    </p>
+                  </div>
+                  <div>
+                    <Label>Número total de conductors</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={numDrivers}
+                      onChange={(e) => setNumDrivers(e.target.value)}
+                    />
+                    <p className="text-xs text-slate-500 mt-1">
+                      Suma per grups: {cuinaTotals.drivers}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-700">Grups Cuina</p>
+                    <p className="text-xs text-slate-500">
+                      Treballadors {cuinaTotals.workers} · Conductors {cuinaTotals.drivers} ·
+                      Responsables {cuinaTotals.responsables}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1"
+                    onClick={addCuinaGroup}
+                  >
+                    + Grup
+                  </Button>
+                </div>
+                <div className="space-y-3">
+                  {cuinaGroups.map((group, idx) => (
+                    <div
+                      key={group.id}
+                      className="border border-slate-200 rounded-xl p-3 bg-slate-50 space-y-3"
+                    >
+                      <div className="flex items-center justify-between text-xs text-slate-500">
+                        <span>Grup {idx + 1}</span>
+                        {cuinaGroups.length > 1 && (
+                          <button
+                            type="button"
+                            className="text-red-500 hover:underline"
+                            onClick={() => removeCuinaGroup(group.id)}
+                          >
+                            Elimina grup
+                          </button>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div>
+                          <Label>Meeting point</Label>
+                          <Input
+                            value={group.meetingPoint}
+                            onChange={(e) =>
+                              updateCuinaGroup(group.id, { meetingPoint: e.target.value })
+                            }
+                          />
+                        </div>
+                        <div>
+                          <Label>Hora arribada</Label>
+                          <Input
+                            type="time"
+                            value={group.arrivalTime}
+                            onChange={(e) =>
+                              updateCuinaGroup(group.id, { arrivalTime: e.target.value })
+                            }
+                          />
+                        </div>
+                        <div>
+                          <Label>Hora inici</Label>
+                          <Input
+                            type="time"
+                            value={group.startTime}
+                            onChange={(e) =>
+                              updateCuinaGroup(group.id, { startTime: e.target.value })
+                            }
+                          />
+                        </div>
+                        <div>
+                          <Label>Hora fi</Label>
+                          <Input
+                            type="time"
+                            value={group.endTime}
+                            onChange={(e) =>
+                              updateCuinaGroup(group.id, { endTime: e.target.value })
+                            }
+                          />
+                        </div>
+                      </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label>Treballadors</Label>
+                        <Input
+                          type="number"
+                            min={0}
+                            value={group.workers}
+                            onChange={(e) => {
+                              const value = Number(e.target.value)
+                              updateCuinaGroup(group.id, {
+                                workers: Number.isNaN(value) ? 0 : value,
+                              })
+                            }}
+                          />
+                        </div>
+                      <div>
+                        <Label>Conductors</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                            value={group.drivers}
+                            onChange={(e) => {
+                              const value = Number(e.target.value)
+                              updateCuinaGroup(group.id, {
+                                drivers: Number.isNaN(value) ? 0 : value,
+                              })
+                            }}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label>Responsable</Label>
+                      {availLoading ? (
+                        <p className="flex items-center gap-2 text-blue-600">
+                          <Loader2 className="animate-spin" /> Carregant…
+                        </p>
+                      ) : (
+                        <Select
+                          value={group.responsibleId || '__auto__'}
+                          onValueChange={(value) =>
+                            updateCuinaGroup(group.id, {
+                              responsibleId: value === '__auto__' ? '' : value,
+                            })
+                          }
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Selecciona un responsable…" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__auto__">— Automàtic —</SelectItem>
+                            {responsables.map((r) => (
+                              <SelectItem key={r.id} value={r.id}>
+                                {r.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {!isCuina && (
+            <div>
+              <Label>Responsable (manual)</Label>
+              {availLoading ? (
+                <p className="flex items-center gap-2 text-blue-600">
+                  <Loader2 className="animate-spin" /> Carregant…
+                </p>
+              ) : (
+                <Select value={manualResp} onValueChange={setManualResp}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Selecciona un responsable…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__auto__">— Automàtic —</SelectItem>
+                    {responsables.map(r => (
+                      <SelectItem key={r.id} value={r.id}>
+                        {r.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          )}
 
           {/* Feedback */}
           <AnimatePresence>

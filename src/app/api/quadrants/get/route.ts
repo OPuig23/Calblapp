@@ -113,6 +113,8 @@ const derivedEndTime   = endTimes.length > 0 ? endTimes[endTimes.length - 1] : n
 
     eventName: d.eventName || d.name || '',
     location: d.location || d.finca || '',
+    meetingPoint: d.meetingPoint || '',
+    arrivalTime: d.arrivalTime || '',
 
     startDate: d.startDate?.toDate
       ? d.startDate.toDate().toISOString().slice(0, 10)
@@ -149,6 +151,21 @@ responsableName:
     service: d.service || d.servei || d.eventService || null,
 
     commercial: d.commercial || null,
+    totalWorkers: Number(d.totalWorkers || 0),
+    numDrivers: Number(d.numDrivers || 0),
+
+    groups: Array.isArray(d.groups)
+      ? d.groups.map((g: any) => ({
+          meetingPoint: g.meetingPoint || '',
+          startTime: g.startTime || '',
+          arrivalTime: g.arrivalTime ?? null,
+          endTime: g.endTime || '',
+          workers: Number(g.workers || 0),
+          drivers: Number(g.drivers || 0),
+          responsibleId: g.responsibleId || null,
+          responsibleName: g.responsibleName || null,
+        }))
+      : undefined,
 
     status:
       typeof d.status === 'string'

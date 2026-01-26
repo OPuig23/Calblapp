@@ -93,7 +93,7 @@ export async function POST(req: Request) {
       phone: phone.trim() || null,
       available: isTreballador(role) ? (available ?? true) : undefined,
       isDriver: isTreballador(role) ? (isDriver ?? false) : undefined,
-      workerRank: isTreballador(role) ? (workerRank || 'soldat') : undefined,
+      workerRank: isTreballador(role) ? (workerRank || 'equip') : undefined,
       pushEnabled: pushEnabled ?? false, // per defecte FALSE si no s’envia
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -130,7 +130,7 @@ export async function POST(req: Request) {
         role: 'treballador',
         available: userPayload.available ?? true,
         isDriver: userPayload.isDriver ?? false,
-        workerRank: userPayload.workerRank || 'soldat',
+        workerRank: userPayload.workerRank || 'equip',
         email: userPayload.email,
         phone: userPayload.phone,
         // mantenim mateix flag també a `personnel`

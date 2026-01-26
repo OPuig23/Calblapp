@@ -77,7 +77,8 @@ export default function QuadrantTable({ eventId, initialData }) {
             startTime: draft.startTime ?? '',
             endDate: draft.endDate ?? '',
             endTime: draft.endTime ?? '',
-            meetingPoint: draft.meetingPoint || '',
+            meetingPoint:
+              draft.responsable?.meetingPoint || draft.meetingPoint || '',
           },
         ]
       : []),
@@ -90,7 +91,7 @@ export default function QuadrantTable({ eventId, initialData }) {
           startTime: draft.startTime ?? '',
           endDate: draft.endDate ?? '',
           endTime: draft.endTime ?? '',
-          meetingPoint: draft.meetingPoint || '',
+          meetingPoint: c.meetingPoint || draft.meetingPoint || '',
         }))
       : []),
     ...(Array.isArray(draft.treballadors)
@@ -102,7 +103,7 @@ export default function QuadrantTable({ eventId, initialData }) {
           startTime: draft.startTime ?? '',
           endDate: draft.endDate ?? '',
           endTime: draft.endTime ?? '',
-          meetingPoint: draft.meetingPoint || '',
+          meetingPoint: t.meetingPoint || draft.meetingPoint || '',
         }))
       : []),
   ])

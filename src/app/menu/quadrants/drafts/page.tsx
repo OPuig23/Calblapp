@@ -36,6 +36,7 @@ export interface Draft {
 
   // Localització
   location?: string | { [key: string]: unknown }
+  meetingPoint?: string
 
   // Departament
   department?: string
@@ -76,6 +77,18 @@ export interface Draft {
     endDate?: string
     startTime?: string
     endTime?: string
+  }>
+
+  // Grups cuina
+  groups?: Array<{
+    meetingPoint?: string
+    startTime?: string
+    arrivalTime?: string | null
+    endTime?: string
+    workers?: number
+    drivers?: number
+    responsibleId?: string | null
+    responsibleName?: string | null
   }>
 
   // Comptadors requerits

@@ -114,7 +114,7 @@ export async function PUT(
         role: 'treballador',
         available: update.available ?? snapData.available ?? true,
         isDriver: update.isDriver ?? snapData.isDriver ?? false,
-        workerRank: update.workerRank ?? snapData.workerRank ?? 'soldat',
+        workerRank: update.workerRank ?? snapData.workerRank ?? 'equip',
         email: update.email ?? snapData.email ?? null,
         phone: update.phone ?? snapData.phone ?? null,
         // 🔔 FIX: mantenim pushEnabled també a `personnel`

@@ -64,6 +64,17 @@ interface Brigade {
   endTime?: string
 }
 
+interface CuinaGroup {
+  meetingPoint: string
+  startTime: string
+  arrivalTime?: string | null
+  endTime: string
+  workers: number
+  drivers: number
+  responsibleId?: string | null
+  responsibleName?: string | null
+}
+
 interface QuadrantSave {
   code: string
   eventId: string
@@ -78,6 +89,7 @@ interface QuadrantSave {
   status: string
   numDrivers: number
   totalWorkers: number
+  numPax?: number | null
   responsableName: string | null
   responsable: { name: string; meetingPoint: string } | null
   conductors: Array<{ name: string; meetingPoint: string; plate: string; vehicleType: string }>
@@ -87,6 +99,17 @@ interface QuadrantSave {
   attentionNotes: string[]
   updatedAt: string
   brigades?: Brigade[]
+  groups?: Array<{
+    meetingPoint: string
+    startTime: string
+    arrivalTime?: string | null
+    endTime: string
+    workers: number
+    drivers: number
+    responsibleId?: string | null
+    responsibleName?: string | null
+  }>
+  cuinaGroupCount?: number
   service?: string | null
   arrivalTime?: string | null
   distanceKm?: number | null
@@ -140,6 +163,7 @@ export async function POST(req: NextRequest) {
       status: 'draft',
       numDrivers: Number(body.numDrivers || 0),
       totalWorkers: Number(body.totalWorkers || 0),
+      numPax: body.numPax ?? null,
       service: body.service || null,
 
       responsableName: assignment.responsible?.name || null,
@@ -163,6 +187,79 @@ export async function POST(req: NextRequest) {
       violations: meta.violations || [],
       attentionNotes: meta.notes || [],
       updatedAt: new Date().toISOString()
+    }
+
+    if (Array.isArray(body.groups)) {
+      let driverIdx = 0
+      let workerIdx = 0
+      const usedNames = new Set<string>()
+      const computedGroups = (body.groups as CuinaGroup[]).map((group) => {
+        const driversNeeded = Number(group.drivers || 0)
+        const driversSlice = (assignment.drivers || []).slice(
+          driverIdx,
+          driverIdx + driversNeeded
+        )
+        driverIdx += driversNeeded
+
+        let responsibleName = group.responsibleName || null
+        if (responsibleName && usedNames.has(responsibleName.toLowerCase().trim())) {
+          responsibleName = null
+        }
+
+        const responsibleIsDriver = !!responsibleName && driversSlice.some(
+          (d) => d?.name && d.name.toLowerCase().trim() === responsibleName?.toLowerCase().trim()
+        )
+        const workersNeeded = Math.max(
+          Number(group.workers || 0) -
+            Number(group.drivers || 0) -
+            (responsibleIsDriver ? 0 : 1),
+          0
+        )
+
+        const workersSlice: Array<{ name: string; meetingPoint?: string }> = []
+        while (workersSlice.length < workersNeeded) {
+          const next = (assignment.staff || [])[workerIdx]
+          workerIdx += 1
+          if (!next) {
+            workersSlice.push({ name: 'Extra' })
+            continue
+          }
+          const normName = next.name?.toLowerCase().trim()
+          if (normName && usedNames.has(normName)) continue
+          workersSlice.push(next)
+        }
+
+        if (!responsibleName) {
+          const candidate = [...workersSlice, ...driversSlice].find(
+            (p) => p?.name && p.name !== 'Extra'
+          )
+          responsibleName = candidate?.name || null
+        }
+
+        const groupNames = [
+          responsibleName,
+          ...driversSlice.map((d) => d?.name),
+          ...workersSlice.map((w) => w?.name),
+        ]
+          .filter((name) => typeof name === 'string' && name && name !== 'Extra')
+          .map((name) => (name as string).toLowerCase().trim())
+        groupNames.forEach((name) => usedNames.add(name))
+
+        return { ...group, responsibleName }
+      })
+
+      toSave.groups = computedGroups
+
+      if (deptNorm === 'cuina' && !toSave.responsableName && computedGroups[0]?.responsibleName) {
+        toSave.responsableName = computedGroups[0].responsibleName
+        toSave.responsable = {
+          name: computedGroups[0].responsibleName,
+          meetingPoint: computedGroups[0].meetingPoint || body.meetingPoint || '',
+        }
+      }
+    }
+    if (body.cuinaGroupCount) {
+      toSave.cuinaGroupCount = Number(body.cuinaGroupCount)
     }
 
     // 🔑 Afegir brigades si venen del body

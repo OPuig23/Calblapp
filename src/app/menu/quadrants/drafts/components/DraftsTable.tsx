@@ -28,8 +28,142 @@ export default function DraftsTable({ draft }: { draft: DraftInput }) {
       ''
     ).toLowerCase()
 
+  const defaultMeetingPoint = draft.meetingPoint || ''
+  const cuinaGroups = Array.isArray(draft.groups) ? draft.groups : []
+  const hasCuinaGroups = cuinaGroups.length > 0
+
+  const resolveNameById = (id: string) => {
+    if (!id) return ''
+    if (draft.responsable?.id === id) return draft.responsable?.name || ''
+    const driver = (draft.conductors || []).find((c) => c.id === id)
+    if (driver?.name) return driver.name
+    const worker = (draft.treballadors || []).find((t) => t.id === id)
+    if (worker?.name) return worker.name
+    return ''
+  }
+  const norm = (value?: string) => (value || '').toLowerCase().trim()
+
+  const buildCuinaRows = (): Row[] => {
+    const rows: Row[] = []
+    const driversPool = [...(draft.conductors || [])]
+    const workersPool = [...(draft.treballadors || [])]
+    const usedNames = new Set<string>()
+
+    cuinaGroups.forEach((group, idx) => {
+      const groupId = `group-${idx + 1}`
+      const groupStartTime = group.startTime || draft.startTime || ''
+      const groupEndTime = group.endTime || draft.endTime || ''
+      const groupArrivalTime = group.arrivalTime || draft.arrivalTime || ''
+      const groupMeetingPoint = group.meetingPoint || defaultMeetingPoint
+      const respId =
+        group.responsibleId ||
+        (idx === 0 ? draft.responsableId || '' : '')
+      let respName =
+        group.responsibleName ||
+        resolveNameById(respId) ||
+        (idx === 0 && typeof draft.responsableName === 'string'
+          ? draft.responsableName
+          : '')
+      if (respName && usedNames.has(norm(respName))) {
+        respName = ''
+      }
+
+      const respRowIndex = rows.length
+      rows.push({
+        id: respId || '',
+        name: respName || '',
+        role: 'responsable',
+        groupId,
+        startDate: draft.startDate,
+        startTime: groupStartTime,
+        endDate: draft.endDate || draft.startDate,
+        endTime: groupEndTime,
+        meetingPoint: groupMeetingPoint,
+        arrivalTime: groupArrivalTime,
+        plate: '',
+        vehicleType: '',
+      })
+
+      const driversNeeded = Number(group.drivers || 0)
+      const assignedDrivers: Array<{ name?: string }> = []
+      for (let i = 0; i < driversNeeded; i += 1) {
+        let driver = driversPool.shift()
+        while (driver?.name && usedNames.has(norm(driver.name))) {
+          driver = driversPool.shift()
+        }
+        assignedDrivers.push({ name: driver?.name })
+        rows.push({
+          id: driver?.id || '',
+          name: driver?.name || 'Extra',
+          role: 'conductor',
+          groupId,
+          startDate: draft.startDate,
+          startTime: groupStartTime,
+          endDate: draft.endDate || draft.startDate,
+          endTime: groupEndTime,
+          meetingPoint: groupMeetingPoint,
+          arrivalTime: groupArrivalTime,
+          plate: driver?.plate || '',
+          vehicleType: driver?.vehicleType || '',
+        })
+      }
+
+      const responsibleIsDriver = assignedDrivers.some(
+        (p) => p.name && norm(p.name) === norm(respName)
+      )
+      const workersNeeded = Math.max(
+        Number(group.workers || 0) -
+          driversNeeded -
+          (responsibleIsDriver ? 0 : 1),
+        0
+      )
+      const assignedWorkers: Array<{ name?: string }> = []
+      for (let i = 0; i < workersNeeded; i += 1) {
+        let worker = workersPool.shift()
+        while (worker?.name && usedNames.has(norm(worker.name))) {
+          worker = workersPool.shift()
+        }
+        assignedWorkers.push({ name: worker?.name })
+        rows.push({
+          id: worker?.id || '',
+          name: worker?.name || 'Extra',
+          role: 'treballador',
+          groupId,
+          startDate: draft.startDate,
+          startTime: groupStartTime,
+          endDate: draft.endDate || draft.startDate,
+          endTime: groupEndTime,
+          meetingPoint: groupMeetingPoint,
+          arrivalTime: groupArrivalTime,
+          plate: '',
+          vehicleType: '',
+        })
+      }
+
+      if (!rows[respRowIndex]?.name) {
+        const candidate =
+          assignedWorkers.find((p) => p.name && p.name !== 'Extra') ||
+          assignedDrivers.find((p) => p.name && p.name !== 'Extra')
+        if (candidate?.name) rows[respRowIndex].name = candidate.name
+      }
+
+      const groupNames = [
+        rows[respRowIndex]?.name,
+        ...assignedDrivers.map((p) => p.name),
+        ...assignedWorkers.map((p) => p.name),
+      ]
+        .filter((name) => typeof name === 'string' && name && name !== 'Extra')
+        .map((name) => norm(name as string))
+      groupNames.forEach((name) => usedNames.add(name))
+    })
+
+    return rows
+  }
+
   // --- Construcció inicial de files a partir del draft (incloent brigades)
-  const initialRows: Row[] = [
+  const initialRows: Row[] = hasCuinaGroups
+    ? buildCuinaRows()
+    : [
     ...(draft.responsableName
       ? [
           {
@@ -40,7 +174,8 @@ export default function DraftsTable({ draft }: { draft: DraftInput }) {
 startTime: draft.responsable?.startTime || draft.startTime,
 endDate:   draft.responsable?.endDate   || draft.endDate,
 endTime:   draft.responsable?.endTime   || draft.endTime,
-meetingPoint: draft.responsable?.meetingPoint || '',
+meetingPoint:
+              draft.responsable?.meetingPoint || defaultMeetingPoint,
 
             arrivalTime: draft.responsable?.arrivalTime || draft.arrivalTime || '',
             plate: draft.responsable?.plate || '',
@@ -52,11 +187,11 @@ meetingPoint: draft.responsable?.meetingPoint || '',
       id: c.id || '',
       name: c.name,
       role: 'conductor' as Role,
-startDate: c.startDate || draft.startDate,
+   startDate: c.startDate || draft.startDate,
 startTime: c.startTime || draft.startTime,
 endDate:   c.endDate   || draft.endDate,
 endTime:   c.endTime   || draft.endTime,
-meetingPoint: c.meetingPoint || '',
+      meetingPoint: c.meetingPoint || defaultMeetingPoint,
 
       arrivalTime: c.arrivalTime || draft.arrivalTime || '',
       plate: c.plate || '',
@@ -70,7 +205,7 @@ meetingPoint: c.meetingPoint || '',
 startTime: t.startTime || draft.startTime,
 endDate:   t.endDate   || draft.endDate,
 endTime:   t.endTime   || draft.endTime,
-meetingPoint: t.meetingPoint || '',
+      meetingPoint: t.meetingPoint || defaultMeetingPoint,
 
       arrivalTime: t.arrivalTime || draft.arrivalTime || '',
       plate: '',
@@ -179,10 +314,10 @@ endTime:   b.endTime   || draft.endTime,
   }
 
   // --- Callbacks (API routes)
-const handleSaveAll = async () => {
+const handleSaveAll = async (rowsOverride?: Row[]) => {
   try {
     // 1) Elimina files completament buides (sense nom i sense id)
-    const cleaned = rows.filter(
+    const cleaned = (rowsOverride ?? rows).filter(
       (r) => r.name?.trim() !== '' || r.id?.trim() !== ''
     )
 
@@ -299,6 +434,71 @@ const handleSaveAll = async () => {
     setEditIdx(null)
   }
 
+  const deleteRow = async (index: number) => {
+    const next = rows.filter((_, idx) => idx !== index)
+    setRows(next)
+    setEditIdx(null)
+    await handleSaveAll(next)
+  }
+
+  const showCuinaGroups = hasCuinaGroups
+
+  const renderRow = (r: Row, i: number) => (
+    <React.Fragment key={`${r.role}-${r.id || 'noid'}-${i}`}>
+      <DraftRow
+        row={r}
+        isLocked={isLocked}
+        onEdit={() => startEdit(i)}
+        onDelete={() => deleteRow(i)}
+      />
+      {editIdx === i && (
+        <RowEditor
+          row={r}
+          available={availableForEditor}
+          onPatch={patchRow}
+          onClose={endEdit}
+          onRevert={revertRow}
+          isLocked={isLocked}
+        />
+      )}
+    </React.Fragment>
+  )
+
+  const defaultGroup = hasCuinaGroups ? cuinaGroups[0] : undefined
+  const defaultGroupId = hasCuinaGroups ? 'group-1' : undefined
+  const defaultGroupStartTime = defaultGroup?.startTime || draft.startTime
+  const defaultGroupEndTime = defaultGroup?.endTime || draft.endTime
+  const defaultGroupArrivalTime = defaultGroup?.arrivalTime || draft.arrivalTime
+  const defaultGroupMeetingPoint = defaultGroup?.meetingPoint || draft.meetingPoint || ''
+
+  const addRowToGroup = (role: Role, groupId?: string) => {
+    const group = hasCuinaGroups
+      ? cuinaGroups[Number(groupId?.replace('group-', '')) - 1] || defaultGroup
+      : undefined
+    const groupStart = group?.startTime || defaultGroupStartTime || ''
+    const groupEnd = group?.endTime || defaultGroupEndTime || ''
+    const groupArrival = group?.arrivalTime || defaultGroupArrivalTime || ''
+    const groupMeeting = group?.meetingPoint || defaultGroupMeetingPoint
+
+    setRows([
+      ...rows,
+      {
+        id: '',
+        name: '',
+        role,
+        startDate: draft.startDate,
+        endDate: draft.endDate,
+        startTime: groupStart,
+        endTime: groupEnd,
+        meetingPoint: groupMeeting,
+        arrivalTime: groupArrival,
+        plate: '',
+        vehicleType: '',
+        groupId,
+      },
+    ])
+  }
+
   return (
   <div className="w-full rounded-2xl border bg-white shadow">
     {/* 💻 Vista escriptori */}
@@ -332,156 +532,200 @@ const handleSaveAll = async () => {
 
       {/* Files */}
       <div className="flex flex-col divide-y">
-        {rows.map((r, i) => (
-          <React.Fragment key={`${r.role}-${r.id || 'noid'}-${i}`}>
-            <DraftRow
-              row={r}
-              isLocked={isLocked}
-              onEdit={() => startEdit(i)}
-              onDelete={() => setRows((rs) => rs.filter((_, idx) => idx !== i))}
-            />
-            {editIdx === i && (
-              <RowEditor
-                row={r}
-                available={availableForEditor}
-                onPatch={patchRow}
-                onClose={endEdit}
-                onRevert={revertRow}
-                isLocked={isLocked}
-              />
-            )}
-          </React.Fragment>
-        ))}
+        {showCuinaGroups
+          ? cuinaGroups.map((group, gidx) => {
+              const groupId = `group-${gidx + 1}`
+              const groupStart = group.startTime || draft.startTime || '—'
+              const groupArrival = group.arrivalTime || draft.arrivalTime || '—'
+              const groupEnd = group.endTime || draft.endTime || '—'
+              const groupMeeting = group.meetingPoint || draft.meetingPoint || '—'
+              return (
+                <React.Fragment key={groupId}>
+                  <div
+                    className="grid border-b bg-slate-50 text-xs text-slate-600 px-2 py-2 items-center min-w-[750px]"
+                    style={{
+                      gridTemplateColumns:
+                        '32px 1fr 5.5rem 5.5rem minmax(10rem,1fr) minmax(10rem,1fr) auto',
+                    }}
+                  >
+                    <div className="col-span-full">
+                      Grup {gidx + 1} · Meeting point {groupMeeting} · Hora inici {groupStart} ·
+                      Hora arribada {groupArrival} · Hora fi {groupEnd}
+                    </div>
+                  </div>
+                  {rows.map((r, i) => (r.groupId === groupId ? renderRow(r, i) : null))}
+                  {!isLocked && (
+                    <div className="flex flex-wrap gap-2 justify-end sm:justify-start px-3 py-3 bg-slate-50 border-b">
+                      <button
+                        onClick={() => addRowToGroup('responsable', groupId)}
+                        className="rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700 hover:bg-blue-200"
+                      >
+                        + Responsable
+                      </button>
+                      <button
+                        onClick={() => addRowToGroup('conductor', groupId)}
+                        className="rounded-full bg-orange-100 px-3 py-1 text-xs font-medium text-orange-700 hover:bg-orange-200"
+                      >
+                        + Conductor
+                      </button>
+                      <button
+                        onClick={() => addRowToGroup('treballador', groupId)}
+                        className="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700 hover:bg-green-200"
+                      >
+                        + Treballador
+                      </button>
+                      <button
+                        onClick={() => addRowToGroup('brigada', groupId)}
+                        className="rounded-full bg-purple-100 px-3 py-1 text-xs font-medium text-purple-700 hover:bg-purple-200"
+                      >
+                        + Brigada
+                      </button>
+                    </div>
+                  )}
+                </React.Fragment>
+              )
+            })
+          : rows.map((r, i) => renderRow(r, i))}
       </div>
     </div>
 
     {/* 📱 Vista mòbil */}
     <div className="block sm:hidden divide-y">
-      {rows.map((r, i) => (
-        <div key={`${r.role}-${r.id || 'noid'}-${i}`} className="p-3 text-sm">
-          <div className="flex justify-between items-center">
-            <span className="font-semibold text-gray-800">{r.name || '—'}</span>
-            <span className="text-xs text-gray-500">{r.role}</span>
-          </div>
-          <div className="text-xs text-gray-600 mt-1 space-y-0.5">
-            <div>📅 {r.startDate}</div>
-            <div>🕒 {r.startTime || '—'}</div>
-            <div>📍 {r.meetingPoint || '—'}</div>
-            {r.vehicleType && <div>🚐 {r.vehicleType}</div>}
-          </div>
-          <div className="flex justify-end gap-2 mt-2">
-            <button
-              onClick={() => startEdit(i)}
-              className="px-2 py-1 rounded-md bg-blue-100 text-blue-700 text-xs"
-            >
-              Edita
-            </button>
-            <button
-              onClick={() => setRows((rs) => rs.filter((_, idx) => idx !== i))}
-              className="px-2 py-1 rounded-md bg-red-100 text-red-700 text-xs"
-            >
-              Elimina
-            </button>
-          </div>
-        </div>
-      ))}
+      {showCuinaGroups
+        ? cuinaGroups.map((group, gidx) => {
+            const groupId = `group-${gidx + 1}`
+            const groupStart = group.startTime || draft.startTime || '—'
+            const groupArrival = group.arrivalTime || draft.arrivalTime || '—'
+            const groupEnd = group.endTime || draft.endTime || '—'
+            const groupMeeting = group.meetingPoint || draft.meetingPoint || '—'
+            return (
+              <div key={groupId} className="divide-y">
+                <div className="px-3 py-2 text-xs text-slate-600 bg-slate-50">
+                  <div className="font-semibold text-slate-700">Grup {gidx + 1}</div>
+                  <div>Meeting point: {groupMeeting}</div>
+                  <div>Hora inici: {groupStart}</div>
+                  <div>Hora arribada: {groupArrival}</div>
+                  <div>Hora fi: {groupEnd}</div>
+                </div>
+                {rows.map((r, i) =>
+                  r.groupId === groupId ? (
+                    <div key={`${r.role}-${r.id || 'noid'}-${i}`} className="p-3 text-sm">
+                      <div className="flex justify-between items-center">
+                        <span className="font-semibold text-gray-800">{r.name || '—'}</span>
+                        <span className="text-xs text-gray-500">{r.role}</span>
+                      </div>
+                      <div className="text-xs text-gray-600 mt-1 space-y-0.5">
+                        <div>📅 {r.startDate}</div>
+                        <div>🕒 {r.startTime || '—'}</div>
+                        <div>📍 {r.meetingPoint || '—'}</div>
+                        {r.vehicleType && <div>🚐 {r.vehicleType}</div>}
+                      </div>
+                      <div className="flex justify-end gap-2 mt-2">
+                        <button
+                          onClick={() => startEdit(i)}
+                          className="px-2 py-1 rounded-md bg-blue-100 text-blue-700 text-xs"
+                        >
+                          Edita
+                        </button>
+                        <button
+                          onClick={() => deleteRow(i)}
+                          className="px-2 py-1 rounded-md bg-red-100 text-red-700 text-xs"
+                        >
+                          Elimina
+                        </button>
+                      </div>
+                    </div>
+                  ) : null
+                )}
+                {!isLocked && (
+                  <div className="flex flex-wrap gap-2 px-3 py-3 bg-slate-50">
+                    <button
+                      onClick={() => addRowToGroup('responsable', groupId)}
+                      className="rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700 hover:bg-blue-200"
+                    >
+                      + Responsable
+                    </button>
+                    <button
+                      onClick={() => addRowToGroup('conductor', groupId)}
+                      className="rounded-full bg-orange-100 px-3 py-1 text-xs font-medium text-orange-700 hover:bg-orange-200"
+                    >
+                      + Conductor
+                    </button>
+                    <button
+                      onClick={() => addRowToGroup('treballador', groupId)}
+                      className="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700 hover:bg-green-200"
+                    >
+                      + Treballador
+                    </button>
+                    <button
+                      onClick={() => addRowToGroup('brigada', groupId)}
+                      className="rounded-full bg-purple-100 px-3 py-1 text-xs font-medium text-purple-700 hover:bg-purple-200"
+                    >
+                      + Brigada
+                    </button>
+                  </div>
+                )}
+              </div>
+            )
+          })
+        : rows.map((r, i) => (
+            <div key={`${r.role}-${r.id || 'noid'}-${i}`} className="p-3 text-sm">
+              <div className="flex justify-between items-center">
+                <span className="font-semibold text-gray-800">{r.name || '—'}</span>
+                <span className="text-xs text-gray-500">{r.role}</span>
+              </div>
+              <div className="text-xs text-gray-600 mt-1 space-y-0.5">
+                <div>📅 {r.startDate}</div>
+                <div>🕒 {r.startTime || '—'}</div>
+                <div>📍 {r.meetingPoint || '—'}</div>
+                {r.vehicleType && <div>🚐 {r.vehicleType}</div>}
+              </div>
+              <div className="flex justify-end gap-2 mt-2">
+                <button
+                  onClick={() => startEdit(i)}
+                  className="px-2 py-1 rounded-md bg-blue-100 text-blue-700 text-xs"
+                >
+                  Edita
+                </button>
+                <button
+                  onClick={() => setRows((rs) => rs.filter((_, idx) => idx !== i))}
+                  className="px-2 py-1 rounded-md bg-red-100 text-red-700 text-xs"
+                >
+                  Elimina
+                </button>
+              </div>
+            </div>
+          ))}
     </div>
 
-    {/* 🔘 Botons comuns (tots els dispositius) */}
-    <div className="flex flex-wrap gap-2 justify-end sm:justify-start px-3 py-3 bg-gray-50 border-t">
-      <button
-        onClick={() =>
-          setRows([
-            ...rows,
-            {id: '',
-              name: '',
-              role: 'responsable',
-              startDate: draft.startDate,
-              endDate: draft.endDate,
-              startTime: draft.startTime,
-              endTime: draft.endTime,
-              meetingPoint: '',
-              arrivalTime: '',
-              plate: '',
-              vehicleType: '',
-            },
-          ])
-        }
-        className="rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700 hover:bg-blue-200"
-      >
-        + Responsable
-      </button>
-      <button
-        onClick={() =>
-          setRows([
-            ...rows,
-            {
-              id: '',
-              name: '',
-              role: 'conductor',
-              startDate: draft.startDate,
-              endDate: draft.endDate,
-              startTime: draft.startTime,
-              endTime: draft.endTime,
-              meetingPoint: '',
-              arrivalTime: '',
-              plate: '',
-              vehicleType: '',
-            },
-          ])
-        }
-        className="rounded-full bg-orange-100 px-3 py-1 text-xs font-medium text-orange-700 hover:bg-orange-200"
-      >
-        + Conductor
-      </button>
-      <button
-        onClick={() =>
-          setRows([
-            ...rows,
-            {
-              id: '',
-              name: '',
-              role: 'treballador',
-              startDate: draft.startDate,
-              endDate: draft.endDate,
-              startTime: draft.startTime,
-              endTime: draft.endTime,
-              meetingPoint: '',
-              arrivalTime: '',
-              plate: '',
-              vehicleType: '',
-            },
-          ])
-        }
-        className="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700 hover:bg-green-200"
-      >
-        + Treballador
-      </button>
-      <button
-        onClick={() =>
-          setRows([
-            ...rows,
-            {
-              id: '',
-              name: '',
-              role: 'brigada',
-              startDate: draft.startDate,
-              endDate: draft.endDate,
-              startTime: draft.startTime,
-              endTime: draft.endTime,
-              meetingPoint: draft.meetingPoint || '',
-              arrivalTime: draft.arrivalTime || '',
-              workers: 0,
-              plate: '',
-              vehicleType: '',
-            },
-          ])
-        }
-        className="rounded-full bg-purple-100 px-3 py-1 text-xs font-medium text-purple-700 hover:bg-purple-200"
-      >
-        + Brigada
-      </button>
-    </div>
+    {!showCuinaGroups && (
+      <div className="flex flex-wrap gap-2 justify-end sm:justify-start px-3 py-3 bg-gray-50 border-t">
+        <button
+          onClick={() => addRowToGroup('responsable', defaultGroupId)}
+          className="rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700 hover:bg-blue-200"
+        >
+          + Responsable
+        </button>
+        <button
+          onClick={() => addRowToGroup('conductor', defaultGroupId)}
+          className="rounded-full bg-orange-100 px-3 py-1 text-xs font-medium text-orange-700 hover:bg-orange-200"
+        >
+          + Conductor
+        </button>
+        <button
+          onClick={() => addRowToGroup('treballador', defaultGroupId)}
+          className="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700 hover:bg-green-200"
+        >
+          + Treballador
+        </button>
+        <button
+          onClick={() => addRowToGroup('brigada', defaultGroupId)}
+          className="rounded-full bg-purple-100 px-3 py-1 text-xs font-medium text-purple-700 hover:bg-purple-200"
+        >
+          + Brigada
+        </button>
+      </div>
+    )}
   </div>
 )
 

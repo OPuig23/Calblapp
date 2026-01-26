@@ -229,7 +229,7 @@ export async function POST(
       updatedAt: now,
       status: 'pending',
       name: p.name || '',
-      role: p.role || 'soldat',
+      role: p.role || 'equip',
       workerRank: p.workerRank || null,
       driver: p.driver || {
         isDriver: false,

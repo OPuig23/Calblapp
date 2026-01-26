@@ -56,6 +56,16 @@ interface FirestoreDraftDoc {
   confirmada?: boolean
   confirmed?: boolean
   meetingPoint?: string
+  groups?: Array<{
+    meetingPoint?: string
+    startTime?: string
+    arrivalTime?: string | null
+    endTime?: string
+    workers?: number
+    drivers?: number
+    responsibleId?: string | null
+    responsibleName?: string | null
+  }>
 
   // alias heretats de les col·leccions d’esdeveniments originals
   HoraInici?: string
@@ -112,6 +122,16 @@ type Draft = {
     startTime: string
     endTime: string
   }[]
+  groups?: Array<{
+    meetingPoint?: string
+    startTime?: string
+    arrivalTime?: string | null
+    endTime?: string
+    workers?: number
+    drivers?: number
+    responsibleId?: string | null
+    responsibleName?: string | null
+  }>
   updatedAt: string
   status: 'confirmed' | 'draft'
   confirmedAt?: string | null
@@ -294,6 +314,7 @@ async function fetchDeptDrafts(
       endDate,
       endTime,
       location,
+      meetingPoint: readMp(d) || '',
       arrivalTime: d.arrivalTime || '',
       totalWorkers: Number(d.totalWorkers || 0),
       numDrivers: Number(d.numDrivers || 0),
@@ -314,6 +335,18 @@ async function fetchDeptDrafts(
             endTime: b.endTime || '',
           }))
         : [],
+      groups: Array.isArray(d.groups)
+        ? d.groups.map((g) => ({
+            meetingPoint: g.meetingPoint || '',
+            startTime: g.startTime || '',
+            arrivalTime: g.arrivalTime ?? null,
+            endTime: g.endTime || '',
+            workers: Number(g.workers || 0),
+            drivers: Number(g.drivers || 0),
+            responsibleId: g.responsibleId || null,
+            responsibleName: g.responsibleName || null,
+          }))
+        : undefined,
       responsable: d.responsable
         ? mapPerson(d.responsable, d)
         : d.responsableId

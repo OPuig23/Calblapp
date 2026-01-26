@@ -178,7 +178,7 @@ export async function POST(req: NextRequest, ctx: { params: { id: string } }) {
       updatedAt: Date.now(),
       available: p?.available ?? true,
       isDriver: p?.isDriver ?? false,
-      workerRank: p?.workerRank ?? 'soldat',
+      workerRank: p?.workerRank ?? 'equip',
     }
 
     console.log('[approve] Creant usuari a Firestore.users:', userPayload)

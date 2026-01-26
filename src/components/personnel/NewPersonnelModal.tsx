@@ -15,14 +15,14 @@ import { checkNameExists, generateSuggestions } from '@/lib/validateName'
 
 // Opcions de rol permeses
 const ROLE_OPTIONS = [
-  { value: 'soldat', label: 'Soldat' },
+  { value: 'equip', label: 'Equip' },
   { value: 'responsable', label: 'Responsable' },
 ]
 
 // Normalització rol
 function normalizeRoleLocal(r?: string) {
   const v = (r || '').toLowerCase()
-  return v === 'responsable' ? 'responsable' : 'soldat'
+  return v === 'responsable' ? 'responsable' : 'equip'
 }
 
 // Slug senzill
@@ -77,7 +77,7 @@ export default function NewPersonnelModal({
   const [form, setForm] = useState<NewPerson>({
     id: '',
     name: '',
-    role: 'soldat',
+    role: 'equip',
     department: defaultDepartment,
     driver: { isDriver: false, camioGran: false, camioPetit: false },
     available: true,
@@ -100,7 +100,7 @@ export default function NewPersonnelModal({
       setForm({
         id: '',
         name: '',
-        role: 'soldat',
+        role: 'equip',
         department: defaultDepartment,
         driver: { isDriver: false, camioGran: false, camioPetit: false },
         available: true,

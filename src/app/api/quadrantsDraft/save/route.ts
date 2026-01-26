@@ -48,6 +48,7 @@ interface RowInput {
   role: Role
   id: string
   name: string
+  groupId?: string
   meetingPoint?: string
   startDate?: string
   startTime?: string
@@ -141,6 +142,7 @@ export async function POST(req: NextRequest) {
 
     const coll = await resolveDeptCollection(department)
     const ref = db.collection(coll).doc(eventId)
+    const isCuina = norm(department) === 'cuina'
 
     // 🧩 Separa per rols
     const responsables = rows.filter((r) => r.role === 'responsable')
@@ -178,6 +180,7 @@ export async function POST(req: NextRequest) {
     // 📌 Preservem createdAt si ja existia
     const snap = await ref.get()
     let createdAt = new Date()
+    const existing = snap.exists ? (snap.data() as any) : null
     if (snap.exists) {
       const old = snap.data() as any
       createdAt = old?.createdAt?.toDate
@@ -185,9 +188,71 @@ export async function POST(req: NextRequest) {
         : old?.createdAt || createdAt
     }
 
-    const updateData = {
+    const updateData: Record<string, unknown> = {
       ...dataBase,
       createdAt,
+    }
+
+    if (isCuina && Array.isArray(existing?.groups) && rows.some((r) => r.groupId)) {
+      const groups = existing.groups.map((g: any) => ({ ...g }))
+      const grouped = new Map<string, RowInput[]>()
+      rows.forEach((r) => {
+        if (!r.groupId) return
+        const list = grouped.get(r.groupId) || []
+        list.push(r)
+        grouped.set(r.groupId, list)
+      })
+
+      grouped.forEach((groupRows, groupId) => {
+        const match = /^group-(\d+)$/.exec(groupId)
+        if (!match) return
+        const idx = Number(match[1]) - 1
+        if (!Number.isFinite(idx) || idx < 0) return
+
+        const first = groupRows[0]
+        const byRole = (role: Role) => groupRows.filter((r) => r.role === role)
+        const responsables = byRole('responsable')
+        const conductorsGroup = byRole('conductor')
+        const treballadorsGroup = byRole('treballador')
+
+        const names = new Set<string>()
+        ;[...responsables, ...conductorsGroup, ...treballadorsGroup].forEach((r) => {
+          if (!r.name || r.name === 'Extra') return
+          names.add(r.name.toLowerCase().trim())
+        })
+
+        const workersTotal = names.size + (groupRows.some((r) => r.name === 'Extra') ? 1 : 0)
+        const driversTotal = conductorsGroup.length
+        const responsibleName = responsables[0]?.name || null
+        const responsibleId = responsables[0]?.id || null
+
+        const base = groups[idx] || {}
+        groups[idx] = {
+          ...base,
+          meetingPoint: base.meetingPoint || first?.meetingPoint || '',
+          startTime: base.startTime || first?.startTime || '',
+          arrivalTime: base.arrivalTime ?? first?.arrivalTime ?? null,
+          endTime: base.endTime || first?.endTime || '',
+          workers: workersTotal,
+          drivers: driversTotal,
+          responsibleName,
+          responsibleId,
+        }
+      })
+
+      const totalWorkers = groups.reduce((sum: number, g: any) => sum + Number(g.workers || 0), 0)
+      const totalDrivers = groups.reduce((sum: number, g: any) => sum + Number(g.drivers || 0), 0)
+      updateData.groups = groups
+      updateData.totalWorkers = totalWorkers
+      updateData.numDrivers = totalDrivers
+      updateData.responsableName = groups[0]?.responsibleName || ''
+      updateData.responsableId = groups[0]?.responsibleId || ''
+      updateData.responsable = groups[0]?.responsibleName
+        ? {
+            name: groups[0].responsibleName,
+            meetingPoint: groups[0].meetingPoint || '',
+          }
+        : null
     }
 
     // Upsert idempotent

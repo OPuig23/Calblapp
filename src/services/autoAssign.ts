@@ -62,10 +62,25 @@ interface Ledger {
 }
 
 const RESPONSABLE_ROLES = new Set(['responsable', 'cap departament', 'supervisor'])
-const SOLDAT_ROLES = new Set(['soldat', 'treballador', 'operari'])
+const EQUIP_ROLES = new Set([
+  'equip',
+  'tecnic', // fallback for other synonyms
+  'treballador',
+  'treballadora',
+  'operari',
+  'operaria',
+  'auxiliar',
+  'cuina',
+  'cocinera',
+  'chef',
+])
 
 const unaccent = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 const norm = (s?: string | null) => unaccent((s || '').toLowerCase().trim())
+const normRole = (s?: string | null) => {
+  const raw = norm(s)
+  return raw === 'soldat' ? 'equip' : raw
+}
 
 /**
  * Comparador per ordenar candidats segons càrrega de feina.
@@ -107,6 +122,7 @@ export async function autoAssign(payload: {
   const startISO = `${startDate}T${startTime}:00`
   const endISO = `${endDate}T${endTime}:00`
   const dept: string = norm(department)
+  const isCuina = dept === 'cuina'
 
 
   console.log('[autoAssign] ▶️ inici', {
@@ -147,45 +163,47 @@ const ledger = (await buildLedger(dept, ws, we, ms, me)) as any
     .map(dref => ({ id: dref.id, ...(dref.data() as Record<string, unknown>) }))
     .filter(p => norm((p as Personnel).department) === dept) as Personnel[]
 
-  // 5) Responsable
+  // 5) Responsable (a cuina el gestionem per grups)
   let forcedByPremise = false
   let chosenResp: Personnel | null = null
 
-  if (manualResponsibleId) {
-    chosenResp = all.find(p => p.id === manualResponsibleId) || null
-  }
-  if (!chosenResp && premises.conditions?.length && location) {
-    const hit = premises.conditions.find((c: PremiseCondition) =>
-      c.locations.some((loc: string) => norm(location).includes(norm(loc)))
-    )
-    if (hit) {
-      const candidate = all.find(p => norm(p.name) === norm(hit.responsible))
-      if (candidate) {
-        const elig = isEligibleByName(candidate.name, startISO, endISO, {
-          busyAssignments: ledger.busyAssignments,
-          restHours: premises.restHours,
-          allowMultipleEventsSameDay: !!premises.allowMultipleEventsSameDay
-        })
-        if (!elig.eligible) forcedByPremise = true
-        chosenResp = candidate
+  if (!isCuina) {
+    if (manualResponsibleId) {
+      chosenResp = all.find(p => p.id === manualResponsibleId) || null
+    }
+    if (!chosenResp && premises.conditions?.length && location) {
+      const hit = premises.conditions.find((c: PremiseCondition) =>
+        c.locations.some((loc: string) => norm(location).includes(norm(loc)))
+      )
+      if (hit) {
+        const candidate = all.find(p => norm(p.name) === norm(hit.responsible))
+        if (candidate) {
+          const elig = isEligibleByName(candidate.name, startISO, endISO, {
+            busyAssignments: ledger.busyAssignments,
+            restHours: premises.restHours,
+            allowMultipleEventsSameDay: !!premises.allowMultipleEventsSameDay
+          })
+          if (!elig.eligible) forcedByPremise = true
+          chosenResp = candidate
+        }
       }
     }
-  }
-  if (!chosenResp) {
-    const pool = all.filter(p => RESPONSABLE_ROLES.has(norm(p.role)) && (p.available !== false))
-    const ranked = pool.map(p => ({
-      p,
-      weekAssigns: ledger.assignmentsCountByUser.get(p.name) || 0,
-      weekHrs: ledger.weeklyHoursByUser.get(p.name) || 0,
-      monthHrs: ledger.monthlyHoursByUser.get(p.name) || 0,
-      lastAssignedAt: ledger.lastAssignedAtByUser.get(p.name) || null
-    })).sort(tieBreakOrder)
-    chosenResp = ranked[0]?.p || null
+    if (!chosenResp) {
+      const pool = all.filter(p => RESPONSABLE_ROLES.has(normRole(p.role)) && (p.available !== false))
+      const ranked = pool.map(p => ({
+        p,
+        weekAssigns: ledger.assignmentsCountByUser.get(p.name) || 0,
+        weekHrs: ledger.weeklyHoursByUser.get(p.name) || 0,
+        monthHrs: ledger.monthlyHoursByUser.get(p.name) || 0,
+        lastAssignedAt: ledger.lastAssignedAtByUser.get(p.name) || null
+      })).sort(tieBreakOrder)
+      chosenResp = ranked[0]?.p || null
+    }
   }
 
   const notes: string[] = [...(warnings || [])]
   const violations: string[] = []
-  if (!chosenResp && premises.requireResponsible) {
+  if (!isCuina && !chosenResp && premises.requireResponsible) {
     violations.push('responsible_missing')
   }
   if (forcedByPremise) {
@@ -211,19 +229,42 @@ const baseCtx = {
     lastAssignedAt: ledger.lastAssignedAtByUser.get(p.name) || null
   })
 
+  const respNorm = chosenResp ? norm(chosenResp.name) : null
   const driverPool = all
-    .filter(p => p.isDriver && (p.available !== false) && !exclude.has(norm(p.name)))
+    .filter(
+      (p) =>
+        p.isDriver &&
+        p.available !== false &&
+        (respNorm && norm(p.name) === respNorm
+          ? true
+          : !exclude.has(norm(p.name)))
+    )
     .filter(p => isEligibleByName(p.name, startISO, endISO, baseCtx).eligible)
     .map(rank)
     .sort(tieBreakOrder)
 
-  const staffPool = all
-    .filter(p => SOLDAT_ROLES.has(norm(p.role)) && (p.available !== false) && !exclude.has(norm(p.name)))
-    .filter(p => isEligibleByName(p.name, startISO, endISO, baseCtx).eligible)
+  const workerCandidates = all
+    .filter((p) => p.available !== false && !p.isDriver && !exclude.has(norm(p.name)))
     .map(rank)
+    .filter((candidate) =>
+      isEligibleByName(candidate.p.name, startISO, endISO, baseCtx).eligible
+    )
     .sort(tieBreakOrder)
+
+  const isEquipRole = (candidate: RankedPersonnel) =>
+    EQUIP_ROLES.has(normRole(candidate.p.role))
+
+  const staffPool = [
+    ...workerCandidates.filter(isEquipRole),
+    ...workerCandidates.filter((candidate) => !isEquipRole(candidate)),
+  ]
 
   // 6.1) Assignació de conductors + vehicles
+  const driverRequests =
+    vehicles.length === 0 && Number(numDrivers || 0) > 0
+      ? Array.from({ length: Number(numDrivers || 0) }, () => ({}))
+      : vehicles
+
   const drivers = await assignVehiclesAndDrivers({
 
     dept,
@@ -232,16 +273,26 @@ const baseCtx = {
     endISO,
     baseCtx,
     driverPool,
-    vehiclesRequested: vehicles,
+    vehiclesRequested: driverRequests,
   })
 
   // 6.2) Càlcul de treballadors reals
-  const driversForCalc = drivers.filter(d => d.name !== 'Extra').map(d => ({ name: d.name }))
+  const driversForCalc = drivers.filter((d) => d.name !== 'Extra').map((d) => ({
+    name: d.name,
+  }))
+  const totalRequestedWorkers = Number(totalWorkers) || 0
   const neededWorkers = calculatePersonalNeeded({
     staffCount: Number(totalWorkers) || 0,
     drivers: driversForCalc,
-    responsableName: chosenResp?.name || null
+    responsableName: chosenResp?.name || null,
+    requestedDrivers: Number.isFinite(numDrivers) ? numDrivers : 0
   })
+
+  const uniqueAssignedNames = new Set<string>()
+  if (chosenResp?.name) uniqueAssignedNames.add(chosenResp.name)
+  driversForCalc.forEach((d) => uniqueAssignedNames.add(d.name))
+  const missingToReachTotal = Math.max(totalRequestedWorkers - uniqueAssignedNames.size, 0)
+  const finalNeededWorkers = Math.max(neededWorkers, missingToReachTotal)
 
   // 6.3) Selecció de treballadors
   const staff: Array<{ name: string; meetingPoint: string }> = []
@@ -254,7 +305,7 @@ const baseCtx = {
     staff.push({ name: cand.p.name, meetingPoint })
     taken.add(nm)
   }
-  while (staff.length < neededWorkers) {
+  while (staff.length < finalNeededWorkers) {
     staff.push({ name: 'Extra', meetingPoint })
   }
 

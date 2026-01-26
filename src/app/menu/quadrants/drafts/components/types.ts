@@ -6,6 +6,7 @@ export type Row = {
   role: Role
   id: string
   name: string
+  groupId?: string
   startDate: string
   startTime: string
   endDate: string
@@ -29,6 +30,17 @@ export type DraftInput = {
   endDate: string
   endTime: string
   arrivalTime?: string
+  meetingPoint?: string
+  groups?: Array<{
+    meetingPoint?: string
+    startTime?: string
+    arrivalTime?: string | null
+    endTime?: string
+    workers?: number
+    drivers?: number
+    responsibleId?: string | null
+    responsibleName?: string | null
+  }>
   responsablesNeeded?: number
   numDrivers?: number
   totalWorkers?: number

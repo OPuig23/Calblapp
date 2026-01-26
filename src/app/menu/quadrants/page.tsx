@@ -2,7 +2,7 @@
 'use client'
 
 import React, { useState, useMemo, useEffect } from 'react'
-import { startOfWeek, endOfWeek, format } from 'date-fns'
+import { startOfWeek, endOfWeek, format, parseISO } from 'date-fns'
 import { useSession } from 'next-auth/react'
 import * as XLSX from 'xlsx'
 import { MoreVertical } from 'lucide-react'
@@ -578,7 +578,7 @@ const eventsWithStatus = useMemo<UnifiedEvent[]>(() => {
                   {/* Subcapçalera per dia */}
                   <tr className="bg-indigo-50 text-indigo-800">
                     <td colSpan={9} className="px-3 py-2 font-semibold">
-                      {day}
+                      {format(parseISO(day), 'dd-MM-yyyy')}
                     </td>
                   </tr>
 
@@ -603,7 +603,11 @@ const eventsWithStatus = useMemo<UnifiedEvent[]>(() => {
                           onClick={() => {
                             if (ev.quadrantStatus === 'pending') {
                               // No existeix quadrant → AUTOGENERAR
-                              setSelected(ev)
+                              setSelected({
+                                ...ev,
+                                startTime: ev.displayStartTime || ev.startTime,
+                                endTime: ev.displayEndTime || ev.endTime,
+                              })
                             } else if (draft && draft.id) {
                               // Ja existeix draft → OBRIR / TANCAR EDICIÓ INLINE
                               setExpandedId((prev) =>

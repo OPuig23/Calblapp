@@ -2,7 +2,7 @@
   {
     "id": "29320a52-a775-4340-bd7f-6c14e5332902",
     "name": "29320a52-a775-4340-bd7f-6c14e5332902",
-    "role": "Soldat",
+    "role": "Equip",
     "department": "Sala",
     "available": true,
     "email": "dfdf@ji.es",
@@ -21,7 +21,7 @@
   {
     "id": "Carata",
     "name": "Carata 2",
-    "role": "Soldat",
+    "role": "Equip",
     "department": "Logistica",
     "available": true,
     "email": "jose@calblay.com",
@@ -43,7 +43,7 @@
   {
     "id": "088710f3-2dd8-4983-bd4b-c4c4283cd005",
     "name": "Xavi F",
-    "role": "Soldat",
+    "role": "Equip",
     "department": "logistica",
     "available": true,
     "email": "xav@m.es",

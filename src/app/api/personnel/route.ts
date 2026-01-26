@@ -366,7 +366,7 @@ export async function POST(request: Request) {
     const now = Date.now()
     const payload = {
       ...body,
-      role: body.role || 'soldat',
+      role: body.role || 'equip',
       departmentLower: (body.department || '').toLowerCase(),
       createdAt: now,
     }

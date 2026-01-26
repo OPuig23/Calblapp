@@ -38,7 +38,7 @@ const RESPONSABLE_ROLES = new Set([
   'capdepartament',
   'supervisor',
 ])
-const TREBALLADOR_ROLES = new Set(['soldat', 'treballador', 'operari'])
+const TREBALLADOR_ROLES = new Set(['equip', 'treballador', 'operari'])
 
 const unaccent = (s: string) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '')
 const norm = (v?: string | null) => unaccent(String(v ?? '').trim().toLowerCase())
@@ -137,7 +137,7 @@ try {
     console.log('[available] Personnel found', deptPersonnel.length)
 
     const responsables: AvailEntry[] = []
-    const soldats: AvailEntry[] = []
+    const workers: AvailEntry[] = []
     const conductors: AvailEntry[] = []
 
     for (const doc of deptPersonnel) {
@@ -179,10 +179,10 @@ try {
       }
 
       if (RESPONSABLE_ROLES.has(roleNorm)) {
-        responsables.push(entry); soldats.push(entry)
+        responsables.push(entry); workers.push(entry)
       }
       if (TREBALLADOR_ROLES.has(roleNorm)) {
-        soldats.push(entry)
+        workers.push(entry)
       }
       const isDriver =
         data.isDriver === true ||
@@ -203,7 +203,7 @@ try {
       a.status === b.status ? a.name.localeCompare(b.name) :
       a.status === 'available' ? -1 : 1
     )
-    const treballadors = uniqueById(soldats).sort((a, b) =>
+    const treballadors = uniqueById(workers).sort((a, b) =>
       a.status === b.status ? a.name.localeCompare(b.name) :
       a.status === 'available' ? -1 : 1
     )

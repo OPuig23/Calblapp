@@ -26,7 +26,9 @@ export default function PissarraPage() {
 
   const role = normalizeRole(session?.user?.role || 'treballador')
   const dept = (session?.user?.department || '').toLowerCase()
-  const [mode, setMode] = useState<'produccio' | 'logistica'>('produccio')
+  const defaultMode: 'produccio' | 'logistica' | 'cuina' =
+    dept === 'cuina' ? 'cuina' : dept === 'logistica' ? 'logistica' : 'produccio'
+  const [mode, setMode] = useState<'produccio' | 'logistica' | 'cuina'>(defaultMode)
   const [lnFilter, setLnFilter] = useState<string>('__all__')
   const [commercialFilter, setCommercialFilter] = useState<string>('__all__')
 
@@ -100,21 +102,43 @@ export default function PissarraPage() {
 
   const exportRows = useMemo(
     () =>
-      filteredFlat.map((ev) => ({
-        Data: ev.startDate || '',
-        Hora: ev.startTime || '',
-        Arribada: ev.arrivalTime || '',
-        Esdeveniment: ev.eventName || '',
-        Ubicacio: ev.location || '',
-        LN: ev.LN || '',
-        Servei: ev.servei || '',
-        Comercial: ev.comercial || '',
-        Responsable: ev.responsableName || '',
-        Pax: ev.pax ?? '',
-        Vehicles: formatVehicles(ev.vehicles),
-        Treballadors: formatWorkers(ev.workers),
-      })),
-    [filteredFlat]
+      filteredFlat.map((ev) => {
+        if (mode === 'cuina') {
+          return {
+            Data: ev.startDate || '',
+            Hora: ev.startTime || '',
+            Esdeveniment: ev.eventName || '',
+            Ubicacio: ev.location || '',
+            Servei: ev.servei || '',
+            Pax: ev.pax ?? '',
+            'G1 Responsable': ev.group1Responsible || '',
+            'G1 Conductors': (ev.group1Drivers || []).join(', '),
+            'G1 Treballadors': (ev.group1Workers || []).join(', '),
+            'G1 Meeting point': ev.group1MeetingPoint || '',
+            'G1 Hora inici': ev.group1StartTime || '',
+            'G2 Responsable': ev.group2Responsible || '',
+            'G2 Conductors': (ev.group2Drivers || []).join(', '),
+            'G2 Treballadors': (ev.group2Workers || []).join(', '),
+            'G2 Meeting point': ev.group2MeetingPoint || '',
+            'G2 Hora inici': ev.group2StartTime || '',
+          }
+        }
+        return {
+          Data: ev.startDate || '',
+          Hora: ev.startTime || '',
+          Arribada: ev.arrivalTime || '',
+          Esdeveniment: ev.eventName || '',
+          Ubicacio: ev.location || '',
+          LN: ev.LN || '',
+          Servei: ev.servei || '',
+          Comercial: ev.comercial || '',
+          Responsable: ev.responsableName || '',
+          Pax: ev.pax ?? '',
+          Vehicles: formatVehicles(ev.vehicles),
+          Treballadors: formatWorkers(ev.workers),
+        }
+      }),
+    [filteredFlat, mode]
   )
 
   const handleExportExcel = () => {
@@ -150,6 +174,25 @@ export default function PissarraPage() {
             'Vehicles',
             'Treballadors',
           ]
+        : mode === 'cuina'
+        ? [
+            'Data',
+            'Hora',
+            'Esdeveniment',
+            'Ubicacio',
+            'Servei',
+            'Pax',
+            'G1 Responsable',
+            'G1 Conductors',
+            'G1 Treballadors',
+            'G1 Meeting point',
+            'G1 Hora inici',
+            'G2 Responsable',
+            'G2 Conductors',
+            'G2 Treballadors',
+            'G2 Meeting point',
+            'G2 Hora inici',
+          ]
         : [
             'Data',
             'Hora',
@@ -165,20 +208,40 @@ export default function PissarraPage() {
     const header = cols.map((c) => `<th>${escapeHtml(c)}</th>`).join('')
     const body = rows
       .map((ev) => {
-        const base = {
-          Data: ev.startDate || '',
-          Hora: ev.startTime || '',
-          Arribada: ev.arrivalTime || '',
-          Esdeveniment: ev.eventName || '',
-          Ubicacio: ev.location || '',
-          LN: ev.LN || '',
-          Servei: ev.servei || '',
-          Comercial: ev.comercial || '',
-          Responsable: ev.responsableName || '',
-          Pax: ev.pax ?? '',
-          Vehicles: formatVehicles(ev.vehicles),
-          Treballadors: formatWorkers(ev.workers),
-        }
+        const base =
+          mode === 'cuina'
+            ? {
+                Data: ev.startDate || '',
+                Hora: ev.startTime || '',
+                Esdeveniment: ev.eventName || '',
+                Ubicacio: ev.location || '',
+                Servei: ev.servei || '',
+                Pax: ev.pax ?? '',
+                'G1 Responsable': ev.group1Responsible || '',
+                'G1 Conductors': (ev.group1Drivers || []).join(', '),
+                'G1 Treballadors': (ev.group1Workers || []).join(', '),
+                'G1 Meeting point': ev.group1MeetingPoint || '',
+                'G1 Hora inici': ev.group1StartTime || '',
+                'G2 Responsable': ev.group2Responsible || '',
+                'G2 Conductors': (ev.group2Drivers || []).join(', '),
+                'G2 Treballadors': (ev.group2Workers || []).join(', '),
+                'G2 Meeting point': ev.group2MeetingPoint || '',
+                'G2 Hora inici': ev.group2StartTime || '',
+              }
+            : {
+                Data: ev.startDate || '',
+                Hora: ev.startTime || '',
+                Arribada: ev.arrivalTime || '',
+                Esdeveniment: ev.eventName || '',
+                Ubicacio: ev.location || '',
+                LN: ev.LN || '',
+                Servei: ev.servei || '',
+                Comercial: ev.comercial || '',
+                Responsable: ev.responsableName || '',
+                Pax: ev.pax ?? '',
+                Vehicles: formatVehicles(ev.vehicles),
+                Treballadors: formatWorkers(ev.workers),
+              }
         const cells = cols
           .map((key) => `<td>${escapeHtml(String((base as any)[key] ?? ''))}</td>`)
           .join('')
@@ -390,6 +453,13 @@ export default function PissarraPage() {
                 onClick={() => setMode('logistica')}
               >
                 Pissarra Logistica
+              </Button>
+              <Button
+                size="sm"
+                variant={mode === 'cuina' ? 'default' : 'outline'}
+                onClick={() => setMode('cuina')}
+              >
+                Pissarra Cuina
               </Button>
             </div>
           </div>

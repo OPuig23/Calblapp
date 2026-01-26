@@ -18,13 +18,13 @@ import { checkNameExists, generateSuggestions } from '@/lib/validateName'
 
 // Opcions de rol
 const ROLE_OPTIONS = [
-  { value: 'soldat', label: 'Soldat' },
+  { value: 'equip', label: 'Equip' },
   { value: 'responsable', label: 'Responsable' },
 ]
 
 function normalizeRoleLocal(r?: string) {
   const v = (r || '').toLowerCase()
-  return v === 'responsable' ? 'responsable' : 'soldat'
+  return v === 'responsable' ? 'responsable' : 'equip'
 }
 
 interface EditPersonnelModalProps {
