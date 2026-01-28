@@ -57,6 +57,7 @@ type ApiTorn = {
   workerId?: string
   workerName?: string
   workerRole?: 'responsable' | 'conductor' | 'treballador' | null
+  workerPlate?: string
   startTime?: string
   endTime?: string
   __rawWorkers?: NormalizedWorker[]
@@ -66,6 +67,7 @@ type WorkerExpanded = Torn & {
   workerId?: string
   workerName?: string
   workerRole?: string | null
+  workerPlate?: string
   startTime?: string
   endTime?: string
 }
@@ -211,6 +213,7 @@ export async function GET(req: NextRequest) {
             workerId: w.id || w.key,
             workerName: w.name,
             workerRole: w.role,
+            workerPlate: w.plate,
             startTime: w.startTime,
             endTime: w.endTime,
             meetingPoint: w.meetingPoint || t.meetingPoint,
@@ -270,6 +273,7 @@ export async function GET(req: NextRequest) {
       workerId: (t as any).workerId,
       workerName: (t as any).workerName,
       workerRole: (t as any).workerRole as any,
+      workerPlate: (t as any).workerPlate,
       startTime: (t as any).startTime,
       endTime: (t as any).endTime,
       __rawWorkers: t.__rawWorkers as NormalizedWorker[] | undefined,

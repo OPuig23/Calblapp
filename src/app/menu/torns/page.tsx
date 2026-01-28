@@ -30,12 +30,14 @@ type ApiTorn = {
   department?: string
   workerRole?: 'responsable' | 'conductor' | 'treballador' | null
   workerName?: string
+  workerPlate?: string
   __rawWorkers?: (ApiWorker & {
     role?: 'responsable' | 'conductor' | 'treballador'
     startTime?: string
     endTime?: string
     meetingPoint?: string
     department?: string
+    plate?: string
   })[]
 }
 

@@ -16,6 +16,7 @@ export interface Worker {
   endTime?: string
   meetingPoint?: string
   department?: string
+  plate?: string
 }
 export interface TornDetailModalProps {
   open: boolean
@@ -118,6 +119,10 @@ const grouped = groupByDepartment(workers)
                     const icon = roleIcon(w.role)
                     const displayTime = timeRange(w.startTime, w.endTime)
                     const displayPoint = (w.meetingPoint || '').trim()
+                    const plate =
+                      w.role?.toLowerCase() === 'conductor'
+                        ? (w.plate || '').trim()
+                        : ''
                     return (
                       <li
                         key={w.id || `${i}-${w.name || 'unknown'}`}
@@ -128,6 +133,11 @@ const grouped = groupByDepartment(workers)
                           <span className="font-medium truncate">
                             {w.name || '—'}
                           </span>
+                          {plate && (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                              {plate}
+                            </span>
+                          )}
                         </div>
                         <div className="text-gray-600 min-w-[80px] text-center">
                           {displayTime || '—'}
@@ -147,3 +157,4 @@ const grouped = groupByDepartment(workers)
     </Dialog>
   )
 }
+

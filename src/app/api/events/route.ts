@@ -29,6 +29,7 @@ type BuiltEvent = {
   name: string
   eventCode: string
   commercial: string
+  servei?: string
   horaInici?: string
   isResponsible: boolean
 }
@@ -95,8 +96,9 @@ export async function GET(request: Request) {
     const end = d.DataFi || start
     const location = d.Ubicacio || ''
     const pax = Number(d.NumPax) || 0
-    const eventCode = d.C_digo || ''
+    const eventCode = d.code || d.C_digo || ''
     const commercial = d.Comercial || ''
+    const servei = d.Servei || d.Servicio || ''
     const summary = d.NomEvent || ''
     const name = d.NomEvent || ''
     const rawHora =
@@ -125,6 +127,7 @@ export async function GET(request: Request) {
       name,
       eventCode,
       commercial,
+      servei,
       horaInici,
       isResponsible: false,
     })

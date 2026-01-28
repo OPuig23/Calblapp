@@ -12,6 +12,7 @@ export interface Person {
   department?: string
   meetingPoint?: string
   time?: string
+  plate?: string
   endTime?: string
   endTimeReal?: string
   notes?: string

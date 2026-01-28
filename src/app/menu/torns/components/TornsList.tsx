@@ -43,6 +43,7 @@ function mergeGroup(arr: TornCardItem[]): TornCardItem {
     endTime?: string
     meetingPoint?: string
     department?: string
+    plate?: string
   }
 
   const byKey = new Map<string, MergeWorker>()
@@ -61,6 +62,7 @@ function mergeGroup(arr: TornCardItem[]): TornCardItem {
       endTime: w.endTime,
       meetingPoint: w.meetingPoint,
       department: w.department,
+      plate: w.plate,
     }
 
     const existing = byKey.get(key)
@@ -68,8 +70,12 @@ function mergeGroup(arr: TornCardItem[]): TornCardItem {
       byKey.set(key, nw)
     } else {
       const priority = { responsable: 3, conductor: 2, treballador: 1 }
-      if (priority[nw.role] > priority[existing.role]) {
-        byKey.set(key, nw)
+      const takeNewRole = priority[nw.role] > priority[existing.role]
+      const keepPlate = existing.plate || nw.plate
+      if (takeNewRole) {
+        byKey.set(key, { ...nw, plate: keepPlate })
+      } else if (!existing.plate && nw.plate) {
+        byKey.set(key, { ...existing, plate: nw.plate })
       }
     }
   }

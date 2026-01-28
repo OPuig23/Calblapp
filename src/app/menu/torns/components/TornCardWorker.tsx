@@ -106,6 +106,16 @@ export default function TornCardWorker({ item, onClick, onEventClick, onAvisosCl
   const ln = detectLN(item.code)
   const eventClean = cleanEventName(item.eventName)
   const placeShort = shortLocation(item.location)
+  const plate =
+    item.workerRole === 'conductor'
+      ? (
+          item.workerPlate ||
+          item.__rawWorkers?.find(
+            (w) => w.name === item.workerName && w.role === 'conductor'
+          )?.plate ||
+          ''
+        ).trim()
+      : ''
 
   const mapsUrl =
     item.mapsUrl ||
@@ -140,6 +150,11 @@ export default function TornCardWorker({ item, onClick, onEventClick, onAvisosCl
       {/* Nom treballador + Hora + Meeting point */}
       <div className="text-base font-semibold text-gray-900 mb-2 flex flex-wrap items-center gap-2">
         <span className="text-lg font-bold text-gray-800">{item.workerName}</span>
+        {plate && (
+          <span className="text-[11px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+            {plate}
+          </span>
+        )}
         {item.startTime && item.endTime && (
           <span className="text-lg text-gray-900">
             {item.startTime} - {item.endTime}

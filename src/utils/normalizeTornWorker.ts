@@ -11,6 +11,7 @@ export interface NormalizedWorker {
   endTime: string
   meetingPoint: string
   department: string
+  plate?: string
 }
 
 const norm = (s?: string | null): string =>
@@ -64,6 +65,13 @@ export function normalizeTornWorker(w: any): NormalizedWorker {
 
   const meetingPoint = String(w?.meetingPoint || '').trim()
   const dept = norm(w?.department || '')
+  const plateRaw =
+    w?.plate ??
+    w?.matricula ??
+    w?.vehiclePlate ??
+    w?.vehicle?.plate ??
+    ''
+  const plate = String(plateRaw || '').trim()
 
   const key = id ? String(id) : norm(name)
 
@@ -76,5 +84,6 @@ export function normalizeTornWorker(w: any): NormalizedWorker {
     endTime,
     meetingPoint,
     department: dept || 'sense departament',
+    plate: plate || undefined,
   }
 }

@@ -38,6 +38,10 @@ export interface RawWorker {
   endTime?: string
   meetingPoint?: string
   department?: string
+  plate?: string
+  matricula?: string
+  vehiclePlate?: string
+  vehicleType?: string
 }
 
 // ───────────────── Helpers bàsics ─────────────────

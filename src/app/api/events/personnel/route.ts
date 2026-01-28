@@ -43,6 +43,9 @@ type QRow = {
     sortidaNotes?: string
     noShow?: boolean
     leftEarly?: boolean
+    plate?: string
+    matricula?: string
+    vehiclePlate?: string
   }>
   treballadors?: Array<{
     name?: string
@@ -194,6 +197,9 @@ export async function GET(req: NextRequest) {
               sortidaNotes?: string
               noShow?: boolean
               leftEarly?: boolean
+              plate?: string
+              matricula?: string
+              vehiclePlate?: string
             }>
           | undefined,
         role: string
@@ -202,6 +208,10 @@ export async function GET(req: NextRequest) {
         for (const p of arr) {
           const name = (p?.name || '').trim()
           if (!name) continue
+          const plate =
+            role === 'conductor'
+              ? (p as any)?.plate || (p as any)?.matricula || (p as any)?.vehiclePlate || ''
+              : ''
           people.push({
             name,
             role,
@@ -213,6 +223,7 @@ export async function GET(req: NextRequest) {
             notes: p.sortidaNotes || '',
             noShow: !!p.noShow,
             leftEarly: !!p.leftEarly,
+            ...(plate ? { plate: String(plate) } : {}),
           })
         }
       }

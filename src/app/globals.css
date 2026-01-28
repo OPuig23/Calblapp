@@ -140,3 +140,85 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+@layer components {
+  .cmd-app {
+    --cmd-surface: #f6f8fc;
+    --cmd-panel: #ffffff;
+    --cmd-border: #d9e3f2;
+    --cmd-text: #1e2a44;
+    --cmd-muted: #6e7b91;
+    --cmd-service: #e8f1ff;
+    --cmd-template: #eaf6ef;
+    --cmd-concept: #fff3d9;
+    --cmd-accent: #94b7ff;
+    --cmd-shadow: 0 8px 20px rgba(15, 35, 75, 0.08);
+  }
+
+  .cmd-panel {
+    background: var(--cmd-panel);
+    border-color: var(--cmd-border);
+    box-shadow: var(--cmd-shadow);
+  }
+
+  .cmd-tile {
+    border: 1px solid var(--cmd-border);
+    background: #fff;
+    color: var(--cmd-text);
+    transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease,
+      background 120ms ease, color 120ms ease;
+  }
+
+  .cmd-tile:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 14px rgba(21, 41, 86, 0.08);
+  }
+
+  .cmd-service-active {
+    background: var(--cmd-service);
+    border-color: #8fb2ff;
+    color: #203d6b;
+    box-shadow: 0 8px 16px rgba(95, 140, 220, 0.18);
+  }
+
+  .cmd-template-active {
+    background: var(--cmd-template);
+    border-color: #7ec79a;
+    color: #1f5c3a;
+  }
+
+  .cmd-concept-active {
+    background: var(--cmd-concept);
+    border-color: #f2c26b;
+    color: #6a4a00;
+  }
+
+  .cmd-article-disabled {
+    color: #9aa7ba;
+    background: #ffffff;
+    border-color: var(--cmd-border);
+    cursor: not-allowed;
+  }
+
+  .cmd-group {
+    border: 1px solid transparent;
+    border-radius: 10px;
+    padding: 6px 10px;
+    transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+  }
+
+  .cmd-group:hover {
+    background: #f1f5fb;
+  }
+
+  .cmd-group-active {
+    background: var(--cmd-template);
+    border-color: #7ec79a;
+    color: #1f5c3a;
+  }
+
+  .cmd-line {
+    border-color: #cfd9e8;
+    background: #fbfcff;
+  }
+}

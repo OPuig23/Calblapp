@@ -219,6 +219,7 @@ const conductorsPersons =
     department: c.department,
     meetingPoint: c.meetingPoint,
     time: c.time,
+    plate: c.plate,
   })) ?? []
 
 const treballadorsPersons =

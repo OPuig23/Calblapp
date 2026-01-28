@@ -12,6 +12,7 @@ type WorkerLite = {
   endTime?: string
   meetingPoint?: string
   department?: string
+  plate?: string
 }
 
 export type TornCardItem = {
@@ -27,6 +28,7 @@ export type TornCardItem = {
   department?: string
   workerRole?: 'responsable' | 'conductor' | 'treballador' | null
   workerName?: string
+  workerPlate?: string
   __rawWorkers?: WorkerLite[]
   startTime?: string
   endTime?: string

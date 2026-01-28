@@ -18,6 +18,7 @@ interface Person {
   department?: string
   meetingPoint?: string
   time?: string
+  plate?: string
 }
 
 interface EventPersonnelModalProps {
@@ -166,6 +167,11 @@ export default function EventPersonnelModal({
                         <span className="font-medium truncate">
                           {w.name || '—'}
                         </span>
+                        {w.role === 'conductor' && w.plate && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
+                            {w.plate}
+                          </span>
+                        )}
                       </div>
 
                       {/* Centre */}
@@ -201,3 +207,4 @@ export default function EventPersonnelModal({
     </Dialog>
   )
 }
+

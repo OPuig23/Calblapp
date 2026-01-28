@@ -17,6 +17,7 @@ import {
   FileEdit,
   User,
   Leaf,
+  ClipboardList,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useUnreadCountsByType } from '@/hooks/notifications'
@@ -53,6 +54,11 @@ const UI_MAP: Record<
     icon: FileEdit,
     color: 'from-rose-100 to-pink-50',
     iconColor: 'text-rose-600',
+  },
+  '/menu/comercial': {
+    icon: ClipboardList,
+    color: 'from-blue-100 to-sky-50',
+    iconColor: 'text-sky-600',
   },
   '/menu/calendar': {
     icon: CalendarDays,
