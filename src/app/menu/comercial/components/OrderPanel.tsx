@@ -36,6 +36,7 @@ interface Props {
   updateLineQty: (lineId: string, qty: number) => void
   removeLine: (lineId: string) => void
   showAllGroupsLabel: string
+  serviceMeta: Record<string, { time?: string; location?: string }>
 }
 
 export default function OrderPanel({
@@ -61,6 +62,7 @@ export default function OrderPanel({
   updateLineQty,
   removeLine,
   showAllGroupsLabel,
+  serviceMeta,
 }: Props) {
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({})
 
@@ -158,14 +160,6 @@ export default function OrderPanel({
         </div>
       </div>
 
-      {actionLog.length > 0 && (
-        <div className="mb-3 text-[11px] text-slate-500 space-y-1">
-          {actionLog.map((item, idx) => (
-            <div key={`${item}-${idx}`}>{item}</div>
-          ))}
-        </div>
-      )}
-
       <div className="mb-3">
         <input
           type="text"
@@ -181,30 +175,68 @@ export default function OrderPanel({
           <p className="text-sm text-gray-500">Encara no hi ha plats.</p>
         ) : (
           <div className="space-y-4">
-            {filteredGroupedLines.map((group) => {
-              const defaultCollapsed = showActiveOnly && group.key !== activeGroup?.key
-              const isCollapsed = collapsedGroups[group.key] ?? defaultCollapsed
-              const isActive = group.key === activeGroup?.key
-              return (
-                <div key={group.key}>
-                  <button
-                    className={`w-full flex items-center justify-between text-left text-[11px] mb-1 cmd-group ${
-                      isActive ? 'cmd-group-active' : ''
-                    }`}
-                    onClick={() => toggleGroup(group.key)}
-                    ref={(el) => (groupRefs.current[group.key] = el)}
-                  >
-                    <span>
-                      {group.service} - {group.template} ({group.items.length})
-                    </span>
-                    <span className="text-slate-400">{isCollapsed ? '＋' : '－'}</span>
-                  </button>
-                  {!isCollapsed && (
-                    <div className="space-y-2">{group.items.map(renderLine)}</div>
-                  )}
-                </div>
+            {Object.entries(
+              filteredGroupedLines.reduce<Record<string, typeof filteredGroupedLines>>(
+                (acc, group) => {
+                  acc[group.service] = acc[group.service] || []
+                  acc[group.service].push(group)
+                  return acc
+                },
+                {}
               )
-            })}
+            ).map(([service, groups]) => (
+              <div key={service} className="rounded-xl border border-slate-200 bg-slate-50/70 p-2">
+                <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500 mb-2 px-1">
+                  <div className="flex flex-col">
+                    <span>{service}</span>
+                    {(serviceMeta[service]?.time || serviceMeta[service]?.location) && (
+                      <span className="text-[10px] font-normal text-slate-400">
+                        {serviceMeta[service]?.time || '--:--'}
+                        {serviceMeta[service]?.location
+                          ? ` · ${serviceMeta[service]?.location}`
+                          : ''}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    className="text-[11px] text-slate-400 hover:text-slate-600"
+                    onClick={() => toggleGroup(`service:${service}`)}
+                  >
+                    {collapsedGroups[`service:${service}`] ? '＋' : '－'}
+                  </button>
+                </div>
+                {!collapsedGroups[`service:${service}`] && (
+                  <div className="space-y-3">
+                    {groups.map((group) => {
+                      const defaultCollapsed = showActiveOnly && group.key !== activeGroup?.key
+                      const isCollapsed = collapsedGroups[group.key] ?? defaultCollapsed
+                      const isActive = group.key === activeGroup?.key
+                      return (
+                        <div key={group.key}>
+                          <button
+                            className={`w-full flex items-center justify-between text-left text-[11px] mb-1 cmd-group ${
+                              isActive ? 'cmd-group-active' : ''
+                            }`}
+                            onClick={() => toggleGroup(group.key)}
+                            ref={(el) => (groupRefs.current[group.key] = el)}
+                          >
+                            <span>
+                              {group.template} ({group.items.length})
+                            </span>
+                            <span className="text-slate-400">
+                              {isCollapsed ? '＋' : '－'}
+                            </span>
+                          </button>
+                          {!isCollapsed && (
+                            <div className="space-y-2">{group.items.map(renderLine)}</div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         )}
       </div>

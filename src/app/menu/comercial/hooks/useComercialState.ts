@@ -37,6 +37,9 @@ export function useComercialState() {
   const [selectedTemplate, setSelectedTemplate] = useState<string>('')
   const [selectedConcept, setSelectedConcept] = useState<ConceptNode | null>(null)
   const [addMode, setAddMode] = useState<'concept' | 'article'>('article')
+  const [serviceMetaByEvent, setServiceMetaByEvent] = useState<
+    Record<string, Record<string, { time?: string; location?: string }>>
+  >({})
 
   const [mobileTab, setMobileTab] = useState<'plats' | 'comanda'>('plats')
   const [activeGroupKey, setActiveGroupKey] = useState<string>('')
@@ -255,6 +258,12 @@ export function useComercialState() {
           setSelectedService(next[0] || '')
         }
         if (selectedEventId) {
+          setServiceMetaByEvent((prevMeta) => {
+            const current = prevMeta[selectedEventId] || {}
+            if (!current[name]) return prevMeta
+            const { [name]: _removed, ...rest } = current
+            return { ...prevMeta, [selectedEventId]: rest }
+          })
           setOrdersByEvent((prevOrders) => {
             const current = prevOrders[selectedEventId]
             if (!current) return prevOrders
@@ -276,6 +285,25 @@ export function useComercialState() {
       }
       return [...prev, name]
     })
+  }
+
+  const serviceMeta = useMemo(() => {
+    if (!selectedEventId) return {}
+    return serviceMetaByEvent[selectedEventId] || {}
+  }, [serviceMetaByEvent, selectedEventId])
+
+  const updateServiceMeta = (name: string, data: { time?: string; location?: string }) => {
+    if (!selectedEventId) return
+    setServiceMetaByEvent((prev) => ({
+      ...prev,
+      [selectedEventId]: {
+        ...(prev[selectedEventId] || {}),
+        [name]: {
+          ...(prev[selectedEventId]?.[name] || {}),
+          ...data,
+        },
+      },
+    }))
   }
 
   const templates = activeService?.templates || []
@@ -348,6 +376,39 @@ export function useComercialState() {
   }, [concepts.length, selectedTemplate])
 
   const currentOrder = selectedEventId ? ordersByEvent[selectedEventId] : undefined
+  const selectedLineSet = useMemo(() => {
+    const lines = currentOrder?.lines || []
+    const scoped = lines.filter(
+      (l) => l.service === selectedService && l.template === selectedTemplate
+    )
+    return new Set(scoped.map((l) => l.concept))
+  }, [currentOrder?.lines, selectedService, selectedTemplate])
+
+  const selectedTemplateSet = useMemo(() => {
+    const lines = currentOrder?.lines || []
+    const scoped = lines.filter((l) => l.service === selectedService)
+    return new Set(scoped.map((l) => l.template))
+  }, [currentOrder?.lines, selectedService])
+
+  const selectedConceptSet = useMemo(() => {
+    const lines = currentOrder?.lines || []
+    const scoped = lines.filter(
+      (l) => l.service === selectedService && l.template === selectedTemplate
+    )
+    const lineConcepts = new Set(scoped.map((l) => l.concept))
+    const set = new Set<string>()
+    concepts.forEach((concept) => {
+      if (lineConcepts.has(concept.name)) {
+        set.add(concept.name)
+        return
+      }
+      const articles = concept.articles || []
+      if (articles.some((article) => lineConcepts.has(article))) {
+        set.add(concept.name)
+      }
+    })
+    return set
+  }, [currentOrder?.lines, selectedService, selectedTemplate, concepts])
   const groupedLines = useMemo(() => {
     const lines = currentOrder?.lines || []
     const groups: Array<{
@@ -607,12 +668,18 @@ export function useComercialState() {
     setTimeout(() => win.print(), 300)
   }
 
+  const handleExportPdfView = () => {
+    if (!exportRows.length) return
+    window.print()
+  }
+
   const exportItems = useMemo(
     () => [
-      { label: 'PDF (taula)', onClick: handleExportPdfTable, disabled: !exportRows.length },
       { label: 'Excel (.xlsx)', onClick: handleExportExcel, disabled: !exportRows.length },
+      { label: 'PDF (vista)', onClick: handleExportPdfView, disabled: !exportRows.length },
+      { label: 'PDF (taula)', onClick: handleExportPdfTable, disabled: !exportRows.length },
     ],
-    [exportRows.length, handleExportExcel, handleExportPdfTable]
+    [exportRows.length, handleExportExcel, handleExportPdfView, handleExportPdfTable]
   )
 
   const duplicateSources = useMemo(() => {
@@ -715,6 +782,11 @@ export function useComercialState() {
     setEditingLineId,
     editingQty,
     setEditingQty,
+    selectedLineSet,
+    selectedTemplateSet,
+    selectedConceptSet,
+    serviceMeta,
+    updateServiceMeta,
     exportItems,
     duplicateSources,
     handleDuplicateFrom,

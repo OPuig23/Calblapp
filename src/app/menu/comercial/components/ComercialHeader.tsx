@@ -34,7 +34,16 @@ export default function ComercialHeader({
             Esdeveniments
           </div>
           <div className="text-sm font-semibold text-slate-800">{selectedEventName}</div>
-          <div className="text-[11px] text-slate-500">{selectedEventDetails}</div>
+          <div className="text-[11px] text-slate-500">
+            <span className="font-semibold text-slate-700">
+              {selectedEventDetails.split(' · ')[0]}
+            </span>
+            <span className="text-slate-400">
+              {selectedEventDetails.includes(' · ')
+                ? ` · ${selectedEventDetails.split(' · ').slice(1).join(' · ')}`
+                : ''}
+            </span>
+          </div>
         </button>
         <div className="flex flex-wrap items-center gap-2 text-xs md:text-[11px] text-slate-500">
           <Users className="w-4 h-4" />
@@ -53,9 +62,7 @@ export default function ComercialHeader({
           >
             <Trash2 className="mx-auto h-4 w-4" />
           </button>
-          <div className="h-6 w-6">
-            <ExportMenu items={exportItems} ariaLabel="Exportar" />
-          </div>
+          <ExportMenu items={exportItems} ariaLabel="Exportar" />
         </div>
       </div>
     </section>

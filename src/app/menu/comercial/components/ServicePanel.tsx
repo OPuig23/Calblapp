@@ -1,4 +1,11 @@
-import React from 'react'
+import React, { useState } from 'react'
+import { Clock } from 'lucide-react'
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import type { ConceptNode } from '../types'
 
 interface Props {
@@ -30,6 +37,11 @@ interface Props {
   articlesPerPage: number
   addMode: 'concept' | 'article'
   setAddMode: (mode: 'concept' | 'article') => void
+  selectedLineSet: Set<string>
+  selectedTemplateSet: Set<string>
+  selectedConceptSet: Set<string>
+  serviceMeta: Record<string, { time?: string; location?: string }>
+  updateServiceMeta: (name: string, data: { time?: string; location?: string }) => void
   handleConceptClick: (concept: ConceptNode) => void
   handleArticleClick: (article: string) => void
 }
@@ -63,9 +75,26 @@ export default function ServicePanel({
   articlesPerPage,
   addMode,
   setAddMode,
+  selectedLineSet,
+  selectedTemplateSet,
+  selectedConceptSet,
+  serviceMeta,
+  updateServiceMeta,
   handleConceptClick,
   handleArticleClick,
 }: Props) {
+  const [sheetOpen, setSheetOpen] = useState(false)
+  const [editingService, setEditingService] = useState('')
+  const [editingTime, setEditingTime] = useState('')
+  const [editingLocation, setEditingLocation] = useState('')
+
+  const openServiceMeta = (name: string) => {
+    const meta = serviceMeta[name] || {}
+    setEditingService(name)
+    setEditingTime(meta.time || '')
+    setEditingLocation(meta.location || '')
+    setSheetOpen(true)
+  }
   return (
     <section className="cmd-panel rounded-2xl border p-3 md:p-4 flex flex-col min-h-[360px] sm:min-h-[420px]">
       <div className="mb-3 space-y-2">
@@ -105,7 +134,26 @@ export default function ServicePanel({
                   active ? 'cmd-service-active' : ''
                 }`}
               >
-                {service.name}
+                <div>{service.name}</div>
+                {(serviceMeta[service.name]?.time || serviceMeta[service.name]?.location) && (
+                  <div className="mt-1 text-[11px] text-slate-500 font-normal">
+                    {serviceMeta[service.name]?.time || '--:--'}
+                    {serviceMeta[service.name]?.location
+                      ? ` · ${serviceMeta[service.name]?.location}`
+                      : ''}
+                  </div>
+                )}
+              </button>
+              <button
+                type="button"
+                aria-label="Editar dades del servei"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  openServiceMeta(service.name)
+                }}
+                className="absolute left-2 top-2 h-6 w-6 rounded-full border border-slate-200 bg-white text-slate-400 hover:text-slate-600 hover:border-slate-300"
+              >
+                <Clock className="mx-auto h-3.5 w-3.5" />
               </button>
               <button
                 type="button"
@@ -141,7 +189,7 @@ export default function ServicePanel({
                   onClick={() => setSelectedTemplate(tpl.name)}
                   className={`cmd-tile rounded-lg px-3 py-3 md:py-2.5 text-sm md:text-[13px] font-semibold ${
                     active ? 'cmd-template-active' : ''
-                  }`}
+                  } ${selectedTemplateSet.has(tpl.name) ? 'cmd-picked' : ''}`}
                 >
                   {tpl.name}
                 </button>
@@ -163,7 +211,7 @@ export default function ServicePanel({
                   onClick={() => handleConceptClick(concept)}
                   className={`cmd-tile rounded-lg px-3 py-3 md:py-2.5 text-sm md:text-[13px] font-medium ${
                     active ? 'cmd-concept-active' : ''
-                  }`}
+                  } ${selectedConceptSet.has(concept.name) ? 'cmd-picked' : ''}`}
                 >
                   {concept.name}
                 </button>
@@ -239,7 +287,7 @@ export default function ServicePanel({
                 disabled={addMode !== 'article'}
                 className={`cmd-tile rounded-lg px-3 py-3 md:py-2.5 text-sm md:text-[13px] font-medium ${
                   addMode !== 'article' ? 'cmd-article-disabled' : ''
-                }`}
+                } ${selectedLineSet.has(article) ? 'cmd-picked' : ''}`}
               >
                 {article}
               </button>
@@ -274,6 +322,64 @@ export default function ServicePanel({
           )}
         </div>
       )}
+
+      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+        <SheetContent
+          side="bottom"
+          className="rounded-t-2xl p-5 sm:p-6 h-[60vh] sm:h-[50vh]"
+        >
+          <SheetHeader className="text-left">
+            <SheetTitle>Dades del servei</SheetTitle>
+            <p className="text-xs text-slate-500">{editingService}</p>
+          </SheetHeader>
+
+          <div className="mt-5 space-y-4">
+            <label className="block text-sm font-semibold text-slate-700">
+              Hora
+              <input
+                type="time"
+                className="mt-2 h-11 w-full rounded-md border border-slate-200 bg-white px-3 text-sm"
+                value={editingTime}
+                onChange={(e) => setEditingTime(e.target.value)}
+              />
+            </label>
+
+            <label className="block text-sm font-semibold text-slate-700">
+              Ubicació
+              <input
+                type="text"
+                className="mt-2 h-11 w-full rounded-md border border-slate-200 bg-white px-3 text-sm"
+                placeholder="Ex: Palau de Congressos"
+                value={editingLocation}
+                onChange={(e) => setEditingLocation(e.target.value)}
+              />
+            </label>
+          </div>
+
+          <div className="mt-6 flex gap-2">
+            <button
+              type="button"
+              className="flex-1 h-11 rounded-md border border-slate-200 bg-white text-slate-600 text-sm font-semibold"
+              onClick={() => setSheetOpen(false)}
+            >
+              Cancel·la
+            </button>
+            <button
+              type="button"
+              className="flex-1 h-11 rounded-md bg-slate-900 text-white text-sm font-semibold"
+              onClick={() => {
+                updateServiceMeta(editingService, {
+                  time: editingTime,
+                  location: editingLocation,
+                })
+                setSheetOpen(false)
+              }}
+            >
+              Desa
+            </button>
+          </div>
+        </SheetContent>
+      </Sheet>
     </section>
   )
 }
