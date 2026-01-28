@@ -78,12 +78,16 @@ export async function GET(req: NextRequest) {
           startTime: d.startTime || '',
           arrivalTime: d.arrivalTime || '',
           location: d.location || '',
+          status: d.status || '',
           vehicles: [] as any[],
           workers: [] as string[],
         }
 
         existing.vehicles = [...(existing.vehicles || []), ...vehicles]
         existing.workers = [...(existing.workers || []), ...workers]
+        if (norm(existing.status) !== 'confirmed' && norm(d.status) === 'confirmed') {
+          existing.status = d.status || ''
+        }
         // Prioritza arrivalTime si ve ple d'alguna col·lecció
         if (!existing.arrivalTime && d.arrivalTime) existing.arrivalTime = d.arrivalTime
 

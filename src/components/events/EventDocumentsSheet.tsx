@@ -75,7 +75,11 @@ export default function EventDocumentsSheet({
   open: boolean
   onOpenChange: (v: boolean) => void
 }) {
-  const { docs, loading, error } = useEventDocuments(eventId, eventCode || undefined)
+  const { docs, loading, error } = useEventDocuments(
+    eventId,
+    eventCode || undefined,
+    'all'
+  )
 
   const [isNarrow, setIsNarrow] = useState(false)
 

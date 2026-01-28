@@ -1,6 +1,7 @@
 // ✅ file: src/pages/api/personnel/available.ts
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
+import { getBusyPersonnelIdsAnyDepartment, norm } from '@/utils/personnelRest'
 
 /** Tipus del personal */
 type Personnel = {
@@ -17,29 +18,9 @@ type Personnel = {
   active?: boolean
 }
 
-/** Tipus de quadrant */
-type Quadrant = {
-  startDate: string
-  endDate: string
-  startTime?: string
-  endTime?: string
-  responsable?: string
-  conductor?: string
-  treballadors?: string[]
-  departament?: string
-}
-
 /* ──────────────────────────────────────────────────────────────
    Helpers
 ─────────────────────────────────────────────────────────────── */
-function combine(date: string, time?: string) {
-  return new Date(`${date}T${time || '00:00'}`)
-}
-
-function isOverlap(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date) {
-  return !(aEnd <= bStart || bEnd <= aStart)
-}
-
 /* ──────────────────────────────────────────────────────────────
    Handler principal
 ─────────────────────────────────────────────────────────────── */
@@ -110,39 +91,20 @@ const allPersonnel = personnelSnap.docs.map((doc) => ({
     /* ────────────────────────────────────────────────────────
        2) LLEGIR QUADRANTS EXISTENTS DEL DEPARTAMENT
     ───────────────────────────────────────────────────────── */
-    const quadrantsSnap = await db
-      .collection('quadrants')
-      .where('departament', '==', departament)
-      .get()
-
-    const allQuadrants: Quadrant[] = quadrantsSnap.docs.map((doc) =>
-      doc.data()
-    ) as Quadrant[]
-
-    /* ────────────────────────────────────────────────────────
-       3) DETECTAR PERSONAL NO DISPONIBLE PER SOLAPAMENT
-    ───────────────────────────────────────────────────────── */
-    const unavailable = new Set<string>()
-
-    const reqStart = combine(startDate, startTime)
-    const reqEnd = combine(endDate, endTime)
-
-    for (const q of allQuadrants) {
-      const qStart = combine(q.startDate, q.startTime)
-      const qEnd = combine(q.endDate, q.endTime)
-
-      if (isOverlap(qStart, qEnd, reqStart, reqEnd)) {
-        ;[q.responsable, q.conductor, ...(q.treballadors || [])]
-          .filter((id): id is string => Boolean(id))
-          .forEach((id) => unavailable.add(id))
-      }
+    const busyIds = await getBusyPersonnelIdsAnyDepartment(
+      startDate,
+      endDate,
+      startTime || '',
+      endTime || ''
+    )
+    const busySet = new Set(busyIds)
+    const isBusy = (p: Personnel) => {
+      const id = norm(p.id)
+      const name = norm(p.name || '')
+      return (id && busySet.has(id)) || (name && busySet.has(name))
     }
 
-    /* ────────────────────────────────────────────────────────
-       4) PERSONAL DISPONIBLE (manual)
-    ───────────────────────────────────────────────────────── */
-    const disponibles = cleanPersonnel.filter((p) => !unavailable.has(p.id))
-
+    const disponibles = cleanPersonnel.filter((p) => !isBusy(p))
     /* ────────────────────────────────────────────────────────
        5) CLASSIFICACIÓ
        - Responsables → Cap Departament + qualsevol usuari amb rol Responsable
@@ -184,3 +146,6 @@ const allPersonnel = personnelSnap.docs.map((doc) => ({
     })
   }
 }
+
+
+

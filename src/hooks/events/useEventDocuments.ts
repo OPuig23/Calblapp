@@ -37,7 +37,12 @@ function normalizeUrl(url?: string): string {
   return ''
 }
 
-export default function useEventDocuments(eventId?: string, eventCode?: string) {
+export default function useEventDocuments(
+  eventId?: string,
+  eventCode?: string,
+  fieldPrefix: string = 'file',
+  refreshToken: number = 0
+) {
   const [docs, setDocs] = useState<EventDoc[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -51,6 +56,7 @@ export default function useEventDocuments(eventId?: string, eventCode?: string) 
 
     const qs = new URLSearchParams()
     if (eventCode) qs.set('eventCode', eventCode)
+    if (fieldPrefix) qs.set('prefix', fieldPrefix)
 
     fetch(`/api/events/${eventId ?? '__code__'}/documents?${qs.toString()}`)
       .then((r) => r.json())
@@ -78,7 +84,7 @@ export default function useEventDocuments(eventId?: string, eventCode?: string) 
     return () => {
       alive = false
     }
-  }, [eventId, eventCode])
+  }, [eventId, eventCode, fieldPrefix, refreshToken])
 
   return { docs, loading, error }
 }

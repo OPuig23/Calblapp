@@ -232,6 +232,16 @@ useEffect(() => {
 // ─────────────────────────────────────────────
 // 3) Acció de desar: envia payload al backend
 // ─────────────────────────────────────────────
+const safeParseJson = async (res: Response) => {
+  const text = await res.text()
+  if (!text) return {}
+  try {
+    return JSON.parse(text)
+  } catch {
+    return { raw: text }
+  }
+}
+
 const handleSave = async () => {
   if (!canEdit) return
   setError(null)
@@ -249,16 +259,16 @@ const handleSave = async () => {
       body: JSON.stringify(payload)
     })
 
-    const json = await res.json()
+    const json = await safeParseJson(res)
 
     if (!res.ok) {
-      throw new Error(json.error || 'Error desant espai')
+      throw new Error(json.error || json.raw || 'Error desant espai')
     }
 
     setSuccess('Canvis desats correctament.')
   } catch (err) {
     console.error('❌ Error desant:', err)
-    setError('Hi ha hagut un error en desar els canvis.')
+    setError(err instanceof Error ? err.message : 'Hi ha hagut un error en desar els canvis.')
   } finally {
     setSaving(false)
   }
@@ -278,10 +288,10 @@ const handleDelete = async () => {
 
   try {
     const res = await fetch(`/api/spaces/${espai.id}`, { method: 'DELETE' })
-    const json = await res.json().catch(() => ({}))
+    const json = await safeParseJson(res)
 
     if (!res.ok) {
-      throw new Error(json.error || 'Error eliminant espai')
+      throw new Error(json.error || json.raw || 'Error eliminant espai')
     }
 
     if (onClose) {
@@ -292,7 +302,7 @@ const handleDelete = async () => {
     }
   } catch (err) {
     console.error('Error eliminant espai:', err)
-    setError('Hi ha hagut un error en eliminar el registre.')
+    setError(err instanceof Error ? err.message : 'Hi ha hagut un error en eliminar el registre.')
   } finally {
     setDeleting(false)
   }

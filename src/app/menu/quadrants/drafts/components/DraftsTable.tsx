@@ -334,7 +334,10 @@ const handleSaveAll = async (rowsOverride?: Row[]) => {
       }),
     })
 
-    if (!res.ok) throw new Error('Error en desar quadrant')
+    if (!res.ok) {
+      const text = await res.text()
+      throw new Error(text || `Error en desar quadrant (status ${res.status})`)
+    }
 
     alert('✅ Quadrant desat correctament')
 
@@ -674,7 +677,7 @@ const handleSaveAll = async (rowsOverride?: Row[]) => {
             dirty={dirty}
             onConfirm={handleConfirm}
             onUnconfirm={handleUnconfirm}
-            onSave={handleSaveAll}
+            onSave={() => handleSaveAll()}
             onDelete={handleDeleteQuadrant}
           />
         </div>

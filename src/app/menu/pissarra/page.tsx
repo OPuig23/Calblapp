@@ -26,6 +26,9 @@ export default function PissarraPage() {
   const [mode, setMode] = useState<'produccio' | 'logistica' | 'cuina'>(defaultMode)
   const [lnFilter, setLnFilter] = useState<string>('__all__')
   const [commercialFilter, setCommercialFilter] = useState<string>('__all__')
+  const [statusFilter, setStatusFilter] = useState<'__all__' | 'confirmed' | 'draft'>(
+    '__all__'
+  )
 
   const now = new Date()
   const defaultWeekStart = startOfWeek(now, { weekStartsOn: 1 })
@@ -59,9 +62,13 @@ export default function PissarraPage() {
     return flat.filter((ev) => {
       if (lnFilter !== '__all__' && ev.LN !== lnFilter) return false
       if (commercialFilter !== '__all__' && ev.comercial !== commercialFilter) return false
+      if (statusFilter !== '__all__') {
+        const st = (ev.status || '').toLowerCase()
+        if (st !== statusFilter) return false
+      }
       return true
     })
-  }, [flat, lnFilter, commercialFilter])
+  }, [flat, lnFilter, commercialFilter, statusFilter])
 
   const filteredDataByDay = useMemo(() => {
     const grouped: Record<string, typeof flat> = {}
@@ -328,12 +335,28 @@ export default function PissarraPage() {
           </select>
         </div>
 
+        <div className="space-y-1">
+          <label className="text-sm text-gray-700">Estat quadrant</label>
+          <select
+            className="w-full border rounded-md px-3 py-2 text-sm bg-white"
+            value={statusFilter}
+            onChange={(e) =>
+              setStatusFilter(e.target.value as '__all__' | 'confirmed' | 'draft')
+            }
+          >
+            <option value="__all__">Tots</option>
+            <option value="confirmed">Confirmats</option>
+            <option value="draft">Esborrany</option>
+          </select>
+        </div>
+
         <Button
           variant="outline"
           className="w-full"
           onClick={() => {
             setLnFilter('__all__')
             setCommercialFilter('__all__')
+            setStatusFilter('__all__')
             setOpen(false)
           }}
         >

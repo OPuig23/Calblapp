@@ -7,7 +7,9 @@ import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
 import {
   loadMinRestHours,
   hasMinRestByName,
-  getBusyPersonnelIds,
+  getBusyPersonnelIdsAnyDepartment,
+  listQuadrantCollections,
+  fetchQuadrantDocsByEndDate,
   QuadrantDoc, // ✅ importem el tipus directament
 } from '@/utils/personnelRest'
 
@@ -83,8 +85,8 @@ export async function GET(request: NextRequest) {
     const newEnd = new Date(`${ed}T${et || '23:59'}:00Z`)
     const minRest = await loadMinRestHours(deptNorm)
 
-    const busyIdsOrNames = await getBusyPersonnelIds(
-      deptNorm, sd, ed, st || '00:00', et || '23:59'
+    const busyIdsOrNames = await getBusyPersonnelIdsAnyDepartment(
+      sd, ed, st || '00:00', et || '23:59'
     )
     const busySet = new Set(busyIdsOrNames.map(norm))
 
@@ -96,35 +98,16 @@ export async function GET(request: NextRequest) {
       minRest,
     })
 
-// 🧩 Generem el nom correcte de la col·lecció segons el departament
-function capitalizeDept(dept: string): string {
-  const d = (dept || '').trim().toLowerCase()
-
-  // Casos reconeguts a Cal Blay
-  if (d.startsWith('serv')) return 'Serveis'
-  if (d.startsWith('log')) return 'Logistica'
-  if (d.startsWith('cui')) return 'Cuina'
-  if (d.startsWith('prod')) return 'Produccio'
-
-  // Si no encaixa amb cap, torna el valor capitalitzat
-  return d.charAt(0).toUpperCase() + d.slice(1)
-}
-
-const colId = `quadrants${capitalizeDept(deptParam)}`
 const allBusy: QuadrantDoc[] = []
+const colIds = await listQuadrantCollections()
 
-try {
-  // 🔹 Intentem llegir la col·lecció
-  const snap = await db.collection(colId).where('startDate', '<=', ed).get()
-
-  if (snap.empty) {
-    console.warn(`[available] ⚠️ No s’han trobat documents a la col·lecció ${colId}`)
-  } else {
-    snap.docs.forEach((d) => allBusy.push(d.data() as QuadrantDoc))
-    console.log(`[available] ✅ Trobats ${snap.docs.length} documents a ${colId}`)
+for (const colId of colIds) {
+  try {
+    const docs = await fetchQuadrantDocsByEndDate(colId, ed)
+    if (docs.length) docs.forEach((d) => allBusy.push(d.data() as QuadrantDoc))
+  } catch (error) {
+    console.error(`[available] ❌ Error accedint a la col·lecció ${colId}:`, error)
   }
-} catch (error) {
-  console.error(`[available] ❌ Error accedint a la col·lecció ${colId}:`, error)
 }
 
 

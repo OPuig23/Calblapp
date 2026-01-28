@@ -130,6 +130,7 @@ export async function GET(req: NextRequest) {
         eventName: d.eventName || '',
         startDate,
         startTime: d.startTime || '',
+        status: d.status || '',
         location: d.location || '',
         pax,
         servei: d.service || '',

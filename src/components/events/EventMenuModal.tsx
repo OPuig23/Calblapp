@@ -27,6 +27,7 @@ import {
 
 import CreateIncidentModal from '../incidents/CreateIncidentModal'
 import EventDocumentsSheet from '@/components/events/EventDocumentsSheet'
+import EventKitchenDocumentsModal from '@/components/events/EventKitchenDocumentsModal'
 import EventPersonnelModal from './EventPersonnelModal'
 import { useEventPersonnel } from '@/hooks/useEventPersonnel'
 import EventIncidentsModal from './EventIncidentsModal'
@@ -192,6 +193,7 @@ export default function EventMenuModal({
   const [showAvisos, setShowAvisos] = useState(false)
   const [showClosing, setShowClosing] = useState(false)
   const [showBudget, setShowBudget] = useState(false)
+  const [showKitchenDocs, setShowKitchenDocs] = useState(false)
 
 
   // ✅ Nou botó: Espais (placeholder fins que ens diguis on ha d'anar)
@@ -239,6 +241,7 @@ const treballadorsPersons =
   const isDireccio = roleN === 'direccio'
   const isCapDept = roleN === 'cap' || (roleN.includes('cap') && roleN.includes('depart'))
   const isProduccio = deptN === 'produccio'
+  const isCuina = deptN === 'cuina'
   const canWriteAvisos = isAdmin || isDireccio || isProduccio
   const canCloseEvent =
     isAdmin ||
@@ -250,6 +253,7 @@ const treballadorsPersons =
 
 
   const canSeeIncidents = isAdmin || isDireccio || isCapDept
+  const canSeeKitchenDocs = isAdmin || isDireccio || isCuina
 
   const canCreateIncident =
     isAdmin ||
@@ -395,7 +399,8 @@ const operativa = useMemo(
 
 
 const recursos = useMemo(
-  () => [
+  () =>
+    [
     {
       key: 'espais',
       label: 'Espais',
@@ -432,11 +437,19 @@ onClick: () => {
   })
 }
 
-
-
     },
-  ],
-  [event, navigateTo]
+      canSeeKitchenDocs
+        ? {
+            key: 'docs-cuina',
+            label: 'Adjuntar documents cuina',
+            badge: 'Cuina',
+            icon: FileText,
+            tone: 'info' as const,
+            onClick: () => setShowKitchenDocs(true),
+          }
+        : null,
+    ].filter(Boolean) as any[],
+  [event, navigateTo, canSeeKitchenDocs]
 )
 
 
@@ -595,6 +608,13 @@ onClick: () => {
     onOpenChange={() => setPendingDocsOpen(false)}
   />
 )}
+
+      <EventKitchenDocumentsModal
+        eventId={String(event.id)}
+        eventCode={event.eventCode || event.code || null}
+        open={showKitchenDocs}
+        onOpenChange={setShowKitchenDocs}
+      />
 
 
       {/* ─────────── MODALS INTERNES EXISTENTS ─────────── */}

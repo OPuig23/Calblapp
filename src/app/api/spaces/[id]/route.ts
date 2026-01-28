@@ -7,6 +7,17 @@ import { normalizeRole } from '@/lib/roles'
 
 export const runtime = 'nodejs'
 
+const normalizeDept = (raw?: string) => {
+  const base = (raw || '')
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .trim()
+  const compact = base.replace(/\s+/g, '')
+  if (compact === 'foodlover' || compact === 'foodlovers') return 'foodlovers'
+  return base
+}
+
 export async function DELETE(
   _req: Request,
   { params }: { params: { id: string } }
@@ -14,13 +25,15 @@ export async function DELETE(
   try {
     const session = await getServerSession(authOptions)
     const role = normalizeRole(session?.user?.role)
-    const dept = ((session?.user as { departmentLower?: string; department?: string })?.departmentLower ||
-      (session?.user as { department?: string })?.department ||
-      '')
-      .normalize('NFD')
-      .replace(/\p{Diacritic}/gu, '')
-      .toLowerCase()
-      .trim()
+    const dept = normalizeDept(
+      (session?.user as {
+        departmentLower?: string
+        deptLower?: string
+        department?: string
+      })?.departmentLower ||
+        (session?.user as { deptLower?: string })?.deptLower ||
+        (session?.user as { department?: string })?.department
+    )
     const canEdit =
       role === 'admin' ||
       role === 'direccio' ||

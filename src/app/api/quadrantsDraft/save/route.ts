@@ -271,7 +271,7 @@ export async function POST(req: NextRequest) {
   } catch (e) {
     console.error('[quadrantsDraft/save] error:', e)
     return NextResponse.json(
-      { ok: false, error: 'Internal error' },
+      { ok: false, error: e instanceof Error ? e.message : 'Internal error' },
       { status: 500 }
     )
   }

@@ -17,6 +17,14 @@ type Props = {
 }
 
 export default function PissarraCardCuina({ item }: Props) {
+  const status = (item.status || '').toLowerCase()
+  const statusDot =
+    status === 'confirmed'
+      ? 'bg-green-500'
+      : status === 'draft'
+      ? 'bg-blue-500'
+      : 'bg-gray-300'
+
   const group1Drivers = Array.isArray(item.group1Drivers) ? item.group1Drivers : []
   const group1Workers = Array.isArray(item.group1Workers) ? item.group1Workers : []
   const group2Drivers = Array.isArray(item.group2Drivers) ? item.group2Drivers : []
@@ -86,8 +94,11 @@ export default function PissarraCardCuina({ item }: Props) {
     <div className="rounded-xl border border-gray-300 bg-white shadow-sm p-3 sm:p-4 text-xs mb-3">
       {/* Event + hora inici event */}
       <div className="flex flex-col gap-1 mb-2">
-        <div className="font-semibold text-gray-800 text-[13px] truncate">
-          {item.eventName || '-'}
+        <div className="flex items-center gap-2">
+          <span className={`h-2.5 w-2.5 rounded-full ${statusDot}`} />
+          <div className="font-semibold text-gray-800 text-[13px] truncate">
+            {item.eventName || '-'}
+          </div>
         </div>
         <div className="flex items-center gap-2 text-gray-700">
           <Clock className="w-3.5 h-3.5 text-gray-400" />

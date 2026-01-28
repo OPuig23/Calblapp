@@ -87,6 +87,11 @@ export async function GET(
     const { id } = await ctx.params
     const url = new URL(req.url)
     const eventCode = url.searchParams.get('eventCode')
+    const prefixParam = url.searchParams.get('prefix') || 'file'
+    const prefixes =
+      prefixParam === 'all'
+        ? ['file', 'cuinaFile']
+        : prefixParam.split(',').map((p) => p.trim()).filter(Boolean)
 
     let snap = await db.collection('stage_verd').doc(id).get()
 
@@ -105,9 +110,10 @@ export async function GET(
 
     const data = snap.data() || {}
 
-    const files = Object.entries(data).filter(
-      ([k, v]) => k.startsWith('file') && typeof v === 'string' && v.length > 0
-    )
+    const files = Object.entries(data).filter(([k, v]) => {
+      const okPrefix = prefixes.some((p) => k.startsWith(p))
+      return okPrefix && typeof v === 'string' && v.length > 0
+    })
 
     const bucket = storageAdmin.bucket()
     const docs: EventDoc[] = []

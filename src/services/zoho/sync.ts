@@ -131,6 +131,16 @@ const parseZohoTime = (raw?: string | null): string | null => {
   return match ? match[1] : null
 }
 
+const normalizeExactName = (raw: string): string => {
+  if (!raw) return ''
+  return raw
+    .normalize('NFKC')
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .replace(/[\s\u00A0]+/g, ' ')
+    .trim()
+    .toLowerCase()
+}
+
 const isBadCode = (code?: string | null) =>
   code === 'CCB00001' || code === 'CCE00004'
 
@@ -420,6 +430,11 @@ StageGroup:
 
   console.info(`✅ Oportunitats vàlides: ${normalized.length}`)
 
+  const zohoById = new Map<string, ZohoDeal>()
+  for (const d of allDeals) {
+    if (d?.id) zohoById.set(String(d.id), d)
+  }
+
   // 6️⃣ Esborrar antics (només taronja i groc per DataInici < avui)
   let deleted = 0
   for (const col of ['stage_taronja', 'stage_groc']) {
@@ -510,6 +525,24 @@ StageGroup:
 
   console.info('✨ Neteja final de stage_groc i stage_taronja completada')
 
+  // 7.4 — Neteja stage_verd: només si Zoho indica que ja no és verd (origen zoho)
+  const verdSnap = await firestore.collection('stage_verd').get()
+  for (const doc of verdSnap.docs) {
+    const id = doc.id
+    const data = doc.data() as any
+    if (data?.origen !== 'zoho') continue
+
+    const zoho = zohoById.get(id)
+    if (!zoho) continue
+
+    const group = classifyStage(zoho.Stage || '')
+    if (group !== 'verd') {
+      await doc.ref.delete()
+      const reason = group === 'groc' ? 'ara és groc' : group === 'taronja' ? 'ara és taronja' : 'ja no és verd'
+      console.log(`🧹 Eliminat de stage_verd (${reason}): ${id}`)
+    }
+  }
+
   // ─────────────────────────────────────────────
   // 8️⃣ Actualitzar col·lecció FINQUES (matching avançat)
   // ─────────────────────────────────────────────
@@ -518,6 +551,7 @@ StageGroup:
     const finquesSnap = await firestore.collection('finques').get()
 
     const existingCodes = new Set<string>()
+    const existingExactNames = new Set<string>()
     const existingNames = new Map<string, string>() // nomNet → code
     let maxCEU: string | null = null
 
@@ -525,11 +559,13 @@ StageGroup:
       const d = doc.data()
       const code = (d.code || '').toString().trim()
       const nom = (d.nom || '').toString().trim()
-
-      const nomNet = normalizeName(nom)
+      const nomNetRaw = (d.nomNet || nom).toString()
+      const nomNet = normalizeName(nomNetRaw)
+      const nomExact = normalizeExactName(nom)
 
       if (code) existingCodes.add(code)
       if (nomNet) existingNames.set(nomNet, code)
+      if (nomExact) existingExactNames.add(nomExact)
 
       if (code.startsWith('CEU')) {
         if (!maxCEU || code > maxCEU) maxCEU = code
@@ -537,6 +573,7 @@ StageGroup:
     }
 
     const newlyCreated = new Map<string, string>() // nomNet → CEUxxxxxx
+    const newlyCreatedExact = new Set<string>()
     const batchFinques = firestore.batch()
     let created = 0
 
@@ -545,10 +582,13 @@ StageGroup:
       if (!rawNom) continue
 
       const nomNetZoho = normalizeName(rawNom)
+      const nomExactZoho = normalizeExactName(rawNom)
 
       // Ja existeix
       if (existingNames.has(nomNetZoho)) continue
       if (newlyCreated.has(nomNetZoho)) continue
+      if (nomExactZoho && existingExactNames.has(nomExactZoho)) continue
+      if (nomExactZoho && newlyCreatedExact.has(nomExactZoho)) continue
 
       // Extreure codi del nom
       let code = extractCodeFromName(rawNom)
@@ -593,6 +633,8 @@ StageGroup:
 
       existingCodes.add(code)
       newlyCreated.set(nomNetZoho, code)
+      if (nomExactZoho) newlyCreatedExact.add(nomExactZoho)
+      if (nomExactZoho) existingExactNames.add(nomExactZoho)
       created++
     }
 

@@ -451,9 +451,9 @@ const eventsWithStatus = useMemo<UnifiedEvent[]>(() => {
         }
       `}</style>
       <ModuleHeader
-        icon="ðŸ“‹"
+        icon="🗂️"
         title="Quadrants"
-        subtitle="GestiÃ³ setmanal per departament"
+        subtitle="Gestió setmanal per departament"
         actions={<ExportMenu items={exportItems} />}
       />
       {/* âœ” Barra de filtres (setmana, LN, responsable, ubicaciÃ³, estat) */}
@@ -491,7 +491,7 @@ const eventsWithStatus = useMemo<UnifiedEvent[]>(() => {
       {/* âœ” Estat de cÃ rrega / error */}
       {loading && (
         <p className="text-center text-gray-500 py-10">
-          Carregant quadrantsâ€¦
+          Carregant quadrants…
         </p>
       )}
 
@@ -520,12 +520,12 @@ const eventsWithStatus = useMemo<UnifiedEvent[]>(() => {
                 <th className="px-3 py-2 text-left">Esdeveniment</th>
                 <th className="px-3 py-2 text-left">LN</th>
                 <th className="px-3 py-2 text-left">PAX</th>
-                <th className="px-3 py-2 text-left">Finca / UbicaciÃ³</th>
+                <th className="px-3 py-2 text-left">Finca / Ubicació</th>
                 <th className="px-3 py-2 text-left">Servei</th>
                 <th className="px-3 py-2 text-left">Hora inici</th>
                 <th className="px-3 py-2 text-left">Treballadors</th>
                 <th className="px-3 py-2 text-left">Horari</th>
-                <th className="px-3 py-2 text-center">â—</th>
+                <th className="px-3 py-2 text-center">•</th>
               </tr>
             </thead>
 
@@ -574,25 +574,25 @@ const eventsWithStatus = useMemo<UnifiedEvent[]>(() => {
                           }}
                         >
                           <td className="px-3 py-2">
-                            {ev.responsable || 'â€”'}
+                            {ev.responsable || '—'}
                           </td>
                           <td className="px-3 py-2">{ev.summary}</td>
-                          <td className="px-3 py-2">{ev.ln || 'â€”'}</td>
-                          <td className="px-3 py-2">{ev.numPax ?? 'â€”'}</td>
+                          <td className="px-3 py-2">{ev.ln || '—'}</td>
+                          <td className="px-3 py-2">{ev.numPax ?? '—'}</td>
                           <td className="px-3 py-2">
-                            {ev.location || 'â€”'}
+                            {ev.location || '—'}
                           </td>
                           <td className="px-3 py-2">
-                            {ev.service || 'â€”'}
+                            {ev.service || '—'}
                           </td>
                           <td className="px-3 py-2">
                             {startTime}
                           </td>
                           <td className="px-3 py-2">
-                            {ev.workersSummary || 'â€”'}
+                            {ev.workersSummary || '—'}
                           </td>
                           <td className="px-3 py-2">
-                            {startTime} â€“ {endTime}
+                            {startTime} – {endTime}
                           </td>
                           <td className="px-3 py-2 text-center">
                             <span

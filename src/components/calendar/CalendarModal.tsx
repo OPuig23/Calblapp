@@ -44,6 +44,7 @@ export default function CalendarModal({ deal, trigger, onSaved, readonly }: Prop
   const [open, setOpen] = useState(false)
   const [comercialPool, setComercialPool] = useState<ComercialCandidate[]>([])
   const [comercialLoading, setComercialLoading] = useState(false)
+  const [codeDirty, setCodeDirty] = useState(false)
 
   const norm = (s?: string | null) =>
     (s || '')
@@ -135,6 +136,7 @@ export default function CalendarModal({ deal, trigger, onSaved, readonly }: Prop
     (isAdmin || isDireccio || isProduccio || isComercial || isCapCalendarDept)
 
   const canEdit = !readonly && (canEditStageVerd || canEditManual)
+  const canEditCode = isAdmin || isProduccio
 
   const allowedDepartments = useMemo(() => {
     const bucket = normalizeDeptForLnBucket(editData.LN)
@@ -309,6 +311,7 @@ export default function CalendarModal({ deal, trigger, onSaved, readonly }: Prop
 
     setEditData(next as any)
     setInitialData(next as any)
+    setCodeDirty(false)
   }, [deal])
 
   // 🔄 Quan canviï el deal, carregar directament els adjunts estructurats
@@ -319,8 +322,14 @@ export default function CalendarModal({ deal, trigger, onSaved, readonly }: Prop
   }, [deal])
 
   // Helpers
-  const handleChange = (field: string, value: string) =>
+  const handleChange = (field: string, value: string) => {
+    if (field === 'code') {
+      const prevCode = String(initialData?.code || '').trim()
+      const nextCode = String(value || '').trim()
+      if (prevCode !== nextCode) setCodeDirty(true)
+    }
     setEditData((prev) => ({ ...prev, [field]: value }))
+  }
 
   // 💾 Desa canvis generals de l’esdeveniment (sense tocar fitxers)
   const handleSave = async (e?: React.MouseEvent) => {
@@ -328,6 +337,8 @@ export default function CalendarModal({ deal, trigger, onSaved, readonly }: Prop
     if (!canEdit) return
 
     try {
+      const prevCode = String(initialData?.code || '').trim()
+      const nextCode = String(editData?.code || '').trim()
       const payload: Record<string, any> = {
         ...editData,
         // 🔧 FIX: si ve buit, deixem null (igual que abans però més robust)
@@ -337,6 +348,9 @@ export default function CalendarModal({ deal, trigger, onSaved, readonly }: Prop
             : Number(editData.NumPax),
         collection: COLLECTION,
         updatedAt: new Date().toISOString(),
+      }
+      if (canEditCode && (codeDirty || prevCode !== nextCode)) {
+        payload.codeConfirmed = Boolean(nextCode)
       }
 
       const res = await fetch(`/api/calendar/manual/${deal.id}`, {
@@ -501,7 +515,7 @@ export default function CalendarModal({ deal, trigger, onSaved, readonly }: Prop
           </div>
 
           {/* Codi */}
-          {(isZohoVerd || isManual) && !readonly ? (
+          {(isZohoVerd || isManual) && !readonly && canEditCode ? (
             <div>
               <label className="block text-xs text-gray-500 mb-1">Codi</label>
               <Input
