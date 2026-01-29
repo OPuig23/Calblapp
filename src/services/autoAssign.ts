@@ -176,13 +176,13 @@ const ledger = (await buildLedger(dept, ws, we, ms, me)) as any
         c.locations.some((loc: string) => norm(location).includes(norm(loc)))
       )
       if (hit) {
-        const candidate = all.find(p => norm(p.name) === norm(hit.responsible))
-        if (candidate) {
-          const elig = isEligibleByName(candidate.name, startISO, endISO, {
-            busyAssignments: ledger.busyAssignments,
-            restHours: premises.restHours,
-            allowMultipleEventsSameDay: !!premises.allowMultipleEventsSameDay
-          })
+    const candidate = all.find(p => norm(p.name) === norm(hit.responsible))
+    if (candidate) {
+      const elig = isEligibleByName(candidate.name, startISO, endISO, {
+        busyAssignments: ledger.busyAssignments,
+        restHours: premises.restHours,
+        allowMultipleEventsSameDay: !!premises.allowMultipleEventsSameDay
+      })
           if (!elig.eligible) forcedByPremise = true
           chosenResp = candidate
         }
@@ -197,7 +197,15 @@ const ledger = (await buildLedger(dept, ws, we, ms, me)) as any
         monthHrs: ledger.monthlyHoursByUser.get(p.name) || 0,
         lastAssignedAt: ledger.lastAssignedAtByUser.get(p.name) || null
       })).sort(tieBreakOrder)
-      chosenResp = ranked[0]?.p || null
+      const eligibleCtx = {
+        busyAssignments: ledger.busyAssignments,
+        restHours: premises.restHours,
+        allowMultipleEventsSameDay: false,
+      }
+      const eligible = ranked.find((entry) =>
+        isEligibleByName(entry.p.name, startISO, endISO, eligibleCtx).eligible
+      )
+      chosenResp = eligible?.p || ranked[0]?.p || null
     }
   }
 

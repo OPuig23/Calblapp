@@ -110,31 +110,6 @@ export interface Draft {
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s)
 
-const timeToMinutes = (time?: string) => {
-  if (!time) return null
-  const [hours, minutes] = time.split(':').map((part) => Number(part))
-  if (Number.isNaN(hours) || Number.isNaN(minutes)) return null
-  return hours * 60 + minutes
-}
-
-const selectEdgeTime = (
-  candidates: Array<string | undefined | null>,
-  fallback: string | undefined,
-  comparator: (current: number, best: number) => boolean
-): string | undefined => {
-  let best: { value: number; text: string } | null = null
-  candidates.forEach((candidate) => {
-    if (!candidate) return
-    const value = timeToMinutes(candidate)
-    if (value === null) return
-    if (!best || comparator(value, best.value)) {
-      best = { value, text: candidate }
-    }
-  })
-  if (best) return best.text
-  return fallback
-}
-
 const normalizeLocation = (v: unknown): string => {
   if (typeof v === 'string') return v
   if (v && typeof v === 'object') {
@@ -364,31 +339,6 @@ export default function DraftsPage() {
                         ? 'bg-green-100 text-green-700'
                         : 'bg-amber-100 text-amber-700'
 
-                    const serviceTimetables = Array.isArray(q.timetables)
-                      ? q.timetables
-                      : []
-                    const startCandidates = [
-                      q.startTime,
-                      ...serviceTimetables.map((tt) => tt.startTime),
-                    ]
-                    const endCandidates = [
-                      q.endTime,
-                      ...serviceTimetables.map((tt) => tt.endTime),
-                    ]
-                    const earliestServiceStart = selectEdgeTime(
-                      startCandidates,
-                      q.startTime,
-                      (current, best) => current < best
-                    )
-                    const latestServiceEnd = selectEdgeTime(
-                      endCandidates,
-                      q.endTime,
-                      (current, best) => current > best
-                    )
-                    const horariLabel = `${earliestServiceStart ?? '—'} – ${
-                      latestServiceEnd ?? '—'
-                    }`
-
                     const isExpanded = expandedId === q.id
 
                     return (
@@ -424,7 +374,11 @@ export default function DraftsPage() {
 
 
                           {/* Horari */}
-                          <TableCell>{horariLabel}</TableCell>
+                          <TableCell>
+                            {(q.startTime || '—') +
+                              ' – ' +
+                              (q.endTime || '—')}
+                          </TableCell>
                               {/* ● Punt d’estat */}
 <TableCell className="text-center">
 <span
@@ -464,4 +418,3 @@ export default function DraftsPage() {
     </div>
   )
 }
-

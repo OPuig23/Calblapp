@@ -82,7 +82,7 @@ export function useAvailablePersonnel(opts: UseAvailablePersonnelOptions) {
         headers: {
           Authorization: `Bearer ${session?.accessToken || ''}`,
         },
-        timeout: 7000, // ✅ límit màxim 7s per evitar bloqueigs
+        timeout: 15000, // ✅ límit màxim 15s per evitar bloqueigs i reduir timeouts
       })
 
       if (!res?.data) throw new Error('Resposta buida del servidor')

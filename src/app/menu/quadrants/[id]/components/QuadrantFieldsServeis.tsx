@@ -86,7 +86,7 @@ export default function QuadrantFieldsServeis({ value, onChange }: Props) {
         />
       </div>
 
-      {/* Brigades */}
+      {/* ETT */}
       <div>
         <div className="flex items-center gap-2">
           <Switch
@@ -94,7 +94,7 @@ export default function QuadrantFieldsServeis({ value, onChange }: Props) {
             checked={needsBrigada}
             onCheckedChange={setNeedsBrigada}
           />
-          <Label htmlFor="needsBrigada">Necessita brigada?</Label>
+          <Label htmlFor="needsBrigada">Necessita ETT?</Label>
         </div>
 
         {needsBrigada && (
@@ -106,9 +106,9 @@ export default function QuadrantFieldsServeis({ value, onChange }: Props) {
                     value={brig.id}
                     onValueChange={val => handleUpdateBrigada(index, 'id', val)}
                   >
-                    <SelectTrigger className="w-[200px]">
-                      <SelectValue placeholder="Selecciona brigada" />
-                    </SelectTrigger>
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="Selecciona ETT" />
+                  </SelectTrigger>
                     <SelectContent>
                       {brigades.map(b => (
                         <SelectItem key={b.id} value={b.id}>
@@ -150,7 +150,7 @@ export default function QuadrantFieldsServeis({ value, onChange }: Props) {
             ))}
 
             <Button variant="outline" size="sm" onClick={handleAddBrigada}>
-              + Afegir brigada
+              + Afegir ETT
             </Button>
           </div>
         )}

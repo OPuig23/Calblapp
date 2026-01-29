@@ -9,6 +9,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
 import {
   Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
 } from '@/components/ui/select'
@@ -19,7 +20,6 @@ import { Loader2, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAvailablePersonnel } from '../hooks/useAvailablePersonnel'
 
-import QuadrantFieldsServeis from './QuadrantFieldsServeis'
 import QuadrantFieldsLogistica from './QuadrantFieldsLogistica'
 
 interface QuadrantModalProps {
@@ -87,6 +87,8 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
       .toString()
       .toLowerCase()
   const isCuina = department === 'cuina'
+  const isServeis = department === 'serveis'
+  const isGroupDept = isCuina || isServeis
 
   const rawTitle = event.summary || event.title || ''
   const { name: eventName, code: parsedCode } = splitTitle(rawTitle)
@@ -109,11 +111,14 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
   const [vehicleAssignments, setVehicleAssignments] = useState<
     { vehicleType: string; vehicleId: string; plate: string; arrivalTime?: string }[]
   >([])
-
-  const [serveisData, setServeisData] = useState({
-    workers: Number(event.totalWorkers || 0),
-    drivers: Number(event.numDrivers || 0),
-    brigades: [] as { id: string; name: string; workers: number; startTime: string; endTime: string }[],
+  const prevStartDateRef = useRef(startDate)
+  const [ettOpen, setEttOpen] = useState(false)
+  const [ettData, setEttData] = useState({
+    serviceDate: extractDate(event.start),
+    meetingPoint: location,
+    startTime,
+    endTime,
+    workers: '',
   })
 
   type CuinaGroup = {
@@ -127,6 +132,43 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
     responsibleId: string
   }
 
+  type ServeiGroup = {
+    id: string
+    serviceDate: string
+    dateLabel: string
+    meetingPoint: string
+    startTime: string
+    endTime: string
+    workers: number
+    responsibleId: string
+    needsDriver: boolean
+    driverId: string
+  }
+
+type ServeiGroupSeed = Partial<ServeiGroup> & {
+  defaultMeetingPoint?: string
+  defaultStartTime?: string
+  defaultEndTime?: string
+}
+
+type TimetableEntry = {
+  startTime?: string
+  endTime?: string
+}
+
+const normalizeTime = (value?: string) => {
+  if (!value) return undefined
+  const trimmed = value.trim()
+  return trimmed || undefined
+}
+
+const collectTimetable = (entry: TimetableEntry) => {
+  const start = normalizeTime(entry.startTime)
+  const end = normalizeTime(entry.endTime)
+  if (start && end) return { startTime: start, endTime: end }
+  return null
+}
+
   const makeGroupId = () => `group-${Date.now()}-${Math.random().toString(16).slice(2)}`
   const createGroup = (seed: Partial<CuinaGroup> = {}): CuinaGroup => ({
     id: seed.id || makeGroupId(),
@@ -139,7 +181,28 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
     responsibleId: seed.responsibleId ?? '',
   })
 
+  const createServeiGroup = (seed: ServeiGroupSeed = {}): ServeiGroup => ({
+    id: seed.id || makeGroupId(),
+    serviceDate: seed.serviceDate ?? extractDate(event.start),
+    dateLabel: seed.dateLabel ?? '',
+    meetingPoint:
+      seed.meetingPoint ?? seed.defaultMeetingPoint ?? meetingPoint ?? location ?? '',
+    startTime: seed.startTime ?? seed.defaultStartTime ?? startTime ?? '',
+    endTime: seed.endTime ?? seed.defaultEndTime ?? endTime ?? '',
+    workers: seed.workers ?? 0,
+    responsibleId: seed.responsibleId ?? '',
+    needsDriver: seed.needsDriver ?? false,
+    driverId: seed.driverId ?? '',
+  })
+
   const [cuinaGroups, setCuinaGroups] = useState<CuinaGroup[]>(() => [createGroup()])
+  const [serveisGroups, setServeisGroups] = useState<ServeiGroup[]>(() => [
+    createServeiGroup({
+      defaultMeetingPoint: meetingPoint || location || '',
+      defaultStartTime: startTime,
+      defaultEndTime: endTime,
+    }),
+  ])
   const cuinaTotalsRef = useRef({
     workers: Number(totalWorkers) || 0,
     drivers: Number(numDrivers) || 0,
@@ -152,6 +215,15 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
       responsables: cuinaGroups.length,
     }),
     [cuinaGroups]
+  )
+
+  const serveisTotals = useMemo(
+    () => ({
+      workers: serveisGroups.reduce((sum, group) => sum + group.workers, 0),
+      drivers: serveisGroups.filter((group) => group.needsDriver).length,
+      responsables: serveisGroups.length,
+    }),
+    [serveisGroups]
   )
 
   useEffect(() => {
@@ -217,6 +289,37 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
     })
   }
 
+  const updateServeisGroup = (id: string, patch: Partial<ServeiGroup>) => {
+    setServeisGroups((prev) => prev.map((group) => (group.id === id ? { ...group, ...patch } : group)))
+  }
+
+  const addServeisGroup = () => {
+    setServeisGroups((prev) => [
+      ...prev,
+      createServeiGroup({
+        defaultMeetingPoint: meetingPoint || location || '',
+        defaultStartTime: startTime,
+        defaultEndTime: endTime,
+        workers: 0,
+      }),
+    ])
+  }
+
+  const removeServeisGroup = (id: string) => {
+    setServeisGroups((prev) => {
+      const next = prev.filter((group) => group.id !== id)
+      return next.length
+        ? next
+        : [
+            createServeiGroup({
+              defaultMeetingPoint: meetingPoint || location || '',
+              defaultStartTime: startTime,
+              defaultEndTime: endTime,
+            }),
+          ]
+    })
+  }
+
   useEffect(() => {
     setStartDate(extractDate(event.start))
     setEndDate(extractDate(event.start))
@@ -232,24 +335,41 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
     setVehicleAssignments([])
     setTotalWorkers(event.totalWorkers?.toString() || '')
     setNumDrivers(event.numDrivers?.toString() || '')
-    setServeisData({
-      workers: Number(event.totalWorkers || 0),
-      drivers: Number(event.numDrivers || 0),
-      brigades: [],
+    setEttOpen(false)
+    setEttData({
+      serviceDate: extractDate(event.start),
+      meetingPoint: event.location || event.eventLocation || '',
+      startTime: event.startTime || '',
+      endTime: event.endTime || '',
+      workers: '',
     })
     const initialWorkers = Number(event.totalWorkers || 0)
     const initialDrivers = Number(event.numDrivers || 0)
     cuinaTotalsRef.current = { workers: initialWorkers, drivers: initialDrivers }
     setCuinaGroups([createGroup({ workers: initialWorkers, drivers: initialDrivers })])
-  }, [event, open])
+    if (isServeis) {
+      const baseMeetingPoint = event.meetingPoint || event.eventLocation || ''
+      setServeisGroups([
+        createServeiGroup({
+          serviceDate: extractDate(event.start),
+          defaultMeetingPoint: baseMeetingPoint,
+          defaultStartTime: event.startTime || '',
+          defaultEndTime: event.endTime || '',
+          workers: Number(event.totalWorkers || 0),
+        }),
+      ])
+    }
+  }, [event, open, isServeis])
 
-  const { responsables, loading: availLoading } = useAvailablePersonnel({
+  const { responsables, conductors, loading: availLoading } = useAvailablePersonnel({
     departament: department,
     startDate,
     endDate,
     startTime,
     endTime,
   })
+  const availableResponsables = responsables.filter((r) => Boolean(r.id?.trim()))
+  const availableConductors = conductors.filter((c) => Boolean(c.id?.trim()))
 
   useEffect(() => {
     if (
@@ -293,11 +413,14 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
     if (!canAutoGen) return
     setLoading(true); setError(null); setSuccess(false)
 
+    const manualResponsibleIdValue =
+      manualResp && manualResp !== '__auto__' ? manualResp : null
+
     try {
-      const payload: Record<string, unknown> = {
-        eventId: event.id,
-        code: eventCode,
-        eventName,
+    const payload: Record<string, unknown> = {
+      eventId: event.id,
+      code: eventCode,
+      eventName,
         department,
         location,
         meetingPoint,
@@ -306,10 +429,17 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
         endDate,
         endTime,
         arrivalTime: arrivalTime || null,
-        manualResponsibleId: isCuina ? null : manualResp || null,
+        manualResponsibleId: manualResponsibleIdValue,
         service: event.service || null,
         numPax: event.numPax || null,
         commercial: event.commercial || null,
+      }
+
+      const timetables: Array<{ startTime: string; endTime: string }> = []
+
+      const addTimetable = (entry: TimetableEntry) => {
+        const tt = collectTimetable(entry)
+        if (tt) timetables.push(tt)
       }
 
       if (isCuina) {
@@ -333,14 +463,31 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
         payload.totalWorkers = cuinaTotals.workers
         payload.numDrivers = cuinaTotals.drivers
         payload.cuinaGroupCount = cuinaGroups.length
+        groupsPayload.forEach((group) => addTimetable(group))
 
-      } else if (department.toLowerCase() === 'serveis') {
-        payload.totalWorkers = serveisData.workers
-        payload.numDrivers   = serveisData.drivers
-        payload.brigades     = serveisData.brigades
-        payload.service = event.service || null     
-        payload.numPax = event.numPax || null
-        payload.commercial = event.commercial || null
+      } else if (isServeis) {
+        const groupsPayload = serveisGroups.map((group) => {
+          const selected = responsables.find((r) => r.id === group.responsibleId)
+          return {
+            serviceDate: group.serviceDate,
+            dateLabel: group.dateLabel || null,
+            meetingPoint: group.meetingPoint || meetingPoint || '',
+            startTime: group.startTime,
+            endTime: group.endTime,
+            workers: group.workers,
+            drivers: group.needsDriver ? 1 : 0,
+            needsDriver: group.needsDriver,
+            driverId: group.driverId || null,
+            // Serveis: responsable és per esdeveniment (no per grup)
+            responsibleId: null,
+            responsibleName: null,
+          }
+        })
+
+        payload.groups = groupsPayload
+        payload.totalWorkers = serveisTotals.workers
+        payload.numDrivers = serveisTotals.drivers
+        groupsPayload.forEach((group) => addTimetable(group))
 
       } else {
         const canonicalType = (t?: string) => {
@@ -375,6 +522,27 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
         payload.totalWorkers = Number(totalWorkers)
         payload.numDrivers   = Number(numDrivers)
         payload.vehicles     = vehiclesPayload
+        addTimetable({ startTime, endTime })
+      }
+
+      const ettWorkers = Number(ettData.workers || 0)
+      if (ettWorkers > 0) {
+        const ettEntry = {
+          name: 'ETT',
+          workers: ettWorkers,
+          startDate: ettData.serviceDate || startDate,
+          endDate: ettData.serviceDate || endDate,
+          startTime: ettData.startTime || startTime,
+          endTime: ettData.endTime || endTime,
+          meetingPoint: ettData.meetingPoint || meetingPoint,
+        }
+        const existingBrigades = (payload.brigades as any[]) || []
+        payload.brigades = [...existingBrigades, ettEntry]
+        addTimetable({ startTime: ettData.startTime, endTime: ettData.endTime })
+      }
+
+      if (timetables.length) {
+        payload.timetables = timetables
       }
 
       const res = await fetch('/api/quadrants', {
@@ -435,7 +603,7 @@ onOpenChange(false)
                 <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
               </div>
             )}
-            {!isCuina && (
+            {department === 'logistica' && (
               <div>
                 <Label>Hora arribada (esdeveniment)</Label>
                 <Input type="time" value={arrivalTime} onChange={(e) => setArrivalTime(e.target.value)} />
@@ -450,8 +618,159 @@ onOpenChange(false)
           </div>
 
           {/* Camps específics */}
-          {department.toLowerCase() === 'serveis' && (
-            <QuadrantFieldsServeis value={serveisData} onChange={setServeisData} />
+          {isServeis && (
+            <div className="space-y-4 rounded-2xl border border-dashed border-slate-200 bg-white p-4">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-700">Grups Serveis</p>
+                  <p className="text-xs text-slate-500">
+                    Treballadors {serveisTotals.workers} · Conductors {serveisTotals.drivers} ·
+                    Responsables {serveisTotals.responsables}
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1"
+                  onClick={addServeisGroup}
+                >
+                  + Grup
+                </Button>
+              </div>
+              <div className="space-y-3">
+                {serveisGroups.map((group, idx) => (
+                  <div
+                    key={group.id}
+                    className="border border-slate-200 rounded-xl p-3 bg-slate-50 space-y-3"
+                  >
+                    <div className="flex items-center justify-between text-xs text-slate-500">
+                      <span>Grup {idx + 1}</span>
+                      {serveisGroups.length > 1 && (
+                        <button
+                          type="button"
+                          className="text-red-500 hover:underline"
+                          onClick={() => removeServeisGroup(group.id)}
+                        >
+                          Elimina grup
+                        </button>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <Label>Data servei</Label>
+                        <Input
+                          type="date"
+                          value={group.serviceDate}
+                          onChange={(e) =>
+                            updateServeisGroup(group.id, { serviceDate: e.target.value })
+                          }
+                        />
+                      </div>
+                      <div>
+                        <Label>Meeting point</Label>
+                        <Input
+                          value={group.meetingPoint}
+                          onChange={(e) =>
+                            updateServeisGroup(group.id, { meetingPoint: e.target.value })
+                          }
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <Label>Hora inici</Label>
+                        <Input
+                          type="time"
+                          value={group.startTime}
+                          onChange={(e) =>
+                            updateServeisGroup(group.id, { startTime: e.target.value })
+                          }
+                        />
+                      </div>
+                      <div>
+                        <Label>Hora fi</Label>
+                        <Input
+                          type="time"
+                          value={group.endTime}
+                          onChange={(e) =>
+                            updateServeisGroup(group.id, { endTime: e.target.value })
+                          }
+                        />
+                      </div>
+                    </div>
+                    {group.serviceDate !== extractDate(event.start) && (
+                      <div>
+                        <Label>Nota del dia</Label>
+                        <Input
+                          type="text"
+                          placeholder="Montatge"
+                          value={group.dateLabel}
+                          onChange={(e) =>
+                            updateServeisGroup(group.id, { dateLabel: e.target.value })
+                          }
+                        />
+                      </div>
+                    )}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <Label>Treballadors</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={group.workers}
+                          onChange={(e) => {
+                            const value = Number(e.target.value)
+                            updateServeisGroup(group.id, {
+                              workers: Number.isNaN(value) ? 0 : value,
+                            })
+                          }}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            id={`need-driver-${group.id}`}
+                            checked={group.needsDriver}
+                            onCheckedChange={(checked) =>
+                              updateServeisGroup(group.id, {
+                                needsDriver: Boolean(checked),
+                                driverId: checked ? group.driverId : '',
+                              })
+                            }
+                          />
+                          <Label htmlFor={`need-driver-${group.id}`} className="mb-0">
+                            Necessita conductor?
+                          </Label>
+                        </div>
+                        {group.needsDriver && (
+                          <Select
+                            value={group.driverId || '__none__'}
+                            onValueChange={(value) =>
+                              updateServeisGroup(group.id, {
+                                driverId: value === '__none__' ? '' : value,
+                              })
+                            }
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Selecciona un conductor…" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__none__">Sense assignar</SelectItem>
+                              {availableConductors.map((conductor) => (
+                                <SelectItem key={conductor.id} value={conductor.id}>
+                                  {conductor.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      </div>
+                    </div>
+                    {/* Responsable per grup NO aplica a serveis (un sol responsable per esdeveniment) */}
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
           {department.toLowerCase() === 'logistica' && (
             <QuadrantFieldsLogistica
@@ -466,7 +785,7 @@ onOpenChange(false)
           )}
 
           {/* Meeting point */}
-          {!isCuina && (
+          {!isGroupDept && (
             <div>
               <Label>Lloc de concentració</Label>
               <Input
@@ -632,7 +951,7 @@ onOpenChange(false)
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="__auto__">— Automàtic —</SelectItem>
-                            {responsables.map((r) => (
+                            {availableResponsables.map((r) => (
                               <SelectItem key={r.id} value={r.id}>
                                 {r.name}
                               </SelectItem>
@@ -646,30 +965,126 @@ onOpenChange(false)
               </div>
             </div>
           )}
-          {!isCuina && (
-            <div>
-              <Label>Responsable (manual)</Label>
-              {availLoading ? (
-                <p className="flex items-center gap-2 text-blue-600">
-                  <Loader2 className="animate-spin" /> Carregant…
-                </p>
+          {isGroupDept && (
+            <div className="space-y-3 rounded-2xl border border-dashed border-slate-200 bg-white p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-700">ETT</p>
+                  <p className="text-xs text-slate-500">Afegeix un servei temporal</p>
+                </div>
+                <Button
+                  size="sm"
+                  variant={ettOpen ? 'secondary' : 'outline'}
+                  onClick={() =>
+                    setEttOpen((prev) => {
+                      const next = !prev
+                      if (next) {
+                        setEttData((prevData) => ({
+                          ...prevData,
+                          serviceDate: startDate,
+                          meetingPoint: location || prevData.meetingPoint,
+                          startTime,
+                          endTime,
+                        }))
+                      }
+                      return next
+                    })
+                  }
+                >
+                  {ettOpen ? 'Amaga' : '+ ETT'}
+                </Button>
+              </div>
+              {ettOpen ? (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <Label>Data servei</Label>
+                      <Input
+                        type="date"
+                        value={ettData.serviceDate}
+                        onChange={(e) =>
+                          setEttData((prev) => ({
+                            ...prev,
+                            serviceDate: e.target.value || startDate,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label>Meeting point</Label>
+                      <Input
+                        value={ettData.meetingPoint}
+                        onChange={(e) =>
+                          setEttData((prev) => ({
+                            ...prev,
+                            meetingPoint: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label>Hora inici</Label>
+                      <Input
+                        type="time"
+                        value={ettData.startTime}
+                        onChange={(e) =>
+                          setEttData((prev) => ({ ...prev, startTime: e.target.value }))
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label>Hora fi</Label>
+                      <Input
+                        type="time"
+                        value={ettData.endTime}
+                        onChange={(e) =>
+                          setEttData((prev) => ({ ...prev, endTime: e.target.value }))
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label>Treballadors ETT</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={ettData.workers}
+                      onChange={(e) => setEttData({ ...ettData, workers: e.target.value })}
+                    />
+                  </div>
+                </div>
               ) : (
-                <Select value={manualResp} onValueChange={setManualResp}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Selecciona un responsable…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__auto__">— Automàtic —</SelectItem>
-                    {responsables.map(r => (
-                      <SelectItem key={r.id} value={r.id}>
-                        {r.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <p className="text-xs text-slate-500">
+                  ETT · {ettData.workers || '0'} treballadors (una sola línia)
+                </p>
               )}
             </div>
           )}
+          <div>
+            <Label>Responsable (manual)</Label>
+            {availLoading && (
+              <p className="flex items-center gap-2 text-blue-600">
+                <Loader2 className="animate-spin" /> Carregant…
+              </p>
+            )}
+            {!availLoading && (
+              <Select value={manualResp} onValueChange={setManualResp}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Selecciona un responsable…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__auto__">— Automàtic —</SelectItem>
+                  {availableResponsables.map((r) => (
+                    <SelectItem key={r.id} value={r.id}>
+                      {r.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
 
           {/* Feedback */}
           <AnimatePresence>
@@ -705,3 +1120,4 @@ onOpenChange(false)
     </Dialog>
   )
 }
+

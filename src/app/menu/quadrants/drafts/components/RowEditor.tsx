@@ -140,7 +140,7 @@ function EditorFields({
       <div className="space-y-3">
         {/* Selecció brigada */}
         <div>
-          <label className="text-xs font-medium">Brigada</label>
+          <label className="text-xs font-medium">ETT</label>
           <select
             value={row.id || ''}
             onChange={(e) => {
@@ -153,7 +153,7 @@ function EditorFields({
             className="w-full rounded border px-2 py-1 text-sm"
             disabled={isLocked}
           >
-            <option value="">— Selecciona brigada —</option>
+            <option value="">— Selecciona ETT —</option>
             {brigades.map((b) => (
               <option key={b.id} value={b.id}>
                 {b.name}
@@ -176,7 +176,7 @@ function EditorFields({
         {/* Hores */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
-            <label className="text-xs">Hora inici brigada</label>
+            <label className="text-xs">Hora inici ETT</label>
             <Input
               type="time"
               value={row.startTime || ''}
@@ -185,7 +185,7 @@ function EditorFields({
             />
           </div>
           <div>
-            <label className="text-xs">Hora fi brigada</label>
+            <label className="text-xs">Hora fi ETT</label>
             <Input
               type="time"
               value={row.endTime || ''}

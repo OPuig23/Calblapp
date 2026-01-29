@@ -51,4 +51,5 @@ export type DraftInput = {
   conductors?: Array<Partial<Row>>
   treballadors?: Array<Partial<Row>>
   brigades?: Array<Partial<Row>> // afegit per coherència amb DraftsTable
+  timetables?: Array<{ startTime: string; endTime: string }>
 }

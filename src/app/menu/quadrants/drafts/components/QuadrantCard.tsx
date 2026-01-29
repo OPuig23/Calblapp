@@ -22,7 +22,9 @@ export default function QuadrantCard({ quadrant, autoExpand = false }: Props) {
   const assigned = useMemo(() => ({
     responsables: quadrant.responsableName ? 1 : 0,
     conductors: quadrant.conductors?.length || 0,
-    treballadors: quadrant.treballadors?.length || 0,
+    treballadors:
+      (quadrant.treballadors?.length || 0) +
+      (quadrant.responsableName ? 1 : 0),
   }), [quadrant])
 
   // Comptadors requerits

@@ -32,7 +32,6 @@ export default function DraftsTable({ draft }: { draft: DraftInput }) {
   const defaultMeetingPoint = draft.meetingPoint || ''
   const cuinaGroups = Array.isArray(draft.groups) ? draft.groups : []
   const hasCuinaGroups = cuinaGroups.length > 0
-  const isServeisDept = department === 'serveis'
 
   const resolveNameById = (id: string) => {
     if (!id) return ''
@@ -142,7 +141,7 @@ export default function DraftsTable({ draft }: { draft: DraftInput }) {
         })
       }
 
-      if (!rows[respRowIndex]?.name && department !== 'serveis') {
+      if (!rows[respRowIndex]?.name) {
         const candidate =
           assignedWorkers.find((p) => p.name && p.name !== 'Extra') ||
           assignedDrivers.find((p) => p.name && p.name !== 'Extra')
@@ -157,23 +156,6 @@ export default function DraftsTable({ draft }: { draft: DraftInput }) {
         .filter((name) => typeof name === 'string' && name && name !== 'Extra')
         .map((name) => norm(name as string))
       groupNames.forEach((name) => usedNames.add(name))
-    })
-
-    ;(draft.brigades || []).forEach((brig) => {
-      rows.push({
-        id: brig.id || '',
-        name: brig.name || 'ETT',
-        role: 'brigada' as Role,
-        startDate: brig.startDate || draft.startDate,
-        startTime: brig.startTime || draft.startTime,
-        endDate: brig.endDate || draft.endDate,
-        endTime: brig.endTime || draft.endTime,
-        meetingPoint: brig.meetingPoint || defaultMeetingPoint,
-        arrivalTime: brig.arrivalTime || draft.arrivalTime || '',
-        workers: brig.workers || 0,
-        plate: brig.plate || '',
-        vehicleType: brig.vehicleType || '',
-      })
     })
 
     return rows
@@ -266,7 +248,7 @@ endTime:   b.endTime   || draft.endTime,
     endDate: draft.endDate,
     startTime: draft.startTime,
     endTime: draft.endTime,
-    excludeIds: rows.map((r) => r?.id).filter(Boolean),
+    excludeIds: rows.map((r) => r.id).filter(Boolean),
   })
 
   // --- Comptadors (ara eliminats del render, però útils si es necessiten més tard)
@@ -478,19 +460,6 @@ const handleSaveAll = async (rowsOverride?: Row[]) => {
     | { type: 'single'; row: Row; index: number }
     | { type: 'merged'; key: string; rows: Array<{ row: Row; index: number }> }
 
-  const renderDisplayItems = (items: DisplayItem[]) =>
-    items.map((item) =>
-      item.type === 'single' ? (
-        renderRow(item.row, item.index)
-      ) : expandedMerged.has(item.key) ? (
-        item.rows.map((r) => renderRow(r.row, r.index))
-      ) : (
-        <React.Fragment key={item.key}>
-          {renderMergedRowDesktop(item)}
-        </React.Fragment>
-      )
-    )
-
   const buildDisplayItems = (groupId?: string): DisplayItem[] => {
     const order: string[] = []
     const grouped = new Map<string, Array<{ row: Row; index: number }>>()
@@ -627,44 +596,6 @@ const handleSaveAll = async (rowsOverride?: Row[]) => {
     )
   }
 
-  const renderDisplayItemsMobile = (items: DisplayItem[]) =>
-    items.map((item) =>
-      item.type === 'single' ? (
-        <div key={`${item.row.role}-${item.row.id || 'noid'}-${item.index}`} className="p-3 text-sm">
-          <div className="flex justify-between items-center">
-            <span className="font-semibold text-gray-800">{item.row.name || '—'}</span>
-            <span className="text-xs text-gray-500">{item.row.role}</span>
-          </div>
-          <div className="text-xs text-gray-600 mt-1 space-y-0.5">
-            <div>🗓 {item.row.startDate}</div>
-            <div>⏱ {item.row.startTime || '—'}</div>
-            <div>📍 {item.row.meetingPoint || '—'}</div>
-            {item.row.vehicleType && <div>🚐 {item.row.vehicleType}</div>}
-          </div>
-          <div className="flex justify-end gap-2 mt-2">
-            <button
-              onClick={() => startEdit(item.index)}
-              className="px-2 py-1 rounded-md bg-blue-100 text-blue-700 text-xs"
-            >
-              Edita
-            </button>
-            <button
-              onClick={() => deleteRow(item.index)}
-              className="px-2 py-1 rounded-md bg-red-100 text-red-700 text-xs"
-            >
-              Elimina
-            </button>
-          </div>
-        </div>
-      ) : expandedMerged.has(item.key) ? (
-        item.rows.map((r) => renderRow(r.row, r.index))
-      ) : (
-        <React.Fragment key={item.key}>
-          {renderMergedRowMobile(item)}
-        </React.Fragment>
-      )
-    )
-
   const renderRow = (r: Row, i: number) => (
     <React.Fragment key={`${r.role}-${r.id || 'noid'}-${i}`}>
       <DraftRow
@@ -692,7 +623,6 @@ const handleSaveAll = async (rowsOverride?: Row[]) => {
   const defaultGroupEndTime = defaultGroup?.endTime || draft.endTime
   const defaultGroupArrivalTime = defaultGroup?.arrivalTime || draft.arrivalTime
   const defaultGroupMeetingPoint = defaultGroup?.meetingPoint || draft.meetingPoint || ''
-  const showConductorButtons = !isServeisDept
 
   const addRowToGroup = (role: Role, groupId?: string) => {
     const group = hasCuinaGroups
@@ -735,7 +665,7 @@ const handleSaveAll = async (rowsOverride?: Row[]) => {
         }}
       >
         <div></div>
-        <div>Nom / ETT</div>
+        <div>Nom / Brigada</div>
         <div>Data</div>
         <div>Hora</div>
         <div>Meeting point</div>
@@ -756,10 +686,8 @@ const handleSaveAll = async (rowsOverride?: Row[]) => {
       {/* Files */}
       <div className="flex flex-col divide-y">
         {showCuinaGroups
-          ? (
-              <>
-                {cuinaGroups.map((group, gidx) => {
-                  const groupId = `group-${gidx + 1}`
+          ? cuinaGroups.map((group, gidx) => {
+              const groupId = `group-${gidx + 1}`
               const groupStart = group.startTime || draft.startTime || '—'
               const groupArrival = group.arrivalTime || draft.arrivalTime || '—'
               const groupEnd = group.endTime || draft.endTime || '—'
@@ -778,7 +706,17 @@ const handleSaveAll = async (rowsOverride?: Row[]) => {
                       Hora arribada {groupArrival} · Hora fi {groupEnd}
                     </div>
                   </div>
-                  {renderDisplayItems(buildDisplayItems(groupId))}
+                  {buildDisplayItems(groupId).map((item) =>
+                    item.type === 'single' ? (
+                      renderRow(item.row, item.index)
+                    ) : expandedMerged.has(item.key) ? (
+                      item.rows.map((r) => renderRow(r.row, r.index))
+                    ) : (
+                      <React.Fragment key={item.key}>
+                        {renderMergedRowDesktop(item)}
+                      </React.Fragment>
+                    )
+                  )}
                   {!isLocked && (
                     <div className="flex flex-wrap gap-2 justify-end sm:justify-start px-3 py-3 bg-slate-50 border-b">
                       <button
@@ -787,14 +725,12 @@ const handleSaveAll = async (rowsOverride?: Row[]) => {
                       >
                         + Responsable
                       </button>
-                      {showConductorButtons && (
-                        <button
-                          onClick={() => addRowToGroup('conductor', groupId)}
-                          className="rounded-full bg-orange-100 px-3 py-1 text-xs font-medium text-orange-700 hover:bg-orange-200"
-                        >
-                          + Conductor
-                        </button>
-                      )}
+                      <button
+                        onClick={() => addRowToGroup('conductor', groupId)}
+                        className="rounded-full bg-orange-100 px-3 py-1 text-xs font-medium text-orange-700 hover:bg-orange-200"
+                      >
+                        + Conductor
+                      </button>
                       <button
                         onClick={() => addRowToGroup('treballador', groupId)}
                         className="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700 hover:bg-green-200"
@@ -805,16 +741,13 @@ const handleSaveAll = async (rowsOverride?: Row[]) => {
                         onClick={() => addRowToGroup('brigada', groupId)}
                         className="rounded-full bg-purple-100 px-3 py-1 text-xs font-medium text-purple-700 hover:bg-purple-200"
                       >
-                        + ETT
+                        + Brigada
                       </button>
                     </div>
                   )}
                 </React.Fragment>
               )
-            })}
-                {renderDisplayItems(buildDisplayItems())}
-              </>
-            )
+            })
           : rows.map((r, i) => renderRow(r, i))}
       </div>
     </div>
@@ -822,11 +755,9 @@ const handleSaveAll = async (rowsOverride?: Row[]) => {
     {/* 📱 Vista mòbil */}
     <div className="block sm:hidden divide-y">
       {showCuinaGroups
-        ? (
-            <>
-              {cuinaGroups.map((group, gidx) => {
-                const groupId = `group-${gidx + 1}`
-                const groupStart = group.startTime || draft.startTime || '—'
+        ? cuinaGroups.map((group, gidx) => {
+            const groupId = `group-${gidx + 1}`
+            const groupStart = group.startTime || draft.startTime || '—'
             const groupArrival = group.arrivalTime || draft.arrivalTime || '—'
             const groupEnd = group.endTime || draft.endTime || '—'
             const groupMeeting = group.meetingPoint || draft.meetingPoint || '—'
@@ -838,7 +769,43 @@ const handleSaveAll = async (rowsOverride?: Row[]) => {
                   <div>Hora inici: {groupStart}</div>
                   <div>Hora arribada: {groupArrival}</div>
                   <div>Hora fi: {groupEnd}</div>
-                </div>                {renderDisplayItemsMobile(buildDisplayItems(groupId))}
+                </div>
+                {buildDisplayItems(groupId).map((item) =>
+                  item.type === 'single' ? (
+                    <div key={`${item.row.role}-${item.row.id || 'noid'}-${item.index}`} className="p-3 text-sm">
+                      <div className="flex justify-between items-center">
+                        <span className="font-semibold text-gray-800">{item.row.name || '—'}</span>
+                        <span className="text-xs text-gray-500">{item.row.role}</span>
+                      </div>
+                      <div className="text-xs text-gray-600 mt-1 space-y-0.5">
+                        <div>📅 {item.row.startDate}</div>
+                        <div>🕒 {item.row.startTime || '—'}</div>
+                        <div>📍 {item.row.meetingPoint || '—'}</div>
+                        {item.row.vehicleType && <div>🚐 {item.row.vehicleType}</div>}
+                      </div>
+                      <div className="flex justify-end gap-2 mt-2">
+                        <button
+                          onClick={() => startEdit(item.index)}
+                          className="px-2 py-1 rounded-md bg-blue-100 text-blue-700 text-xs"
+                        >
+                          Edita
+                        </button>
+                        <button
+                          onClick={() => deleteRow(item.index)}
+                          className="px-2 py-1 rounded-md bg-red-100 text-red-700 text-xs"
+                        >
+                          Elimina
+                        </button>
+                      </div>
+                    </div>
+                  ) : expandedMerged.has(item.key) ? (
+                    item.rows.map((r) => renderRow(r.row, r.index))
+                  ) : (
+                    <React.Fragment key={item.key}>
+                      {renderMergedRowMobile(item)}
+                    </React.Fragment>
+                  )
+                )}
                 {!isLocked && (
                   <div className="flex flex-wrap gap-2 px-3 py-3 bg-slate-50">
                     <button
@@ -847,34 +814,29 @@ const handleSaveAll = async (rowsOverride?: Row[]) => {
                     >
                       + Responsable
                     </button>
-                    {showConductorButtons && (
-                      <button
-                        onClick={() => addRowToGroup('conductor', groupId)}
-                        className="rounded-full bg-orange-100 px-3 py-1 text-xs font-medium text-orange-700 hover:bg-orange-200"
-                      >
-                        + Conductor
-                      </button>
-                    )}
+                    <button
+                      onClick={() => addRowToGroup('conductor', groupId)}
+                      className="rounded-full bg-orange-100 px-3 py-1 text-xs font-medium text-orange-700 hover:bg-orange-200"
+                    >
+                      + Conductor
+                    </button>
                     <button
                       onClick={() => addRowToGroup('treballador', groupId)}
                       className="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700 hover:bg-green-200"
                     >
                       + Treballador
                     </button>
-                      <button
-                        onClick={() => addRowToGroup('brigada', groupId)}
-                        className="rounded-full bg-purple-100 px-3 py-1 text-xs font-medium text-purple-700 hover:bg-purple-200"
-                      >
-                        + ETT
-                      </button>
+                    <button
+                      onClick={() => addRowToGroup('brigada', groupId)}
+                      className="rounded-full bg-purple-100 px-3 py-1 text-xs font-medium text-purple-700 hover:bg-purple-200"
+                    >
+                      + Brigada
+                    </button>
                   </div>
                 )}
               </div>
             )
-          })}
-              {renderDisplayItemsMobile(buildDisplayItems())}
-            </>
-          )
+          })
         : rows.map((r, i) => (
             <div key={`${r.role}-${r.id || 'noid'}-${i}`} className="p-3 text-sm">
               <div className="flex justify-between items-center">
@@ -913,14 +875,12 @@ const handleSaveAll = async (rowsOverride?: Row[]) => {
         >
           + Responsable
         </button>
-        {showConductorButtons && (
-          <button
-            onClick={() => addRowToGroup('conductor', defaultGroupId)}
-            className="rounded-full bg-orange-100 px-3 py-1 text-xs font-medium text-orange-700 hover:bg-orange-200"
-          >
-            + Conductor
-          </button>
-        )}
+        <button
+          onClick={() => addRowToGroup('conductor', defaultGroupId)}
+          className="rounded-full bg-orange-100 px-3 py-1 text-xs font-medium text-orange-700 hover:bg-orange-200"
+        >
+          + Conductor
+        </button>
         <button
           onClick={() => addRowToGroup('treballador', defaultGroupId)}
           className="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700 hover:bg-green-200"
@@ -931,7 +891,7 @@ const handleSaveAll = async (rowsOverride?: Row[]) => {
           onClick={() => addRowToGroup('brigada', defaultGroupId)}
           className="rounded-full bg-purple-100 px-3 py-1 text-xs font-medium text-purple-700 hover:bg-purple-200"
         >
-          + ETT
+          + Brigada
         </button>
       </div>
     )}
@@ -939,5 +899,3 @@ const handleSaveAll = async (rowsOverride?: Row[]) => {
 )
 
 }
-
-

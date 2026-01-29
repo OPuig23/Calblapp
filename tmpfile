@@ -1,4 +1,4 @@
-// src/app/api/quadrants/route.ts
+﻿// src/app/api/quadrants/route.ts
 import { NextResponse, type NextRequest } from 'next/server'
 import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
 import { firestoreAdmin } from '@/lib/firebaseAdmin'
@@ -114,7 +114,6 @@ interface QuadrantSave {
   arrivalTime?: string | null
   distanceKm?: number | null
   distanceCalcAt?: string | null
-  timetables?: Array<{ startTime: string; endTime: string }>
 
 }
 
@@ -146,25 +145,8 @@ export async function POST(req: NextRequest) {
 
     const deptNorm = norm(String(body.department || ''))
 
-    // ?? Log dels conductors retornats per autoAssign
+    // 🔎 Log dels conductors retornats per autoAssign
     console.log('[quadrants/route] assignment.drivers:', assignment.drivers)
-
-    const normalizeTimeField = (value: unknown) =>
-      typeof value === 'string' ? value.trim() : ''
-
-    const toTimetableEntry = ({
-      startTime,
-      endTime,
-    }: { startTime?: unknown; endTime?: unknown }) => {
-      const start = normalizeTimeField(startTime)
-      const end = normalizeTimeField(endTime)
-      return start && end ? { startTime: start, endTime: end } : null
-    }
-
-    const rawTimetables = Array.isArray(body.timetables) ? body.timetables : []
-    const normalizedTimetables = rawTimetables
-      .map((entry: any) => toTimetableEntry(entry))
-      .filter((entry): entry is { startTime: string; endTime: string } => Boolean(entry))
 
     const toSave: QuadrantSave = {
       code: body.code || '',
@@ -205,8 +187,6 @@ export async function POST(req: NextRequest) {
       violations: meta.violations || [],
       attentionNotes: meta.notes || [],
       updatedAt: new Date().toISOString()
-      ,
-      timetables: normalizedTimetables
     }
 
     if (Array.isArray(body.groups)) {
@@ -231,7 +211,8 @@ export async function POST(req: NextRequest) {
         )
         const workersNeeded = Math.max(
           Number(group.workers || 0) -
-            Number(group.drivers || 0),
+            Number(group.drivers || 0) -
+            (responsibleIsDriver ? 0 : 1),
           0
         )
 
@@ -248,7 +229,7 @@ export async function POST(req: NextRequest) {
           workersSlice.push(next)
         }
 
-        if (!responsibleName && deptNorm === 'cuina') {
+        if (!responsibleName) {
           const candidate = [...workersSlice, ...driversSlice].find(
             (p) => p?.name && p.name !== 'Extra'
           )
@@ -281,7 +262,7 @@ export async function POST(req: NextRequest) {
       toSave.cuinaGroupCount = Number(body.cuinaGroupCount)
     }
 
-    // ?? Afegir brigades si venen del body
+    // 🔑 Afegir brigades si venen del body
     if (Array.isArray(body.brigades)) {
       toSave.brigades = body.brigades as Brigade[]
     }
@@ -333,4 +314,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: 'Internal error' }, { status: 500 })
   }
 }
-

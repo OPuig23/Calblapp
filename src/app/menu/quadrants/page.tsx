@@ -34,6 +34,7 @@ type UnifiedEvent = QuadrantEvent & {
   displayEndTime?: string | null
   quadrantStatus?: 'pending' | 'draft' | 'confirmed'
   draft?: any // dades del quadrant a Firestore (Draft)
+  horariLabel?: string
 }
 
 /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -162,8 +163,40 @@ const eventsWithStatus = useMemo<UnifiedEvent[]>(() => {
       return ev.responsable.trim()
     }
 
-    return ''
-  }
+  return ''
+}
+
+const parseTime = (value?: string | null | undefined): string | undefined => {
+  if (!value) return undefined
+  const trimmed = value.toString().trim()
+  return trimmed || undefined
+}
+
+const timeToMinutes = (time?: string) => {
+  if (!time) return null
+  const [hours, minutes] = time.split(':').map((part) => Number(part))
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return null
+  return hours * 60 + minutes
+}
+
+const selectEdgeTime = (
+  candidates: Array<string | undefined | null>,
+  fallback: string | undefined,
+  comparator: (current: number, best: number) => boolean
+): string | undefined => {
+  let best: { value: number; text: string } | null = null
+  candidates.forEach((candidate) => {
+    const normalized = parseTime(candidate)
+    if (!normalized) return
+    const value = timeToMinutes(normalized)
+    if (value === null) return
+    if (!best || comparator(value, best.value)) {
+      best = { value, text: normalized }
+    }
+  })
+  if (best) return best.text
+  return fallback
+}
 
   return (events as any[])
     .filter((ev) => ev.code && String(ev.code).trim() !== '')
@@ -202,13 +235,39 @@ const eventsWithStatus = useMemo<UnifiedEvent[]>(() => {
       /* -------------------------------------------------
          3) Horaris (prioritat a quadrants)
       --------------------------------------------------- */
-      const displayStartTime =
-        match?.startTime ||
-        ev.horaInici ||
-        (ev.start ? String(ev.start).slice(11, 16) : null)
+      const eventStartTime =
+        ev.horaInici || (ev.start ? String(ev.start).slice(11, 16) : null)
+      const eventEndTime = ev.end ? String(ev.end).slice(11, 16) : null
 
-      const displayEndTime =
-        match?.endTime || (ev.end ? String(ev.end).slice(11, 16) : null)
+      const serviceTimetables = Array.isArray(match?.timetables)
+        ? (match?.timetables as Array<{ startTime?: string; endTime?: string }>)
+        : []
+
+      const quadrantStartCandidates = [
+        match?.startTime,
+        ...serviceTimetables.map((tt) => tt.startTime),
+      ]
+      const quadrantEndCandidates = [
+        match?.endTime,
+        ...serviceTimetables.map((tt) => tt.endTime),
+      ]
+
+      const earliestQuadrantStart = selectEdgeTime(
+        quadrantStartCandidates,
+        match?.startTime,
+        (current, best) => current < best
+      )
+      const latestQuadrantEnd = selectEdgeTime(
+        quadrantEndCandidates,
+        match?.endTime,
+        (current, best) => current > best
+      )
+
+      const displayStartTime = eventStartTime || match?.startTime || undefined
+      const displayEndTime = eventEndTime || match?.endTime || undefined
+      const horariStart = earliestQuadrantStart ?? eventStartTime
+      const horariEnd = latestQuadrantEnd ?? eventEndTime
+      const horariLabel = `${horariStart ?? '—'} – ${horariEnd ?? '—'}`
 
       /* -------------------------------------------------
          4) RESPONSABLE (prioritats)
@@ -242,6 +301,7 @@ const eventsWithStatus = useMemo<UnifiedEvent[]>(() => {
 
         workersSummary: workerNames.join(', '),
 
+        horariLabel,
         displayStartTime,
         displayEndTime,
 
@@ -333,6 +393,7 @@ const eventsWithStatus = useMemo<UnifiedEvent[]>(() => {
         const endTime = ev.displayEndTime || ''
         const timeRange =
           startTime || endTime ? `${startTime} - ${endTime}`.trim() : ''
+        const horariLabel = ev.horariLabel || timeRange
 
         return {
           Data: startDate,
@@ -343,7 +404,7 @@ const eventsWithStatus = useMemo<UnifiedEvent[]>(() => {
           Ubicacio: ev.location || '',
           Servei: (ev as any).service || '',
           Treballadors: ev.workersSummary || '',
-          Horari: timeRange,
+          Horari: horariLabel,
           Estat: statusLabel(ev.quadrantStatus),
         }
       }),
@@ -552,6 +613,7 @@ const eventsWithStatus = useMemo<UnifiedEvent[]>(() => {
 
                     const startTime = ev.displayStartTime || '--:--'
                     const endTime = ev.displayEndTime || '--:--'
+                    const horariLabel = ev.horariLabel || `${startTime} – ${endTime}`
 
                     return (
                       <React.Fragment key={ev.id}>
@@ -592,7 +654,7 @@ const eventsWithStatus = useMemo<UnifiedEvent[]>(() => {
                             {ev.workersSummary || '—'}
                           </td>
                           <td className="px-3 py-2">
-                            {startTime} – {endTime}
+                            {horariLabel}
                           </td>
                           <td className="px-3 py-2 text-center">
                             <span
