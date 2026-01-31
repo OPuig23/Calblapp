@@ -28,6 +28,18 @@ const norm = (s?: string) => unaccent((s || '').toLowerCase().trim())
 const capitalize = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s)
 const collForDept = (d: string) => `quadrants${capitalize(norm(d))}`
 
+async function listQuadrantCollections(): Promise<string[]> {
+  const cols = await db.listCollections()
+  return cols
+    .map(c => c.id)
+    .filter((id) => {
+      const n = norm(id)
+      if (!n.startsWith('quadrant')) return false
+      if (n.includes('draft')) return false
+      return true
+    })
+}
+
 const toHrs = (s?: string, t?: string, eS?: string, eT?: string) => {
   const start = s ? new Date(`${s}T${(t || '00:00')}:00`) : null
   const end   = eS ? new Date(`${eS}T${(eT || '00:00')}:00`) : null
@@ -41,7 +53,8 @@ export async function buildLedger(
   weekStartISO: string,
   weekEndISO: string,
   monthStartISO: string,
-  monthEndISO: string
+  monthEndISO: string,
+  options?: { includeAllDepartmentsForBusy?: boolean }
 ): Promise<Ledger> {
   const weeklyHoursByUser = new Map<string, number>()
   const monthlyHoursByUser = new Map<string, number>()
@@ -55,6 +68,26 @@ export async function buildLedger(
     id: d.id,
     ...(d.data() as Omit<BusyAssignment, 'id'>),
   }))
+
+  let busyAssignments: BusyAssignment[] = busy
+  if (options?.includeAllDepartmentsForBusy) {
+    const allBusy: BusyAssignment[] = []
+    const colIds = await listQuadrantCollections()
+    for (const colId of colIds) {
+      try {
+        const colSnap = await db.collection(colId).get()
+        colSnap.docs.forEach(d => {
+          allBusy.push({
+            id: d.id,
+            ...(d.data() as Omit<BusyAssignment, 'id'>),
+          })
+        })
+      } catch (error) {
+        console.error(`[buildLedger] Error accedint a la col·lecció ${colId}:`, error)
+      }
+    }
+    busyAssignments = allBusy
+  }
 
   const add = (m: Map<string, number>, key: string, v: number) =>
     m.set(key, (m.get(key) || 0) + v)
@@ -99,6 +132,6 @@ export async function buildLedger(
     monthlyHoursByUser,
     assignmentsCountByUser,
     lastAssignedAtByUser,
-    busyAssignments: busy,
+    busyAssignments,
   }
 }

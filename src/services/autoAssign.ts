@@ -152,7 +152,9 @@ export async function autoAssign(payload: {
 
   // 3) Ledger
   // 3️⃣ Ledger
-const ledger = (await buildLedger(dept, ws, we, ms, me)) as any
+const ledger = (await buildLedger(dept, ws, we, ms, me, {
+  includeAllDepartmentsForBusy: true,
+})) as any
 
 
 
@@ -205,14 +207,15 @@ const ledger = (await buildLedger(dept, ws, we, ms, me)) as any
       const eligible = ranked.find((entry) =>
         isEligibleByName(entry.p.name, startISO, endISO, eligibleCtx).eligible
       )
-      chosenResp = eligible?.p || ranked[0]?.p || null
+      chosenResp = eligible?.p || null
     }
   }
 
   const notes: string[] = [...(warnings || [])]
   const violations: string[] = []
-  if (!isCuina && !chosenResp && premises.requireResponsible) {
-    violations.push('responsible_missing')
+  if (!isCuina && !chosenResp) {
+    if (premises.requireResponsible) violations.push('responsible_missing')
+    notes.push('No hi ha responsable elegible (ocupat o descans insuficient)')
   }
   if (forcedByPremise) {
     violations.push('premise_override')
@@ -252,7 +255,7 @@ const baseCtx = {
     .sort(tieBreakOrder)
 
   const workerCandidates = all
-    .filter((p) => p.available !== false && !p.isDriver && !exclude.has(norm(p.name)))
+    .filter((p) => p.available !== false && !exclude.has(norm(p.name)))
     .map(rank)
     .filter((candidate) =>
       isEligibleByName(candidate.p.name, startISO, endISO, baseCtx).eligible
@@ -307,7 +310,7 @@ const baseCtx = {
   const taken = new Set<string>(exclude)
 
   for (const cand of staffPool) {
-    if (staff.length >= neededWorkers) break
+    if (staff.length >= finalNeededWorkers) break
     const nm = norm(cand.p.name)
     if (taken.has(nm)) continue
     staff.push({ name: cand.p.name, meetingPoint })

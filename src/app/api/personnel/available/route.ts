@@ -70,6 +70,7 @@ export async function GET(request: NextRequest) {
   const st = searchParams.get('startTime')
   const ed = searchParams.get('endDate')
   const et = searchParams.get('endTime')
+  const excludeEventId = searchParams.get('excludeEventId')
 
   if (!deptParam || !sd || !ed) {
     console.warn('[available] Missing params', { deptParam, sd, st, ed, et })
@@ -86,7 +87,7 @@ export async function GET(request: NextRequest) {
     const minRest = await loadMinRestHours(deptNorm)
 
     const busyIdsOrNames = await getBusyPersonnelIdsAnyDepartment(
-      sd, ed, st || '00:00', et || '23:59'
+      sd, ed, st || '00:00', et || '23:59', excludeEventId
     )
     const busySet = new Set(busyIdsOrNames.map(norm))
 
@@ -98,17 +99,24 @@ export async function GET(request: NextRequest) {
       minRest,
     })
 
-const allBusy: QuadrantDoc[] = []
-const colIds = await listQuadrantCollections()
+    const allBusy: QuadrantDoc[] = []
+    const colIds = await listQuadrantCollections()
 
-for (const colId of colIds) {
-  try {
-    const docs = await fetchQuadrantDocsByEndDate(colId, ed)
-    if (docs.length) docs.forEach((d) => allBusy.push(d.data() as QuadrantDoc))
-  } catch (error) {
-    console.error(`[available] ❌ Error accedint a la col·lecció ${colId}:`, error)
-  }
-}
+    for (const colId of colIds) {
+      try {
+        const docs = await fetchQuadrantDocsByEndDate(colId, ed)
+        if (docs.length) {
+          docs.forEach((d) => {
+            if (excludeEventId && d.id === excludeEventId) return
+            const q = d.data() as QuadrantDoc & { eventId?: string }
+            if (excludeEventId && q?.eventId === excludeEventId) return
+            allBusy.push(q)
+          })
+        }
+      } catch (error) {
+        console.error(`[available] ❌ Error accedint a la col·lecció ${colId}:`, error)
+      }
+    }
 
 
     const personnelSnap = await db.collection('personnel').get()

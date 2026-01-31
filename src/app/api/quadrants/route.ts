@@ -166,6 +166,10 @@ export async function POST(req: NextRequest) {
       .map((entry: any) => toTimetableEntry(entry))
       .filter((entry): entry is { startTime: string; endTime: string } => Boolean(entry))
 
+    const staffRaw = (assignment.staff || []).filter((s) => s?.name)
+    const extraCount = staffRaw.filter((s) => s.name === 'Extra').length
+    const staffClean = staffRaw.filter((s) => s.name !== 'Extra')
+
     const toSave: QuadrantSave = {
       code: body.code || '',
       eventId: body.eventId,
@@ -196,7 +200,7 @@ export async function POST(req: NextRequest) {
         vehicleType: d.vehicleType || ''
       })),
 
-      treballadors: (assignment.staff || []).map(s => ({
+      treballadors: staffClean.map(s => ({
         name: s.name,
         meetingPoint: s.meetingPoint || body.meetingPoint || ''
       })),
@@ -281,9 +285,28 @@ export async function POST(req: NextRequest) {
       toSave.cuinaGroupCount = Number(body.cuinaGroupCount)
     }
 
-    // ?? Afegir brigades si venen del body
-    if (Array.isArray(body.brigades)) {
-      toSave.brigades = body.brigades as Brigade[]
+    // ?? Afegir brigades si venen del body + convertir "Extra" a ETT
+    const baseBrigades = Array.isArray(body.brigades) ? (body.brigades as Brigade[]) : []
+    if (extraCount > 0) {
+      const ettLine: Brigade = {
+        name: 'ETT',
+        workers: extraCount,
+        startTime: body.startTime || '00:00',
+        endTime: body.endTime || '00:00',
+      }
+      const existingIdx = baseBrigades.findIndex(
+        (b) => (b?.name || '').toString().trim().toLowerCase() === 'ett'
+      )
+      if (existingIdx >= 0) {
+        const prev = baseBrigades[existingIdx]
+        const prevWorkers = typeof prev?.workers === 'number' ? prev.workers : 0
+        baseBrigades[existingIdx] = { ...prev, workers: prevWorkers + extraCount }
+      } else {
+        baseBrigades.push(ettLine)
+      }
+    }
+    if (baseBrigades.length) {
+      toSave.brigades = baseBrigades
     }
     // Determinem la col·lecció segons el departament
     const collectionName = await resolveWriteCollectionForDepartment(deptNorm)

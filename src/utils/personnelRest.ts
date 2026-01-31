@@ -296,7 +296,8 @@ export async function getBusyPersonnelIdsAnyDepartment(
   startDate: string,
   endDate: string,
   startTime: string,
-  endTime: string
+  endTime: string,
+  excludeEventId?: string | null
 ): Promise<string[]> {
   const ids: string[] = []
   const push = (label: string, v?: string) => {
@@ -313,7 +314,9 @@ export async function getBusyPersonnelIdsAnyDepartment(
 
     if (docs.length) {
       docs.forEach(d => {
-        const q = d.data() as QuadrantDoc
+        if (excludeEventId && d.id === excludeEventId) return
+        const q = d.data() as QuadrantDoc & { eventId?: string }
+        if (excludeEventId && q?.eventId === excludeEventId) return
 
         const addIfOverlap = (label: string, line: LineWithTime | null, v?: string) => {
           if (!v) return

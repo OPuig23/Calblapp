@@ -248,6 +248,7 @@ endTime:   b.endTime   || draft.endTime,
   ]
 
   const [rows, setRows] = useState<Row[]>(initialRows)
+  const [editIdx, setEditIdx] = useState<number | null>(null)
   const initialRef = useRef(JSON.stringify(initialRows))
   const dirty = JSON.stringify(rows) !== initialRef.current
   const [expandedMerged, setExpandedMerged] = useState<Set<string>>(new Set())
@@ -266,16 +267,24 @@ endTime:   b.endTime   || draft.endTime,
     endDate: draft.endDate,
     startTime: draft.startTime,
     endTime: draft.endTime,
-    excludeIds: rows.map((r) => r?.id).filter(Boolean),
+    excludeEventId: draft.id,
+    excludeIds: rows
+      .filter((_, idx) => idx !== editIdx)
+      .map((r) => r?.id)
+      .filter(Boolean),
+    excludeNames: rows
+      .filter((_, idx) => idx !== editIdx)
+      .map((r) => r?.name)
+      .filter(Boolean),
   })
 
   // --- Comptadors (ara eliminats del render, però útils si es necessiten més tard)
   useMemo(
     () => ({
-      responsables: rows.filter((r) => r.role === 'responsable').length,
-      conductors: rows.filter((r) => r.role === 'conductor').length,
-      treballadors: rows.filter((r) => r.role === 'treballador').length,
-      brigades: rows.filter((r) => r.role === 'brigada').length,
+      responsables: rows.filter((r) => r?.role === 'responsable').length,
+      conductors: rows.filter((r) => r?.role === 'conductor').length,
+      treballadors: rows.filter((r) => r?.role === 'treballador').length,
+      brigades: rows.filter((r) => r?.role === 'brigada').length,
     }),
     [rows]
   )
@@ -439,7 +448,6 @@ const handleSaveAll = async (rowsOverride?: Row[]) => {
     }
   }
 
-  const [editIdx, setEditIdx] = useState<number | null>(null)
   const startEdit = (i: number) => setEditIdx(i)
   const endEdit = () => setEditIdx(null)
   const patchRow = (patch: Partial<Row>) =>
@@ -449,9 +457,15 @@ const handleSaveAll = async (rowsOverride?: Row[]) => {
 
   const revertRow = () => {
     if (editIdx === null) return
+    const original = initialRows[editIdx]
+    if (!original) {
+      setRows((rs) => rs.filter((_, idx) => idx !== editIdx))
+      setEditIdx(null)
+      return
+    }
     setRows((rs) => {
       const copy = [...rs]
-      copy[editIdx] = initialRows[editIdx] // torna a l’estat inicial
+      copy[editIdx] = original // torna a l’estat inicial
       return copy
     })
     setEditIdx(null)
@@ -703,11 +717,79 @@ const handleSaveAll = async (rowsOverride?: Row[]) => {
     const groupArrival = group?.arrivalTime || defaultGroupArrivalTime || ''
     const groupMeeting = group?.meetingPoint || defaultGroupMeetingPoint
 
+    if (role === 'brigada') {
+      if (hasCuinaGroups) {
+        const ettIdx = rows.findIndex(
+          (r) => r.role === 'brigada' && !r.groupId && norm(r.name || '') === 'ett'
+        )
+        const next = [...rows]
+        if (ettIdx >= 0) {
+          const current = next[ettIdx]
+          next[ettIdx] = {
+            ...current,
+            name: current.name || 'ETT',
+            workers: Number(current.workers || 0) + 1,
+          }
+        } else {
+          next.push({
+            id: '',
+            name: 'ETT',
+            role: 'brigada',
+            startDate: draft.startDate,
+            endDate: draft.endDate,
+            startTime: groupStart,
+            endTime: groupEnd,
+            meetingPoint: groupMeeting,
+            arrivalTime: groupArrival,
+            plate: '',
+            vehicleType: '',
+            workers: 1,
+          })
+        }
+
+        next.push({
+          id: '',
+          name: 'Extra',
+          role: 'treballador',
+          startDate: draft.startDate,
+          endDate: draft.endDate,
+          startTime: groupStart,
+          endTime: groupEnd,
+          meetingPoint: groupMeeting,
+          arrivalTime: groupArrival,
+          plate: '',
+          vehicleType: '',
+          groupId,
+        })
+
+        setRows(next)
+        return
+      }
+
+      const ettIdx = rows.findIndex(
+        (r) =>
+          r.role === 'brigada' &&
+          (r.groupId || '') === (groupId || '') &&
+          norm(r.name || '') === 'ett'
+      )
+      if (ettIdx >= 0) {
+        const next = [...rows]
+        const current = next[ettIdx]
+        next[ettIdx] = {
+          ...current,
+          name: current.name || 'ETT',
+          workers: Number(current.workers || 0) + 1,
+        }
+        setRows(next)
+        return
+      }
+    }
+
     setRows([
       ...rows,
       {
         id: '',
-        name: '',
+        name: role === 'brigada' ? 'ETT' : '',
         role,
         startDate: draft.startDate,
         endDate: draft.endDate,
@@ -718,6 +800,7 @@ const handleSaveAll = async (rowsOverride?: Row[]) => {
         plate: '',
         vehicleType: '',
         groupId,
+        ...(role === 'brigada' ? { workers: 1 } : {}),
       },
     ])
   }

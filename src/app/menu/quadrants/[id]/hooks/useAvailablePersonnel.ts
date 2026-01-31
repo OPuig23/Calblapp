@@ -20,6 +20,8 @@ export interface UseAvailablePersonnelOptions {
   startTime?: string
   endTime?: string
   excludeIds?: string[]
+  excludeNames?: string[]
+  excludeEventId?: string
 }
 
 /**
@@ -58,8 +60,11 @@ export function useAvailablePersonnel(opts: UseAvailablePersonnelOptions) {
     isFetchingRef.current = true
 
     try {
-      const excl = new Set(
+      const exclIds = new Set(
         (opts.excludeIds ?? []).map((id) => id.toLowerCase().trim())
+      )
+      const exclNames = new Set(
+        (opts.excludeNames ?? []).map((name) => name.toLowerCase().trim())
       )
 
       console.log('[useAvailablePersonnel] Fetch start', {
@@ -68,7 +73,8 @@ export function useAvailablePersonnel(opts: UseAvailablePersonnelOptions) {
         endDate: opts.endDate,
         startTime: opts.startTime,
         endTime: opts.endTime,
-        excludeIds: Array.from(excl),
+        excludeIds: Array.from(exclIds),
+        excludeNames: Array.from(exclNames),
       })
 
       const res = await axios.get('/api/personnel/available', {
@@ -78,6 +84,7 @@ export function useAvailablePersonnel(opts: UseAvailablePersonnelOptions) {
           endDate: opts.endDate,
           startTime: opts.startTime,
           endTime: opts.endTime,
+          excludeEventId: opts.excludeEventId,
         },
         headers: {
           Authorization: `Bearer ${session?.accessToken || ''}`,
@@ -92,7 +99,13 @@ export function useAvailablePersonnel(opts: UseAvailablePersonnelOptions) {
         label: string
       ): PersonnelOption[] => {
         const out = arr
-          .filter((p) => !excl.has(p.id?.toLowerCase()?.trim?.() || ''))
+          .filter((p) => {
+            const pid = p.id?.toLowerCase()?.trim?.() || ''
+            const pname = p.name?.toLowerCase()?.trim?.() || ''
+            if (pid && exclIds.has(pid)) return false
+            if (pname && exclNames.has(pname)) return false
+            return true
+          })
           .map((p) => ({
             id: p.id,
             name: p.name,
@@ -130,6 +143,8 @@ export function useAvailablePersonnel(opts: UseAvailablePersonnelOptions) {
     opts.startTime,
     opts.endTime,
     opts.excludeIds?.join(',') ?? '',
+    opts.excludeNames?.join(',') ?? '',
+    opts.excludeEventId ?? '',
     session?.accessToken,
   ])
 

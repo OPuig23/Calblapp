@@ -29,7 +29,7 @@ export default async function handler(
   res: NextApiResponse
 ) {
   try {
-    const { departament, department, startDate, endDate, startTime, endTime } =
+    const { departament, department, startDate, endDate, startTime, endTime, excludeEventId } =
       req.query as {
         departament: string
         department?: string
@@ -37,6 +37,7 @@ export default async function handler(
         endDate: string
         startTime?: string
         endTime?: string
+        excludeEventId?: string
       }
     const dept = (department || departament || '').toString().trim()
 
@@ -95,7 +96,8 @@ const allPersonnel = personnelSnap.docs.map((doc) => ({
       startDate,
       endDate,
       startTime || '',
-      endTime || ''
+      endTime || '',
+      excludeEventId
     )
     const busySet = new Set(busyIds)
     const isBusy = (p: Personnel) => {
