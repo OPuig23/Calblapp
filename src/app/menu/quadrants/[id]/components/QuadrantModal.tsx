@@ -20,8 +20,6 @@ import { Loader2, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAvailablePersonnel } from '../hooks/useAvailablePersonnel'
 
-import QuadrantFieldsLogistica from './QuadrantFieldsLogistica'
-
 type LogisticPhaseKey = 'entrega' | 'event' | 'recollida'
 
 const logisticPhaseOptions: Array<{ key: LogisticPhaseKey; label: string }> = [
@@ -33,7 +31,7 @@ const logisticPhaseOptions: Array<{ key: LogisticPhaseKey; label: string }> = [
 type PhaseVisibility = Record<LogisticPhaseKey, boolean>
 const createPhaseVisibility = (): PhaseVisibility =>
   logisticPhaseOptions.reduce((acc, phase) => {
-    acc[phase.key] = true
+    acc[phase.key] = phase.key === 'event'
     return acc
   }, {} as PhaseVisibility)
 
@@ -44,7 +42,10 @@ type LogisticPhaseSetting = {
 
 const createPhaseSettings = () =>
   logisticPhaseOptions.reduce((acc, phase) => {
-    acc[phase.key] = { selected: true, needsResponsible: phase.key === 'event' }
+    acc[phase.key] = {
+      selected: phase.key === 'event',
+      needsResponsible: phase.key === 'event',
+    }
     return acc
   }, {} as Record<LogisticPhaseKey, LogisticPhaseSetting>)
 
@@ -58,7 +59,7 @@ const servicePhaseOptions: Array<{ key: ServicePhaseKey; label: string }> = [
 type ServicePhaseVisibility = Record<ServicePhaseKey, boolean>
 const createServicePhaseVisibility = (): ServicePhaseVisibility =>
   servicePhaseOptions.reduce((acc, phase) => {
-    acc[phase.key] = true
+    acc[phase.key] = phase.key === 'event'
     return acc
   }, {} as ServicePhaseVisibility)
 
@@ -68,7 +69,7 @@ type ServicePhaseSetting = {
 
 const createServicePhaseSettings = (): Record<ServicePhaseKey, ServicePhaseSetting> =>
   servicePhaseOptions.reduce((acc, phase) => {
-    acc[phase.key] = { selected: true }
+    acc[phase.key] = { selected: phase.key === 'event' }
     return acc
   }, {} as Record<ServicePhaseKey, ServicePhaseSetting>)
 
@@ -80,6 +81,20 @@ type LogisticPhaseForm = {
   workers: number
   drivers: number
   meetingPoint: string
+}
+
+type VehicleAssignment = {
+  vehicleType: string
+  vehicleId: string
+  plate: string
+  arrivalTime?: string
+}
+
+type AvailableVehicle = {
+  id: string
+  plate?: string
+  type?: string
+  available: boolean
 }
 
 const buildPhaseForms = (params: {
@@ -235,6 +250,78 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
   const [servicePhaseSettings, setServicePhaseSettings] = useState(
     () => createServicePhaseSettings()
   )
+  const [phaseVehicleAssignments, setPhaseVehicleAssignments] = useState<
+    Record<LogisticPhaseKey, VehicleAssignment[]>
+  >(() =>
+    logisticPhaseOptions.reduce((acc, phase) => {
+      acc[phase.key] = []
+      return acc
+    }, {} as Record<LogisticPhaseKey, VehicleAssignment[]>)
+  )
+  const normalizeVehicleType = (value?: string) => {
+    const val = (value || '').toString().toLowerCase()
+    if (!val) return ''
+    if (val.includes('petit')) return 'camioPetit'
+    if (val.includes('gran')) return 'camioGran'
+    if (val.includes('furgo')) return 'furgoneta'
+    return val
+  }
+  const isVehicleIdAssigned = (
+    vehicleId: string,
+    currentPhase: LogisticPhaseKey,
+    currentIndex: number
+  ) => {
+    if (!vehicleId) return false
+    for (const phase of logisticPhaseOptions) {
+      const assignments = phaseVehicleAssignments[phase.key] || []
+      for (let idx = 0; idx < assignments.length; idx += 1) {
+        if (phase.key === currentPhase && idx === currentIndex) continue
+        if (assignments[idx]?.vehicleId === vehicleId) return true
+      }
+    }
+    return false
+  }
+  const updatePhaseVehicleAssignment = (
+    phaseKey: LogisticPhaseKey,
+    index: number,
+    patch: Partial<VehicleAssignment>
+  ) => {
+    setPhaseVehicleAssignments((prev) => {
+      const phaseAssignments = prev[phaseKey] || []
+      if (index < 0 || index >= phaseAssignments.length) return prev
+      const updated = [...phaseAssignments]
+      updated[index] = { ...updated[index], ...patch }
+      return { ...prev, [phaseKey]: updated }
+    })
+  }
+  const buildVehiclesPayloadFromAssignments = () => {
+    const payload: Array<{
+      id: string
+      plate: string
+      vehicleType: string
+      conductorId: string | null
+      arrivalTime: string
+    }> = []
+    logisticPhaseOptions.forEach((phase) => {
+      const assignments = phaseVehicleAssignments[phase.key] || []
+      assignments.forEach((assignment) => {
+        const vehicleId = assignment.vehicleId || ''
+        const matched = available.vehicles.find((v) => v.id === vehicleId)
+        const vehicleType = normalizeVehicleType(
+          assignment.vehicleType || matched?.type || ''
+        )
+        if (!vehicleType && !vehicleId) return
+        payload.push({
+          id: vehicleId,
+          plate: assignment.plate || matched?.plate || '',
+          vehicleType,
+          conductorId: matched?.conductorId || null,
+          arrivalTime: assignment.arrivalTime || '',
+        })
+      })
+    })
+    return payload
+  }
   const [servicePhaseEtt, setServicePhaseEtt] = useState(() =>
     buildServicePhaseEtt({
       startDate: extractDate(event.start),
@@ -244,9 +331,6 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
     })
   )
   const [available, setAvailable]       = useState<{ vehicles: AvailableVehicle[] }>({ vehicles: [] })
-  const [vehicleAssignments, setVehicleAssignments] = useState<
-    { vehicleType: string; vehicleId: string; plate: string; arrivalTime?: string }[]
-  >([])
   const prevStartDateRef = useRef(startDate)
   const [ettOpen, setEttOpen] = useState(false)
   const [ettData, setEttData] = useState({
@@ -602,7 +686,6 @@ const collectTimetable = (entry: TimetableEntry) => {
     setError(null)
     setSuccess(false)
     setAvailable({ vehicles: [] })
-    setVehicleAssignments([])
     setTotalWorkers(event.totalWorkers?.toString() || '')
     setNumDrivers(event.numDrivers?.toString() || '')
     setEttOpen(false)
@@ -699,15 +782,40 @@ const collectTimetable = (entry: TimetableEntry) => {
   }, [department, startDate, startTime, endDate, endTime, totalWorkers])
 
   useEffect(() => {
-    setVehicleAssignments((prev) =>
-      Array.from({ length: Number(numDrivers || 0) }).map((_, idx) => ({
-        vehicleType: prev[idx]?.vehicleType || '',
-        vehicleId: prev[idx]?.vehicleId || '',
-        plate: prev[idx]?.plate || '',
-        arrivalTime: prev[idx]?.arrivalTime || '',
-      }))
-    )
-  }, [numDrivers])
+    if (!isLogistica) return
+    const totalPhaseDrivers = logisticPhaseOptions.reduce((sum, phase) => {
+      const phaseForm = phaseForms[phase.key]
+      return sum + (phaseForm ? Number(phaseForm.drivers || 0) : 0)
+    }, 0)
+    const targetDrivers = totalPhaseDrivers.toString()
+    if (numDrivers !== targetDrivers) {
+      setNumDrivers(targetDrivers)
+    }
+  }, [isLogistica, phaseForms, numDrivers])
+
+  const createPhaseVehicleAssignments = (drivers: number, previous: VehicleAssignment[] = []) => {
+    const count = Math.max(0, Number.isFinite(drivers) ? drivers : Number(drivers))
+    return Array.from({ length: count }).map((_, idx) => ({
+      vehicleType: previous[idx]?.vehicleType || '',
+      vehicleId: previous[idx]?.vehicleId || '',
+      plate: previous[idx]?.plate || '',
+      arrivalTime: previous[idx]?.arrivalTime || '',
+    }))
+  }
+
+  useEffect(() => {
+    if (!isLogistica) return
+    setPhaseVehicleAssignments((prev) => {
+      const next: Record<LogisticPhaseKey, VehicleAssignment[]> = { ...prev }
+      logisticPhaseOptions.forEach((phase) => {
+        const drivers = phaseForms[phase.key]?.drivers ?? 0
+        const existing = prev[phase.key] || []
+        const updated = createPhaseVehicleAssignments(drivers, existing)
+        next[phase.key] = updated
+      })
+      return next
+    })
+  }, [isLogistica, phaseForms])
 
   const canAutoGen = Boolean(startDate) && Boolean(endDate) && Boolean(startTime) && Boolean(endTime)
 
@@ -808,36 +916,7 @@ const collectTimetable = (entry: TimetableEntry) => {
         groupsPayload.forEach((group) => addTimetable(group))
 
       } else {
-        const canonicalType = (t?: string) => {
-          const x = (t || '').trim()
-          if (!x) return ''
-          const hit = (available?.vehicles || []).find((av) => av.type?.toLowerCase() === x.toLowerCase())
-          return hit?.type || x
-        }
-
-        const vehiclesPayload = Array.from({ length: Number(numDrivers || 0) }).map((_, idx) => {
-          const v = vehicleAssignments[idx] ?? { vehicleType: '', vehicleId: '', plate: '', arrivalTime: '' }
-          if (v.vehicleId) {
-            const match = available.vehicles.find((av) => av.id === v.vehicleId)
-            return {
-              id: v.vehicleId,
-              plate: match?.plate || '',
-              vehicleType: v.vehicleType || match?.type || '',
-              conductorId: match?.conductorId || null,
-              arrivalTime: v.arrivalTime || '',
-            }
-          }
-          if (v.vehicleType) {
-            return {
-              id: '',
-              plate: '',
-              vehicleType: canonicalType(v.vehicleType),
-              conductorId: null,
-              arrivalTime: v.arrivalTime || '',
-            }
-          }
-          return { id: '', plate: '', vehicleType: '', conductorId: null, arrivalTime: '' }
-        })
+        const vehiclesPayload = buildVehiclesPayloadFromAssignments()
 
         const baseLogisticPayload: Record<string, unknown> = {
           ...payload,
@@ -1411,19 +1490,6 @@ onOpenChange(false)
             </div>
           )}
           {department.toLowerCase() === 'logistica' && (
-            <QuadrantFieldsLogistica
-              totalWorkers={totalWorkers}
-              numDrivers={numDrivers}
-              setTotalWorkers={setTotalWorkers}
-              setNumDrivers={setNumDrivers}
-              vehicleAssignments={vehicleAssignments}
-              setVehicleAssignments={setVehicleAssignments}
-              available={available}
-              hideCounts={true}
-            />
-          )}
-
-          {department.toLowerCase() === 'logistica' && (
             <div className="space-y-4 rounded-2xl border border-dashed border-slate-200 bg-white p-4">
               <p className="text-sm font-semibold text-slate-700">Fase logística</p>
               <div className="grid gap-3">
@@ -1448,6 +1514,8 @@ onOpenChange(false)
                   const showResponsibleControls = phase.key === 'event'
                   const needsResponsible = showResponsibleControls && settings.needsResponsible
                   const isSelected = settings.selected
+                  const assignments = phaseVehicleAssignments[phase.key] ?? []
+                  const availableVehicleCount = available.vehicles.filter((v) => v.available).length
 
                   return (
                     <div
@@ -1578,6 +1646,93 @@ onOpenChange(false)
                               }
                             />
                           </div>
+                          {assignments.length > 0 && (
+                            <div className="space-y-3 mt-2 rounded-xl border border-dashed border-slate-200 bg-slate-50 p-3">
+                              <div className="text-xs text-gray-500">
+                                Vehicles disponibles (total): {availableVehicleCount} / {available.vehicles.length}
+                              </div>
+                              {assignments.map((assign, idx) => {
+                                const filtered = available.vehicles.filter((vehicle) => {
+                                  if (!vehicle.available) return false
+                                  if (normalizeVehicleType(vehicle.type) !== normalizeVehicleType(assign.vehicleType)) return false
+                                  return !isVehicleIdAssigned(vehicle.id, phase.key, idx)
+                                })
+                                return (
+                                  <div key={idx} className="border border-slate-200 rounded-xl bg-white p-3 space-y-2">
+                                    <p className="text-sm font-semibold">Vehicle #{idx + 1}</p>
+                                    <Select
+                                      value={assign.vehicleType}
+                                      onValueChange={(val) =>
+                                        updatePhaseVehicleAssignment(phase.key, idx, {
+                                          vehicleType: val,
+                                          vehicleId: '',
+                                          plate: '',
+                                        })
+                                      }
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Tipus de vehicle" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="camioPetit">Camió petit</SelectItem>
+                                        <SelectItem value="furgoneta">Furgoneta</SelectItem>
+                                        <SelectItem value="camioGran">Camió gran</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                    {assign.vehicleType && (
+                                      <>
+                                        <div className="text-xs text-gray-500">
+                                          Matrícules disponibles: {filtered.length}
+                                        </div>
+                                        <Select
+                                          value={assign.vehicleId}
+                                          onValueChange={(val) => {
+                                            if (val === '__any__') {
+                                              updatePhaseVehicleAssignment(phase.key, idx, {
+                                                vehicleId: '',
+                                                plate: '',
+                                              })
+                                              return
+                                            }
+                                            const chosen = available.vehicles.find((v) => v.id === val)
+                                            updatePhaseVehicleAssignment(phase.key, idx, {
+                                              vehicleId: val,
+                                              plate: chosen?.plate || '',
+                                              vehicleType: normalizeVehicleType(chosen?.type),
+                                            })
+                                          }}
+                                        >
+                                          <SelectTrigger>
+                                            <SelectValue placeholder="Tipus només o matrícula" />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="__any__">(Només tipus, sense matrícula)</SelectItem>
+                                            {filtered.map((vehicle) => (
+                                              <SelectItem key={vehicle.id} value={vehicle.id}>
+                                                {vehicle.plate || '(sense matrícula)'}
+                                              </SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
+                                        <div className="space-y-1 pt-2">
+                                          <Label>Hora d'arribada</Label>
+                                          <Input
+                                            type="time"
+                                            value={assign.arrivalTime || ''}
+                                            onChange={(e) =>
+                                              updatePhaseVehicleAssignment(phase.key, idx, {
+                                                arrivalTime: e.target.value,
+                                              })
+                                            }
+                                          />
+                                        </div>
+                                      </>
+                                    )}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
 
                           {showResponsibleControls && (
                             <>
