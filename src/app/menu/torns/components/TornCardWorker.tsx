@@ -93,6 +93,24 @@ function LnBadge({ ln }: { ln: string }) {
   )
 }
 
+function NotePill({ note }: { note?: string }) {
+  if (!note) return null
+  return (
+    <span className="text-[11px] px-2 py-0.5 rounded-full border font-medium bg-amber-100 text-amber-800 border-amber-200">
+      {note}
+    </span>
+  )
+}
+
+function PhasePill({ label }: { label?: string }) {
+  if (!label) return null
+  return (
+    <span className="text-[11px] px-2 py-0.5 rounded-full border font-medium bg-indigo-100 text-indigo-800 border-indigo-200">
+      {label}
+    </span>
+  )
+}
+
 type Props = {
   item: TornCardItem
   onClick?: () => void
@@ -131,6 +149,8 @@ export default function TornCardWorker({ item, onClick, onEventClick, onAvisosCl
         <div className="flex gap-2">
           <RolePill role={item.workerRole} />
           <LnBadge ln={ln} />
+          <PhasePill label={item.phaseLabel} />
+          <NotePill note={item.dayNote} />
         </div>
         {onAvisosClick && (
           <button

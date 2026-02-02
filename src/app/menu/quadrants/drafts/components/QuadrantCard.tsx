@@ -9,30 +9,60 @@ import DraftsTable from './DraftsTable'
 interface Props {
   quadrant: Draft
   autoExpand?: boolean       // ⭐ nova prop
+  phaseKey?: string
+  pendingPhases?: Array<{ key: string; label: string }>
+  onCreatePhase?: (phaseKey: string) => void
 }
 
-export default function QuadrantCard({ quadrant, autoExpand = false }: Props) {
+export default function QuadrantCard({
+  quadrant,
+  autoExpand = false,
+  phaseKey,
+  pendingPhases = [],
+  onCreatePhase,
+}: Props) {
   const [expanded, setExpanded] = useState(autoExpand)   // ⭐ si autoExpand = true → s'obre directament
   React.useEffect(() => {
     if (autoExpand) setExpanded(true)
   }, [autoExpand])
 
+  const phase = useMemo(() => {
+    if (!phaseKey) return null
+    const phases = Array.isArray((quadrant as any).logisticaPhases)
+      ? (quadrant as any).logisticaPhases
+      : []
+    const target = String(phaseKey).toLowerCase().trim()
+    return (
+      phases.find((p: any) => {
+        const key = (p?.key || p?.label || '').toString().toLowerCase().trim()
+        return key === target
+      }) || null
+    )
+  }, [quadrant, phaseKey])
 
   // Comptadors assignats
   const assigned = useMemo(() => ({
-    responsables: quadrant.responsableName ? 1 : 0,
-    conductors: quadrant.conductors?.length || 0,
+    responsables: phase?.responsableName
+      ? 1
+      : quadrant.responsableName
+      ? 1
+      : 0,
+    conductors: phase?.conductors?.length || quadrant.conductors?.length || 0,
     treballadors:
-      (quadrant.treballadors?.length || 0) +
-      (quadrant.responsableName ? 1 : 0),
-  }), [quadrant])
+      (phase?.treballadors?.length || quadrant.treballadors?.length || 0) +
+      (phase?.responsableName ? 1 : quadrant.responsableName ? 1 : 0),
+  }), [quadrant, phase])
 
   // Comptadors requerits
   const requested = useMemo(() => ({
-    responsables: quadrant.responsablesNeeded || 1,
-    conductors: quadrant.numDrivers || 0,
-    treballadors: quadrant.totalWorkers || 0,
-  }), [quadrant])
+    responsables: phase
+      ? phase?.wantsResp
+        ? 1
+        : 0
+      : quadrant.responsablesNeeded || 1,
+    conductors: (phase?.numDrivers ?? quadrant.numDrivers) || 0,
+    treballadors: (phase?.totalWorkers ?? quadrant.totalWorkers) || 0,
+  }), [quadrant, phase])
 
   return (
     <div className="rounded-xl border bg-white shadow-sm hover:shadow-md transition">
@@ -107,9 +137,38 @@ export default function QuadrantCard({ quadrant, autoExpand = false }: Props) {
       {/* Contingut expandit */}
       {expanded && (
         <div className="border-t p-4">
-          <DraftsTable draft={quadrant} />
+          {((quadrant as any).phaseType || (quadrant as any).phaseLabel || '')
+            .toString()
+            .toLowerCase()
+            .trim() === 'event' &&
+            pendingPhases.length > 0 && (
+              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-semibold">Fases pendents:</span>
+                  {pendingPhases.map((p) => (
+                    <button
+                      key={p.key}
+                      type="button"
+                      className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800 hover:bg-amber-200"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onCreatePhase?.(p.key)
+                      }}
+                    >
+                      {p.label.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          <DraftsTable draft={quadrant} phaseKey={phaseKey} />
         </div>
       )}
     </div>
   )
 }
+
+
+
+
+

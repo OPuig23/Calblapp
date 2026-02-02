@@ -59,7 +59,7 @@ export async function GET(req: Request) {
       department,
     })
 
-    // 1️⃣ Intent string dates
+    // 1️⃣ Intent string dates (startDate/endDate)
     let snapshot = await collectionRef
       .where('startDate', '<=', end)
       .where('endDate', '>=', start)
@@ -76,9 +76,20 @@ export async function GET(req: Request) {
         .get()
     }
 
-    console.log('📈 [quadrants/get] Documents trobats:', snapshot.size)
+    // 3️⃣ Fases amb phaseDate (per documents separats)
+    let phaseSnapshot = await collectionRef
+      .where('phaseDate', '>=', start)
+      .where('phaseDate', '<=', end)
+      .get()
 
-const results = snapshot.docs.map(doc => {
+    // Unió de resultats (evita duplicats)
+    const combinedDocs = new Map<string, FirebaseFirestore.QueryDocumentSnapshot>()
+    snapshot.docs.forEach((doc) => combinedDocs.set(doc.id, doc))
+    phaseSnapshot.docs.forEach((doc) => combinedDocs.set(doc.id, doc))
+
+    console.log('📈 [quadrants/get] Documents trobats:', combinedDocs.size)
+
+const results = Array.from(combinedDocs.values()).map(doc => {
   const d = doc.data() as any
   // 🟦 Calcular hores reals a partir de les línies del quadrant
 const allRows = [
@@ -108,6 +119,7 @@ const derivedEndTime   = endTimes.length > 0 ? endTimes[endTimes.length - 1] : n
 
   return {
     id: doc.id,
+    eventId: d.eventId || '',
     code,
     eventCode: code,
 
@@ -118,11 +130,11 @@ const derivedEndTime   = endTimes.length > 0 ? endTimes[endTimes.length - 1] : n
 
     startDate: d.startDate?.toDate
       ? d.startDate.toDate().toISOString().slice(0, 10)
-      : d.startDate || '',
+      : d.startDate || d.phaseDate || '',
 
     endDate: d.endDate?.toDate
       ? d.endDate.toDate().toISOString().slice(0, 10)
-      : d.endDate || '',
+      : d.endDate || d.phaseDate || d.startDate || '',
 
     startTime: derivedStartTime || d.startTime || '',
 endTime:   derivedEndTime   || d.endTime   || '',
@@ -149,6 +161,9 @@ responsableName:
 
     // ⭐⭐⭐ AQUI LA CLAU: SERVEI / SERVICE ⭐⭐⭐
     service: d.service || d.servei || d.eventService || null,
+    phaseType: d.phaseType || d.phaseLabel || '',
+    phaseLabel: d.phaseLabel || '',
+    phaseDate: d.phaseDate || '',
 
     commercial: d.commercial || null,
     totalWorkers: Number(d.totalWorkers || 0),
@@ -156,14 +171,37 @@ responsableName:
 
     groups: Array.isArray(d.groups)
       ? d.groups.map((g: any) => ({
+          serviceDate: g.serviceDate || '',
+          dateLabel: g.dateLabel || '',
           meetingPoint: g.meetingPoint || '',
           startTime: g.startTime || '',
           arrivalTime: g.arrivalTime ?? null,
           endTime: g.endTime || '',
           workers: Number(g.workers || 0),
           drivers: Number(g.drivers || 0),
+          needsDriver: !!g.needsDriver,
+          driverId: g.driverId || null,
+          driverName: g.driverName || null,
           responsibleId: g.responsibleId || null,
           responsibleName: g.responsibleName || null,
+        }))
+      : undefined,
+    logisticaPhases: Array.isArray(d.logisticaPhases)
+      ? d.logisticaPhases.map((p: any) => ({
+          key: p.key || '',
+          label: p.label || '',
+          date: p.date || '',
+          endDate: p.endDate || '',
+          startTime: p.startTime || '',
+          endTime: p.endTime || '',
+          meetingPoint: p.meetingPoint || '',
+          totalWorkers: Number(p.totalWorkers || 0),
+          numDrivers: Number(p.numDrivers || 0),
+          wantsResp: !!p.wantsResp,
+          responsableId: p.responsableId || null,
+          responsableName: p.responsableName || null,
+          conductors: Array.isArray(p.conductors) ? p.conductors : [],
+          treballadors: Array.isArray(p.treballadors) ? p.treballadors : [],
         }))
       : undefined,
 

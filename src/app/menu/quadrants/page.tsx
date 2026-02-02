@@ -5,6 +5,7 @@ import React, { useState, useMemo, useEffect } from 'react'
 import { startOfWeek, endOfWeek, format, parseISO } from 'date-fns'
 import { useSession } from 'next-auth/react'
 import * as XLSX from 'xlsx'
+import { CalendarDays } from 'lucide-react'
 import ExportMenu from '@/components/export/ExportMenu'
 
 import useFetch from '@/hooks/useFetch'
@@ -14,38 +15,14 @@ import FiltersBar, { type FiltersState } from '@/components/layout/FiltersBar'
 import { useQuadrants } from '@/app/menu/quadrants/hooks/useQuadrants'
 import QuadrantModal from './[id]/components/QuadrantModal'
 import QuadrantCard from './drafts/components/QuadrantCard'
+import { useQuadrantsPageData } from './hooks/useQuadrantsPageData'
+import type { UnifiedEvent } from './types'
 
-/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-   Tipus interns
-â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-type UnifiedEvent = QuadrantEvent & {
-  id: string
-  summary: string
-  start: string
-  end: string
-  code?: string
-  location?: string
-  ln?: string
-  responsable?: string
-  commercial?: string | null
-  numPax?: number | null
-  workersSummary?: string
-  displayStartTime?: string | null
-  displayEndTime?: string | null
-  quadrantStatus?: 'pending' | 'draft' | 'confirmed'
-  draft?: any // dades del quadrant a Firestore (Draft)
-  horariLabel?: string
-}
 
-/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-   Component principal
-â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 export default function QuadrantsPage() {
-  // ðŸ“… Rang inicial: setmana actual
   const start = startOfWeek(new Date(), { weekStartsOn: 1 })
   const end = endOfWeek(new Date(), { weekStartsOn: 1 })
 
-  // ðŸ”¹ Estat de filtres (compatible amb FiltersBar)
   const [filters, setFilters] = useState<FiltersState>(() => ({
     start: format(start, 'yyyy-MM-dd'),
     end: format(end, 'yyyy-MM-dd'),
@@ -56,14 +33,12 @@ export default function QuadrantsPage() {
     status: '__all__',
   }))
 
-  // ðŸ”¹ Carrega esdeveniments per fer quadrants
   const {
     data: events = [],
     loading,
     error,
   } = useFetch('/api/events/quadrants', filters.start, filters.end)
 
-  // ðŸ”¹ SessiÃ³ usuari â†’ departament
   const { data: session } = useSession()
   const department =
     (
@@ -75,36 +50,41 @@ export default function QuadrantsPage() {
       .toString()
       .toLowerCase()
 
-  // ðŸ”¹ Quadrants existents a Firestore
   const { quadrants, reload } = useQuadrants(
     department,
     filters.start,
     filters.end
   )
+  useEffect(() => {
+    const handler = () => reload()
 
-  // ðŸ”„ Auto reload quan es crea / modifica un quadrant
-useEffect(() => {
-  const handler = () => reload()
+    window.addEventListener('quadrant:created', handler)
+    window.addEventListener('quadrant:updated', handler)
 
-  window.addEventListener('quadrant:created', handler)
-  window.addEventListener('quadrant:updated', handler)
-
-  return () => {
-    window.removeEventListener('quadrant:created', handler)
-    window.removeEventListener('quadrant:updated', handler)
-  }
-}, [reload])
+    return () => {
+      window.removeEventListener('quadrant:created', handler)
+      window.removeEventListener('quadrant:updated', handler)
+    }
+  }, [reload])
 
 
-  // ðŸ”¹ Event seleccionat per obrir el QuadrantModal (autogenerar)
   const [selected, setSelected] = useState<UnifiedEvent | null>(null)
 
-  // ðŸ”¹ Identificador del quadrant expandit (vista dâ€™ediciÃ³ inline)
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
-  /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-     Opcions filtres (LN / Responsable / UbicaciÃ³)
-  â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  const {
+    eventsWithStatus,
+    counts,
+    filteredEvents,
+    grouped,
+    phasesByEventId,
+  } = useQuadrantsPageData({
+    events,
+    quadrants,
+    filters,
+  })
+
+  
   const lnOptions = useMemo(() => {
     const set = new Set<string>()
     events.forEach((ev: any) => {
@@ -135,243 +115,27 @@ useEffect(() => {
     return Array.from(set).sort()
   }, [events])
 
-  /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-     Fusionar events + estat + info del quadrant
-  â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-   Fusionar events + estat + info del quadrant
-â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-const eventsWithStatus = useMemo<UnifiedEvent[]>(() => {
-  const normalize = (v?: string) =>
-    (v || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase()
+  
+  const LOGISTIC_PHASE_OPTIONS = [
+    { key: 'entrega', label: 'Entrega' },
+    { key: 'event', label: 'Event' },
+    { key: 'recollida', label: 'Recollida' },
+  ]
 
-  // Helper robust per extreure RESPONSABLE
-  const extractResponsable = (ev: any, match: any): string => {
-    if (typeof match?.responsableName === 'string' && match.responsableName.trim()) {
-      return match.responsableName.trim()
-    }
+  const SERVICE_PHASE_OPTIONS = [
+    { key: 'muntatge', label: 'Muntatge' },
+    { key: 'event', label: 'Event' },
+  ]
 
-    if (
-      match?.responsable &&
-      typeof match.responsable === 'object' &&
-      typeof match.responsable.name === 'string'
-    ) {
-      return match.responsable.name.trim()
-    }
-
-    if (typeof ev.responsable === 'string' && ev.responsable.trim()) {
-      return ev.responsable.trim()
-    }
-
-  return ''
-}
-
-const parseTime = (value?: string | null | undefined): string | undefined => {
-  if (!value) return undefined
-  const trimmed = value.toString().trim()
-  return trimmed || undefined
-}
-
-const timeToMinutes = (time?: string) => {
-  if (!time) return null
-  const [hours, minutes] = time.split(':').map((part) => Number(part))
-  if (Number.isNaN(hours) || Number.isNaN(minutes)) return null
-  return hours * 60 + minutes
-}
-
-const selectEdgeTime = (
-  candidates: Array<string | undefined | null>,
-  fallback: string | undefined,
-  comparator: (current: number, best: number) => boolean
-): string | undefined => {
-  let best: { value: number; text: string } | null = null
-  candidates.forEach((candidate) => {
-    const normalized = parseTime(candidate)
-    if (!normalized) return
-    const value = timeToMinutes(normalized)
-    if (value === null) return
-    if (!best || comparator(value, best.value)) {
-      best = { value, text: normalized }
-    }
-  })
-  if (best) return best.text
-  return fallback
-}
-
-  return (events as any[])
-    .filter((ev) => ev.code && String(ev.code).trim() !== '')
-    .map((ev) => {
-      
-      const key = normalize(ev.code)
-      const match = quadrants.find((q: any) => normalize(q.code) === key)
-
-      /* -------------------------------------------------
-         1) Estat del quadrant
-      --------------------------------------------------- */
-      let quadrantStatus: 'pending' | 'draft' | 'confirmed' = 'pending'
-      const s = String(match?.status || '').toLowerCase()
-      if (s === 'draft') quadrantStatus = 'draft'
-      else if (s === 'confirmed') quadrantStatus = 'confirmed'
-
-      /* -------------------------------------------------
-         2) Recollir tots els treballadors
-      --------------------------------------------------- */
-      const workerNames: string[] = []
-
-      if (match?.responsableName) workerNames.push(match.responsableName)
-
-      if (Array.isArray(match?.conductors)) {
-        workerNames.push(
-          ...match.conductors.map((c: any) => c?.name).filter(Boolean)
-        )
+  const phaseOptions = useMemo(
+    () => {
+      if (department === 'serveis') {
+        return SERVICE_PHASE_OPTIONS
       }
-
-      if (Array.isArray(match?.treballadors)) {
-        workerNames.push(
-          ...match.treballadors.map((t: any) => t?.name).filter(Boolean)
-        )
-      }
-
-      /* -------------------------------------------------
-         3) Horaris (prioritat a quadrants)
-      --------------------------------------------------- */
-      const eventStartTime =
-        ev.horaInici || (ev.start ? String(ev.start).slice(11, 16) : null)
-      const eventEndTime = ev.end ? String(ev.end).slice(11, 16) : null
-
-      const serviceTimetables = Array.isArray(match?.timetables)
-        ? (match?.timetables as Array<{ startTime?: string; endTime?: string }>)
-        : []
-
-      const quadrantStartCandidates = [
-        match?.startTime,
-        ...serviceTimetables.map((tt) => tt.startTime),
-      ]
-      const quadrantEndCandidates = [
-        match?.endTime,
-        ...serviceTimetables.map((tt) => tt.endTime),
-      ]
-
-      const earliestQuadrantStart = selectEdgeTime(
-        quadrantStartCandidates,
-        match?.startTime,
-        (current, best) => current < best
-      )
-      const latestQuadrantEnd = selectEdgeTime(
-        quadrantEndCandidates,
-        match?.endTime,
-        (current, best) => current > best
-      )
-
-      const displayStartTime = eventStartTime || match?.startTime || undefined
-      const displayEndTime = eventEndTime || match?.endTime || undefined
-      const horariStart = earliestQuadrantStart ?? eventStartTime
-      const horariEnd = latestQuadrantEnd ?? eventEndTime
-      const horariLabel = `${horariStart ?? '—'} – ${horariEnd ?? '—'}`
-
-      /* -------------------------------------------------
-         4) RESPONSABLE (prioritats)
-      --------------------------------------------------- */
-      const responsable = extractResponsable(ev, match)
-
-      /* -------------------------------------------------
-         5) RETURN FINAL (tot unificat)
-      --------------------------------------------------- */
-      return {
-        ...(ev as QuadrantEvent),
-
-        quadrantStatus,
-
-        service: ev.service || match?.service || null,
-
-        numPax:
-          ev.numPax != null
-            ? Number(ev.numPax)
-            : match?.numPax != null
-            ? Number(match.numPax)
-            : null,
-
-        commercial: ev.commercial || match?.commercial || null,
-
-        ln: (ev.ln || ev.lnLabel || null) as string | null,
-
-        location: ev.location || match?.location || null,
-
-        responsable: match?.responsableName || '',
-
-        workersSummary: workerNames.join(', '),
-
-        horariLabel,
-        displayStartTime,
-        displayEndTime,
-
-        draft: match || null,
-      } as UnifiedEvent
-    })
-}, [events, quadrants])
-
-
-
-  /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-     Comptadors resum
-  â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-  const counts = useMemo(() => {
-    let pending = 0
-    let draft = 0
-    let confirmed = 0
-
-    for (const ev of eventsWithStatus) {
-      if (ev.quadrantStatus === 'draft') draft++
-      else if (ev.quadrantStatus === 'confirmed') confirmed++
-      else pending++
-    }
-
-    return { pending, draft, confirmed }
-  }, [eventsWithStatus])
-
-  /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-     AplicaciÃ³ filtres
-  â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-  const filteredEvents = useMemo<UnifiedEvent[]>(() => {
-    return eventsWithStatus.filter((ev) => {
-      const evLn = (ev.ln || '').toString().trim().toLowerCase()
-      const evResp = (ev.responsable || '').toString().trim().toLowerCase()
-      const evLoc = (ev.location || '').toString().trim().toLowerCase()
-
-      const fLn = (filters.ln || '').toLowerCase()
-      const fResp = (filters.responsable || '').toLowerCase()
-      const fLoc = (filters.location || '').toLowerCase()
-
-      // Estat
-      if (filters.status !== '__all__' && ev.quadrantStatus !== filters.status)
-        return false
-
-      // LN
-      if (filters.ln !== '__all__' && fLn !== evLn) return false
-
-      // Responsable
-      if (filters.responsable !== '__all__' && !evResp.includes(fResp))
-        return false
-
-      // UbicaciÃ³
-      if (filters.location !== '__all__' && fLoc !== evLoc) return false
-
-      return true
-    })
-  }, [eventsWithStatus, filters])
-
-  /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-     AgrupaciÃ³ per dia (vista 1: agrupada per data)
-  â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-  const grouped = useMemo(() => {
-    const map: Record<string, UnifiedEvent[]> = {}
-    for (const ev of filteredEvents) {
-      const day = ev.start.slice(0, 10)
-      if (!map[day]) map[day] = []
-      map[day].push(ev)
-    }
-    return Object.entries(map).sort(([a, b]) => a.localeCompare(b))
-  }, [filteredEvents])
+      return LOGISTIC_PHASE_OPTIONS
+    },
+    [department]
+  )
 
   const exportBase = `quadrants-${String(department || 'dept').replace(
     /\\s+/g,
@@ -395,9 +159,24 @@ const selectEdgeTime = (
           startTime || endTime ? `${startTime} - ${endTime}`.trim() : ''
         const horariLabel = ev.horariLabel || timeRange
 
+        const rowDate = ev.start ? ev.start.slice(0, 10) : ''
+        const eventDateRaw = ev.eventDateRaw || ''
+        const hasPhaseLabel = Boolean(ev.phaseLabel)
+        const showEventDate =
+          hasPhaseLabel &&
+          eventDateRaw &&
+          rowDate &&
+          eventDateRaw !== rowDate
+        const phaseLabel = ev.phaseLabel ? ev.phaseLabel.toUpperCase() : ''
+        const phaseLabelWithDate =
+          hasPhaseLabel && showEventDate && ev.eventDateLabel
+            ? `${phaseLabel} (${ev.eventDateLabel})`
+            : phaseLabel
+
         return {
           Data: startDate,
           Responsable: ev.responsable || '',
+          Fase: phaseLabelWithDate,
           Esdeveniment: ev.summary || '',
           LN: ev.ln || '',
           PAX: ev.numPax ?? '',
@@ -430,6 +209,7 @@ const selectEdgeTime = (
     const cols = [
       'Data',
       'Responsable',
+      'Fase',
       'Esdeveniment',
       'LN',
       'PAX',
@@ -499,9 +279,7 @@ const selectEdgeTime = (
     { label: 'PDF (taula)', onClick: handleExportPdfTable },
   ]
 
-  /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-     RENDER
-  â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  
   return (
     <main className="space-y-6 px-4 pb-12">
       <style>{`
@@ -512,12 +290,11 @@ const selectEdgeTime = (
         }
       `}</style>
       <ModuleHeader
-        icon="🗂️"
+        icon={<CalendarDays className="w-7 h-7 text-indigo-600" />}
         title="Quadrants"
         subtitle="Gestió setmanal per departament"
         actions={<ExportMenu items={exportItems} />}
       />
-      {/* âœ” Barra de filtres (setmana, LN, responsable, ubicaciÃ³, estat) */}
       <FiltersBar
         id="filters-bar"
         filters={filters}
@@ -528,20 +305,16 @@ const selectEdgeTime = (
         responsables={responsables}
         locations={locations}
       />
-
-      {/* âœ” Comptadors dâ€™estat */}
       <div className="flex flex-wrap items-center justify-between gap-2 bg-indigo-50 border rounded-2xl p-3 shadow-sm text-sm font-medium">
         <div className="flex gap-6 sm:gap-10">
           <span className="flex items-center gap-2 text-yellow-700">
             <span className="w-2.5 h-2.5 bg-yellow-400 rounded-full" />
             Pendents: {counts.pending}
           </span>
-
           <span className="flex items-center gap-2 text-blue-700">
             <span className="w-2.5 h-2.5 bg-blue-500 rounded-full" />
             Esborranys: {counts.draft}
           </span>
-
           <span className="flex items-center gap-2 text-green-700">
             <span className="w-2.5 h-2.5 bg-green-500 rounded-full" />
             Confirmats: {counts.confirmed}
@@ -549,10 +322,9 @@ const selectEdgeTime = (
         </div>
       </div>
 
-      {/* âœ” Estat de cÃ rrega / error */}
       {loading && (
         <p className="text-center text-gray-500 py-10">
-          Carregant quadrants…
+          Carregant quadrants¦
         </p>
       )}
 
@@ -568,7 +340,6 @@ const selectEdgeTime = (
         </p>
       )}
 
-      {/* âœ” Taula compacta agrupada per dies */}
       {!loading && !error && grouped.length > 0 && (
         <div
           id="quadrants-print-root"
@@ -578,24 +349,24 @@ const selectEdgeTime = (
             <thead className="bg-indigo-100 text-indigo-900 font-semibold">
               <tr>
                 <th className="px-3 py-2 text-left">Responsable</th>
+                <th className="px-3 py-2 text-left">Fase</th>
                 <th className="px-3 py-2 text-left">Esdeveniment</th>
                 <th className="px-3 py-2 text-left">LN</th>
                 <th className="px-3 py-2 text-left">PAX</th>
-                <th className="px-3 py-2 text-left">Finca / Ubicació</th>
+                <th className="px-3 py-2 text-left">Finca / Ubicacio</th>
                 <th className="px-3 py-2 text-left">Servei</th>
                 <th className="px-3 py-2 text-left">Hora inici</th>
                 <th className="px-3 py-2 text-left">Treballadors</th>
                 <th className="px-3 py-2 text-left">Horari</th>
-                <th className="px-3 py-2 text-center">•</th>
+                <th className="px-3 py-2 text-center"></th>
               </tr>
             </thead>
 
             <tbody>
               {grouped.map(([day, evs]) => (
                 <React.Fragment key={day}>
-                  {/* SubcapÃ§alera per dia */}
                   <tr className="bg-indigo-50 text-indigo-800">
-                    <td colSpan={9} className="px-3 py-2 font-semibold">
+                    <td colSpan={11} className="px-3 py-2 font-semibold">
                       {format(parseISO(day), 'dd-MM-yyyy')}
                     </td>
                   </tr>
@@ -613,22 +384,50 @@ const selectEdgeTime = (
 
                     const startTime = ev.displayStartTime || '--:--'
                     const endTime = ev.displayEndTime || '--:--'
-                    const horariLabel = ev.horariLabel || `${startTime} – ${endTime}`
+                    const horariLabel = ev.horariLabel || `${startTime} - ${endTime}`
+                    const rowDate = ev.start ? ev.start.slice(0, 10) : ''
+                    const eventDateRaw = ev.eventDateRaw || ''
+                    const hasPhaseLabel = Boolean(ev.phaseLabel)
+                    const showEventDate =
+                      hasPhaseLabel &&
+                      eventDateRaw &&
+                      rowDate &&
+                      eventDateRaw !== rowDate
+                    const phaseLabel = ev.phaseLabel ? ev.phaseLabel.toUpperCase() : ''
+                    const phaseLabelWithDate =
+                      hasPhaseLabel && showEventDate && ev.eventDateLabel
+                        ? `${phaseLabel} (${ev.eventDateLabel})`
+                        : phaseLabel
+                    const eventId = String(ev.eventId || ev.eventCode || ev.code || ev.id || "")
+                      .trim()
+                    const existingPhases = eventId ? phasesByEventId[eventId] : undefined
+                    const pendingPhases = eventId
+                      ? phaseOptions
+                          .filter((p) => !(existingPhases && existingPhases.has(p.key)))
+                          .map((p) => ({
+                            key: p.key,
+                            label:
+                              p.key !== 'event' && ev.eventDateLabel
+                                ? `${p.label} (${ev.eventDateLabel})`
+                                : p.label,
+                          }))
+                      : []
 
+                    const fragmentKey = `${eventId || ev.id || ''}__${
+                      ev.phaseKey || ev.phaseType || ev.phaseLabel || 'event'
+                    }__${ev.phaseDate || ev.start || ''}`
                     return (
-                      <React.Fragment key={ev.id}>
+                      <React.Fragment key={fragmentKey}>
                         <tr
                           className="cursor-pointer hover:bg-indigo-50 transition"
                           onClick={() => {
                             if (ev.quadrantStatus === 'pending') {
-                              // No existeix quadrant â†’ AUTOGENERAR
                               setSelected({
                                 ...ev,
                                 startTime: ev.displayStartTime || ev.startTime,
                                 endTime: ev.displayEndTime || ev.endTime,
                               })
                             } else if (draft && draft.id) {
-                              // Ja existeix draft â†’ OBRIR / TANCAR EDICIÃ“ INLINE
                               setExpandedId((prev) =>
                                 prev === draft.id ? null : draft.id
                               )
@@ -636,22 +435,31 @@ const selectEdgeTime = (
                           }}
                         >
                           <td className="px-3 py-2">
-                            {ev.responsable || '—'}
+                            {ev.responsable || '-'}
+                          </td>
+                          <td className="px-3 py-2">
+                            {hasPhaseLabel ? (
+                              <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
+                                {phaseLabelWithDate}
+                              </span>
+                            ) : (
+                              ''
+                            )}
                           </td>
                           <td className="px-3 py-2">{ev.summary}</td>
-                          <td className="px-3 py-2">{ev.ln || '—'}</td>
-                          <td className="px-3 py-2">{ev.numPax ?? '—'}</td>
+                          <td className="px-3 py-2">{ev.ln || '-'}</td>
+                          <td className="px-3 py-2">{ev.numPax ?? '-'}</td>
                           <td className="px-3 py-2">
-                            {ev.location || '—'}
+                            {ev.location || '-'}
                           </td>
                           <td className="px-3 py-2">
-                            {ev.service || '—'}
+                            {ev.service || '-'}
                           </td>
                           <td className="px-3 py-2">
                             {startTime}
                           </td>
                           <td className="px-3 py-2">
-                            {ev.workersSummary || '—'}
+                            {ev.workersSummary || '-'}
                           </td>
                           <td className="px-3 py-2">
                             {horariLabel}
@@ -663,12 +471,23 @@ const selectEdgeTime = (
                           </td>
                         </tr>
 
-                        {/* Fila dâ€™ediciÃ² inline del quadrant (DraftsTable via QuadrantCard) */}
                         {draft && draft.id && expandedId === draft.id && (
                           <tr>
-                            <td colSpan={9} className="bg-white border-t px-3 py-3">
+                            <td colSpan={11} className="bg-white border-t px-3 py-3">
                               <div className="rounded-xl border bg-gray-50 p-4">
-                               <QuadrantCard quadrant={draft} autoExpand />
+                               <QuadrantCard
+                                 quadrant={draft}
+                                 autoExpand
+                                 pendingPhases={pendingPhases}
+                                 onCreatePhase={(phaseKey) => {
+                                   setSelected({
+                                     ...ev,
+                                     phaseKey,
+                                     startTime: ev.displayStartTime || ev.startTime,
+                                     endTime: ev.displayEndTime || ev.endTime,
+                                   })
+                                 }}
+                               />
 
                               </div>
                             </td>
@@ -684,7 +503,6 @@ const selectEdgeTime = (
         </div>
       )}
 
-      {/* âœ” QuadrantModal per autogenerar quadrant quan estÃ  pendent */}
       {selected && (
         <QuadrantModal
           open

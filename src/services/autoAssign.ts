@@ -1,12 +1,10 @@
-// file: src/services/autoAssign.ts
+﻿// file: src/services/autoAssign.ts
 import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
 import { loadPremises } from './premises'
 import { buildLedger } from './workloadLedger'
 import { isEligibleByName } from './eligibility'
 import { calculatePersonalNeeded } from '@/utils/calculatePersonalNeeded'
 import { assignVehiclesAndDrivers } from './vehicleAssign'
-import { firestoreAdmin } from '@/lib/firebaseAdmin'
-
 
 
 export interface Personnel {
@@ -107,6 +105,7 @@ export async function autoAssign(payload: {
   totalWorkers: number
   numDrivers: number
   manualResponsibleId?: string | null
+  skipResponsible?: boolean
   vehicles?: VehicleRequest[]
 }) {
   const {
@@ -116,6 +115,7 @@ export async function autoAssign(payload: {
     endDate, endTime = '00:00',
     totalWorkers, numDrivers,
     manualResponsibleId,
+    skipResponsible = false,
     vehicles = []
   } = payload
 
@@ -152,9 +152,9 @@ export async function autoAssign(payload: {
 
   // 3) Ledger
   // 3️⃣ Ledger
-const ledger = (await buildLedger(dept, ws, we, ms, me, {
-  includeAllDepartmentsForBusy: true,
-})) as any
+  const ledger = (await buildLedger(dept, ws, we, ms, me, {
+    includeAllDepartmentsForBusy: true,
+  })) as any
 
 
 
@@ -165,11 +165,16 @@ const ledger = (await buildLedger(dept, ws, we, ms, me, {
     .map(dref => ({ id: dref.id, ...(dref.data() as Record<string, unknown>) }))
     .filter(p => norm((p as Personnel).department) === dept) as Personnel[]
 
+  const isDeptHead = (p: Personnel) => {
+    const r = normRole(p.role)
+    return r === 'cap departament' || r === 'capdepartament'
+  }
+
   // 5) Responsable (a cuina el gestionem per grups)
   let forcedByPremise = false
   let chosenResp: Personnel | null = null
 
-  if (!isCuina) {
+  if (!isCuina && !skipResponsible) {
     if (manualResponsibleId) {
       chosenResp = all.find(p => p.id === manualResponsibleId) || null
     }
@@ -178,27 +183,31 @@ const ledger = (await buildLedger(dept, ws, we, ms, me, {
         c.locations.some((loc: string) => norm(location).includes(norm(loc)))
       )
       if (hit) {
-    const candidate = all.find(p => norm(p.name) === norm(hit.responsible))
-    if (candidate) {
-      const elig = isEligibleByName(candidate.name, startISO, endISO, {
-        busyAssignments: ledger.busyAssignments,
-        restHours: premises.restHours,
-        allowMultipleEventsSameDay: !!premises.allowMultipleEventsSameDay
-      })
+        const candidate = all.find(p => norm(p.name) === norm(hit.responsible))
+        if (candidate) {
+          const elig = isEligibleByName(candidate.name, startISO, endISO, {
+            busyAssignments: ledger.busyAssignments,
+            restHours: premises.restHours,
+            allowMultipleEventsSameDay: !!premises.allowMultipleEventsSameDay
+          })
           if (!elig.eligible) forcedByPremise = true
           chosenResp = candidate
         }
       }
     }
     if (!chosenResp) {
-      const pool = all.filter(p => RESPONSABLE_ROLES.has(normRole(p.role)) && (p.available !== false))
-      const ranked = pool.map(p => ({
-        p,
-        weekAssigns: ledger.assignmentsCountByUser.get(p.name) || 0,
-        weekHrs: ledger.weeklyHoursByUser.get(p.name) || 0,
-        monthHrs: ledger.monthlyHoursByUser.get(p.name) || 0,
-        lastAssignedAt: ledger.lastAssignedAtByUser.get(p.name) || null
-      })).sort(tieBreakOrder)
+      const pool = all.filter(
+        p => RESPONSABLE_ROLES.has(normRole(p.role)) && (p.available !== false) && !isDeptHead(p)
+      )
+      const ranked = pool
+        .map(p => ({
+          p,
+          weekAssigns: ledger.assignmentsCountByUser.get(p.name) || 0,
+          weekHrs: ledger.weeklyHoursByUser.get(p.name) || 0,
+          monthHrs: ledger.monthlyHoursByUser.get(p.name) || 0,
+          lastAssignedAt: ledger.lastAssignedAtByUser.get(p.name) || null
+        }))
+        .sort(tieBreakOrder)
       const eligibleCtx = {
         busyAssignments: ledger.busyAssignments,
         restHours: premises.restHours,
@@ -213,7 +222,7 @@ const ledger = (await buildLedger(dept, ws, we, ms, me, {
 
   const notes: string[] = [...(warnings || [])]
   const violations: string[] = []
-  if (!isCuina && !chosenResp) {
+  if (!isCuina && !skipResponsible && !chosenResp) {
     if (premises.requireResponsible) violations.push('responsible_missing')
     notes.push('No hi ha responsable elegible (ocupat o descans insuficient)')
   }
@@ -223,11 +232,11 @@ const ledger = (await buildLedger(dept, ws, we, ms, me, {
   }
 
   // 6) Pools de conductors i staff
-const baseCtx = {
-  busyAssignments: ledger.busyAssignments,
-  restHours: premises.restHours,
-  allowMultipleEventsSameDay: dept === 'cuina' ? false : !!premises.allowMultipleEventsSameDay
-} as any
+  const baseCtx = {
+    busyAssignments: ledger.busyAssignments,
+    restHours: premises.restHours,
+    allowMultipleEventsSameDay: dept === 'cuina' ? false : !!premises.allowMultipleEventsSameDay
+  } as any
 
 
   const exclude = new Set<string>(chosenResp ? [norm(chosenResp.name)] : [])
@@ -246,6 +255,7 @@ const baseCtx = {
       (p) =>
         p.isDriver &&
         p.available !== false &&
+        !isDeptHead(p) &&
         (respNorm && norm(p.name) === respNorm
           ? true
           : !exclude.has(norm(p.name)))
@@ -255,7 +265,7 @@ const baseCtx = {
     .sort(tieBreakOrder)
 
   const workerCandidates = all
-    .filter((p) => p.available !== false && !exclude.has(norm(p.name)))
+    .filter((p) => p.available !== false && !exclude.has(norm(p.name)) && !isDeptHead(p))
     .map(rank)
     .filter((candidate) =>
       isEligibleByName(candidate.p.name, startISO, endISO, baseCtx).eligible
@@ -264,10 +274,15 @@ const baseCtx = {
 
   const isEquipRole = (candidate: RankedPersonnel) =>
     EQUIP_ROLES.has(normRole(candidate.p.role))
+  const isResponsableRole = (candidate: RankedPersonnel) =>
+    RESPONSABLE_ROLES.has(normRole(candidate.p.role))
+  const isDriverRole = (candidate: RankedPersonnel) => !!candidate.p.isDriver
 
   const staffPool = [
     ...workerCandidates.filter(isEquipRole),
-    ...workerCandidates.filter((candidate) => !isEquipRole(candidate)),
+    ...workerCandidates.filter(isResponsableRole),
+    ...workerCandidates.filter((candidate) => !isEquipRole(candidate) && !isResponsableRole(candidate) && isDriverRole(candidate)),
+    ...workerCandidates.filter((candidate) => !isEquipRole(candidate) && !isResponsableRole(candidate) && !isDriverRole(candidate)),
   ]
 
   // 6.1) Assignació de conductors + vehicles
@@ -308,6 +323,7 @@ const baseCtx = {
   // 6.3) Selecció de treballadors
   const staff: Array<{ name: string; meetingPoint: string }> = []
   const taken = new Set<string>(exclude)
+  driversForCalc.forEach((d) => taken.add(norm(d.name)))
 
   for (const cand of staffPool) {
     if (staff.length >= finalNeededWorkers) break

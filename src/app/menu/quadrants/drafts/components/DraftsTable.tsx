@@ -21,7 +21,54 @@ type Vehicle = {
   available: boolean
 }
 
-export default function DraftsTable({ draft }: { draft: DraftInput }) {
+export default function DraftsTable({
+  draft: rawDraft,
+  phaseKey,
+}: {
+  draft: DraftInput
+  phaseKey?: string
+}) {
+  const normalizeKey = (value?: string) =>
+    (value || '').toString().toLowerCase().trim()
+
+  const phase = useMemo(() => {
+    if (!phaseKey) return null
+    const phases = Array.isArray((rawDraft as any).logisticaPhases)
+      ? (rawDraft as any).logisticaPhases
+      : []
+    const target = normalizeKey(phaseKey)
+    return (
+      phases.find((p: any) => {
+        const key = normalizeKey(p?.key || p?.label)
+        return key === target
+      }) || null
+    )
+  }, [rawDraft, phaseKey])
+
+  const draft = useMemo(() => {
+    if (!phase) return rawDraft
+    const meetingPoint = phase?.meetingPoint || rawDraft.meetingPoint || ''
+    const startDate = phase?.date || rawDraft.startDate
+    const endDate = phase?.endDate || phase?.date || rawDraft.endDate
+    return {
+      ...rawDraft,
+      startDate,
+      endDate,
+      startTime: phase?.startTime || rawDraft.startTime,
+      endTime: phase?.endTime || rawDraft.endTime,
+      meetingPoint,
+      totalWorkers: phase?.totalWorkers ?? rawDraft.totalWorkers,
+      numDrivers: phase?.numDrivers ?? rawDraft.numDrivers,
+      responsableName: phase?.responsableName || null,
+      responsable: phase?.responsableName
+        ? { name: phase.responsableName, meetingPoint }
+        : null,
+      conductors: Array.isArray(phase?.conductors) ? phase.conductors : [],
+      treballadors: Array.isArray(phase?.treballadors) ? phase.treballadors : [],
+      brigades: [],
+      groups: [],
+    }
+  }, [rawDraft, phase])
   const { data: session } = useSession()
   const department =
     (draft.department ||
@@ -48,11 +95,31 @@ export default function DraftsTable({ draft }: { draft: DraftInput }) {
   const buildCuinaRows = (): Row[] => {
     const rows: Row[] = []
     const driversPool = [...(draft.conductors || [])]
+    const driverNameSet = new Set(
+      (draft.conductors || [])
+        .map((c) => norm(c?.name))
+        .filter(Boolean)
+    )
+    if (isServeisDept && Array.isArray(draft.groups)) {
+      draft.groups.forEach((g: any) => {
+        const dn = norm(g?.driverName)
+        if (dn) driverNameSet.add(dn)
+      })
+    }
+    const extrasFromDoc = (draft.treballadors || []).filter(
+      (w) => norm(w?.name) === 'extra'
+    ).length
     const workersPool = [...(draft.treballadors || [])]
+      .filter((w) => norm(w?.name) !== 'extra')
+      .filter((w) => !driverNameSet.has(norm(w?.name)))
+    let extrasNeeded = extrasFromDoc
+    let missingWorkersNeeded = 0
     const usedNames = new Set<string>()
+      
 
     cuinaGroups.forEach((group, idx) => {
       const groupId = `group-${idx + 1}`
+      const groupDate = (group as any).serviceDate || draft.startDate
       const groupStartTime = group.startTime || draft.startTime || ''
       const groupEndTime = group.endTime || draft.endTime || ''
       const groupArrivalTime = group.arrivalTime || draft.arrivalTime || ''
@@ -70,70 +137,17 @@ export default function DraftsTable({ draft }: { draft: DraftInput }) {
         respName = ''
       }
 
-      const respRowIndex = rows.length
-      rows.push({
-        id: respId || '',
-        name: respName || '',
-        role: 'responsable',
-        groupId,
-        startDate: draft.startDate,
-        startTime: groupStartTime,
-        endDate: draft.endDate || draft.startDate,
-        endTime: groupEndTime,
-        meetingPoint: groupMeetingPoint,
-        arrivalTime: groupArrivalTime,
-        plate: '',
-        vehicleType: '',
-      })
-
-      const driversNeeded = Number(group.drivers || 0)
-      const assignedDrivers: Array<{ name?: string }> = []
-      for (let i = 0; i < driversNeeded; i += 1) {
-        let driver = driversPool.shift()
-        while (driver?.name && usedNames.has(norm(driver.name))) {
-          driver = driversPool.shift()
-        }
-        assignedDrivers.push({ name: driver?.name })
+      const hasResponsible = Boolean(respName || respId)
+      const respRowIndex = hasResponsible ? rows.length : -1
+      if (hasResponsible) {
         rows.push({
-          id: driver?.id || '',
-          name: driver?.name || 'Extra',
-          role: 'conductor',
+          id: respId || '',
+          name: respName || '',
+          role: 'responsable',
           groupId,
-          startDate: draft.startDate,
+          startDate: groupDate,
           startTime: groupStartTime,
-          endDate: draft.endDate || draft.startDate,
-          endTime: groupEndTime,
-          meetingPoint: groupMeetingPoint,
-          arrivalTime: groupArrivalTime,
-          plate: driver?.plate || '',
-          vehicleType: driver?.vehicleType || '',
-        })
-      }
-
-      const responsibleIsDriver = assignedDrivers.some(
-        (p) => p.name && norm(p.name) === norm(respName)
-      )
-      const workersNeeded = Math.max(
-        Number(group.workers || 0) -
-          driversNeeded -
-          (responsibleIsDriver ? 0 : 1),
-        0
-      )
-      const assignedWorkers: Array<{ name?: string }> = []
-      for (let i = 0; i < workersNeeded; i += 1) {
-        let worker = workersPool.shift()
-        while (worker?.name && usedNames.has(norm(worker.name))) {
-          worker = workersPool.shift()
-        }
-        assignedWorkers.push({ name: worker?.name })
-        rows.push({
-          id: worker?.id || '',
-          name: worker?.name || 'Extra',
-          role: 'treballador',
-          groupId,
-          startDate: draft.startDate,
-          startTime: groupStartTime,
-          endDate: draft.endDate || draft.startDate,
+          endDate: draft.endDate || groupDate,
           endTime: groupEndTime,
           meetingPoint: groupMeetingPoint,
           arrivalTime: groupArrivalTime,
@@ -142,7 +156,104 @@ export default function DraftsTable({ draft }: { draft: DraftInput }) {
         })
       }
 
-      if (!rows[respRowIndex]?.name && department !== 'serveis') {
+      const driversNeeded = Number(group.drivers || 0)
+      const assignedDrivers: Array<{ name?: string }> = []
+
+      if (isServeisDept) {
+        if (driversNeeded > 0) {
+          let driverName = ''
+          let next = driversPool.shift()
+          while (next?.name && usedNames.has(norm(next.name))) {
+            next = driversPool.shift()
+          }
+          driverName = next?.name || ''
+          if (!driverName) {
+            driverName =
+              (group as any).driverName ||
+              resolveNameById((group as any).driverId || '') ||
+              ''
+          }
+          if (!driverName) driverName = 'Extra'
+          assignedDrivers.push({ name: driverName })
+          rows.push({
+            id: (group as any).driverId || '',
+            name: driverName,
+            role: 'conductor',
+            groupId,
+            startDate: groupDate,
+            startTime: groupStartTime,
+            endDate: draft.endDate || groupDate,
+            endTime: groupEndTime,
+            meetingPoint: groupMeetingPoint,
+            arrivalTime: groupArrivalTime,
+            plate: '',
+            vehicleType: '',
+          })
+        }
+      } else {
+        for (let i = 0; i < driversNeeded; i += 1) {
+          let driver = driversPool.shift()
+          while (driver?.name && usedNames.has(norm(driver.name))) {
+            driver = driversPool.shift()
+          }
+          assignedDrivers.push({ name: driver?.name })
+          rows.push({
+            id: driver?.id || '',
+            name: driver?.name || 'Extra',
+            role: 'conductor',
+            groupId,
+            startDate: groupDate,
+            startTime: groupStartTime,
+            endDate: draft.endDate || groupDate,
+            endTime: groupEndTime,
+            meetingPoint: groupMeetingPoint,
+            arrivalTime: groupArrivalTime,
+            plate: driver?.plate || '',
+            vehicleType: driver?.vehicleType || '',
+          })
+        }
+      }
+
+      const responsibleIsDriver =
+        hasResponsible &&
+        assignedDrivers.some((p) => p.name && norm(p.name) === norm(respName))
+      const workersNeeded = Math.max(
+        Number(group.workers || 0) -
+          driversNeeded -
+          (hasResponsible ? (responsibleIsDriver ? 0 : 1) : 0),
+        0
+      )
+      const assignedWorkers: Array<{ name?: string }> = []
+        
+        for (let i = 0; i < workersNeeded; i += 1) {
+          let worker = workersPool.shift()
+          while (worker?.name && usedNames.has(norm(worker.name))) {
+            worker = workersPool.shift()
+          }
+          const wName = worker?.name || ''
+          if (!wName) {
+            missingWorkersNeeded += 1
+          } else {
+            assignedWorkers.push({ name: wName })
+            rows.push({
+              id: worker?.id || '',
+              name: wName,
+              role: 'treballador',
+              groupId,
+              startDate: groupDate,
+              startTime: groupStartTime,
+              endDate: draft.endDate || groupDate,
+              endTime: groupEndTime,
+              meetingPoint: groupMeetingPoint,
+              arrivalTime: groupArrivalTime,
+              plate: '',
+              vehicleType: '',
+            })
+          }
+        }
+        extrasNeeded = Math.max(extrasNeeded, missingWorkersNeeded)
+
+      if (respRowIndex >= 0 && !rows[respRowIndex]?.name && department !== 'serveis') {
         const candidate =
           assignedWorkers.find((p) => p.name && p.name !== 'Extra') ||
           assignedDrivers.find((p) => p.name && p.name !== 'Extra')
@@ -159,6 +270,7 @@ export default function DraftsTable({ draft }: { draft: DraftInput }) {
       groupNames.forEach((name) => usedNames.add(name))
     })
 
+    let ettCount = 0
     ;(draft.brigades || []).forEach((brig) => {
       rows.push({
         id: brig.id || '',
@@ -174,7 +286,52 @@ export default function DraftsTable({ draft }: { draft: DraftInput }) {
         plate: brig.plate || '',
         vehicleType: brig.vehicleType || '',
       })
+      if ((brig.name || 'ETT').toString().trim().toLowerCase() === 'ett') {
+        ettCount += Number(brig.workers || 0)
+      }
     })
+
+    if (extrasNeeded > 0) {
+      if (ettCount > 0) {
+        const idx = rows.findIndex(
+          (r) => r.role === 'brigada' && (r.name || '').toString().trim().toLowerCase() === 'ett'
+        )
+        if (idx >= 0) {
+          const cur = rows[idx]
+          rows[idx] = { ...cur, workers: Number(cur.workers || 0) + extrasNeeded }
+        } else {
+          rows.push({
+            id: '',
+            name: 'ETT',
+            role: 'brigada' as Role,
+            startDate: draft.startDate,
+            startTime: draft.startTime,
+            endDate: draft.endDate || draft.startDate,
+            endTime: draft.endTime,
+            meetingPoint: defaultMeetingPoint,
+            arrivalTime: draft.arrivalTime || '',
+            workers: extrasNeeded,
+            plate: '',
+            vehicleType: '',
+          })
+        }
+      } else {
+        rows.push({
+          id: '',
+          name: 'ETT',
+          role: 'brigada' as Role,
+          startDate: draft.startDate,
+          startTime: draft.startTime,
+          endDate: draft.endDate || draft.startDate,
+          endTime: draft.endTime,
+          meetingPoint: defaultMeetingPoint,
+          arrivalTime: draft.arrivalTime || '',
+          workers: extrasNeeded,
+          plate: '',
+          vehicleType: '',
+        })
+      }
+    }
 
     return rows
   }
@@ -847,6 +1004,9 @@ const handleSaveAll = async (rowsOverride?: Row[]) => {
               const groupArrival = group.arrivalTime || draft.arrivalTime || '—'
               const groupEnd = group.endTime || draft.endTime || '—'
               const groupMeeting = group.meetingPoint || draft.meetingPoint || '—'
+              const groupDate = (group as any).serviceDate || draft.startDate || ''
+              const isOtherDay = Boolean(groupDate && draft.startDate && groupDate !== draft.startDate)
+              const note = (group as any).dateLabel || (isOtherDay ? 'Muntatge' : '')
               return (
                 <React.Fragment key={groupId}>
                   <div
@@ -857,8 +1017,9 @@ const handleSaveAll = async (rowsOverride?: Row[]) => {
                     }}
                   >
                     <div className="col-span-full">
-                      Grup {gidx + 1} · Meeting point {groupMeeting} · Hora inici {groupStart} ·
+                      Grup {gidx + 1} · Data servei {groupDate || '—'} · Meeting point {groupMeeting} · Hora inici {groupStart} ·
                       Hora arribada {groupArrival} · Hora fi {groupEnd}
+                      {note ? ` · ${note}` : ''}
                     </div>
                   </div>
                   {renderDisplayItems(buildDisplayItems(groupId))}

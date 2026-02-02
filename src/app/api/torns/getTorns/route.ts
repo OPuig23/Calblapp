@@ -49,6 +49,8 @@ type ApiTorn = {
   eventId: string
   eventName: string
   date: string
+  dayNote?: string
+  phaseLabel?: string
   time?: string
   arrivalTime?: string
   location?: string
@@ -265,6 +267,8 @@ export async function GET(req: NextRequest) {
       eventId: t.eventId,
       eventName: t.eventName,
       date: t.date,
+      dayNote: (t as any).dayNote,
+      phaseLabel: (t as any).phaseLabel,
       time: toTimeRange(t),
       arrivalTime: (t as any).arrivalTime,
       location: t.location,

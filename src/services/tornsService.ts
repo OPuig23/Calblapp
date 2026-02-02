@@ -8,6 +8,8 @@ export type Torn = {
   eventId: string
   eventName: string
   date: string
+  dayNote?: string
+  phaseLabel?: string
   startDate: string
   endDate: string
   startTime: string
@@ -128,6 +130,8 @@ type TornDoc = {
   code?: string
   eventName?: string
   summary?: string
+  phaseLabel?: string
+  phaseType?: string
   date?: string
   startDate?: string | { toDate: () => Date }
   endDate?: string | { toDate: () => Date }
@@ -142,6 +146,13 @@ type TornDoc = {
   responsable?: RawWorker
   responsableId?: string
   responsableName?: string
+  groups?: Array<{
+    serviceDate?: string
+    meetingPoint?: string
+    startTime?: string
+    endTime?: string
+    dateLabel?: string
+  }>
   status?: string
   estat?: string
   confirmedAt?: unknown
@@ -175,6 +186,7 @@ function mapDocToTorn(
 
   const eventId = String(doc?.eventId ?? doc?.code ?? '')
   const eventName = String(doc?.eventName ?? doc?.summary ?? '')
+  const phaseLabel = String(doc?.phaseLabel ?? doc?.phaseType ?? '').trim() || undefined
   const startDate = parseAnyDateToISO(doc?.startDate ?? doc?.date)
   const endDate = doc?.endDate ? parseAnyDateToISO(doc.endDate) : ''
   const startTime = toTimeHHmm(doc?.startTime)
@@ -240,6 +252,7 @@ function mapDocToTorn(
     eventId,
     eventName,
     date: startDate || endDate || '',
+    dayNote: phaseLabel || undefined,
     startDate,
     endDate: endDate || startDate,
     startTime,
@@ -248,6 +261,7 @@ function mapDocToTorn(
     meetingPoint,
     location,
     department,
+    phaseLabel,
     __rawWorkers: unified,
   }
 }
@@ -304,6 +318,48 @@ async function fetchDeptCollectionRange(
 
     const t = mapDocToTorn(doc.id, data, dep)
     if (!t.startDate && !t.endDate) return
+
+    if (dep === 'serveis') {
+      const groups = Array.isArray((data as any)?.groups) ? (data as any).groups : []
+      const seen = new Set<string>()
+      let pushed = false
+
+      for (const g of groups) {
+        const gDate = parseAnyDateToISO(g?.serviceDate)
+        if (!gDate) continue
+        const gStart = toTimeHHmm(g?.startTime)
+        const gEnd = toTimeHHmm(g?.endTime)
+        const gMeeting = g?.meetingPoint || t.meetingPoint || ''
+        const key = `${gDate}|${gStart}|${gEnd}|${gMeeting}`
+        if (seen.has(key)) continue
+        seen.add(key)
+
+        if (!rangesOverlap(gDate, gDate, startISO, endISO)) continue
+        const groupWorkers = Array.isArray(t.__rawWorkers)
+          ? t.__rawWorkers.map((w) => ({
+              ...w,
+              startTime: gStart || w.startTime,
+              endTime: gEnd || w.endTime,
+              meetingPoint: gMeeting || w.meetingPoint,
+            }))
+          : t.__rawWorkers
+
+        out.push({
+          ...t,
+          date: gDate,
+          dayNote: String(g?.dateLabel || '').trim() || undefined,
+          startDate: gDate,
+          endDate: gDate,
+          startTime: gStart,
+          endTime: gEnd,
+          meetingPoint: gMeeting,
+          __rawWorkers: groupWorkers,
+        })
+        pushed = true
+      }
+
+      if (pushed) return
+    }
 
     if (rangesOverlap(t.startDate || t.endDate, t.endDate || t.startDate, startISO, endISO)) {
       const cur = new Date(t.startDate)

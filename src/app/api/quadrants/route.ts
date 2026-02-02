@@ -5,7 +5,7 @@ import { firestoreAdmin } from '@/lib/firebaseAdmin'
 import { autoAssign } from '@/services/autoAssign'
 
 export const runtime = 'nodejs'
-const ORIGIN = 'Molí Vinyals, 11, 08776 Sant Pere de Riudebitlles, Barcelona'
+const ORIGIN = 'MolÃ­ Vinyals, 11, 08776 Sant Pere de Riudebitlles, Barcelona'
 const GOOGLE_KEY = process.env.NEXT_PUBLIC_GOOGLE_API_KEY
 
 // Helpers
@@ -35,8 +35,8 @@ const calcDistanceKm = async (destination: string): Promise<number | null> => {
   }
 }
 
-/** Construeix el nom de col·lecció per departament: quadrantsLogistica, quadrantsServeis, ... */
-/** Retorna el nom de col·lecció existent per al departament (singular o plural). */
+/** Construeix el nom de colÂ·lecciÃ³ per departament: quadrantsLogistica, quadrantsServeis, ... */
+/** Retorna el nom de colÂ·lecciÃ³ existent per al departament (singular o plural). */
 async function resolveWriteCollectionForDepartment(department: string) {
   const d = capitalize(norm(department))
   const plural = `quadrants${d}`
@@ -115,7 +115,9 @@ interface QuadrantSave {
   distanceKm?: number | null
   distanceCalcAt?: string | null
   timetables?: Array<{ startTime: string; endTime: string }>
-
+  phaseType?: string | null
+  phaseLabel?: string | null
+  phaseDate?: string | null
 }
 
 /* ================= Handler ================= */
@@ -130,10 +132,353 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Orquestrador (ara amb tipus forts)
-    const { assignment, meta } = await autoAssign(body) as {
+    const deptNorm = norm(String(body.department || ''))
+    const collectionName = await resolveWriteCollectionForDepartment(deptNorm)
+    console.log('[quadrants/route] Escriurà a col·lecció:', collectionName)
+
+    const assignBody =
+      deptNorm === 'serveis' &&
+      Array.isArray(body.groups) &&
+      body.groups.length > 0
+        ? {
+            ...body,
+            startDate: body.groups[0]?.serviceDate || body.startDate,
+            endDate: body.groups[0]?.serviceDate || body.endDate,
+            startTime: body.groups[0]?.startTime || body.startTime,
+            endTime: body.groups[0]?.endTime || body.endTime,
+          }
+        : body
+
+    const logisticaPhasesIn = Array.isArray(body.logisticaPhases)
+      ? body.logisticaPhases
+      : []
+
+    const buildToSave = (
+      bodyForSave: any,
+      assignmentForSave: {
+        responsible?: { name: string } | null
+        drivers?: Array<{ name: string; meetingPoint?: string; plate?: string; vehicleType?: string }>
+        staff?: Array<{ name: string; meetingPoint?: string }>
+      },
+      metaForSave: { needsReview?: boolean; violations?: string[]; notes?: string[] }
+    ) => {
+      const normalizeTimeField = (value: unknown) =>
+        typeof value === 'string' ? value.trim() : ''
+
+      const toTimetableEntry = ({
+        startTime,
+        endTime,
+      }: { startTime?: unknown; endTime?: unknown }) => {
+        const start = normalizeTimeField(startTime)
+        const end = normalizeTimeField(endTime)
+        return start && end ? { startTime: start, endTime: end } : null
+      }
+
+      const rawTimetables = Array.isArray(bodyForSave.timetables)
+        ? bodyForSave.timetables
+        : []
+      const normalizedTimetables = rawTimetables
+        .map((entry: any) => toTimetableEntry(entry))
+        .filter((entry): entry is { startTime: string; endTime: string } => Boolean(entry))
+
+      const staffRaw = (assignmentForSave.staff || []).filter((s) => s?.name)
+      const extraCount = staffRaw.filter((s) => s.name === 'Extra').length
+      const staffClean = staffRaw.filter((s) => s.name !== 'Extra')
+
+      const toSave: QuadrantSave = {
+        code: bodyForSave.code || '',
+        eventId: bodyForSave.eventId,
+        eventName: bodyForSave.eventName || '',
+        location: bodyForSave.location || '',
+        meetingPoint: bodyForSave.meetingPoint || '',
+        startDate: bodyForSave.startDate,
+        startTime: bodyForSave.startTime || '00:00',
+        endDate: bodyForSave.endDate,
+        endTime: bodyForSave.endTime || '00:00',
+        arrivalTime: bodyForSave.arrivalTime || null,
+        department: deptNorm,
+        status: 'draft',
+        numDrivers: Number(bodyForSave.numDrivers || 0),
+        totalWorkers: Number(bodyForSave.totalWorkers || 0),
+        numPax: bodyForSave.numPax ?? null,
+        service: bodyForSave.service || null,
+        phaseType: bodyForSave.phaseType || null,
+        phaseLabel: bodyForSave.phaseLabel || null,
+        phaseDate: bodyForSave.phaseDate || null,
+
+        responsableName: assignmentForSave.responsible?.name || null,
+        responsable: assignmentForSave.responsible
+          ? { name: assignmentForSave.responsible.name, meetingPoint: bodyForSave.meetingPoint || '' }
+          : null,
+
+        conductors: (assignmentForSave.drivers || []).map((d) => ({
+          name: d.name,
+          meetingPoint: d.meetingPoint || bodyForSave.meetingPoint || '',
+          plate: d.plate || '',
+          vehicleType: d.vehicleType || '',
+        })),
+
+        treballadors: staffClean.map((s) => ({
+          name: s.name,
+          meetingPoint: s.meetingPoint || bodyForSave.meetingPoint || '',
+        })),
+
+        needsReview: !!metaForSave.needsReview,
+        violations: metaForSave.violations || [],
+        attentionNotes: metaForSave.notes || [],
+        updatedAt: new Date().toISOString(),
+        timetables: normalizedTimetables,
+      }
+
+      if (Array.isArray(bodyForSave.groups)) {
+        if (deptNorm === 'serveis') {
+          toSave.groups = bodyForSave.groups.map((g: any) => ({
+            serviceDate: g.serviceDate || null,
+            dateLabel: g.dateLabel || null,
+            meetingPoint: g.meetingPoint || '',
+            startTime: g.startTime || '',
+            endTime: g.endTime || '',
+            workers: Number(g.workers || 0),
+            drivers: Number(g.drivers || 0),
+            needsDriver: !!g.needsDriver,
+            driverId: g.driverId || null,
+            driverName: g.driverName || null,
+          }))
+        } else {
+          let driverIdx = 0
+          let workerIdx = 0
+          const usedNames = new Set<string>()
+          const computedGroups = (bodyForSave.groups as CuinaGroup[]).map((group) => {
+            const driversNeeded = Number(group.drivers || 0)
+            const driversSlice = (assignmentForSave.drivers || []).slice(
+              driverIdx,
+              driverIdx + driversNeeded
+            )
+            driverIdx += driversNeeded
+
+            let responsibleName = group.responsibleName || null
+            if (responsibleName && usedNames.has(responsibleName.toLowerCase().trim())) {
+              responsibleName = null
+            }
+
+            const workersNeeded = Math.max(
+              Number(group.workers || 0) - Number(group.drivers || 0),
+              0
+            )
+
+            const workersSlice: Array<{ name: string; meetingPoint?: string }> = []
+            while (workersSlice.length < workersNeeded) {
+              const next = (assignmentForSave.staff || [])[workerIdx]
+              workerIdx += 1
+              if (!next) {
+                workersSlice.push({ name: 'Extra' })
+                continue
+              }
+              const normName = next.name?.toLowerCase().trim()
+              if (normName && usedNames.has(normName)) continue
+              workersSlice.push(next)
+            }
+
+            if (!responsibleName && deptNorm === 'cuina') {
+              const candidate = [...workersSlice, ...driversSlice].find(
+                (p) => p?.name && p.name !== 'Extra'
+              )
+              responsibleName = candidate?.name || null
+            }
+
+            const groupNames = [
+              responsibleName,
+              ...driversSlice.map((d) => d?.name),
+              ...workersSlice.map((w) => w?.name),
+            ]
+              .filter((name) => typeof name === 'string' && name && name !== 'Extra')
+              .map((name) => (name as string).toLowerCase().trim())
+            groupNames.forEach((name) => usedNames.add(name))
+
+            return { ...group, responsibleName }
+          })
+
+          toSave.groups = computedGroups
+
+          if (deptNorm === 'cuina' && !toSave.responsableName && computedGroups[0]?.responsibleName) {
+            toSave.responsableName = computedGroups[0].responsibleName
+            toSave.responsable = {
+              name: computedGroups[0].responsibleName,
+              meetingPoint: computedGroups[0].meetingPoint || bodyForSave.meetingPoint || '',
+            }
+          }
+        }
+      }
+
+      if (bodyForSave.cuinaGroupCount) {
+        toSave.cuinaGroupCount = Number(bodyForSave.cuinaGroupCount)
+      }
+
+      const baseBrigades = Array.isArray(bodyForSave.brigades) ? (bodyForSave.brigades as Brigade[]) : []
+      if (extraCount > 0) {
+        const ettLine: Brigade = {
+          name: 'ETT',
+          workers: extraCount,
+          startTime: bodyForSave.startTime || '00:00',
+          endTime: bodyForSave.endTime || '00:00',
+        }
+        const existingIdx = baseBrigades.findIndex(
+          (b) => (b?.name || '').toString().trim().toLowerCase() === 'ett'
+        )
+        if (existingIdx >= 0) {
+          const prev = baseBrigades[existingIdx]
+          const prevWorkers = typeof prev?.workers === 'number' ? prev.workers : 0
+          baseBrigades[existingIdx] = { ...prev, workers: prevWorkers + extraCount }
+        } else {
+          baseBrigades.push(ettLine)
+        }
+      }
+      if (baseBrigades.length) {
+        toSave.brigades = baseBrigades
+      }
+
+      return { toSave }
+    }
+
+    const applyStageData = async (toSave: QuadrantSave) => {
+      const baseEventId = String(body.eventId || '').split('__event__')[0]
+      const stageDocId = baseEventId || body.eventId
+      const stageSnap = await db.collection('stage_verd').doc(stageDocId).get()
+      const stageData = stageSnap.exists ? stageSnap.data() : null
+
+      if (!toSave.code) {
+        toSave.code = stageData?.code || stageData?.C_digo || ''
+      }
+      if (baseEventId) {
+        toSave.eventId = baseEventId
+      }
+
+      const destination =
+        stageData?.Ubicacio ||
+        stageData?.location ||
+        stageData?.address ||
+        toSave.location
+      const km = await calcDistanceKm(destination || '')
+      if (km) {
+        toSave.distanceKm = km
+        toSave.distanceCalcAt = new Date().toISOString()
+      }
+    }
+
+    const phaseRequests: Array<any> = []
+
+    if (deptNorm === 'logistica' && logisticaPhasesIn.length > 0) {
+      let phaseIndex = 0
+      for (const p of logisticaPhasesIn) {
+        phaseIndex += 1
+        const rawLabel = (p.label || p.key || '').toString().trim()
+        const label = rawLabel || `Fase ${phaseIndex}`
+        const phaseType = norm(label)
+        phaseRequests.push({
+          label,
+          phaseType,
+          date: p.date || body.startDate,
+          endDate: p.endDate || p.date || body.endDate,
+          startTime: p.startTime || body.startTime,
+          endTime: p.endTime || body.endTime,
+          totalWorkers: Number(p.totalWorkers || 0),
+          numDrivers: Number(p.numDrivers || 0),
+          wantsResp: !!p.wantsResp,
+          responsableId: p.responsableId || null,
+          meetingPoint: p.meetingPoint || body.meetingPoint || '',
+          vehicles: Array.isArray(p.vehicles) ? p.vehicles : [],
+        })
+      }
+    } else if (deptNorm === 'serveis' && Array.isArray(body.groups) && body.groups.length > 0) {
+      const eventDate = body.startDate
+      body.groups.forEach((g: any) => {
+        const serviceDate = g.serviceDate || body.startDate
+        const label =
+          (g.dateLabel || '').toString().trim() ||
+          (serviceDate === eventDate ? 'Event' : 'Muntatge')
+        const wantsResp =
+          typeof g.wantsResponsible === 'boolean'
+            ? g.wantsResponsible
+            : body.skipResponsible
+            ? false
+            : true
+        const responsableId =
+          wantsResp && (g.responsibleId || body.manualResponsibleId)
+            ? g.responsibleId || body.manualResponsibleId
+            : null
+        phaseRequests.push({
+          label,
+          phaseType: norm(label),
+          date: serviceDate,
+          endDate: serviceDate,
+          startTime: g.startTime || body.startTime,
+          endTime: g.endTime || body.endTime,
+          totalWorkers: Number(g.workers || 0),
+          numDrivers: Number(g.drivers || 0),
+          wantsResp,
+          responsableId,
+          meetingPoint: g.meetingPoint || body.meetingPoint || '',
+          groupsOverride: [g],
+        })
+      })
+    }
+
+    const writePhaseDoc = async (phase: any) => {
+      const phaseTimetables = Array.isArray(phase.timetables)
+        ? phase.timetables
+        : body.timetables
+      const phaseBody = {
+        ...body,
+        startDate: phase.date || body.startDate,
+        endDate: phase.endDate || phase.date || body.endDate,
+        startTime: phase.startTime || body.startTime,
+        endTime: phase.endTime || body.endTime,
+        meetingPoint: phase.meetingPoint || body.meetingPoint || '',
+        totalWorkers: Number(phase.totalWorkers || 0),
+        numDrivers: Number(phase.numDrivers || 0),
+        manualResponsibleId: phase.wantsResp ? phase.responsableId || null : null,
+        skipResponsible: phase.wantsResp === false,
+        vehicles: Array.isArray(phase.vehicles) ? phase.vehicles : [],
+        groups: phase.groupsOverride || body.groups,
+        phaseType: phase.phaseType || null,
+        phaseLabel: phase.label || null,
+        phaseDate: phase.date || null,
+        timetables: phaseTimetables,
+      }
+      const res = (await autoAssign(phaseBody)) as {
+        assignment: {
+          responsible?: { name: string } | null
+          drivers?: Array<{ name: string; meetingPoint?: string; plate?: string; vehicleType?: string }>
+          staff?: Array<{ name: string; meetingPoint?: string }>
+        }
+        meta: {
+          needsReview?: boolean
+          violations?: string[]
+          notes?: string[]
+        }
+      }
+      const { toSave } = buildToSave(phaseBody, res.assignment, res.meta)
+      await applyStageData(toSave)
+      const phaseKey = norm(phase.label || phase.phaseType || 'fase')
+      const phaseDate = String(phase.date || body.startDate)
+      const docId = `${body.eventId}__${phaseKey}__${phaseDate}`
+      await db.collection(collectionName).doc(docId).set(toSave, { merge: true })
+    }
+
+    if (phaseRequests.length > 0) {
+      for (const phase of phaseRequests) {
+        await writePhaseDoc(phase)
+      }
+      return NextResponse.json({
+        success: true,
+        proposal: { responsible: null, drivers: [], staff: [] },
+        meta: { needsReview: false, violations: [], notes: [] },
+      })
+    }
+
+    const res = (await autoAssign(assignBody)) as {
       assignment: {
-        responsible?: { name: string }
+        responsible?: { name: string } | null
         drivers?: Array<{ name: string; meetingPoint?: string; plate?: string; vehicleType?: string }>
         staff?: Array<{ name: string; meetingPoint?: string }>
       }
@@ -144,209 +489,18 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const deptNorm = norm(String(body.department || ''))
-
-    // ?? Log dels conductors retornats per autoAssign
-    console.log('[quadrants/route] assignment.drivers:', assignment.drivers)
-
-    const normalizeTimeField = (value: unknown) =>
-      typeof value === 'string' ? value.trim() : ''
-
-    const toTimetableEntry = ({
-      startTime,
-      endTime,
-    }: { startTime?: unknown; endTime?: unknown }) => {
-      const start = normalizeTimeField(startTime)
-      const end = normalizeTimeField(endTime)
-      return start && end ? { startTime: start, endTime: end } : null
-    }
-
-    const rawTimetables = Array.isArray(body.timetables) ? body.timetables : []
-    const normalizedTimetables = rawTimetables
-      .map((entry: any) => toTimetableEntry(entry))
-      .filter((entry): entry is { startTime: string; endTime: string } => Boolean(entry))
-
-    const staffRaw = (assignment.staff || []).filter((s) => s?.name)
-    const extraCount = staffRaw.filter((s) => s.name === 'Extra').length
-    const staffClean = staffRaw.filter((s) => s.name !== 'Extra')
-
-    const toSave: QuadrantSave = {
-      code: body.code || '',
-      eventId: body.eventId,
-      eventName: body.eventName || '',
-      location: body.location || '',
-      meetingPoint: body.meetingPoint || '',
-      startDate: body.startDate,
-      startTime: body.startTime || '00:00',
-      endDate: body.endDate,
-      endTime: body.endTime || '00:00',
-      arrivalTime: body.arrivalTime || null,
-      department: deptNorm,
-      status: 'draft',
-      numDrivers: Number(body.numDrivers || 0),
-      totalWorkers: Number(body.totalWorkers || 0),
-      numPax: body.numPax ?? null,
-      service: body.service || null,
-
-      responsableName: assignment.responsible?.name || null,
-      responsable: assignment.responsible
-        ? { name: assignment.responsible.name, meetingPoint: body.meetingPoint || '' }
-        : null,
-
-      conductors: (assignment.drivers || []).map(d => ({
-        name: d.name,
-        meetingPoint: d.meetingPoint || body.meetingPoint || '',
-        plate: d.plate || '',
-        vehicleType: d.vehicleType || ''
-      })),
-
-      treballadors: staffClean.map(s => ({
-        name: s.name,
-        meetingPoint: s.meetingPoint || body.meetingPoint || ''
-      })),
-
-      needsReview: !!meta.needsReview,
-      violations: meta.violations || [],
-      attentionNotes: meta.notes || [],
-      updatedAt: new Date().toISOString()
-      ,
-      timetables: normalizedTimetables
-    }
-
-    if (Array.isArray(body.groups)) {
-      let driverIdx = 0
-      let workerIdx = 0
-      const usedNames = new Set<string>()
-      const computedGroups = (body.groups as CuinaGroup[]).map((group) => {
-        const driversNeeded = Number(group.drivers || 0)
-        const driversSlice = (assignment.drivers || []).slice(
-          driverIdx,
-          driverIdx + driversNeeded
-        )
-        driverIdx += driversNeeded
-
-        let responsibleName = group.responsibleName || null
-        if (responsibleName && usedNames.has(responsibleName.toLowerCase().trim())) {
-          responsibleName = null
-        }
-
-        const responsibleIsDriver = !!responsibleName && driversSlice.some(
-          (d) => d?.name && d.name.toLowerCase().trim() === responsibleName?.toLowerCase().trim()
-        )
-        const workersNeeded = Math.max(
-          Number(group.workers || 0) -
-            Number(group.drivers || 0),
-          0
-        )
-
-        const workersSlice: Array<{ name: string; meetingPoint?: string }> = []
-        while (workersSlice.length < workersNeeded) {
-          const next = (assignment.staff || [])[workerIdx]
-          workerIdx += 1
-          if (!next) {
-            workersSlice.push({ name: 'Extra' })
-            continue
-          }
-          const normName = next.name?.toLowerCase().trim()
-          if (normName && usedNames.has(normName)) continue
-          workersSlice.push(next)
-        }
-
-        if (!responsibleName && deptNorm === 'cuina') {
-          const candidate = [...workersSlice, ...driversSlice].find(
-            (p) => p?.name && p.name !== 'Extra'
-          )
-          responsibleName = candidate?.name || null
-        }
-
-        const groupNames = [
-          responsibleName,
-          ...driversSlice.map((d) => d?.name),
-          ...workersSlice.map((w) => w?.name),
-        ]
-          .filter((name) => typeof name === 'string' && name && name !== 'Extra')
-          .map((name) => (name as string).toLowerCase().trim())
-        groupNames.forEach((name) => usedNames.add(name))
-
-        return { ...group, responsibleName }
-      })
-
-      toSave.groups = computedGroups
-
-      if (deptNorm === 'cuina' && !toSave.responsableName && computedGroups[0]?.responsibleName) {
-        toSave.responsableName = computedGroups[0].responsibleName
-        toSave.responsable = {
-          name: computedGroups[0].responsibleName,
-          meetingPoint: computedGroups[0].meetingPoint || body.meetingPoint || '',
-        }
-      }
-    }
-    if (body.cuinaGroupCount) {
-      toSave.cuinaGroupCount = Number(body.cuinaGroupCount)
-    }
-
-    // ?? Afegir brigades si venen del body + convertir "Extra" a ETT
-    const baseBrigades = Array.isArray(body.brigades) ? (body.brigades as Brigade[]) : []
-    if (extraCount > 0) {
-      const ettLine: Brigade = {
-        name: 'ETT',
-        workers: extraCount,
-        startTime: body.startTime || '00:00',
-        endTime: body.endTime || '00:00',
-      }
-      const existingIdx = baseBrigades.findIndex(
-        (b) => (b?.name || '').toString().trim().toLowerCase() === 'ett'
-      )
-      if (existingIdx >= 0) {
-        const prev = baseBrigades[existingIdx]
-        const prevWorkers = typeof prev?.workers === 'number' ? prev.workers : 0
-        baseBrigades[existingIdx] = { ...prev, workers: prevWorkers + extraCount }
-      } else {
-        baseBrigades.push(ettLine)
-      }
-    }
-    if (baseBrigades.length) {
-      toSave.brigades = baseBrigades
-    }
-    // Determinem la col·lecció segons el departament
-    const collectionName = await resolveWriteCollectionForDepartment(deptNorm)
-    console.log('[quadrants/route] Escriurà a col·lecció:', collectionName)
-
-    // Dades de stage_verd (codi i adreça)
-    const stageSnap = await db.collection('stage_verd').doc(body.eventId).get()
-    const stageData = stageSnap.exists ? stageSnap.data() : null
-
-    if (!toSave.code) {
-      toSave.code = stageData?.code || stageData?.C_digo || ''
-    }
-
-    // Distància (anada + tornada)
-    const destination =
-      stageData?.Ubicacio ||
-      stageData?.location ||
-      stageData?.address ||
-      toSave.location
-    const km = await calcDistanceKm(destination || '')
-    if (km) {
-      toSave.distanceKm = km
-      toSave.distanceCalcAt = new Date().toISOString()
-    }
-
-    // Desa a la col·lecció específica del departament (ex.: quadrantsLogistica)
-    await db.collection(collectionName).doc(body.eventId).set(toSave, { merge: true })
+    const { toSave } = buildToSave(assignBody, res.assignment, res.meta)
+    await applyStageData(toSave)
     await db.collection(collectionName).doc(body.eventId).set(toSave, { merge: true })
 
-    
-
-    // Resposta API
     return NextResponse.json({
       success: true,
       proposal: {
-        responsible: assignment.responsible,
-        drivers: assignment.drivers,
-        staff: assignment.staff
+        responsible: res.assignment.responsible,
+        drivers: res.assignment.drivers,
+        staff: res.assignment.staff,
       },
-      meta
+      meta: res.meta,
     })
   } catch (e: unknown) {
     console.error('[quadrants/route] error:', e)
@@ -356,4 +510,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: 'Internal error' }, { status: 500 })
   }
 }
-

@@ -148,7 +148,13 @@ function InnerLayout({ children }: { children: React.ReactNode }) {
       )}
 
       {/* ---------------- CONTINGUT ---------------- */}
-      <main className="px-2 sm:px-4 pb-6 max-w-7xl mx-auto">
+      <main
+        className={
+          pathname.startsWith('/menu/quadrants')
+            ? 'px-2 sm:px-4 pb-6 max-w-none w-full'
+            : 'px-2 sm:px-4 pb-6 max-w-7xl mx-auto'
+        }
+      >
         {children}
       </main>
 

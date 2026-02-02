@@ -4,7 +4,7 @@ import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
 
 export const runtime = 'nodejs'
 
-const DEPTS = ['logistica', 'serveis', 'cuina', 'empresa']
+const DEPTS = ['logistica', 'cuina', 'empresa']
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 
 type Item = {

@@ -105,10 +105,23 @@ function mergeGroup(arr: TornCardItem[]): TornCardItem {
   const aggTime =
     starts.length && ends.length ? `${starts[0]} - ${ends[ends.length - 1]}` : base.time
 
+  const noteSet = new Set<string>()
+  const phaseSet = new Set<string>()
+  arr.forEach((t) => {
+    if (t.dayNote) noteSet.add(t.dayNote)
+    if ((t as any).phaseLabel) phaseSet.add((t as any).phaseLabel)
+  })
+  const dayNote =
+    noteSet.size > 0 ? Array.from(noteSet).slice(0, 3).join(' · ') : undefined
+  const phaseLabel =
+    phaseSet.size > 0 ? Array.from(phaseSet).slice(0, 3).join(' · ') : undefined
+
   return {
     ...base,
     id: baseId,
     time: aggTime,
+    dayNote,
+    phaseLabel,
     workerName: workers.length === 1 ? workers[0].name : undefined,
     workerRole: workers.length === 1 ? workers[0].role : null,
     __rawWorkers: workers,
@@ -247,3 +260,4 @@ export default function TornsList({
     </div>
   )
 }
+

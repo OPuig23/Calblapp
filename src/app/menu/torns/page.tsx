@@ -24,6 +24,7 @@ type ApiTorn = {
   code: string
   eventName: string
   date: string
+  dayNote?: string
   time?: string
   location?: string
   meetingPoint?: string

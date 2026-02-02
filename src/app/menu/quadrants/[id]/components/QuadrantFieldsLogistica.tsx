@@ -29,6 +29,7 @@ type Props = {
   vehicleAssignments: VehicleAssignment[]
   setVehicleAssignments: (v: VehicleAssignment[]) => void
   available: { vehicles: AvailableVehicle[] }
+  hideCounts?: boolean
 }
 
 // Normalitza tipus
@@ -46,30 +47,38 @@ export default function QuadrantFieldsLogistica({
   setTotalWorkers, setNumDrivers,
   vehicleAssignments, setVehicleAssignments,
   available,
+  hideCounts = false,
 }: Props) {
   return (
     <div className="grid grid-cols-2 gap-4">
-      {/* # Treballadors */}
-      <div>
-        <Label># Treballadors</Label>
-        <Input
-          type="number"
-          min={0}
-          value={totalWorkers}
-          onChange={e => setTotalWorkers(e.target.value)}
-        />
-      </div>
+      {!hideCounts && (
+        <>
+          {/* # Treballadors */}
+          <div>
+            <Label># Treballadors</Label>
+            <Input
+              type="number"
+              min={0}
+              value={totalWorkers}
+              onChange={e => setTotalWorkers(e.target.value)}
+            />
+          </div>
 
-      {/* # Conductors */}
-      <div>
-        <Label># Conductors</Label>
-        <Input
-          type="number"
-          min={0}
-          value={numDrivers}
-          onChange={e => setNumDrivers(e.target.value)}
-        />
+          {/* # Conductors */}
+          <div>
+            <Label># Conductors</Label>
+            <Input
+              type="number"
+              min={0}
+              value={numDrivers}
+              onChange={e => setNumDrivers(e.target.value)}
+            />
+          </div>
+        </>
+      )}
 
+      {/* Vehicle assignments */}
+      <div className={hideCounts ? 'col-span-2' : ''}>
         <div className="mt-2 text-sm text-gray-700">
           Vehicles disponibles (total): {available.vehicles.filter(v => v.available).length} / {available.vehicles.length}
         </div>

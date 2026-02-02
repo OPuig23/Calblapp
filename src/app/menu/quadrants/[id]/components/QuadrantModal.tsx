@@ -22,6 +22,114 @@ import { useAvailablePersonnel } from '../hooks/useAvailablePersonnel'
 
 import QuadrantFieldsLogistica from './QuadrantFieldsLogistica'
 
+type LogisticPhaseKey = 'entrega' | 'event' | 'recollida'
+
+const logisticPhaseOptions: Array<{ key: LogisticPhaseKey; label: string }> = [
+  { key: 'entrega', label: 'Entrega' },
+  { key: 'event', label: 'Event' },
+  { key: 'recollida', label: 'Recollida' },
+]
+
+type PhaseVisibility = Record<LogisticPhaseKey, boolean>
+const createPhaseVisibility = (): PhaseVisibility =>
+  logisticPhaseOptions.reduce((acc, phase) => {
+    acc[phase.key] = true
+    return acc
+  }, {} as PhaseVisibility)
+
+type LogisticPhaseSetting = {
+  selected: boolean
+  needsResponsible: boolean
+}
+
+const createPhaseSettings = () =>
+  logisticPhaseOptions.reduce((acc, phase) => {
+    acc[phase.key] = { selected: true, needsResponsible: phase.key === 'event' }
+    return acc
+  }, {} as Record<LogisticPhaseKey, LogisticPhaseSetting>)
+
+type ServicePhaseKey = 'muntatge' | 'event'
+
+const servicePhaseOptions: Array<{ key: ServicePhaseKey; label: string }> = [
+  { key: 'muntatge', label: 'Muntatge' },
+  { key: 'event', label: 'Event' },
+]
+
+type ServicePhaseVisibility = Record<ServicePhaseKey, boolean>
+const createServicePhaseVisibility = (): ServicePhaseVisibility =>
+  servicePhaseOptions.reduce((acc, phase) => {
+    acc[phase.key] = true
+    return acc
+  }, {} as ServicePhaseVisibility)
+
+type ServicePhaseSetting = {
+  selected: boolean
+}
+
+const createServicePhaseSettings = (): Record<ServicePhaseKey, ServicePhaseSetting> =>
+  servicePhaseOptions.reduce((acc, phase) => {
+    acc[phase.key] = { selected: true }
+    return acc
+  }, {} as Record<ServicePhaseKey, ServicePhaseSetting>)
+
+type LogisticPhaseForm = {
+  startDate: string
+  endDate: string
+  startTime: string
+  endTime: string
+  workers: number
+  drivers: number
+  meetingPoint: string
+}
+
+const buildPhaseForms = (params: {
+  startDate: string
+  endDate: string
+  startTime: string
+  endTime: string
+  workers: number
+  drivers: number
+  meetingPoint: string
+}) =>
+  logisticPhaseOptions.reduce((acc, phase) => {
+    acc[phase.key] = {
+      startDate: params.startDate,
+      endDate: params.endDate,
+      startTime: params.startTime,
+      endTime: params.endTime,
+      workers: params.workers,
+      drivers: params.drivers,
+      meetingPoint: params.meetingPoint,
+    }
+    return acc
+  }, {} as Record<LogisticPhaseKey, LogisticPhaseForm>)
+
+const createPhaseResponsibles = () =>
+  logisticPhaseOptions.reduce((acc, phase) => {
+    acc[phase.key] = '__auto__'
+    return acc
+  }, {} as Record<LogisticPhaseKey, string>)
+
+const buildServicePhaseEtt = (base: {
+  startDate: string
+  meetingPoint: string
+  startTime: string
+  endTime: string
+}) =>
+  servicePhaseOptions.reduce((acc, phase) => {
+    acc[phase.key] = {
+      open: false,
+      data: {
+        serviceDate: base.startDate,
+        meetingPoint: base.meetingPoint,
+        startTime: base.startTime,
+        endTime: base.endTime,
+        workers: '',
+      },
+    }
+    return acc
+  }, {} as Record<ServicePhaseKey, ServicePhaseEtt>)
+
 interface QuadrantModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -88,6 +196,7 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
       .toLowerCase()
   const isCuina = department === 'cuina'
   const isServeis = department === 'serveis'
+  const isLogistica = department === 'logistica'
   const isGroupDept = isCuina || isServeis
 
   const rawTitle = event.summary || event.title || ''
@@ -107,6 +216,33 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
 
   const [totalWorkers, setTotalWorkers] = useState(event.totalWorkers?.toString() || '')
   const [numDrivers, setNumDrivers]     = useState(event.numDrivers?.toString() || '')
+  const initialPhaseParams = {
+    startDate: extractDate(event.start),
+    endDate: extractDate(event.start),
+    startTime: event.startTime || '',
+    endTime: event.endTime || '',
+    workers: event.totalWorkers ?? 0,
+    drivers: event.numDrivers ?? 0,
+    meetingPoint: meetingPoint || location || '',
+  }
+  const [phaseForms, setPhaseForms] = useState(() => buildPhaseForms(initialPhaseParams))
+  const [phaseVisibility, setPhaseVisibility] = useState(() => createPhaseVisibility())
+  const [phaseResponsibles, setPhaseResponsibles] = useState(() => createPhaseResponsibles())
+  const [phaseSettings, setPhaseSettings] = useState(() => createPhaseSettings())
+  const [servicePhaseVisibility, setServicePhaseVisibility] = useState(
+    () => createServicePhaseVisibility()
+  )
+  const [servicePhaseSettings, setServicePhaseSettings] = useState(
+    () => createServicePhaseSettings()
+  )
+  const [servicePhaseEtt, setServicePhaseEtt] = useState(() =>
+    buildServicePhaseEtt({
+      startDate: extractDate(event.start),
+      meetingPoint: meetingPoint || location || event.eventLocation || '',
+      startTime,
+      endTime,
+    })
+  )
   const [available, setAvailable]       = useState<{ vehicles: AvailableVehicle[] }>({ vehicles: [] })
   const [vehicleAssignments, setVehicleAssignments] = useState<
     { vehicleType: string; vehicleId: string; plate: string; arrivalTime?: string }[]
@@ -132,18 +268,19 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
     responsibleId: string
   }
 
-  type ServeiGroup = {
-    id: string
-    serviceDate: string
-    dateLabel: string
-    meetingPoint: string
-    startTime: string
-    endTime: string
-    workers: number
-    responsibleId: string
-    needsDriver: boolean
-    driverId: string
-  }
+type ServeiGroup = {
+  id: string
+  serviceDate: string
+  dateLabel: string
+  meetingPoint: string
+  startTime: string
+  endTime: string
+  workers: number
+  responsibleId: string
+  phaseKey: ServicePhaseKey
+  needsDriver: boolean
+  driverId: string
+}
 
 type ServeiGroupSeed = Partial<ServeiGroup> & {
   defaultMeetingPoint?: string
@@ -151,10 +288,24 @@ type ServeiGroupSeed = Partial<ServeiGroup> & {
   defaultEndTime?: string
 }
 
-type TimetableEntry = {
-  startTime?: string
-  endTime?: string
+type ServicePhaseEttData = {
+  serviceDate: string
+  meetingPoint: string
+  startTime: string
+  endTime: string
+  workers: string
 }
+
+type ServicePhaseEtt = {
+  open: boolean
+  data: ServicePhaseEttData
+}
+
+  type TimetableEntry = {
+    startTime?: string
+    endTime?: string
+  }
+
 
 const normalizeTime = (value?: string) => {
   if (!value) return undefined
@@ -181,10 +332,17 @@ const collectTimetable = (entry: TimetableEntry) => {
     responsibleId: seed.responsibleId ?? '',
   })
 
-  const createServeiGroup = (seed: ServeiGroupSeed = {}): ServeiGroup => ({
+  const createServeiGroup = (
+    phaseKey: ServicePhaseKey,
+    seed: ServeiGroupSeed = {}
+  ): ServeiGroup => ({
     id: seed.id || makeGroupId(),
+    phaseKey,
     serviceDate: seed.serviceDate ?? extractDate(event.start),
-    dateLabel: seed.dateLabel ?? '',
+    dateLabel:
+      seed.dateLabel ??
+      servicePhaseOptions.find((phase) => phase.key === phaseKey)?.label ??
+      '',
     meetingPoint:
       seed.meetingPoint ?? seed.defaultMeetingPoint ?? meetingPoint ?? location ?? '',
     startTime: seed.startTime ?? seed.defaultStartTime ?? startTime ?? '',
@@ -195,14 +353,33 @@ const collectTimetable = (entry: TimetableEntry) => {
     driverId: seed.driverId ?? '',
   })
 
+  const createServicePhaseGroups = (overrides: ServeiGroupSeed[] = []): ServeiGroup[] =>
+    servicePhaseOptions.map((phase, idx) =>
+      createServeiGroup(phase.key, {
+        ...overrides[idx],
+        serviceDate:
+          overrides[idx]?.serviceDate ?? extractDate(event.start),
+        defaultMeetingPoint:
+          (overrides[idx]?.defaultMeetingPoint ?? meetingPoint) ||
+          location ||
+          event.eventLocation ||
+          '',
+        defaultStartTime: overrides[idx]?.defaultStartTime ?? startTime,
+        defaultEndTime: overrides[idx]?.defaultEndTime ?? endTime,
+        workers: overrides[idx]?.workers ?? Number(event.totalWorkers || 0),
+      })
+    )
+
   const [cuinaGroups, setCuinaGroups] = useState<CuinaGroup[]>(() => [createGroup()])
-  const [serveisGroups, setServeisGroups] = useState<ServeiGroup[]>(() => [
-    createServeiGroup({
-      defaultMeetingPoint: meetingPoint || location || '',
-      defaultStartTime: startTime,
-      defaultEndTime: endTime,
-    }),
-  ])
+  const [serveisGroups, setServeisGroups] = useState<ServeiGroup[]>(() =>
+    createServicePhaseGroups([
+      {
+        defaultMeetingPoint: meetingPoint || location || '',
+        defaultStartTime: startTime,
+        defaultEndTime: endTime,
+      },
+    ])
+  )
   const cuinaTotalsRef = useRef({
     workers: Number(totalWorkers) || 0,
     drivers: Number(numDrivers) || 0,
@@ -217,13 +394,21 @@ const collectTimetable = (entry: TimetableEntry) => {
     [cuinaGroups]
   )
 
+  const activeServeisGroups = useMemo(
+    () =>
+      serveisGroups.filter((group) =>
+        servicePhaseSettings[group.phaseKey]?.selected ?? true
+      ),
+    [serveisGroups, servicePhaseSettings]
+  )
+
   const serveisTotals = useMemo(
     () => ({
-      workers: serveisGroups.reduce((sum, group) => sum + group.workers, 0),
-      drivers: serveisGroups.filter((group) => group.needsDriver).length,
-      responsables: serveisGroups.length,
+      workers: activeServeisGroups.reduce((sum, group) => sum + group.workers, 0),
+      drivers: activeServeisGroups.filter((group) => group.needsDriver).length,
+      responsables: activeServeisGroups.length,
     }),
-    [serveisGroups]
+    [activeServeisGroups]
   )
 
   useEffect(() => {
@@ -289,35 +474,120 @@ const collectTimetable = (entry: TimetableEntry) => {
     })
   }
 
-  const updateServeisGroup = (id: string, patch: Partial<ServeiGroup>) => {
-    setServeisGroups((prev) => prev.map((group) => (group.id === id ? { ...group, ...patch } : group)))
+  const updatePhaseForm = (key: LogisticPhaseKey, patch: Partial<LogisticPhaseForm>) => {
+    setPhaseForms((prev) => ({
+      ...prev,
+      [key]: {
+        ...prev[key],
+        ...patch,
+      },
+    }))
   }
 
-  const addServeisGroup = () => {
+  const updatePhaseResponsible = (key: LogisticPhaseKey, value: string) => {
+    setPhaseResponsibles((prev) => ({
+      ...prev,
+      [key]: value,
+    }))
+  }
+
+  const togglePhaseVisibility = (key: LogisticPhaseKey) => {
+    setPhaseVisibility((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }))
+  }
+
+  const updatePhaseSetting = (
+    key: LogisticPhaseKey,
+    patch: Partial<LogisticPhaseSetting>
+  ) => {
+    setPhaseSettings((prev) => ({
+      ...prev,
+      [key]: {
+        ...prev[key],
+        ...patch,
+      },
+    }))
+  }
+
+  const updateServeisGroup = (id: string, patch: Partial<ServeiGroup>) => {
+    setServeisGroups((prev) =>
+      prev.map((group) => (group.id === id ? { ...group, ...patch } : group))
+    )
+  }
+
+  const addServeisGroup = (phaseKey: ServicePhaseKey) => {
+    const groupsForPhase = serveisGroups.filter((group) => group.phaseKey === phaseKey)
+    const lastGroup = groupsForPhase[groupsForPhase.length - 1]
+    const meetingPointValue =
+      lastGroup?.meetingPoint ||
+      meetingPoint ||
+      location ||
+      event.eventLocation ||
+      ''
+    const startTimeValue = lastGroup?.startTime || startTime
+    const endTimeValue = lastGroup?.endTime || endTime
     setServeisGroups((prev) => [
       ...prev,
-      createServeiGroup({
-        defaultMeetingPoint: meetingPoint || location || '',
-        defaultStartTime: startTime,
-        defaultEndTime: endTime,
+      createServeiGroup(phaseKey, {
+        meetingPoint: meetingPointValue,
+        startTime: startTimeValue,
+        endTime: endTimeValue,
         workers: 0,
       }),
     ])
   }
 
-  const removeServeisGroup = (id: string) => {
+  const removeServeisGroup = (id: string, phaseKey: ServicePhaseKey) => {
     setServeisGroups((prev) => {
-      const next = prev.filter((group) => group.id !== id)
-      return next.length
-        ? next
-        : [
-            createServeiGroup({
-              defaultMeetingPoint: meetingPoint || location || '',
-              defaultStartTime: startTime,
-              defaultEndTime: endTime,
-            }),
-          ]
+      const groupsForPhase = prev.filter((group) => group.phaseKey === phaseKey)
+      if (groupsForPhase.length <= 1) return prev
+      return prev.filter((group) => group.id !== id)
     })
+  }
+
+  const toggleServicePhaseVisibility = (key: ServicePhaseKey) => {
+    setServicePhaseVisibility((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }))
+  }
+
+  const toggleServicePhaseSelection = (key: ServicePhaseKey) => {
+    setServicePhaseSettings((prev) => ({
+      ...prev,
+      [key]: {
+        ...prev[key],
+        selected: !prev[key].selected,
+      },
+    }))
+  }
+
+  const toggleServicePhaseEtt = (key: ServicePhaseKey) => {
+    setServicePhaseEtt((prev) => ({
+      ...prev,
+      [key]: {
+        ...prev[key],
+        open: !prev[key].open,
+      },
+    }))
+  }
+
+  const updateServicePhaseEtt = (
+    key: ServicePhaseKey,
+    patch: Partial<ServicePhaseEttData>
+  ) => {
+    setServicePhaseEtt((prev) => ({
+      ...prev,
+      [key]: {
+        ...prev[key],
+        data: {
+          ...prev[key].data,
+          ...patch,
+        },
+      },
+    }))
   }
 
   useEffect(() => {
@@ -349,17 +619,49 @@ const collectTimetable = (entry: TimetableEntry) => {
     setCuinaGroups([createGroup({ workers: initialWorkers, drivers: initialDrivers })])
     if (isServeis) {
       const baseMeetingPoint = event.meetingPoint || event.eventLocation || ''
-      setServeisGroups([
-        createServeiGroup({
-          serviceDate: extractDate(event.start),
-          defaultMeetingPoint: baseMeetingPoint,
-          defaultStartTime: event.startTime || '',
-          defaultEndTime: event.endTime || '',
-          workers: Number(event.totalWorkers || 0),
-        }),
-      ])
+      const overrides = servicePhaseOptions.map(() => ({
+        serviceDate: extractDate(event.start),
+        defaultMeetingPoint: baseMeetingPoint,
+        defaultStartTime: event.startTime || '',
+        defaultEndTime: event.endTime || '',
+        workers: Number(event.totalWorkers || 0),
+      }))
+      setServeisGroups(createServicePhaseGroups(overrides))
+      const ettBase = {
+        startDate: extractDate(event.start),
+        meetingPoint: baseMeetingPoint || location || event.eventLocation || '',
+        startTime: event.startTime || '',
+        endTime: event.endTime || '',
+      }
+      setServicePhaseEtt(buildServicePhaseEtt(ettBase))
     }
   }, [event, open, isServeis])
+
+  useEffect(() => {
+    const params = {
+      startDate: extractDate(event.start),
+      endDate: extractDate(event.start),
+      startTime: event.startTime || '',
+      endTime: event.endTime || '',
+      workers: Number(event.totalWorkers || 0),
+      drivers: Number(event.numDrivers || 0),
+      meetingPoint: event.meetingPoint || event.location || event.eventLocation || '',
+    }
+    setPhaseForms(buildPhaseForms(params))
+    setPhaseSettings(createPhaseSettings())
+    setPhaseResponsibles(createPhaseResponsibles())
+    setServicePhaseVisibility(createServicePhaseVisibility())
+    setServicePhaseSettings(createServicePhaseSettings())
+    setServeisGroups(createServicePhaseGroups())
+    setServicePhaseEtt(
+      buildServicePhaseEtt({
+        startDate: params.startDate,
+        meetingPoint: params.meetingPoint,
+        startTime: params.startTime,
+        endTime: params.endTime,
+      })
+    )
+  }, [event.id])
 
   const { responsables, conductors, loading: availLoading } = useAvailablePersonnel({
     departament: department,
@@ -415,6 +717,10 @@ const collectTimetable = (entry: TimetableEntry) => {
 
     const manualResponsibleIdValue =
       manualResp && manualResp !== '__auto__' ? manualResp : null
+    const manualResponsibleNameValue =
+      manualResponsibleIdValue && availableResponsables.length
+        ? availableResponsables.find((r) => r.id === manualResponsibleIdValue)?.name ?? null
+        : null
 
     try {
     const payload: Record<string, unknown> = {
@@ -466,8 +772,20 @@ const collectTimetable = (entry: TimetableEntry) => {
         groupsPayload.forEach((group) => addTimetable(group))
 
       } else if (isServeis) {
-        const groupsPayload = serveisGroups.map((group) => {
-          const selected = responsables.find((r) => r.id === group.responsibleId)
+        const selectedServiceGroups = serveisGroups.filter((group) =>
+          servicePhaseSettings[group.phaseKey]?.selected ?? true
+        )
+        const fallbackGroup = serveisGroups[0]
+        const groupsToUse = selectedServiceGroups.length
+          ? selectedServiceGroups
+          : fallbackGroup
+          ? [fallbackGroup]
+          : []
+
+        const groupsPayload = groupsToUse.map((group) => {
+          const isEventPhase = group.phaseKey === 'event'
+          const assignedResponsibleId = isEventPhase ? manualResponsibleIdValue : null
+          const assignedResponsibleName = isEventPhase ? manualResponsibleNameValue : null
           return {
             serviceDate: group.serviceDate,
             dateLabel: group.dateLabel || null,
@@ -478,9 +796,9 @@ const collectTimetable = (entry: TimetableEntry) => {
             drivers: group.needsDriver ? 1 : 0,
             needsDriver: group.needsDriver,
             driverId: group.driverId || null,
-            // Serveis: responsable és per esdeveniment (no per grup)
-            responsibleId: null,
-            responsibleName: null,
+            responsibleId: assignedResponsibleId,
+            responsibleName: assignedResponsibleName,
+            wantsResponsible: isEventPhase,
           }
         })
 
@@ -493,13 +811,14 @@ const collectTimetable = (entry: TimetableEntry) => {
         const canonicalType = (t?: string) => {
           const x = (t || '').trim()
           if (!x) return ''
-          const hit = (available?.vehicles || []).find(av => av.type?.toLowerCase() === x.toLowerCase())
+          const hit = (available?.vehicles || []).find((av) => av.type?.toLowerCase() === x.toLowerCase())
           return hit?.type || x
         }
+
         const vehiclesPayload = Array.from({ length: Number(numDrivers || 0) }).map((_, idx) => {
           const v = vehicleAssignments[idx] ?? { vehicleType: '', vehicleId: '', plate: '', arrivalTime: '' }
           if (v.vehicleId) {
-            const match = available.vehicles.find(av => av.id === v.vehicleId)
+            const match = available.vehicles.find((av) => av.id === v.vehicleId)
             return {
               id: v.vehicleId,
               plate: match?.plate || '',
@@ -519,26 +838,166 @@ const collectTimetable = (entry: TimetableEntry) => {
           }
           return { id: '', plate: '', vehicleType: '', conductorId: null, arrivalTime: '' }
         })
-        payload.totalWorkers = Number(totalWorkers)
-        payload.numDrivers   = Number(numDrivers)
-        payload.vehicles     = vehiclesPayload
-        addTimetable({ startTime, endTime })
+
+        const baseLogisticPayload: Record<string, unknown> = {
+          ...payload,
+          totalWorkers: Number(totalWorkers),
+          numDrivers: Number(numDrivers),
+          vehicles: vehiclesPayload,
+        }
+
+        const ettWorkers = Number(ettData.workers || 0)
+        const ettEntry =
+          ettWorkers > 0
+            ? {
+                name: 'ETT',
+                workers: ettWorkers,
+                startDate: ettData.serviceDate || startDate,
+                endDate: ettData.serviceDate || endDate,
+                startTime: ettData.startTime || startTime,
+                endTime: ettData.endTime || endTime,
+                meetingPoint: ettData.meetingPoint || meetingPoint,
+              }
+            : null
+
+        const payloadWithBrigades = ettEntry
+          ? {
+              ...baseLogisticPayload,
+              brigades: [
+                ...(Array.isArray(baseLogisticPayload.brigades)
+                  ? (baseLogisticPayload.brigades as any[])
+                  : []),
+                ettEntry,
+              ],
+            }
+          : baseLogisticPayload
+
+        const buildTimetablesForPhase = (form: LogisticPhaseForm) => {
+          const list: Array<{ startTime: string; endTime: string }> = []
+          const add = (entry: TimetableEntry) => {
+            const tt = collectTimetable(entry)
+            if (tt) list.push(tt)
+          }
+          add({ startTime: form.startTime, endTime: form.endTime })
+          if (ettEntry) {
+            add({
+              startTime: ettEntry.startTime,
+              endTime: ettEntry.endTime,
+            })
+          }
+          return list
+        }
+
+        const selectedPhaseKeys = Object.entries(phaseSettings)
+          .filter(([, setting]) => setting.selected)
+          .map(([key]) => key as LogisticPhaseKey)
+        const fallbackPhase = (event.phaseKey as LogisticPhaseKey) ?? 'entrega'
+        const phasesToCreate = selectedPhaseKeys.length ? selectedPhaseKeys : [fallbackPhase]
+
+        const getManualForPhase = (phaseKey: LogisticPhaseKey) => {
+          const entry = phaseResponsibles[phaseKey] ?? '__auto__'
+          return entry && entry !== '__auto__' ? entry : null
+        }
+
+        const logisticaPhases = phasesToCreate.map((phaseKey) => {
+          const form = phaseForms[phaseKey] ?? {
+            startDate: extractDate(event.start),
+            endDate: extractDate(event.start),
+            startTime,
+            endTime,
+            workers: Number(totalWorkers) || 0,
+            drivers: Number(numDrivers) || 0,
+            meetingPoint: meetingPoint || location || '',
+          }
+          const phaseSetting = phaseSettings[phaseKey] ?? { selected: true, needsResponsible: true }
+          const phaseTimetables = buildTimetablesForPhase(form)
+          const label =
+            logisticPhaseOptions.find((phase) => phase.key === phaseKey)?.label || phaseKey
+          return {
+            label,
+            phaseType: phaseKey,
+            date: form.startDate,
+            endDate: form.endDate,
+            startTime: form.startTime,
+            endTime: form.endTime,
+            totalWorkers: form.workers,
+            numDrivers: form.drivers,
+            wantsResp: phaseSetting.needsResponsible,
+            responsableId: phaseSetting.needsResponsible ? getManualForPhase(phaseKey) : null,
+            meetingPoint: form.meetingPoint || meetingPoint || location || '',
+            vehicles: vehiclesPayload,
+            timetables: phaseTimetables,
+          }
+        })
+
+        const res = await fetch('/api/quadrants', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...payloadWithBrigades,
+            logisticaPhases,
+          }),
+        })
+        const text = await res.text()
+        const data = JSON.parse(text)
+
+        if (!res.ok || (data as any)?.ok === false) {
+          throw new Error((data as any)?.error || 'Error desant el quadrant')
+        }
+
+        setSuccess(true)
+        toast.success('Borrador creat correctament!')
+        window.dispatchEvent(new CustomEvent('quadrant:created', { detail: { status: 'draft' } }))
+        onOpenChange(false)
+        return
       }
 
-      const ettWorkers = Number(ettData.workers || 0)
-      if (ettWorkers > 0) {
-        const ettEntry = {
-          name: 'ETT',
-          workers: ettWorkers,
-          startDate: ettData.serviceDate || startDate,
-          endDate: ettData.serviceDate || endDate,
-          startTime: ettData.startTime || startTime,
-          endTime: ettData.endTime || endTime,
-          meetingPoint: ettData.meetingPoint || meetingPoint,
+      type EttEntry = {
+        name: string
+        workers: number
+        startDate: string
+        endDate: string
+        startTime: string
+        endTime: string
+        meetingPoint: string
+      }
+      const ettEntries: EttEntry[] = []
+
+      if (isServeis) {
+        Object.values(servicePhaseEtt).forEach((ettState) => {
+          const workers = Number(ettState.data.workers || 0)
+          if (!workers) return
+          ettEntries.push({
+            name: 'ETT',
+            workers,
+            startDate: ettState.data.serviceDate || startDate,
+            endDate: ettState.data.serviceDate || endDate,
+            startTime: ettState.data.startTime || startTime,
+            endTime: ettState.data.endTime || endTime,
+            meetingPoint: ettState.data.meetingPoint || meetingPoint,
+          })
+        })
+      } else {
+        const ettWorkers = Number(ettData.workers || 0)
+        if (ettWorkers > 0) {
+          ettEntries.push({
+            name: 'ETT',
+            workers: ettWorkers,
+            startDate: ettData.serviceDate || startDate,
+            endDate: ettData.serviceDate || endDate,
+            startTime: ettData.startTime || startTime,
+            endTime: ettData.endTime || endTime,
+            meetingPoint: ettData.meetingPoint || meetingPoint,
+          })
         }
+      }
+
+      if (ettEntries.length) {
         const existingBrigades = (payload.brigades as any[]) || []
-        payload.brigades = [...existingBrigades, ettEntry]
-        addTimetable({ startTime: ettData.startTime, endTime: ettData.endTime })
+        payload.brigades = [...existingBrigades, ...ettEntries]
+        ettEntries.forEach((entry) =>
+          addTimetable({ startTime: entry.startTime, endTime: entry.endTime })
+        )
       }
 
       if (timetables.length) {
@@ -588,187 +1047,366 @@ onOpenChange(false)
 
         <div className="space-y-4 mt-4">
           {/* Dates */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label>Data Inici</Label>
-              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+          {!isLogistica && (
+            <div className="grid grid-cols-2 gap-4">
+              {!isServeis && (
+                <>
+                  <div>
+                    <Label>Data Inici</Label>
+                    <Input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <Label>Data Final</Label>
+                    <Input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                    />
+                  </div>
+                </>
+              )}
+              {!isCuina && (
+                <div className={`${isServeis ? 'col-span-2 sm:col-span-1' : ''}`}>
+                  <Label>Hora Inici</Label>
+                  <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+                </div>
+              )}
+              {!isCuina && (
+                <div className={`${isServeis ? 'col-span-2 sm:col-span-1' : ''}`}>
+                  <Label>Hora Fi</Label>
+                  <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+                </div>
+              )}
             </div>
+          )}
+
+          {department.toLowerCase() !== 'logistica' && (
             <div>
-              <Label>Data Final</Label>
-              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+              <Label>Responsable (manual)</Label>
+              {availLoading ? (
+                <p className="flex items-center gap-2 text-blue-600">
+                  <Loader2 className="animate-spin" /> Carregant…
+                </p>
+              ) : (
+                <Select value={manualResp} onValueChange={setManualResp}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Selecciona un responsable…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__auto__">— Automàtic —</SelectItem>
+                    {availableResponsables.map((r) => (
+                      <SelectItem key={r.id} value={r.id}>
+                        {r.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
-            {!isCuina && (
-              <div>
-                <Label>Hora Inici</Label>
-                <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
-              </div>
-            )}
-            {department === 'logistica' && (
-              <div>
-                <Label>Hora arribada (esdeveniment)</Label>
-                <Input type="time" value={arrivalTime} onChange={(e) => setArrivalTime(e.target.value)} />
-              </div>
-            )}
-            {!isCuina && (
-              <div>
-                <Label>Hora Fi</Label>
-                <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
-              </div>
-            )}
-          </div>
+          )}
 
           {/* Camps específics */}
           {isServeis && (
             <div className="space-y-4 rounded-2xl border border-dashed border-slate-200 bg-white p-4">
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-slate-700">Grups Serveis</p>
+                  <p className="text-sm font-semibold text-slate-700">Fase serveis</p>
                   <p className="text-xs text-slate-500">
                     Treballadors {serveisTotals.workers} · Conductors {serveisTotals.drivers} ·
-                    Responsables {serveisTotals.responsables}
+                    Fases {serveisTotals.responsables}
                   </p>
                 </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="gap-1"
-                  onClick={addServeisGroup}
-                >
-                  + Grup
-                </Button>
               </div>
-              <div className="space-y-3">
-                {serveisGroups.map((group, idx) => (
-                  <div
-                    key={group.id}
-                    className="border border-slate-200 rounded-xl p-3 bg-slate-50 space-y-3"
-                  >
-                    <div className="flex items-center justify-between text-xs text-slate-500">
-                      <span>Grup {idx + 1}</span>
-                      {serveisGroups.length > 1 && (
-                        <button
-                          type="button"
-                          className="text-red-500 hover:underline"
-                          onClick={() => removeServeisGroup(group.id)}
-                        >
-                          Elimina grup
-                        </button>
+              <div className="grid gap-3">
+                {servicePhaseOptions.map((phase) => {
+                  const groupsForPhase = serveisGroups.filter((g) => g.phaseKey === phase.key)
+                  if (!groupsForPhase.length) return null
+                  const visible = servicePhaseVisibility[phase.key] ?? true
+                  const settings = servicePhaseSettings[phase.key] ?? { selected: true }
+                  const isSelected = settings.selected
+
+                  const ettState = servicePhaseEtt[phase.key] ?? {
+                    open: false,
+                    data: {
+                      serviceDate: startDate,
+                      meetingPoint: meetingPoint || location || event.eventLocation || '',
+                      startTime,
+                      endTime,
+                      workers: '',
+                    },
+                  }
+                  const ettOpen = ettState.open
+                  const ettWorkersCount = Number(ettState.data.workers || 0)
+
+                  return (
+                    <div
+                      key={phase.key}
+                      className={`rounded-xl border p-3 transition ${
+                        visible ? 'border-indigo-400 bg-indigo-50/40' : 'border-gray-200 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-700">{phase.label}</p>
+                          <p className="text-xs text-slate-500">Activar per generar aquesta fase</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                              isSelected
+                                ? 'bg-indigo-600 text-white'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                            onClick={() => toggleServicePhaseSelection(phase.key)}
+                          >
+                            {isSelected ? 'Inclosa' : 'No inclosa'}
+                          </button>
+                          <button
+                            type="button"
+                            className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                              visible
+                                ? 'bg-indigo-600 text-white'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                            onClick={() => toggleServicePhaseVisibility(phase.key)}
+                          >
+                            {visible ? 'Amaga' : 'Mostra'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {visible && isSelected && (
+                        <div className="space-y-3 mt-4">
+                          {groupsForPhase.map((group, idx) => (
+                            <div
+                              key={group.id}
+                              className="border border-slate-200 rounded-xl bg-white p-3 space-y-3"
+                            >
+                              <div className="flex items-center justify-between text-xs text-slate-500">
+                                <span>Grup {idx + 1}</span>
+                                {groupsForPhase.length > 1 && (
+                                  <button
+                                    type="button"
+                                    className="text-red-500 hover:underline"
+                                    onClick={() => removeServeisGroup(group.id, phase.key)}
+                                  >
+                                    Elimina grup
+                                  </button>
+                                )}
+                              </div>
+
+                              <div className="grid gap-3 sm:grid-cols-2">
+                                <div>
+                                  <Label>Data servei</Label>
+                                  <Input
+                                    type="date"
+                                    value={group.serviceDate}
+                                    onChange={(e) =>
+                                      updateServeisGroup(group.id, {
+                                        serviceDate: e.target.value,
+                                      })
+                                    }
+                                  />
+                                </div>
+                                <div>
+                                  <Label>Meeting point</Label>
+                                  <Input
+                                    value={group.meetingPoint}
+                                    onChange={(e) =>
+                                      updateServeisGroup(group.id, {
+                                        meetingPoint: e.target.value,
+                                      })
+                                    }
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="grid gap-3 sm:grid-cols-2">
+                                <div>
+                                  <Label>Hora inici</Label>
+                                  <Input
+                                    type="time"
+                                    value={group.startTime}
+                                    onChange={(e) =>
+                                      updateServeisGroup(group.id, { startTime: e.target.value })
+                                    }
+                                  />
+                                </div>
+                                <div>
+                                  <Label>Hora fi</Label>
+                                  <Input
+                                    type="time"
+                                    value={group.endTime}
+                                    onChange={(e) =>
+                                      updateServeisGroup(group.id, { endTime: e.target.value })
+                                    }
+                                  />
+                                </div>
+                              </div>
+
+                              {group.serviceDate !== extractDate(event.start) && (
+                                <div>
+                                  <Label>Nota del dia</Label>
+                                  <Input
+                                    type="text"
+                                    placeholder="Muntatge"
+                                    value={group.dateLabel}
+                                    onChange={(e) =>
+                                      updateServeisGroup(group.id, { dateLabel: e.target.value })
+                                    }
+                                  />
+                                </div>
+                              )}
+
+                              <div className="grid gap-3 sm:grid-cols-2">
+                                <div>
+                                  <Label>Treballadors</Label>
+                                  <Input
+                                    type="number"
+                                    min={0}
+                                    value={group.workers}
+                                    onChange={(e) => {
+                                      const value = Number(e.target.value)
+                                      updateServeisGroup(group.id, {
+                                        workers: Number.isNaN(value) ? 0 : value,
+                                      })
+                                    }}
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <div className="flex items-center gap-2">
+                                    <Switch
+                                      id={`needs-driver-${group.id}`}
+                                      checked={group.needsDriver}
+                                      onCheckedChange={(checked) =>
+                                        updateServeisGroup(group.id, {
+                                          needsDriver: Boolean(checked),
+                                          driverId: checked ? group.driverId : '',
+                                        })
+                                      }
+                                    />
+                                    <Label htmlFor={`needs-driver-${group.id}`} className="mb-0">
+                                      Necessita conductor?
+                                    </Label>
+                                  </div>
+                                  {group.needsDriver && (
+                                    <Select
+                                      value={group.driverId || '__none__'}
+                                      onValueChange={(value) =>
+                                        updateServeisGroup(group.id, {
+                                          driverId: value === '__none__' ? '' : value,
+                                        })
+                                      }
+                                    >
+                                      <SelectTrigger className="w-full">
+                                        <SelectValue placeholder="Selecciona un conductor…" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="__none__">Sense assignar</SelectItem>
+                                        {availableConductors.map((conductor) => (
+                                          <SelectItem key={conductor.id} value={conductor.id}>
+                                            {conductor.name}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="gap-1"
+                              onClick={() => addServeisGroup(phase.key)}
+                            >
+                              + Grup
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-slate-900 border-slate-200 bg-white shadow-sm"
+                              onClick={() => toggleServicePhaseEtt(phase.key)}
+                            >
+                              {ettOpen ? 'Amaga ETT' : '+ ETT'}
+                            </Button>
+                          </div>
+
+                          {ettOpen ? (
+                            <div className="space-y-3 rounded-xl border border-dashed border-slate-200 bg-slate-50 p-3">
+                              <div className="grid gap-3 sm:grid-cols-2">
+                                <div>
+                                  <Label>Data servei</Label>
+                                  <Input
+                                    type="date"
+                                    value={ettState.data.serviceDate}
+                                    onChange={(e) =>
+                                      updateServicePhaseEtt(phase.key, { serviceDate: e.target.value })
+                                    }
+                                  />
+                                </div>
+                                <div>
+                                  <Label>Meeting point</Label>
+                                  <Input
+                                    value={ettState.data.meetingPoint}
+                                    onChange={(e) =>
+                                      updateServicePhaseEtt(phase.key, { meetingPoint: e.target.value })
+                                    }
+                                  />
+                                </div>
+                              </div>
+                              <div className="grid gap-3 sm:grid-cols-2">
+                                <div>
+                                  <Label>Hora inici</Label>
+                                  <Input
+                                    type="time"
+                                    value={ettState.data.startTime}
+                                    onChange={(e) =>
+                                      updateServicePhaseEtt(phase.key, { startTime: e.target.value })
+                                    }
+                                  />
+                                </div>
+                                <div>
+                                  <Label>Hora fi</Label>
+                                  <Input
+                                    type="time"
+                                    value={ettState.data.endTime}
+                                    onChange={(e) =>
+                                      updateServicePhaseEtt(phase.key, { endTime: e.target.value })
+                                    }
+                                  />
+                                </div>
+                              </div>
+                              <div>
+                                <Label>Treballadors ETT</Label>
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  value={ettState.data.workers}
+                                  onChange={(e) =>
+                                    updateServicePhaseEtt(phase.key, { workers: e.target.value })
+                                  }
+                                />
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-xs text-slate-500">
+                              ETT · {ettWorkersCount} treballadors
+                            </p>
+                          )}
+                        </div>
                       )}
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <div>
-                        <Label>Data servei</Label>
-                        <Input
-                          type="date"
-                          value={group.serviceDate}
-                          onChange={(e) =>
-                            updateServeisGroup(group.id, { serviceDate: e.target.value })
-                          }
-                        />
-                      </div>
-                      <div>
-                        <Label>Meeting point</Label>
-                        <Input
-                          value={group.meetingPoint}
-                          onChange={(e) =>
-                            updateServeisGroup(group.id, { meetingPoint: e.target.value })
-                          }
-                        />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <div>
-                        <Label>Hora inici</Label>
-                        <Input
-                          type="time"
-                          value={group.startTime}
-                          onChange={(e) =>
-                            updateServeisGroup(group.id, { startTime: e.target.value })
-                          }
-                        />
-                      </div>
-                      <div>
-                        <Label>Hora fi</Label>
-                        <Input
-                          type="time"
-                          value={group.endTime}
-                          onChange={(e) =>
-                            updateServeisGroup(group.id, { endTime: e.target.value })
-                          }
-                        />
-                      </div>
-                    </div>
-                    {group.serviceDate !== extractDate(event.start) && (
-                      <div>
-                        <Label>Nota del dia</Label>
-                        <Input
-                          type="text"
-                          placeholder="Montatge"
-                          value={group.dateLabel}
-                          onChange={(e) =>
-                            updateServeisGroup(group.id, { dateLabel: e.target.value })
-                          }
-                        />
-                      </div>
-                    )}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <div>
-                        <Label>Treballadors</Label>
-                        <Input
-                          type="number"
-                          min={0}
-                          value={group.workers}
-                          onChange={(e) => {
-                            const value = Number(e.target.value)
-                            updateServeisGroup(group.id, {
-                              workers: Number.isNaN(value) ? 0 : value,
-                            })
-                          }}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <Switch
-                            id={`need-driver-${group.id}`}
-                            checked={group.needsDriver}
-                            onCheckedChange={(checked) =>
-                              updateServeisGroup(group.id, {
-                                needsDriver: Boolean(checked),
-                                driverId: checked ? group.driverId : '',
-                              })
-                            }
-                          />
-                          <Label htmlFor={`need-driver-${group.id}`} className="mb-0">
-                            Necessita conductor?
-                          </Label>
-                        </div>
-                        {group.needsDriver && (
-                          <Select
-                            value={group.driverId || '__none__'}
-                            onValueChange={(value) =>
-                              updateServeisGroup(group.id, {
-                                driverId: value === '__none__' ? '' : value,
-                              })
-                            }
-                          >
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder="Selecciona un conductor…" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="__none__">Sense assignar</SelectItem>
-                              {availableConductors.map((conductor) => (
-                                <SelectItem key={conductor.id} value={conductor.id}>
-                                  {conductor.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        )}
-                      </div>
-                    </div>
-                    {/* Responsable per grup NO aplica a serveis (un sol responsable per esdeveniment) */}
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           )}
@@ -781,11 +1419,225 @@ onOpenChange(false)
               vehicleAssignments={vehicleAssignments}
               setVehicleAssignments={setVehicleAssignments}
               available={available}
+              hideCounts={true}
             />
           )}
 
+          {department.toLowerCase() === 'logistica' && (
+            <div className="space-y-4 rounded-2xl border border-dashed border-slate-200 bg-white p-4">
+              <p className="text-sm font-semibold text-slate-700">Fase logística</p>
+              <div className="grid gap-3">
+                {logisticPhaseOptions.map((phase) => {
+                  const visible = phaseVisibility[phase.key] ?? true
+                  const form =
+                    phaseForms[phase.key] ??
+                    ({
+                      startDate: extractDate(event.start),
+                      endDate: extractDate(event.start),
+                      startTime,
+                      endTime,
+                      workers: Number(totalWorkers) || 0,
+                      drivers: Number(numDrivers) || 0,
+                      meetingPoint: meetingPoint || location || '',
+                    } as LogisticPhaseForm)
+                  const responsibleValue = phaseResponsibles[phase.key] ?? '__auto__'
+                  const settings = phaseSettings[phase.key] ?? {
+                    selected: true,
+                    needsResponsible: phase.key === 'event',
+                  }
+                  const showResponsibleControls = phase.key === 'event'
+                  const needsResponsible = showResponsibleControls && settings.needsResponsible
+                  const isSelected = settings.selected
+
+                  return (
+                    <div
+                      key={phase.key}
+                      className={`rounded-xl border p-3 transition ${
+                        visible ? 'border-indigo-400 bg-indigo-50/40' : 'border-gray-200 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-700">{phase.label}</p>
+                          <p className="text-xs text-slate-500">Activar per generar aquesta fase</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                              isSelected
+                                ? 'bg-indigo-600 text-white'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                            onClick={() =>
+                              updatePhaseSetting(phase.key, { selected: !isSelected })
+                            }
+                          >
+                            {isSelected ? 'Inclosa' : 'No inclosa'}
+                          </button>
+                          <button
+                            type="button"
+                            className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                              visible
+                                ? 'bg-indigo-600 text-white'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                            onClick={() => togglePhaseVisibility(phase.key)}
+                          >
+                            {visible ? 'Amaga' : 'Mostra'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {visible && (
+                        <div className="space-y-3 mt-4">
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <div>
+                              <Label>Data Inici</Label>
+                              <Input
+                                type="date"
+                                value={form.startDate}
+                                onChange={(e) =>
+                                  updatePhaseForm(phase.key, { startDate: e.target.value })
+                                }
+                              />
+                            </div>
+                            <div>
+                              <Label>Data Final</Label>
+                              <Input
+                                type="date"
+                                value={form.endDate}
+                                onChange={(e) =>
+                                  updatePhaseForm(phase.key, { endDate: e.target.value })
+                                }
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <div>
+                              <Label>Hora Inici</Label>
+                              <Input
+                                type="time"
+                                value={form.startTime}
+                                onChange={(e) =>
+                                  updatePhaseForm(phase.key, { startTime: e.target.value })
+                                }
+                              />
+                            </div>
+                            <div>
+                              <Label>Hora Fi</Label>
+                              <Input
+                                type="time"
+                                value={form.endTime}
+                                onChange={(e) =>
+                                  updatePhaseForm(phase.key, { endTime: e.target.value })
+                                }
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <div>
+                              <Label># Treballadors</Label>
+                              <Input
+                                type="number"
+                                min={0}
+                                value={form.workers}
+                                onChange={(e) => {
+                                  const value = Number(e.target.value)
+                                  updatePhaseForm(phase.key, {
+                                    workers: Number.isNaN(value) ? 0 : value,
+                                  })
+                                }}
+                              />
+                            </div>
+                            <div>
+                              <Label># Conductors</Label>
+                              <Input
+                                type="number"
+                                min={0}
+                                value={form.drivers}
+                                onChange={(e) => {
+                                  const value = Number(e.target.value)
+                                  updatePhaseForm(phase.key, {
+                                    drivers: Number.isNaN(value) ? 0 : value,
+                                  })
+                                }}
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <Label>Lloc de concentració</Label>
+                            <Input
+                              type="text"
+                              value={form.meetingPoint}
+                              onChange={(e) =>
+                                updatePhaseForm(phase.key, { meetingPoint: e.target.value })
+                              }
+                            />
+                          </div>
+
+                          {showResponsibleControls && (
+                            <>
+                              <div className="flex items-center gap-2">
+                                <Switch
+                                  id={`needs-resp-${phase.key}`}
+                                  checked={needsResponsible}
+                                  onCheckedChange={(checked) =>
+                                    updatePhaseSetting(phase.key, {
+                                      needsResponsible: Boolean(checked),
+                                    })
+                                  }
+                                />
+                                <Label htmlFor={`needs-resp-${phase.key}`} className="mb-0 text-sm">
+                                  Necessita responsable?
+                                </Label>
+                              </div>
+
+                              {needsResponsible && (
+                                <div>
+                                  <Label>Responsable</Label>
+                                  {availLoading ? (
+                                    <p className="flex items-center gap-2 text-blue-600 text-xs">
+                                      <Loader2 className="animate-spin" /> Carregant…
+                                    </p>
+                                  ) : (
+                                    <Select
+                                      value={responsibleValue}
+                                      onValueChange={(value) =>
+                                        updatePhaseResponsible(phase.key, value)
+                                      }
+                                    >
+                                      <SelectTrigger className="w-full">
+                                        <SelectValue placeholder="Selecciona un responsable…" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="__auto__">— Automàtic —</SelectItem>
+                                        {availableResponsables.map((r) => (
+                                          <SelectItem key={r.id} value={r.id}>
+                                            {r.name}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  )}
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Meeting point */}
-          {!isGroupDept && (
+          {!isLogistica && !isGroupDept && (
             <div>
               <Label>Lloc de concentració</Label>
               <Input
@@ -965,7 +1817,7 @@ onOpenChange(false)
               </div>
             </div>
           )}
-          {isGroupDept && (
+          {isCuina && (
             <div className="space-y-3 rounded-2xl border border-dashed border-slate-200 bg-white p-4">
               <div className="flex items-center justify-between">
                 <div>
@@ -975,6 +1827,7 @@ onOpenChange(false)
                 <Button
                   size="sm"
                   variant={ettOpen ? 'secondary' : 'outline'}
+                  className="text-slate-900 border-slate-200 bg-white shadow-sm"
                   onClick={() =>
                     setEttOpen((prev) => {
                       const next = !prev
@@ -1062,29 +1915,6 @@ onOpenChange(false)
               )}
             </div>
           )}
-          <div>
-            <Label>Responsable (manual)</Label>
-            {availLoading && (
-              <p className="flex items-center gap-2 text-blue-600">
-                <Loader2 className="animate-spin" /> Carregant…
-              </p>
-            )}
-            {!availLoading && (
-              <Select value={manualResp} onValueChange={setManualResp}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Selecciona un responsable…" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__auto__">— Automàtic —</SelectItem>
-                  {availableResponsables.map((r) => (
-                    <SelectItem key={r.id} value={r.id}>
-                      {r.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
 
           {/* Feedback */}
           <AnimatePresence>

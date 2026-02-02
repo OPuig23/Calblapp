@@ -120,7 +120,11 @@ export default function FiltersBar({
 
   return (
     <div className="sticky top-[56px] z-40 border-b border-gray-200 bg-white/90 backdrop-blur-sm">
-      <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-2 overflow-x-auto whitespace-nowrap px-2 py-[3px] sm:flex-nowrap">
+      <div
+        className={`mx-auto flex w-full items-center justify-between gap-2 overflow-x-auto whitespace-nowrap px-2 py-[3px] sm:flex-nowrap ${
+          isQuadrants ? 'max-w-none' : 'max-w-5xl'
+        }`}
+      >
         <SmartFilters
           modeDefault="week"
           role="Treballador"

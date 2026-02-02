@@ -130,7 +130,12 @@ const allPersonnel = personnelSnap.docs.map((doc) => ({
 
     const treballadors = disponibles.filter((p) => {
       const role = p.role?.toLowerCase().trim()
-      return role === 'treballador' || role === 'personal'
+      return (
+        role === 'treballador' ||
+        role === 'personal' ||
+        role === 'responsable' ||
+        role === 'cap departament'
+      )
     })
 
     /* ────────────────────────────────────────────────────────

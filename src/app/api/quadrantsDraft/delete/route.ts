@@ -22,7 +22,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { department, eventId } = await req.json()
+    const { department, eventId, phaseKey } = await req.json()
 
     if (!department || !eventId) {
       return NextResponse.json({ ok: false, error: 'Missing department or eventId' }, { status: 400 })
@@ -35,6 +35,18 @@ export async function POST(req: Request) {
     if (!snap.exists) {
       // Idempotent → si no existeix, no passa res
       return NextResponse.json({ ok: true, alreadyDeleted: true })
+    }
+
+    if (phaseKey) {
+      const data = snap.data() as any
+      const phases = Array.isArray(data?.logisticaPhases) ? data.logisticaPhases : []
+      const target = String(phaseKey).toLowerCase().trim()
+      const next = phases.filter((p: any) => {
+        const key = (p?.key || p?.label || '').toString().toLowerCase().trim()
+        return key !== target
+      })
+      await ref.set({ logisticaPhases: next }, { merge: true })
+      return NextResponse.json({ ok: true, phaseDeleted: true })
     }
 
     await ref.delete()

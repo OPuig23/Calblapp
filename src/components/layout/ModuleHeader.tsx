@@ -13,7 +13,7 @@ interface Props {
 export default function ModuleHeader({ title, subtitle, icon, actions }: Props) {
   const pathname = usePathname() ?? ''
 
-  // Exemple: /menu/spaces/reserves → ['','menu','spaces','reserves']
+  // Exemple: /menu/spaces/reserves Ã¢â€ â€™ ['','menu','spaces','reserves']
   const segments = pathname.split('/').filter(Boolean)
 
   // Identifiquem el mòdul (spaces, torns, quadrants, etc.)
@@ -32,7 +32,7 @@ export default function ModuleHeader({ title, subtitle, icon, actions }: Props) 
 
   const color = colorMap[module] ?? 'from-gray-50 to-gray-100'
 
-  // Traducció “mòdul → nom visible”
+  // Traducció Ã¢â‚¬Å“mòdul Ã¢â€ â€™ nom visibleÃ¢â‚¬Â
   const moduleLabels: Record<string, string> = {
     spaces: 'Espais',
     torns: 'Torns',
@@ -44,7 +44,7 @@ export default function ModuleHeader({ title, subtitle, icon, actions }: Props) 
 
   const mainLabel = moduleLabels[module] || module
 
-  // Traducció “submòdul → nom visible”
+  // Traducció Ã¢â‚¬Å“submòdul Ã¢â€ â€™ nom visibleÃ¢â‚¬Â
   const subLabels: Record<string, string> = {
     reserves: 'Reserves',
     operativa: 'Operativa',
@@ -67,10 +67,10 @@ export default function ModuleHeader({ title, subtitle, icon, actions }: Props) 
 
           <div className="flex flex-col">
 
-            {/* BREADCRUMB AUTOMÀTIC */}
+            {/* BREADCRUMB AUTOMÃƒâ‚¬TIC */}
             <div className="flex items-center gap-1 text-sm font-semibold">
               
-              {/* MÒDUL PRINCIPAL (clicable) */}
+              {/* MÃƒâ€™DUL PRINCIPAL (clicable) */}
               <a
                 href={`/menu/${module}`}
                 className="text-gray-800 hover:underline"
@@ -81,7 +81,7 @@ export default function ModuleHeader({ title, subtitle, icon, actions }: Props) 
               {/* SEPARADOR */}
               {subLabel && <span className="text-gray-500">/</span>}
 
-              {/* SUBMÒDUL (clicable) */}
+              {/* SUBMÃƒâ€™DUL (clicable) */}
               {subLabel && (
                 <a
                   href={`/menu/${module}/${submodule}`}
@@ -92,7 +92,7 @@ export default function ModuleHeader({ title, subtitle, icon, actions }: Props) 
               )}
             </div>
 
-            {/* SUBTÍTOL OPCIONAL */}
+            {/* SUBTÃƒÂTOL OPCIONAL */}
             {subtitle && (
               <div className="text-xs italic text-gray-600">{subtitle}</div>
             )}
