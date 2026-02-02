@@ -56,6 +56,7 @@ export function usePersonnel(department?: string) {
       const arr: Personnel[] = Array.isArray(body?.data)
         ? body.data.map((p: Personnel) => ({
             ...p,
+            maxHoursWeek: p.maxHoursWeek ?? 40,
             available: p.available ?? true,
             unavailableFrom: p.unavailableFrom ?? null,
             unavailableUntil: p.unavailableUntil ?? null,

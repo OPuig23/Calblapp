@@ -80,11 +80,8 @@ interface EventMenuModalProps {
     name?: string
   }
   onClose: () => void
-  onOpenDocuments: (data: {
-    eventId: string
-    eventCode?: string | null
-  }) => void
   onAvisosStateChange?: (state: { eventCode: string | null; hasAvisos: boolean; lastAvisoDate?: string }) => void
+  suppressMenuInteraction?: boolean
 }
 
 function deduceLnKeyFromSummary(summary: string): LnKey {
@@ -129,22 +126,26 @@ function ActionRow({
   badge,
   tone,
   onClick,
+  disabled,
 }: {
   icon: any
   label: string
   badge?: string
   tone: Tone
   onClick: () => void
+  disabled?: boolean
 }) {
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
       className={[
         'w-full h-12 rounded-xl px-3',
         'flex items-center justify-between gap-3',
         'bg-white border border-slate-200',
         'hover:bg-slate-50 active:scale-[0.99] transition',
+        'disabled:cursor-not-allowed disabled:opacity-70',
         'text-left',
       ].join(' ')}
     >
@@ -176,8 +177,8 @@ export default function EventMenuModal({
   event,
   user,
   onClose,
-  onOpenDocuments,
   onAvisosStateChange,
+  suppressMenuInteraction = false,
 }: EventMenuModalProps) {
 
   const router = useRouter()
@@ -244,12 +245,9 @@ const treballadorsPersons =
   const isProduccio = deptN === 'produccio'
   const isCuina = deptN === 'cuina'
   const canWriteAvisos = isAdmin || isDireccio || isProduccio
+  const isWorkerResponsible = roleN === 'treballador' && !!event?.isResponsible
   const canCloseEvent =
-    isAdmin ||
-    isDireccio ||
-    isCapDept ||
-    norm(event?.department) === deptN ||
-    !!event?.isResponsible
+    isAdmin || isDireccio || isCapDept || isWorkerResponsible
 
 
 
@@ -260,7 +258,7 @@ const treballadorsPersons =
     isAdmin ||
     isDireccio ||
     (isCapDept && ['foodlovers', 'logistica', 'cuina', 'serveis'].includes(norm(deptN))) ||
-    (roleN === 'treballador' && event.isResponsible)
+      isWorkerResponsible
 
   const DEPT_TO_LN: Record<string, LnKey> = {
     empresa: 'empresa',
@@ -431,12 +429,9 @@ const recursos = useMemo(
       badge: 'Docs',
       icon: FileText,
       tone: 'info' as const,
-onClick: () => {
-  onOpenDocuments({
-    eventId: String(event.id),
-    eventCode: event.eventCode || event.code || null,
-  })
-}
+      onClick: () => {
+        setPendingDocsOpen(true)
+      }
 
     },
       canSeeKitchenDocs
@@ -528,6 +523,7 @@ onClick: () => {
                       badge={a.badge}
                       tone={a.tone}
                       onClick={a.onClick}
+                      disabled={suppressMenuInteraction}
                     />
                   ))}
                 </div>
@@ -544,6 +540,7 @@ onClick: () => {
                   badge={a.badge}
                   tone={a.tone}
                   onClick={a.onClick}
+                  disabled={suppressMenuInteraction}
                 />
               ))}
             </div>
@@ -560,6 +557,7 @@ onClick: () => {
                       badge={a.badge}
                       tone={a.tone}
                       onClick={a.onClick}
+                      disabled={suppressMenuInteraction}
                     />
                   ))}
                 </div>

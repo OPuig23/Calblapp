@@ -14,6 +14,7 @@ interface PersonnelDoc {
   name?: string
   role?: string
   department?: string
+  maxHoursWeek?: number
   [key: string]: unknown
 }
 
@@ -32,9 +33,10 @@ interface UpdatePersonnelBody {
  */
 export async function GET(
   _req: Request,
-  context: { params: { id: string } }
+  context: { params: { id: string } | Promise<{ id: string }> }
 ) {
-  const personnelId = context.params.id
+  const { params } = context
+  const { id: personnelId } = await params
   if (!personnelId) {
     return NextResponse.json({ error: 'Missing id' }, { status: 400 })
   }
@@ -50,6 +52,7 @@ export async function GET(
     return NextResponse.json({
       id: doc.id,
       ...data,
+      maxHoursWeek: data.maxHoursWeek ?? 40,
     })
   } catch (err: unknown) {
     console.error(`[api/personnel/${personnelId} GET] Error:`, err)
@@ -69,8 +72,10 @@ export async function GET(
  */
 export async function PUT(
   request: Request,
-  context: { params: { id: string } }
+  context: { params: { id: string } | Promise<{ id: string }> }
 ) {
+  const { params } = context
+  const { id: personnelId } = await params
   const session = await getServerSession(authOptions)
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -106,8 +111,10 @@ export async function PUT(
  */
 export async function DELETE(
   _req: Request,
-  context: { params: { id: string } }
+  context: { params: { id: string } | Promise<{ id: string }> }
 ) {
+  const { params } = context
+  const { id: personnelId } = await params
   const session = await getServerSession(authOptions)
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

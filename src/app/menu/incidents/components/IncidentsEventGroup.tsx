@@ -40,6 +40,7 @@ export default function IncidentsEventGroup({ event, onUpdate }: Props) {
         code={event.eventCode}
         ln={event.ln}
         location={event.location}
+        commercial={event.commercial}
         service={event.serviceType}
         pax={event.pax}
         count={event.rows.length}
@@ -60,9 +61,9 @@ export default function IncidentsEventGroup({ event, onUpdate }: Props) {
         eventCode={selectedEventCode}
       />
 
-      <table className="w-full table-fixed text-sm mt-2">
+      <table className="w-full table-fixed text-base mt-3">
         <thead>
-          <tr className="text-xs text-slate-600 bg-slate-50">
+          <tr className="text-sm text-slate-600 bg-slate-50">
             <th className="w-20 p-2 text-left">Nº</th>
             <th className="w-28 p-2 text-left">Autor</th>
             <th className="w-32 p-2 text-left">Dept</th>

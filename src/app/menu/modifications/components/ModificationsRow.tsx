@@ -6,6 +6,7 @@ import { Modification } from '@/hooks/useModifications'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
+import { formatDateString } from '@/lib/formatDate'
 
 interface Props {
   mod: Modification
@@ -51,6 +52,8 @@ export default function ModificationsRow({
     await onDelete(mod.id)
   }
 
+  const createdLabel = formatDateString(mod.createdAt, { includeTime: true }) ?? '-'
+
   return (
     <tr
       className="border-b last:border-0 hover:bg-slate-50"
@@ -65,6 +68,7 @@ export default function ModificationsRow({
       </td>
       <td className="p-2 truncate text-blue-700 font-medium">{mod.createdBy || '-'}</td>
       <td className="p-2 truncate">{mod.department || '-'}</td>
+      <td className="p-2 text-xs text-slate-600 whitespace-nowrap">{createdLabel}</td>
       <td className="p-2">
         <Badge
           className={cn(
@@ -93,12 +97,6 @@ export default function ModificationsRow({
         ) : (
           mod.description || '-'
         )}
-      </td>
-      <td className="p-2 text-xs text-slate-600 whitespace-nowrap">
-        {(() => {
-          const d = new Date(mod.createdAt || '')
-          return isNaN(d.getTime()) ? '-' : d.toLocaleString('ca-ES')
-        })()}
       </td>
       <td className="p-2 text-right">
         {canEdit && (

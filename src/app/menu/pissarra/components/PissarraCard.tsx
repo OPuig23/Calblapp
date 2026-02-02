@@ -3,6 +3,7 @@
 
 import { useState } from 'react'
 import { Input } from '@/components/ui/input'
+import { formatDateString } from '@/lib/formatDate'
 import { colorByLN } from '@/lib/colors'
 import type { PissarraItem } from '@/hooks/usePissarra'
 import {
@@ -12,12 +13,20 @@ import {
   Coffee,
   Briefcase,
   Clock,
+  Calendar,
 } from 'lucide-react'
 
 interface Props {
   item: PissarraItem
   canEdit: boolean
   onUpdate: (id: string, payload: Partial<PissarraItem>) => Promise<void>
+}
+
+const formatEventTitle = (title?: string) => {
+  if (!title) return '—'
+  const [firstPart] = title.split('/')
+  const trimmed = firstPart.trim()
+  return trimmed || '—'
 }
 
 /**
@@ -41,15 +50,27 @@ export default function PissarraCard({ item, canEdit, onUpdate }: Props) {
     setLocal((p) => ({ ...p, [field]: value }))
   }
 
+  const normalizedPhase = local.phaseLabel?.trim().toLowerCase()
+  const isMuntatge = normalizedPhase
+    ? ['muntatge', 'montatge', 'montaje'].some((word) => normalizedPhase.includes(word))
+    : false
+  const showPhase = isMuntatge
+  const formattedPhaseDate = local.phaseDate
+    ? formatDateString(local.phaseDate) ?? undefined
+    : undefined
+
   return (
     <div className="rounded-xl border border-gray-300 bg-white shadow-sm p-3 text-xs mb-2">
       {/* 🔹 Línia de negoci */}
-      <div
-        className={`inline-block px-2 py-0.5 text-[11px] font-semibold rounded-full mb-2 ${colorByLN(
-          local.LN
-        )}`}
-      >
-        {local.LN || 'Altres'}
+      <div className="flex flex-wrap items-center gap-2 mb-2">
+        <div
+          className={`inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-full ${colorByLN(
+            local.LN
+          )}`}
+        >
+          {local.LN || 'Altres'}
+        </div>
+        {/* Muntatge badge removed; keep only the line at the bottom */}
       </div>
 
       {/* 🔸 Nom Event + Hora Inici */}
@@ -68,7 +89,7 @@ export default function PissarraCard({ item, canEdit, onUpdate }: Props) {
               onClick={() => canEdit && setEditing('eventName')}
               className={canEdit ? 'cursor-text hover:underline' : ''}
             >
-              {local.eventName || '—'}
+              {formatEventTitle(local.eventName)}
             </span>
           )}
         </div>
@@ -96,12 +117,12 @@ export default function PissarraCard({ item, canEdit, onUpdate }: Props) {
       </div>
 
       {/* 🔹 Dades addicionals amb icones */}
-      <div className="flex flex-col gap-1.5 text-[12px]">
-        <div className="flex items-center gap-2">
-          <User className="w-3.5 h-3.5 text-gray-400" />
+        <div className="flex flex-col gap-1.5 text-[12px]">
+          <div className="flex items-center gap-2">
+            <User className="w-3.5 h-3.5 text-gray-400" />
         
-          <span className="text-gray-700 font-medium truncate">{local.responsableName || '—'}</span>
-        </div>
+            <span className="text-gray-700 font-medium truncate">{local.responsableName || '—'}</span>
+          </div>
 
         <div className="flex items-center gap-2">
           <MapPin className="w-3.5 h-3.5 text-gray-400" />
@@ -126,6 +147,15 @@ export default function PissarraCard({ item, canEdit, onUpdate }: Props) {
          
           <span className="text-gray-700 font-medium truncate">{local.comercial || '—'}</span>
         </div>
+        {showPhase && (
+          <div className="flex items-center gap-2">
+            <Calendar className="w-3.5 h-3.5 text-gray-400" />
+            <span className="text-gray-700 font-semibold">Muntatge</span>
+            {formattedPhaseDate && (
+              <span className="text-gray-500">{formattedPhaseDate}</span>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

@@ -5,6 +5,14 @@ import React from 'react'
 import ModificationsRow from './ModificationsRow'
 import { Modification } from '@/hooks/useModifications'
 import { cn } from '@/lib/utils'
+import { formatDateString } from '@/lib/formatDate'
+
+const formatEventTitle = (title?: string) => {
+  if (!title) return '(Sense títol)'
+  const [firstPart] = title.split('/')
+  const trimmed = firstPart.trim()
+  return trimmed || '(Sense títol)'
+}
 
 interface Props {
   event: {
@@ -46,7 +54,7 @@ export default function ModificationsEventGroup({
         <div className="flex flex-col gap-1">
           <div className="flex flex-wrap items-center gap-3">
             <span className="font-semibold text-sm text-slate-900">
-              {event.eventTitle || '(Sense títol)'}
+              {formatEventTitle(event.eventTitle)}
             </span>
             {event.eventCode && (
               <span className="text-xs text-slate-600">
@@ -73,9 +81,9 @@ export default function ModificationsEventGroup({
               <th className="w-24 p-2 text-left">Nº</th>
               <th className="w-28 p-2 text-left">Autor</th>
               <th className="w-32 p-2 text-left">Dept</th>
+              <th className="w-32 p-2 text-left">Creat</th>
               <th className="w-28 p-2 text-left">Importància</th>
               <th className="w-auto p-2 text-left">Descripció</th>
-              <th className="w-36 p-2 text-left">Creat</th>
               <th className="w-28 p-2 text-right">Accions</th>
             </tr>
           </thead>
@@ -99,10 +107,7 @@ export default function ModificationsEventGroup({
       <div className="sm:hidden space-y-3 mt-2">
         {event.rows.map((mod) => {
           const editable = canEdit(mod)
-          const createdAtLabel = (() => {
-            const d = new Date(mod.createdAt || '')
-            return isNaN(d.getTime()) ? '-' : d.toLocaleString('ca-ES')
-          })()
+          const createdAtLabel = formatDateString(mod.createdAt, { includeTime: true }) ?? '-'
           return (
             <div key={mod.id} className="rounded-xl border bg-white shadow-sm p-3 space-y-2">
               <div className="flex justify-between items-start gap-2">
@@ -161,3 +166,5 @@ export default function ModificationsEventGroup({
     </div>
   )
 }
+
+

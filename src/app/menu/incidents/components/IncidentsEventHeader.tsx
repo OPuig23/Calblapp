@@ -14,7 +14,15 @@ interface Props {
   service: string
   pax: number
   count: number
+  commercial?: string
   onLocationClick?: () => void
+}
+
+const formatEventTitle = (title?: string) => {
+  if (!title) return '(Sense títol)'
+  const [firstPart] = title.split('/')
+  const trimmed = firstPart.trim()
+  return trimmed || '(Sense títol)'
 }
 
 export default function IncidentsEventHeader({
@@ -25,6 +33,7 @@ export default function IncidentsEventHeader({
   service,
   pax,
   count,
+  commercial,
   onLocationClick
 }: Props) {
 
@@ -35,7 +44,9 @@ export default function IncidentsEventHeader({
         
         {/* TITLES */}
         <div className="flex flex-wrap items-center gap-3">
-          <span className="font-semibold text-sm text-slate-900">{title}</span>
+          <span className="font-semibold text-sm text-slate-900">
+            {formatEventTitle(title)}
+          </span>
 
           <span className="text-xs text-slate-600">
             Codi: {code || '-'}
@@ -60,6 +71,7 @@ export default function IncidentsEventHeader({
             Ubicació: {location || '-'}
           </span>
 
+          <span>Comercial: {commercial || '-'}</span>
           <span>Servei: {service || '-'}</span>
           <span>Pax: {pax || '-'}</span>
         </div>

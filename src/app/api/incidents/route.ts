@@ -170,17 +170,29 @@ export async function GET(req: Request) {
     }) as IncidentDoc[];
 
     // 2️⃣ Recuperar esdeveniments stage_verd
-    const eventIds = [...new Set(raw.map((i) => i.eventId))];
+    const eventIds = [...new Set(raw.map((i) => i.eventId).filter(Boolean))] as string[];
 
-    const eventsSnap = eventIds.length
-      ? await firestoreAdmin
-          .collection("stage_verd")
-          .where(admin.firestore.FieldPath.documentId(), "in", eventIds)
-          .get()
-      : null;
+    const eventsMap = new Map<string, FirebaseFirestore.DocumentData>()
+    if (eventIds.length) {
+      const chunkSize = 10
+      const chunks: string[][] = []
+      for (let i = 0; i < eventIds.length; i += chunkSize) {
+        chunks.push(eventIds.slice(i, i + chunkSize))
+      }
 
-    const eventsMap = new Map();
-    eventsSnap?.docs.forEach((doc) => eventsMap.set(doc.id, doc.data()));
+      const snaps = await Promise.all(
+        chunks.map((chunk) =>
+          firestoreAdmin
+            .collection('stage_verd')
+            .where(admin.firestore.FieldPath.documentId(), 'in', chunk)
+            .get()
+        )
+      )
+
+      snaps.forEach((snap) => {
+        snap?.docs.forEach((doc) => eventsMap.set(doc.id, doc.data()))
+      })
+    }
 
     // 3️⃣ Enriquir incidències
     const incidents = raw.map((inc) => {
@@ -195,6 +207,7 @@ export async function GET(req: Request) {
           ev.code || ev.Code || ev.C_digo || ev.codi || "",
         eventTitle: ev.NomEvent || "",
         eventLocation: ev.Ubicacio || "",
+        eventCommercial: ev.Comercial || ev.comercial || "",
         fincaId: ev.FincaId || ev.FincaCode || "",
       };
     });

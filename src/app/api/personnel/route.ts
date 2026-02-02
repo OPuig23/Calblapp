@@ -59,6 +59,7 @@ export interface PersonnelItem {
   departmentLower?: string
   email?: string | null
   phone?: string | null
+  maxHoursWeek?: number
   available?: boolean
   unavailableFrom?: string | null
   unavailableUntil?: string | null
@@ -311,6 +312,7 @@ export async function GET(request: NextRequest) {
         departmentLower: data.departmentLower || normLower(data.department),
         email: data.email ?? null,
         phone: data.phone ?? null,
+        maxHoursWeek: data.maxHoursWeek ?? 40,
         available: data.available ?? true,
         unavailableFrom: data.unavailableFrom ?? null,
         unavailableUntil: data.unavailableUntil ?? null,

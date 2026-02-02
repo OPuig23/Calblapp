@@ -89,6 +89,9 @@ export default function NewPersonnelModal({
     maxHoursWeek: 40,
   })
 
+  const isServicesDepartment = (form.department || defaultDepartment).toLowerCase().trim()
+  const usesServicesDepartment = isServicesDepartment === 'serveis' || isServicesDepartment === 'servei'
+
   const [nameError, setNameError] = useState(false)
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [availabilityError, setAvailabilityError] = useState<string | null>(null)
@@ -286,23 +289,26 @@ export default function NewPersonnelModal({
           {/* CONDUCTOR */}
           <div>
             <Label>És conductor?</Label>
-            <select
-              value={form.driver?.isDriver ? 'si' : 'no'}
-              onChange={(e) =>
-                handleChange('driver', {
-                  ...form.driver,
-                  isDriver: e.target.value === 'si'
-                })
-              }
-              className="border rounded px-2 py-1 w-full"
-            >
+              <select
+                value={form.driver?.isDriver ? 'si' : 'no'}
+                onChange={(e) => {
+                  const isDriver = e.target.value === 'si'
+                  handleChange('driver', {
+                    ...form.driver,
+                    isDriver,
+                    camioGran: usesServicesDepartment ? false : form.driver?.camioGran ?? false,
+                    camioPetit: usesServicesDepartment ? false : form.driver?.camioPetit ?? false,
+                  })
+                }}
+                className="border rounded px-2 py-1 w-full"
+              >
               <option value="si">Sí</option>
               <option value="no">No</option>
             </select>
           </div>
 
           {/* TIPUS VEHICLE */}
-          {form.driver?.isDriver && (
+          {form.driver?.isDriver && !usesServicesDepartment && (
             <div>
               <Label>Tipus de vehicle</Label>
               <div className="flex flex-col gap-2 mt-1">

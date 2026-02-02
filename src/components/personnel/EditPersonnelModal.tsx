@@ -70,6 +70,8 @@ export default function EditPersonnelModal({
     unavailableUntil: person.unavailableUntil ?? '',
     unavailableIndefinite: person.unavailableIndefinite ?? false,
   }))
+  const normalizedDept = (form.department || person.department || '').toLowerCase().trim()
+  const usesServicesDepartment = normalizedDept === 'serveis' || normalizedDept === 'servei'
 
   // Estat validació nom
   const [nameError, setNameError] = useState(false)
@@ -179,8 +181,14 @@ export default function EditPersonnelModal({
       department: form.department,
       available: form.available ?? true,
       isDriver: form.driver?.isDriver ?? false,
+      driver: {
+        isDriver: form.driver?.isDriver ?? false,
+        camioGran: form.driver?.camioGran ?? false,
+        camioPetit: form.driver?.camioPetit ?? false,
+      },
       email: form.email || null,
       phone: form.phone || null,
+      maxHoursWeek: Number(form.maxHoursWeek || 0) || 0,
       updatedAt: Date.now(),
       ...availabilityPayload,
     }
@@ -349,15 +357,18 @@ export default function EditPersonnelModal({
             <Label>És conductor?</Label>
             <select
               value={form.driver?.isDriver ? 'si' : 'no'}
-              onChange={(e) =>
+              onChange={(e) => {
+                const isDriver = e.target.value === 'si'
                 handleChange('driver', {
-                  ...(form.driver ?? {
+                 ...(form.driver ?? {
                     camioGran: false,
                     camioPetit: false,
                   }),
-                  isDriver: e.target.value === 'si',
+                  isDriver,
+                  camioGran: usesServicesDepartment ? false : form.driver?.camioGran ?? false,
+                  camioPetit: usesServicesDepartment ? false : form.driver?.camioPetit ?? false,
                 })
-              }
+              }}
               className="border rounded px-2 py-1 w-full"
             >
               <option value="si">Sí</option>
@@ -366,7 +377,7 @@ export default function EditPersonnelModal({
           </div>
 
           {/* Tipus vehicle */}
-          {form.driver?.isDriver && (
+          {form.driver?.isDriver && !usesServicesDepartment && (
             <div>
               <Label>Tipus de vehicle</Label>
               <div className="flex flex-col gap-2 mt-1">

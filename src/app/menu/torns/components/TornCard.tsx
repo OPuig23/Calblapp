@@ -137,10 +137,24 @@ function NotePill({ note }: { note?: string }) {
 function PhasePill({ label }: { label?: string }) {
   if (!label) return null
   return (
-    <span className="text-[11px] px-2 py-0.5 rounded-full border font-medium bg-indigo-100 text-indigo-800 border-indigo-200">
+    <span className="text-[11px] px-2 py-0.5 rounded-full border font-medium bg-orange-100 text-orange-800 border-orange-200">
       {label}
     </span>
   )
+}
+
+function normalizeLabel(value?: string) {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .trim()
+}
+
+function shouldShowDayNote(note?: string, phaseLabel?: string) {
+  if (!note) return false
+  if (!phaseLabel) return true
+  return normalizeLabel(note) !== normalizeLabel(phaseLabel)
 }
 
 type Props = {
@@ -187,7 +201,9 @@ export default function TornCard({ item, onClick, onEventClick, onAvisosClick }:
           {effectiveRole && <RolePill role={effectiveRole} />}
           <LnBadge ln={ln} />
           <PhasePill label={item.phaseLabel} />
-          <NotePill note={item.dayNote} />
+          {shouldShowDayNote(item.dayNote, item.phaseLabel) && (
+            <NotePill note={item.dayNote} />
+          )}
         </div>
         <div className="flex items-center gap-2">
           {onAvisosClick && (

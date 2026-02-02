@@ -36,8 +36,22 @@ export default function CreateIncidentModal({
 }: CreateIncidentModalProps) {
   const { data: session } = useSession()
   const userName = session?.user?.name ?? session?.user?.email ?? 'Desconegut'
+  const userDepartmentRaw = session?.user?.department ?? ''
+  const normalizedUserDepartment = userDepartmentRaw.trim() || DEPARTAMENTS[0]
+  const normalizedUserRole = (session?.user?.role ?? '').toLowerCase().trim()
+  const canPickDepartment = ['admin', 'direccio'].includes(normalizedUserRole)
 
-  const [department, setDepartment] = useState(DEPARTAMENTS[0])
+  const [department, setDepartment] = useState(normalizedUserDepartment)
+  React.useEffect(() => {
+    setDepartment(normalizedUserDepartment)
+  }, [normalizedUserDepartment])
+  const departmentOptions = React.useMemo(() => {
+    const list = [...DEPARTAMENTS]
+    if (!list.includes(normalizedUserDepartment)) {
+      list.unshift(normalizedUserDepartment)
+    }
+    return list
+  }, [normalizedUserDepartment])
   const [importance, setImportance] = useState(IMPORTANCIES[1])
   const [description, setDescription] = useState('')
   const [category, setCategory] = useState(categories[0])
@@ -97,10 +111,13 @@ export default function CreateIncidentModal({
             <select
               className="w-full p-2 rounded border"
               value={department}
-              onChange={(e) => setDepartment(e.target.value)}
+              onChange={(e) => {
+                if (canPickDepartment) setDepartment(e.target.value)
+              }}
+              disabled={!canPickDepartment}
               required
             >
-              {DEPARTAMENTS.map((dep) => (
+              {departmentOptions.map((dep) => (
                 <option key={dep} value={dep}>
                   {dep}
                 </option>
@@ -164,6 +181,7 @@ export default function CreateIncidentModal({
           <Button
             type="submit"
             className="w-full"
+            variant="primary"
             disabled={loading}
           >
             {loading ? 'Creant...' : 'Crear incidència'}

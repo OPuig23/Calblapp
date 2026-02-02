@@ -6,7 +6,11 @@ export interface UpdatePerson {
   name?: string
   role?: string
   department?: string
-  isDriver?: boolean
+  driver?: {
+    isDriver?: boolean
+    camioGran?: boolean
+    camioPetit?: boolean
+  }
   available?: boolean
   unavailableFrom?: string | null
   unavailableUntil?: string | null
@@ -15,6 +19,7 @@ export interface UpdatePerson {
   unavailableNotifiedAt?: number | null
   email?: string
   phone?: string
+  maxHoursWeek?: number
 }
 
 export function useUpdatePersonnel() {

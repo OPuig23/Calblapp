@@ -252,7 +252,7 @@ export default function IncidentsPage() {
   ]
 
   return (
-    <div className="p-4 flex flex-col gap-4">
+    <div className="p-4 flex flex-col gap-4 w-full max-w-none">
       <style>{`
         @media print {
           body * { visibility: hidden; }
@@ -297,7 +297,7 @@ export default function IncidentsPage() {
       {error && <p className="text-center py-10 text-red-500">{error}</p>}
 
       {!loading && !error && (
-        <div id="incidencies-print-root">
+        <div id="incidencies-print-root" className="w-full">
           <IncidentsTable
             incidents={incidents}
             onUpdate={updateIncident}

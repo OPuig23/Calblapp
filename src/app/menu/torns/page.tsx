@@ -87,6 +87,7 @@ export default function TornsPage() {
   const [avisosEventCode, setAvisosEventCode] = useState<string | null>(null)
 
   const userName = session?.user?.name || ''
+  const normalizedUserName = norm(userName)
   const rawRole = norm(session?.user?.role)
   const sessionDept = norm(session?.user?.department)
 
@@ -223,9 +224,10 @@ export default function TornsPage() {
     }
 
     const isResponsible =
-      norm(t.workerRole) === 'responsable' ||
-      (Array.isArray(t.__rawWorkers) &&
-        t.__rawWorkers.some((w) => norm(w.role) === 'responsable'))
+      normalizedUserName &&
+      t.workerName &&
+      norm(t.workerName) === normalizedUserName &&
+      norm(t.workerRole) === 'responsable'
 
     setEventMenuData({
       id: t.eventId,

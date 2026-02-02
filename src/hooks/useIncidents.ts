@@ -12,6 +12,7 @@ export interface Incident {
   eventCode?: string
   eventLocation?: string
   eventDate?: string
+  eventCommercial?: string
   importance: string
   status: string
   createdBy?: string

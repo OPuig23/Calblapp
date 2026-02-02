@@ -189,15 +189,13 @@ export default function PersonnelList({ personnel, mutate, onEdit }: Props) {
 
               {p.driver?.isDriver && (
                 <Badge variant="secondary" className="gap-1">
-                  <VehicleIcon
-                    type={
-                      p.driver.camioGran
-                        ? 'camioGran'
-                        : p.driver.camioPetit
-                        ? 'camioPetit'
-                        : 'furgoneta'
-                    }
-                  />
+                  <div className="flex items-center gap-1">
+                    {p.driver.camioGran && <VehicleIcon type="camioGran" />}
+                    {p.driver.camioPetit && <VehicleIcon type="camioPetit" />}
+                    {!p.driver.camioGran && !p.driver.camioPetit && (
+                      <VehicleIcon type="furgoneta" />
+                    )}
+                  </div>
                   Conductor
                 </Badge>
               )}

@@ -16,6 +16,13 @@ type Props = {
   item: PissarraItem
 }
 
+const formatEventTitle = (title?: string) => {
+  if (!title) return '-'
+  const [firstPart] = title.split('/')
+  const trimmed = firstPart.trim()
+  return trimmed || '-'
+}
+
 export default function PissarraCardCuina({ item }: Props) {
   const status = (item.status || '').toLowerCase()
   const statusDot =
@@ -97,7 +104,7 @@ export default function PissarraCardCuina({ item }: Props) {
         <div className="flex items-center gap-2">
           <span className={`h-2.5 w-2.5 rounded-full ${statusDot}`} />
           <div className="font-semibold text-gray-800 text-[13px] truncate">
-            {item.eventName || '-'}
+            {formatEventTitle(item.eventName)}
           </div>
         </div>
         <div className="flex items-center gap-2 text-gray-700">

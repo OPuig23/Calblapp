@@ -85,7 +85,14 @@ export default function IncidentsRow({
               setEditValues((v: any) => ({ ...v, description: e.target.value }))
             }
             onKeyDown={(e) => {
-              if (e.key === 'Enter') onUpdate({ description: editValues.description })
+              if (e.key === 'Enter') {
+                onUpdate({ description: e.currentTarget.value })
+              }
+            }}
+            onBlur={(e) => {
+              if (e.currentTarget.value !== inc.description) {
+                onUpdate({ description: e.currentTarget.value })
+              }
             }}
           />
         ) : (

@@ -15,6 +15,8 @@ export interface PissarraItem {
   pax?: number
   servei?: string
   comercial?: string
+  phaseLabel?: string
+  phaseDate?: string
   status?: string
   responsableName?: string
   group1Responsible?: string | null

@@ -7,6 +7,13 @@ export const runtime = 'nodejs'
 type QuadrantDoc = {
   code?: string
   eventName?: string
+  phaseLabel?: string
+  phaseType?: string
+  phaseKey?: string
+  phase?: string
+  fase?: string
+  phaseName?: string
+  label?: string
   startDate?: string
   startTime?: string
   arrivalTime?: string
@@ -69,11 +76,23 @@ export async function GET(req: NextRequest) {
           ? d.treballadors.map((t) => t?.name || '').filter(Boolean)
           : []
 
+        const phaseLabelRaw =
+          d.phaseLabel ||
+          d.phaseType ||
+          d.phaseKey ||
+          d.phase ||
+          d.fase ||
+          d.phaseName ||
+          d.label ||
+          ''
+        const phaseLabel = phaseLabelRaw ? String(phaseLabelRaw).trim() : ''
+
         const existing = map.get(doc.id) || {
           id: doc.id,
           code: d.code || '',
           LN: 'logistica',
           eventName: d.eventName || '',
+          phaseLabel,
           startDate,
           startTime: d.startTime || '',
           arrivalTime: d.arrivalTime || '',
@@ -85,6 +104,7 @@ export async function GET(req: NextRequest) {
 
         existing.vehicles = [...(existing.vehicles || []), ...vehicles]
         existing.workers = [...(existing.workers || []), ...workers]
+        if (!existing.phaseLabel && phaseLabel) existing.phaseLabel = phaseLabel
         if (norm(existing.status) !== 'confirmed' && norm(d.status) === 'confirmed') {
           existing.status = d.status || ''
         }

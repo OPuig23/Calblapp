@@ -32,7 +32,6 @@ function DocIcon({ d }: { d: EventDoc }) {
   }
 }
 
-/* Portal */
 function Portal({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false)
   const [el] = useState(() => {
@@ -46,16 +45,13 @@ function Portal({ children }: { children: React.ReactNode }) {
     if (!el) return
     document.body.appendChild(el)
     setMounted(true)
-    return () => {
-      document.body.removeChild(el)
-    }
+    return () => document.body.removeChild(el)
   }, [el])
 
   if (!mounted || !el) return null
   return createPortal(children, el)
 }
 
-/* Utils */
 const safeUrl = (url?: string | null) => {
   const u = String(url || '').trim()
   if (!u) return ''
@@ -63,7 +59,6 @@ const safeUrl = (url?: string | null) => {
   return u
 }
 
-/* Component */
 export default function EventDocumentsSheet({
   eventId,
   eventCode,
@@ -99,10 +94,8 @@ export default function EventDocumentsSheet({
     )
   }, [])
 
-  // IMPORTANT: per operativa, en Android/PWA obrim a la mateixa vista (100% fiable).
   const shouldOpenSameWindow = isStandalone || isNarrow
 
-  // Bloqueja scroll del body mentre està obert (UX)
   useEffect(() => {
     if (typeof document === 'undefined') return
     if (!open) return
@@ -113,7 +106,6 @@ export default function EventDocumentsSheet({
     }
   }, [open])
 
-  // ESC per tancar (desktop)
   useEffect(() => {
     if (!open) return
     const onKeyDown = (e: KeyboardEvent) => {
@@ -126,120 +118,112 @@ export default function EventDocumentsSheet({
   const linkTarget = shouldOpenSameWindow ? '_self' : '_blank'
   const linkRel = linkTarget === '_blank' ? 'noopener noreferrer' : undefined
 
-  const kindLabel = (d: EventDoc) => {
-    if (d.icon === 'pdf') return 'PDF'
-    if (d.icon === 'sheet') return 'XLS'
-    if (d.icon === 'slide') return 'PPT'
-    if (d.icon === 'img') return 'IMG'
-    if (d.icon === 'doc') return 'DOC'
-    const clean = (d.url || '').split('?')[0]
-    const last = clean.split('/').filter(Boolean).pop() || ''
-    const ext = last.includes('.') ? last.split('.').pop() : ''
-    return (ext || 'LINK').toUpperCase()
-  }
-
-  const displayTitle = (d: EventDoc) => {
-    const title = d.title?.trim()
-    if (title && title.toLowerCase() !== 'file') return title
-    return d.id || title || 'Document'
-  }
-
   if (!open) return null
 
   return (
     <Portal>
       <div className="relative w-full h-full">
-        {/* OVERLAY */}
-        <div className="absolute inset-0 bg-black/50 z-10" onClick={() => onOpenChange(false)} />
-
-        {/* DRAWER */}
         <div
-          className="absolute bottom-0 left-0 right-0 z-20 bg-white rounded-t-2xl shadow-2xl max-h-[92vh] flex flex-col"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* HEADER */}
-          <div className="flex items-center justify-between px-4 py-3 border-b">
-            <h3 className="text-base font-semibold">Documents</h3>
-            <button
-              type="button"
-              className="p-2 rounded-lg hover:bg-gray-100"
-              onClick={() => onOpenChange(false)}
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-
-          {/* CONTENT */}
-          <div className="flex-1 overflow-auto p-3 space-y-2">
-            {loading && <p className="text-sm text-gray-500">Carregant…</p>}
-            {error && <p className="text-sm text-red-600">{error}</p>}
-            {!loading && !error && docs.length === 0 && (
-              <p className="text-sm text-gray-600">Sense documents.</p>
-            )}
-
-            {docs.map((d) => {
-              const url = safeUrl(d.url)
-              const isDisabled = !url
-
-              return (
-                <div
-                  key={d.id}
-                  className="w-full rounded-xl border p-3 flex items-center gap-3 bg-white"
-                >
-                  {/* ICONA */}
-                  <div className="p-2 bg-gray-100 rounded-lg">
-                    <DocIcon d={d} />
-                  </div>
-
-                  {/* INFO */}
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium truncate" title={d.title || d.id}>
-                      {displayTitle(d)}
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 mt-1">
-                      <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold shrink-0">
-                        {kindLabel(d)}
-                      </span>
-                      <span className="capitalize">{d.source.replace('-', ' ')}</span>
-                      {d.id && (
-                        <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 shrink-0">
-                          {d.id}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* BOTO */}
-                  <a
-                    href={url || '#'}
-                    target={linkTarget}
-                    rel={linkRel}
-                    className={[
-                      'text-sm font-semibold',
-                      isDisabled
-                        ? 'text-gray-400 cursor-not-allowed'
-                        : 'text-blue-600 hover:underline',
-                    ].join(' ')}
-                    aria-disabled={isDisabled}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      if (!url) {
-                        e.preventDefault()
-                        return
-                      }
-                      if (shouldOpenSameWindow) {
-                        onOpenChange(false)
-                      }
-                    }}
-                  >
-                    Obrir
-                  </a>
-                </div>
-              )
-            })}
+          className="absolute inset-0 bg-black/30 z-10"
+          onClick={(e) => {
+            e.stopPropagation()
+            onOpenChange(false)
+          }}
+        />
+        <div className="absolute inset-0 flex items-center justify-center px-4 py-6">
+          <div
+            className="relative z-20 w-full max-w-[480px] max-h-[90vh] overflow-hidden bg-white rounded-[32px] shadow-2xl flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <ModalContent
+              docs={docs}
+              loading={loading}
+              error={error}
+              onOpenChange={onOpenChange}
+              linkTarget={linkTarget}
+              linkRel={linkRel}
+            />
           </div>
         </div>
       </div>
     </Portal>
+  )
+}
+
+function ModalContent({
+  docs,
+  loading,
+  error,
+  onOpenChange,
+  linkTarget,
+  linkRel,
+}: {
+  docs: EventDoc[]
+  loading: boolean
+  error: string | null
+  onOpenChange: (v: boolean) => void
+  linkTarget: string
+  linkRel?: string
+}) {
+  return (
+    <>
+      <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+        <h3 className="text-base font-semibold">Documents</h3>
+      </div>
+
+      <div className="flex-1 min-h-0 overflow-auto px-5 py-4 space-y-3">
+        {loading && <p className="text-sm text-gray-500">Carregant…</p>}
+        {error && <p className="text-sm text-red-600">{error}</p>}
+        {!loading && !error && docs.length === 0 && (
+          <p className="text-sm text-gray-600">Sense documents.</p>
+        )}
+
+        {docs.map((d) => {
+          const url = safeUrl(d.url)
+          const isDisabled = !url
+
+          return (
+            <div
+              key={d.id}
+            className="w-full rounded-2xl border border-slate-100 p-4 flex items-center gap-4 bg-white shadow-sm"
+            >
+            <div className="p-2 bg-gray-100 rounded-lg">
+              <DocIcon d={d} />
+            </div>
+
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium truncate" title={d.title || d.id}>
+                  {displayTitle(d)}
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 mt-1">
+                  <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold shrink-0">
+                    {kindLabel(d)}
+                  </span>
+                  <span className="text-xs text-gray-400">
+                    {d.updatedAt ? new Date(d.updatedAt).toLocaleString('ca-ES') : 'Sense data'}
+                  </span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                className={`px-4 py-2 rounded-xl text-xs font-semibold transition ${
+                  isDisabled
+                    ? 'border border-gray-200 text-gray-400 cursor-not-allowed bg-gray-50'
+                    : 'border border-slate-200 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50'
+                }`}
+                onClick={() => {
+                  if (!url) return
+                  window.open(url, linkTarget, linkRel)
+                }}
+                disabled={isDisabled}
+              >
+                Obre
+              </button>
+            </div>
+          )
+        })}
+      </div>
+    </>
   )
 }

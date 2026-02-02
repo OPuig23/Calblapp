@@ -4,22 +4,21 @@
 import React from 'react'
 import IncidentsEventGroup from './IncidentsEventGroup'
 import { Incident } from '@/hooks/useIncidents'
+import { formatDateString } from '@/lib/formatDate'
 
 interface Props {
   incidents: Incident[]
   onUpdate: (id: string, data: Partial<Incident>) => void
 }
 
+const formatDayCountLabel = (count: number) =>
+  count === 1 ? '1 incid.' : `${count} inc.`
+
 export default function IncidentsTable({ incidents, onUpdate }: Props) {
-
-  // Agrupació per dia i per esdeveniment
   const days = incidents.reduce((acc: any, inc) => {
-   const day = (inc.eventDate || '').slice(0, 10)
-
-
-
+    const day = (inc.eventDate || '').slice(0, 10)
     if (!acc[day]) acc[day] = {}
-    const key = inc.eventId || "no-event"
+    const key = inc.eventId || 'no-event'
 
     if (!acc[day][key]) {
       acc[day][key] = {
@@ -30,25 +29,38 @@ export default function IncidentsTable({ incidents, onUpdate }: Props) {
         serviceType: inc.serviceType,
         pax: inc.pax,
         fincaId: inc.fincaId,
-        rows: []
+        commercial: inc.eventCommercial || '',
+        rows: [],
       }
     }
 
     acc[day][key].rows.push(inc)
     return acc
-  }, {})
+  }, {} as Record<string, any>)
 
-  const sorted = Object.keys(days).sort()
+  const sortedDays = Object.keys(days).sort()
+  const dayEntries = sortedDays.map((day) => {
+    const events = Object.values(days[day])
+    const totalCount = events.reduce(
+      (sum: number, event: any) => sum + (event.rows?.length || 0),
+      0
+    )
+
+    return { day, events, totalCount }
+  })
 
   return (
-    <div className="rounded-2xl border bg-white shadow-sm overflow-hidden">
-      {sorted.map(day => (
+    <div className="w-full rounded-2xl border bg-white shadow-sm overflow-hidden">
+      {dayEntries.map(({ day, events, totalCount }) => (
         <div key={day}>
-          <div className="px-4 py-2 bg-slate-50 border-b text-sm font-semibold">
-            {day}
+          <div className="px-4 py-3 bg-slate-200 border-b border-slate-300 text-base font-semibold text-slate-800 flex items-center justify-between gap-3">
+            <span>{formatDateString(day) ?? 'Sense data'}</span>
+            <span className="text-xs font-semibold tracking-wide text-rose-700 bg-rose-100 px-3 py-0.5 rounded-full border border-rose-200">
+              {formatDayCountLabel(totalCount)}
+            </span>
           </div>
 
-          {Object.values(days[day]).map((event: any, i: number) => (
+          {events.map((event: any, i: number) => (
             <IncidentsEventGroup key={i} event={event} onUpdate={onUpdate} />
           ))}
         </div>

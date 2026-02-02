@@ -40,7 +40,7 @@ export const MODULES: ModuleDef[] = [
   { label: 'Torns', path: '/menu/torns', roles: ['admin','direccio','cap','treballador'] },
 
   { label: 'Esdeveniments', path: '/menu/events',
-    roles: ['admin','direccio','cap','treballador','comercial','usuari'] },
+    roles: ['admin','direccio','cap','comercial','usuari'] },
 
   { label: 'Pissarra', path: '/menu/pissarra',
     roles: ['admin','direccio','cap','comercial','usuari'] },

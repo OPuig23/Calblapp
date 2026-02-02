@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { startOfWeek, endOfWeek, format } from 'date-fns'
 import { CalendarDays } from 'lucide-react'
@@ -71,6 +71,9 @@ export default function EventsPage() {
     eventId: string
     eventCode?: string | null
   } | null>(null)
+  const docsClosedRef = useRef<{ eventId: string; ts: number } | null>(null)
+  const suppressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [suppressMenuInteraction, setSuppressMenuInteraction] = useState(false)
 
   const [isAvisosOpen, setAvisosOpen] = useState(false)
   const [avisosEventCode, setAvisosEventCode] = useState<string | null>(null)
@@ -184,8 +187,43 @@ export default function EventsPage() {
     []
   )
 
+  const openDocuments = (data: { eventId: string; eventCode?: string | null }) => {
+    if (suppressMenuInteraction) return
+    const now = Date.now()
+    if (
+      docsClosedRef.current &&
+      docsClosedRef.current.eventId === data.eventId &&
+      now - docsClosedRef.current.ts < 350
+    ) {
+      return
+    }
+    setDocsEvent(data)
+  }
+
+  const closeDocuments = () => {
+    if (docsEvent) {
+      docsClosedRef.current = { eventId: docsEvent.eventId, ts: Date.now() }
+    }
+    setDocsEvent(null)
+    setSuppressMenuInteraction(true)
+    if (suppressTimerRef.current) {
+      clearTimeout(suppressTimerRef.current)
+    }
+    suppressTimerRef.current = setTimeout(() => {
+      setSuppressMenuInteraction(false)
+    }, 400)
+  }
+
+  useEffect(() => {
+    return () => {
+      if (suppressTimerRef.current) {
+        clearTimeout(suppressTimerRef.current)
+      }
+    }
+  }, [])
+
   return (
-    <div className="space-y-5 px-4 pb-8">
+    <div className={`space-y-5 px-4 pb-8 ${suppressMenuInteraction ? 'pointer-events-none select-none' : ''}`}>
       <ModuleHeader
         icon={<CalendarDays className="h-6 w-6 text-indigo-600" />}
         title="Esdeveniments"
@@ -233,8 +271,9 @@ export default function EventsPage() {
           event={selectedEvent}
           user={userForModal}
           onClose={() => setMenuOpen(false)}
-          onOpenDocuments={(data) => setDocsEvent(data)}
+          onOpenDocuments={openDocuments}
           onAvisosStateChange={handleAvisosStateChange}
+          suppressMenuInteraction={suppressMenuInteraction}
         />
       )}
 
@@ -243,7 +282,7 @@ export default function EventsPage() {
           eventId={docsEvent.eventId}
           eventCode={docsEvent.eventCode}
           open
-          onOpenChange={() => setDocsEvent(null)}
+          onOpenChange={closeDocuments}
         />
       )}
 

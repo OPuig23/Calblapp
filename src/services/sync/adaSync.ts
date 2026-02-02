@@ -199,8 +199,23 @@ export async function syncAdaEventsToFirestore(opts?: {
   let matched3 = 0
   let matched2 = 0
   let updated = 0
+  let skippedConfirmedCode = 0
 
   const now = new Date().toISOString()
+  const confirmedCodeOwner = new Map<string, string | null>()
+
+  const getConfirmedOwner = async (code: string) => {
+    if (confirmedCodeOwner.has(code)) return confirmedCodeOwner.get(code) || null
+    const snap = await firestore
+      .collection('stage_verd')
+      .where('code', '==', code)
+      .where('codeConfirmed', '==', true)
+      .limit(1)
+      .get()
+    const owner = snap.empty ? null : snap.docs[0].id
+    confirmedCodeOwner.set(code, owner)
+    return owner
+  }
 
   for (const doc of stageSnap.docs) {
     total++
@@ -256,6 +271,12 @@ export async function syncAdaEventsToFirestore(opts?: {
 
     if (confirmed) matched3++
     else matched2++
+
+    const confirmedOwner = await getConfirmedOwner(code)
+    if (confirmedOwner && confirmedOwner !== doc.id) {
+      skippedConfirmedCode++
+      continue
+    }
 
     const existingFields = Array.isArray(data.codeMatchFields) ? data.codeMatchFields : []
     const needsUpdate =
