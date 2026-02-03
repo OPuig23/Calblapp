@@ -5,7 +5,6 @@ import React, { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import ModuleHeader from '@/components/layout/ModuleHeader'
 import { CalendarDays } from 'lucide-react'
-import { TornNotificationsList } from '@/components/torns/TornNotificationsList'
 import { RoleGuard } from '@/lib/withRoleGuard'
 import SmartFilters, { SmartFiltersChange } from '@/components/filters/SmartFilters'
 import TornsList from './components/TornsList'
@@ -261,8 +260,6 @@ export default function TornsPage() {
         title="Torns Assignats"
         subtitle="Consulta i gestiona els torns assignats"
       />
-
-      <TornNotificationsList />
 
       {/* SMART FILTERS */}
       <div className="w-full px-3 py-2 sm:px-4 sm:py-3 mb-6">

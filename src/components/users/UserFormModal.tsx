@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
+import { Trash2 } from 'lucide-react'
 
 export interface User {
   id?: string
@@ -43,6 +44,7 @@ type Props = {
   user: User | null
   onSubmit: (data: User | NewUserPayload) => void
   onClose: () => void
+  onAfterAction?: () => void
 }
 
 const ROLES = ['Admin', 'Direcció', 'Cap Departament', 'Treballador', 'Usuari', 'Comercial'] as const
@@ -71,7 +73,7 @@ const RANKS = [
   { value: 'responsable', label: 'Responsable' },
 ] as const
 
-export function UserFormModal({ user, onSubmit, onClose }: Props) {
+export function UserFormModal({ user, onSubmit, onClose, onAfterAction }: Props) {
   const [loading, setLoading] = React.useState(false)
 
   const [name, setName] = React.useState('')
@@ -154,7 +156,8 @@ export function UserFormModal({ user, onSubmit, onClose }: Props) {
           return
         }
         onSubmit((data as any).user || { id: user.personId })
-      } catch (err) {
+        onAfterAction?.()
+        } catch (err) {
         console.error('Error cridant approve:', err)
       }
       return

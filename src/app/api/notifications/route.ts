@@ -1,157 +1,104 @@
-// src/app/api/notifications/route.ts
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
-import { firestoreAdmin as firestore } from '@/lib/firebaseAdmin'
+import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
 
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
-
-/** Sessió tipada */
 interface SessionUser {
   id: string
-  name?: string
-  email?: string
-  [key: string]: unknown
-}
-
-/** Document de notificació */
-interface NotificationDoc {
-  id: string
-  read?: boolean
-  quadrantId?: string
-  [key: string]: unknown
+  role?: string
 }
 
 export async function GET(req: Request) {
-const session = await getServerSession(authOptions)
+  const session = await getServerSession(authOptions)
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
-// 1️⃣ Primer: si NO hi ha sessió → 401
-if (!session) {
-  return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-}
-
-// 2️⃣ Després: si la sessió existeix però encara no té user.id → retornar count=0
-if (!(session.user as SessionUser)?.id) {
-  return NextResponse.json({ count: 0 })
-}
-
-  const userId = (session.user as SessionUser)?.id
+  const userId = (session.user as SessionUser).id
   if (!userId) {
     return NextResponse.json({ error: 'Invalid user' }, { status: 400 })
   }
 
   const { searchParams } = new URL(req.url)
-  const mode = searchParams.get('mode')
-  const limit = parseInt(searchParams.get('limit') || '20', 10)
+  const mode = searchParams.get('mode') || 'count'
   const type = (searchParams.get('type') || '').trim()
 
   try {
-    let baseRef = firestore
+    let baseRef = db
       .collection('users')
       .doc(userId)
       .collection('notifications')
+
     if (type) {
       baseRef = baseRef.where('type', '==', type)
     }
 
     if (mode === 'count') {
-      const countRef = baseRef.where('read', '==', false)
-      const countSnap = await countRef.get()
-      return NextResponse.json({ count: countSnap.size })
+      const snap = await baseRef.where('read', '==', false).get()
+      return NextResponse.json({ count: snap.size })
     }
 
-    const listSnap = type
-      ? await baseRef.get()
-      : await baseRef.orderBy('createdAt', 'desc').get()
-    const listDocs: NotificationDoc[] = listSnap.docs.map(d => ({
-      id: d.id,
-      ...(d.data() as unknown as Omit<NotificationDoc, 'id'>),
-    }))
+    let listDocs: Array<{ id: string; createdAt?: number }> = []
     if (type) {
-      const asMillis = (v: any) => {
-        if (!v) return 0
-        if (typeof v === 'number') return v
-        if (v instanceof Date) return v.getTime()
-        if (typeof v.toMillis === 'function') return v.toMillis()
-        const parsed = new Date(v).getTime()
-        return Number.isNaN(parsed) ? 0 : parsed
-      }
-      listDocs.sort((a, b) => asMillis(b.createdAt) - asMillis(a.createdAt))
+      const listSnap = await baseRef.limit(200).get()
+      listDocs = listSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))
+      listDocs.sort((a, b) => {
+        const av = typeof a.createdAt === 'number' ? a.createdAt : 0
+        const bv = typeof b.createdAt === 'number' ? b.createdAt : 0
+        return bv - av
+      })
+      listDocs = listDocs.slice(0, 50)
+    } else {
+      const listSnap = await baseRef.orderBy('createdAt', 'desc').limit(50).get()
+      listDocs = listSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))
     }
-
-    if (mode === 'list') {
-      return NextResponse.json({ notifications: listDocs.slice(0, limit) })
-    }
-
     return NextResponse.json({ notifications: listDocs })
   } catch (err: unknown) {
-    console.error('[notifications GET] Error:', err)
-    if (err instanceof Error) {
-      return NextResponse.json({ error: err.message }, { status: 500 })
-    }
-    return NextResponse.json({ error: 'Internal error' }, { status: 500 })
+    const message = err instanceof Error ? err.message : 'Internal error'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }
 
 export async function PATCH(req: Request) {
   const session = await getServerSession(authOptions)
-
-  if (!session) {
+  if (!session?.user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const userId = (session.user as SessionUser)?.id
+  const userId = (session.user as SessionUser).id
   if (!userId) {
     return NextResponse.json({ error: 'Invalid user' }, { status: 400 })
   }
 
   try {
-    const body = (await req.json()) as Record<string, unknown>
-    const action = body.action as string | undefined
+    const body = (await req.json()) as { action?: string; type?: string }
+    const action = body.action || ''
+    const type = (body.type || '').trim()
 
-    const baseRef = firestore
+    let baseRef = db
       .collection('users')
       .doc(userId)
       .collection('notifications')
 
-    // 👉 Marca totes com llegides
+    if (type) {
+      baseRef = baseRef.where('type', '==', type)
+    }
+
     if (action === 'markAllRead') {
       const snap = await baseRef.where('read', '==', false).get()
-      const batch = firestore.batch()
-      snap.docs.forEach(doc => batch.update(doc.ref, { read: true }))
+      const batch = db.batch()
+      snap.docs.forEach(d => batch.update(d.ref, { read: true }))
       await batch.commit()
-      return NextResponse.json({ success: true })
-    }
-
-    // 👉 Marca notificacions relacionades amb un quadrant
-    if (action === 'markQuadrantRead') {
-      const quadrantId = body.quadrantId as string | undefined
-      if (!quadrantId) {
-        return NextResponse.json({ error: 'quadrantId required' }, { status: 400 })
-      }
-      const snap = await baseRef.where('quadrantId', '==', quadrantId).get()
-      const batch = firestore.batch()
-      snap.docs.forEach(doc => batch.update(doc.ref, { read: true }))
-      await batch.commit()
-      return NextResponse.json({ success: true })
-    }
-
-    // 👉 Marca UNA notificació concreta com llegida
-    if (action === 'markRead') {
-      const notificationId = body.notificationId as string | undefined
-      if (!notificationId) {
-        return NextResponse.json({ error: 'notificationId required' }, { status: 400 })
-      }
-      await baseRef.doc(notificationId).set({ read: true }, { merge: true })
       return NextResponse.json({ success: true })
     }
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
   } catch (err: unknown) {
-    console.error('[notifications PATCH] Error:', err)
-    if (err instanceof Error) {
-      return NextResponse.json({ error: err.message }, { status: 500 })
-    }
-    return NextResponse.json({ error: 'Internal error' }, { status: 500 })
+    const message = err instanceof Error ? err.message : 'Internal error'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

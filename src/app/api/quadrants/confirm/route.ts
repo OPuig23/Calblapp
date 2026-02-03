@@ -84,64 +84,6 @@ export async function POST(req: NextRequest) {
       { merge: true }
     )
 
-    // -------------------------------------------------------
-    // 5) Construcció llista de treballadors pel PUSH
-    // -------------------------------------------------------
-    const names: string[] = []
-
-    if (prev?.treballadors) {
-      prev.treballadors.forEach((t) => t?.name && names.push(t.name))
-    }
-
-    if (prev?.conductors) {
-      prev.conductors.forEach((c) => c?.name && names.push(c.name))
-    }
-
-    if (prev?.responsable?.name) {
-      names.push(prev.responsable.name)
-    }
-
-    const uniqueNames = Array.from(new Set(names))
-
-    // -------------------------------------------------------
-    // 6) Buscar IDs reals a la col·lecció personnel
-    // -------------------------------------------------------
-    const personnelRef = db.collection('personnel')
-
-    const users = await Promise.all(
-      uniqueNames.map(async (name) => {
-        const q = await personnelRef.where('name', '==', name).limit(1).get()
-        if (q.empty) return null
-        return { userId: q.docs[0].id, name }
-      })
-    )
-
-    const validUsers = users.filter(Boolean) as { userId: string; name: string }[]
-    console.log('👥 Push destinat a:', validUsers)
-
-    // -------------------------------------------------------
-    // 7) Enviar PUSH a cada usuari
-    // -------------------------------------------------------
-    const eventName = stageData?.eventName || stageData?.Nom || 'Nou esdeveniment'
-    const pushTitle = 'Tens un nou torn assignat'
-    const pushBody = `${eventName} – ${prev?.startDate} ${prev?.startTime}`
-
-    for (const u of validUsers) {
-await fetch(`${req.nextUrl.origin}/api/push/send`, {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    userId: u.userId,
-    title: pushTitle,
-    body: pushBody,
-    url: `/menu/torns?open=${eventId}`, // enllaç directe
-  }),
-})
-
-    }
-
-    console.log('📣 PUSH enviat!')
-
     return NextResponse.json({ ok: true, already })
   } catch (e) {
     console.error('[quadrants/confirm] error', e)

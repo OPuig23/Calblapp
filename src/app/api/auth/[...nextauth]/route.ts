@@ -19,7 +19,6 @@ interface FirestoreUser {
   password?: string
   role?: string
   department?: string
-  pushEnabled?: boolean
 }
 
 // Extend JWT
@@ -28,7 +27,6 @@ declare module 'next-auth/jwt' {
     role?: string
     department?: string
     deptLower?: string
-    pushEnabled?: boolean
   }
 }
 
@@ -122,7 +120,6 @@ export const authOptions = {
                 role: roleNorm,
                 department,
                 deptLower: normLower(department),
-                pushEnabled: data.pushEnabled ?? false,
               }
             } else {
               console.log('[AUTH] Password incorrecte. Input:', passInput, 'Doc:', passDoc)
@@ -145,14 +142,12 @@ export const authOptions = {
           id: string
           role?: string
           department?: string
-          pushEnabled?: boolean
         }
 
         token.sub = u.id
         token.role = normalizeRole(u.role)
         token.department = u.department || ''
         token.deptLower = normLower(token.department)
-        token.pushEnabled = u.pushEnabled ?? false // Added
       }
 
       if (token.role) {
@@ -174,7 +169,6 @@ export const authOptions = {
           role: token.role,
           department: token.department,
           deptLower: token.deptLower,
-          pushEnabled: token.pushEnabled ?? false,
         },
         accessToken: token,
       }

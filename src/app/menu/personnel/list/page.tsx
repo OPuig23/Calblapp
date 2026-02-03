@@ -9,13 +9,13 @@ import EditPersonnelModal from '@/components/personnel/EditPersonnelModal'
 import FloatingAddButton from '@/components/ui/floating-add-button'
 import FilterButton from '@/components/ui/filter-button'
 import PersonnelFilters from '@/components/personnel/PersonnelFilters'
-import UserRequestResultsList from '@/components/users/UserRequestResultsList'
 import { usePersonnel, Personnel } from '@/hooks/usePersonnel'
 import { useFilters } from '@/context/FiltersContext'
 import ModuleHeader from '@/components/layout/ModuleHeader'
 import ExportMenu from '@/components/export/ExportMenu'
 import { Users } from 'lucide-react'
 import * as XLSX from 'xlsx'
+import UserRequestResultsList from '@/components/users/UserRequestResultsList'
 
 type SessionUser = {
   department?: string
@@ -176,6 +176,11 @@ if (filters.isDriver !== 'all') {
         actions={<ExportMenu items={exportItems} />}
       />
 
+      {/* Respostes a sol·licituds (caps/admin) */}
+      <div className="px-4 pt-4">
+        <UserRequestResultsList onAfterAction={refetch} />
+      </div>
+
       <style>{`
         @media print {
           body * { visibility: hidden; }
@@ -183,11 +188,6 @@ if (filters.isDriver !== 'all') {
           #personnel-print-root { position: absolute; left: 0; top: 0; width: 100%; }
         }
       `}</style>
-
-      {/* Respostes a solÂ·licituds (caps/admin) */}
-      <div className="px-4 pt-4">
-        <UserRequestResultsList onAfterAction={refetch} />
-      </div>
 
       {/* ðŸ” Barra de cerca */}
 <div className="px-1 pt-2 flex items-center gap-2 relative z-40">

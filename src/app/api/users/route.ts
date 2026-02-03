@@ -29,7 +29,6 @@ interface UserPayload {
   available?: boolean
   isDriver?: boolean
   workerRank?: string
-  pushEnabled?: boolean
   createdAt: number
   updatedAt: number
 }
@@ -65,7 +64,6 @@ export async function POST(req: Request) {
       available?: boolean
       isDriver?: boolean
       workerRank?: string
-      pushEnabled?: boolean
     }
 
     const {
@@ -79,7 +77,6 @@ export async function POST(req: Request) {
       available,
       isDriver,
       workerRank,
-      pushEnabled,
     } = body
 
     // 🔹 Construir payload base
@@ -94,7 +91,6 @@ export async function POST(req: Request) {
       available: isTreballador(role) ? (available ?? true) : undefined,
       isDriver: isTreballador(role) ? (isDriver ?? false) : undefined,
       workerRank: isTreballador(role) ? (workerRank || 'equip') : undefined,
-      pushEnabled: pushEnabled ?? false, // per defecte FALSE si no s’envia
       createdAt: Date.now(),
       updatedAt: Date.now(),
     }
@@ -133,8 +129,6 @@ export async function POST(req: Request) {
         workerRank: userPayload.workerRank || 'equip',
         email: userPayload.email,
         phone: userPayload.phone,
-        // mantenim mateix flag també a `personnel`
-        pushEnabled: userPayload.pushEnabled ?? false,
         createdAt: snap.exists ? (snap.data() as any).createdAt ?? Date.now() : Date.now(),
         updatedAt: Date.now(),
       }

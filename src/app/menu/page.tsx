@@ -20,9 +20,8 @@ import {
   ClipboardList,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import { useUnreadCountsByType } from '@/hooks/notifications'
-import { useFCMToken } from '@/hooks/useFCMToken'
 import { getVisibleModules } from '@/lib/accessControl'
+import { useAdminUserRequestCount, useUserRequestResultCount } from '@/hooks/useAdminNotifications'
 
 /* ─────────────────────────────────────────────
    TIPUS
@@ -146,9 +145,8 @@ export default function MenuPage() {
 ───────────────────────────────────────────── */
 function MenuContent({ user }: { user: SessionUser }) {
   const pathname = usePathname()
-  const { tornsCount, usuarisCount, usuarisResultCount, personnelUnavailableCount } =
-    useUnreadCountsByType()
-  const { requestToken } = useFCMToken()
+  const { count: userRequestsCount, isAdmin } = useAdminUserRequestCount()
+  const { count: userRequestResultsCount } = useUserRequestResultCount()
 
   // 🔑 ÚNICA FONT DE MÒDULS
   const modules = getVisibleModules(user)
@@ -183,23 +181,14 @@ function MenuContent({ user }: { user: SessionUser }) {
                 )}
               >
                 <Icon className="w-8 h-8" />
-
-                {mod.path === '/menu/torns' && tornsCount > 0 && (
+                {isAdmin && mod.path === '/menu/users' && userRequestsCount > 0 && (
                   <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                    {tornsCount}
+                    {userRequestsCount}
                   </span>
                 )}
-
-                {mod.path === '/menu/users' && usuarisCount > 0 && (
+                {!isAdmin && mod.path === '/menu/personnel' && userRequestResultsCount > 0 && (
                   <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                    {usuarisCount}
-                  </span>
-                )}
-
-                {mod.path === '/menu/personnel' &&
-                  usuarisResultCount + personnelUnavailableCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                    {usuarisResultCount + personnelUnavailableCount}
+                    {userRequestResultsCount}
                   </span>
                 )}
               </div>

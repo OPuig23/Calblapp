@@ -2,7 +2,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
 import { getToken } from 'next-auth/jwt'
-import { createNotificationsForQuadrant } from '@/services/notifications'
 
 export const runtime = 'nodejs'
 const ORIGIN = 'Molí Vinyals, 11, 08776 Sant Pere de Riudebitlles, Barcelona'
@@ -188,38 +187,6 @@ export async function POST(req: NextRequest) {
           old.plate !== nu.plate
         )
       })
-    }
-
-    if (changed.length > 0) {
-      const rawUids = await Promise.all(changed.map(u => lookupUidForAssigned(u)))
-      const uids = Array.from(new Set(rawUids.filter(Boolean) as string[]))
-      if (uids.length > 0) {
-        const notifs = uids.map(uid => ({
-          userId: uid,
-          quadrantId: String(eventId),
-          payload: {
-            weekStartISO: doc.startDate || '',
-            weekLabel: doc.startDate || '',
-            dept: dept,
-          },
-        }))
-        await createNotificationsForQuadrant(notifs)
-
-        for (const u of changed) {
-          const uid = await lookupUidForAssigned(u)
-          if (!uid) continue
-          await fetch(`${process.env.NEXTAUTH_URL}/api/push/send`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              userId: uid,
-              title: 'Transport assignat / modificat',
-              body: 'Revisa vehicle, horaris o matrícula assignats.',
-              url: `/menu/logistica/assignacions`,
-            }),
-          })
-        }
-      }
     }
 
     return NextResponse.json({ ok: true, already })

@@ -6,6 +6,7 @@ import type { NextRequest } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
 import { firestoreAdmin } from '@/lib/firebaseAdmin'
+import Ably from 'ably'
 
 import { normalizeRole } from '@/lib/roles'
 
@@ -36,9 +37,61 @@ interface Personnel {
 }
 
 interface UserDoc {
-  role?: string
-  notificationsUnread?: number
   name?: string
+}
+
+async function notifyRequester(params: {
+  requesterId?: string | null
+  title: string
+  body: string
+  personId: string
+  baseUrl: string
+}) {
+  const { requesterId, title, body, personId, baseUrl } = params
+  if (!requesterId) return
+
+  try {
+    const doc = await firestoreAdmin.collection('users').doc(requesterId).get()
+    if (!doc.exists) return
+
+    await doc.ref.collection('notifications').add({
+      title,
+      body,
+      createdAt: Date.now(),
+      read: false,
+      type: 'user_request_result',
+      personId,
+    })
+
+    const apiKey = process.env.ABLY_API_KEY
+    if (!apiKey) return
+
+    const rest = new Ably.Rest({ key: apiKey })
+    const channel = rest.channels.get(`user:${requesterId}:notifications`)
+    await channel.publish('created', {
+      type: 'user_request_result',
+      personId,
+      createdAt: Date.now(),
+    })
+
+    // Push al requester (mòbil)
+    try {
+      await fetch(`${baseUrl}/api/push/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: requesterId,
+          title,
+          body,
+          url: '/menu/personnel',
+        }),
+      })
+    } catch (err) {
+      console.error('Error enviant push al requester:', err)
+    }
+  } catch (err) {
+    console.error('Error notificació requester:', err)
+  }
 }
 
 async function usernameExists(username: string, excludeId?: string) {
@@ -56,50 +109,6 @@ async function usernameExists(username: string, excludeId?: string) {
   return Boolean(conflict)
 }
 
-async function notifyRequester(
-  requesterId: string | null | undefined,
-  title: string,
-  body: string,
-  personId: string,
-  req: NextRequest
-) {
-  if (!requesterId) return
-  try {
-    const doc = await firestoreAdmin.collection('users').doc(requesterId).get()
-    if (!doc.exists) return
-
-    const data = doc.data() as UserDoc
-    await doc.ref.set(
-      { notificationsUnread: (data.notificationsUnread || 0) + 1 },
-      { merge: true }
-    )
-    await doc.ref.collection('notifications').add({
-      title,
-      body,
-      createdAt: Date.now(),
-      read: false,
-      type: 'user_request_result',
-      personId,
-    })
-
-    try {
-      await fetch(`${req.nextUrl.origin}/api/push/send`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: requesterId,
-          title,
-          body,
-          url: '/menu/personnel',
-        }),
-      })
-    } catch (pushErr) {
-      console.error('Error enviant push al cap:', pushErr)
-    }
-  } catch (err) {
-    console.error('Error notificació requester:', err)
-  }
-}
 
 export async function POST(req: NextRequest, ctx: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
@@ -191,13 +200,13 @@ export async function POST(req: NextRequest, ctx: { params: { id: string } }) {
 
     console.log('[approve] Usuari creat i sol·licitud marcada com aprovada:', personId)
 
-    await notifyRequester(
-      reqData?.requestedByUserId,
-      'Usuari aprovat',
-      `S'ha creat l'usuari ${userPayload.name}. Contrasenya temporal: ${passwordPlain}`,
+    await notifyRequester({
+      requesterId: reqData?.requestedByUserId,
+      title: 'Usuari aprovat',
+      body: `S'ha creat l'usuari ${userPayload.name}. Contrasenya temporal: ${passwordPlain}`,
       personId,
-      req
-    )
+      baseUrl: req.nextUrl.origin,
+    })
 
     return NextResponse.json({ success: true, user: { id: personId, ...userPayload } })
   } catch (error: unknown) {
@@ -206,3 +215,4 @@ export async function POST(req: NextRequest, ctx: { params: { id: string } }) {
     return NextResponse.json({ success: false, error: message }, { status: 500 })
   }
 }
+

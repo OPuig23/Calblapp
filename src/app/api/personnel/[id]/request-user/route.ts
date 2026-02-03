@@ -6,6 +6,7 @@ import type { NextRequest } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
 import { firestoreAdmin } from '@/lib/firebaseAdmin'
+import Ably from 'ably'
 
 import { normalizeRole } from '@/lib/roles'
 
@@ -37,10 +38,6 @@ interface PersonnelDoc {
   [key: string]: unknown
 }
 
-interface UserDoc {
-  role?: string
-  notificationsUnread?: number
-}
 
 interface UserRequestDoc {
   personId: string
@@ -88,31 +85,74 @@ function findMissingFields(person: PersonnelDoc) {
   return missing
 }
 
-async function notifyAdmins(title: string, body: string, personId: string) {
+async function notifyAdmins(params: {
+  title: string
+  body: string
+  personId: string
+  requesterName: string
+  department: string
+  baseUrl: string
+}) {
+  const { title, body, personId, requesterName, department, baseUrl } = params
+
   const snap = await firestoreAdmin.collection('users').get()
   const admins = snap.docs.filter(d => {
-    const data = d.data() as unknown as UserDoc
+    const data = d.data() as { role?: string }
     return normalizeRole(String(data.role || '')) === 'admin'
   })
+
+  if (!admins.length) return
+
   const now = Date.now()
-  for (const d of admins) {
-    try {
-      const data = d.data() as unknown as UserDoc
-      await d.ref.set(
-        { notificationsUnread: (data.notificationsUnread || 0) + 1 },
-        { merge: true }
-      )
-      await d.ref.collection('notifications').add({
-        title,
-        body,
-        createdAt: now,
-        read: false,
-        type: 'user_request',
-        personId,
+  const batch = firestoreAdmin.batch()
+
+  admins.forEach((d) => {
+    const notifRef = d.ref.collection('notifications').doc()
+    batch.set(notifRef, {
+      title,
+      body,
+      createdAt: now,
+      read: false,
+      type: 'user_request',
+      personId,
+      requesterName,
+      department,
+    })
+  })
+
+  await batch.commit()
+
+  const apiKey = process.env.ABLY_API_KEY
+  if (!apiKey) {
+    console.warn('[request-user] Missing ABLY_API_KEY, skipping realtime')
+    return
+  }
+
+  const rest = new Ably.Rest({ key: apiKey })
+  const channel = rest.channels.get('admin:user-requests')
+  await channel.publish('created', {
+    personId,
+    requesterName,
+    department,
+    createdAt: now,
+  })
+
+  // Push a admins (mòbil)
+  try {
+    for (const d of admins) {
+      await fetch(`${baseUrl}/api/push/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: d.id,
+          title: 'Nova sol·licitud d’usuari',
+          body: `${requesterName} ha enviat una sol·licitud.`,
+          url: '/menu/users',
+        }),
       })
-    } catch (e) {
-      console.error('notifyAdmins error:', e)
     }
+  } catch (err) {
+    console.error('[request-user] push error:', err)
   }
 }
 
@@ -242,41 +282,14 @@ export async function POST(
     console.log('📝 Guardant sol·licitud userRequests:', payload)
     await reqRef.set(payload, { merge: true })
 
-    // Notificació a Admins
-    await notifyAdmins(
-      'Nova sol·licitud d’usuari',
-      `${requesterName} demana crear usuari per a ${p.name || personId} (${p.department || ''}).`,
-      personId
-    )
-    // 🔵 Enviar PUSH als Admins
-try {
-  const adminsSnap = await firestoreAdmin.collection('users').get()
-  const admins = adminsSnap.docs.filter(d => {
-    const data = d.data() as any
-    return normalizeRole(String(data.role || '')) === 'admin'
-  })
-
-for (const admin of admins) {
-  const adminId = admin.id
-
-  await fetch(`${req.nextUrl.origin}/api/push/send`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      userId: adminId,
+    await notifyAdmins({
       title: 'Nova sol·licitud d’usuari',
-      body: `${requesterName} demana usuari per a ${p.name}`,
-      url: '/menu/admin/user-requests',
-    }),
-  })
-}
-
-console.log('📲 Push enviat als admins')
-
-} catch (err) {
-  console.error('❌ Error enviant push a admins:', err)
-}
-
+      body: `${requesterName} demana crear usuari per a ${p.name || personId} (${p.department || ''}).`,
+      personId,
+      requesterName,
+      department: p.department || '',
+      baseUrl: req.nextUrl.origin,
+    })
 
     console.log('✅ Sol·licitud guardada correctament per:', personId)
     return NextResponse.json({ success: true, status: 'pending' })

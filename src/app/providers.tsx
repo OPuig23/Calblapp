@@ -1,7 +1,7 @@
 // src/app/providers.tsx
 'use client'
 
-import React, { useEffect } from 'react'
+import React from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { SessionProvider } from 'next-auth/react'
 
@@ -9,21 +9,6 @@ import { SessionProvider } from 'next-auth/react'
 const queryClient = new QueryClient()
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  useEffect(() => {
-    // Only clear SW/cache in development to avoid breaking push subscriptions.
-    if (process.env.NODE_ENV !== 'development') return
-    if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return
-
-    navigator.serviceWorker
-      .getRegistrations()
-      .then((registrations) => registrations.forEach((reg) => reg.unregister()))
-      .catch((err) => console.warn('[CalBlay] Error eliminant service workers', err))
-
-    if ('caches' in window) {
-      caches.keys().then((keys) => keys.forEach((key) => caches.delete(key))).catch(() => {})
-    }
-  }, [])
-
   return (
     <SessionProvider>
       <QueryClientProvider client={queryClient}>

@@ -2,7 +2,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
 import { Timestamp } from 'firebase-admin/firestore'
-import { sendAvisosPush, getAvisosPushTargets } from '@/services/avisosPush'
 
 export const runtime = 'nodejs'
 
@@ -63,19 +62,6 @@ export async function POST(req: NextRequest) {
     },
   })
 
-  // 🔔 PUSH → responsables + ADMINS
-  try {
-    const { eventName } = await getAvisosPushTargets(code)
-
-    await sendAvisosPush({
-      eventCode: code,
-      title: 'Nou avís de producció',
-      body: eventName ?? `Codi: ${code}`,
-    })
-  } catch (e) {
-    console.error('[avisos/POST] push error', e)
-  }
-
   return NextResponse.json({ id: ref.id })
 }
 
@@ -98,21 +84,6 @@ export async function PUT(req: NextRequest) {
     content,
     editedAt: Timestamp.now(),
   })
-
-  // 🔔 PUSH → responsables + ADMINS
-  if (code) {
-    try {
-      const { eventName } = await getAvisosPushTargets(code)
-
-      await sendAvisosPush({
-        eventCode: code,
-        title: 'Avís de producció actualitzat',
-        body: eventName ?? `Codi: ${code}`,
-      })
-    } catch (e) {
-      console.error('[avisos/PUT] push error', e)
-    }
-  }
 
   return NextResponse.json({ ok: true })
 }

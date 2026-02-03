@@ -14,7 +14,6 @@ declare module "next-auth" {
       role?: string
       department?: string
       deptLower?: string
-      pushEnabled?: boolean
     } & DefaultSession["user"]
   }
 }
@@ -26,7 +25,6 @@ declare module "next-auth/jwt" {
     role?: string
     department?: string
     deptLower?: string
-    pushEnabled?: boolean
   }
 }
 

@@ -1,7 +1,6 @@
 // src/lib/firebaseClient.ts
 import { initializeApp, getApps } from 'firebase/app'
 import { getFirestore } from 'firebase/firestore'
-import { getMessaging, onMessage } from 'firebase/messaging'
 import { getStorage } from 'firebase/storage'
 
 const firebaseConfig = {
@@ -23,18 +22,3 @@ export const db = getFirestore(firebaseApp)
 // Storage
 export const storage = getStorage(firebaseApp)
 
-// Messaging
-export const messaging = (() => {
-  if (typeof window === 'undefined') return null
-  try {
-    return getMessaging(firebaseApp)
-  } catch (err) {
-    return null
-  }
-})()
-
-if (messaging) {
-  onMessage(messaging, (payload) => {
-    console.log('[CalBlay] Notificació rebuda en foreground:', payload)
-  })
-}

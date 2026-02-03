@@ -4,7 +4,6 @@
 import { useSession, signOut } from 'next-auth/react'
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import {
@@ -16,8 +15,8 @@ import {
   ShieldCheck,
 } from 'lucide-react'
 
-import { usePushNotifications } from '@/hooks/usePushNotifications'
 import { Button } from '@/components/ui/button'
+import { usePushNotifications } from '@/hooks/usePushNotifications'
 
 type SessionUser = {
   id: string
@@ -28,33 +27,20 @@ export default function ConfiguracioPage() {
   const { data: session, status } = useSession()
   const user = session?.user as SessionUser | undefined
 
-  const {
-    permission,
-    error: pushError,
-    subscribeUser,
-    requestPermission,
-  } = usePushNotifications()
-
-  const [hasDevicePush, setHasDevicePush] = useState<boolean>(false)
-  const [loadingPush, setLoadingPush] = useState(false)
-
   const [profileLoading, setProfileLoading] = useState(false)
   const [profileSaving, setProfileSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [showPrivacy, setShowPrivacy] = useState(false)
+  const [pushEnabled, setPushEnabled] = useState(false)
+  const [pushLoading, setPushLoading] = useState(false)
 
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
 
-  // Carregar estat push i perfil
-  useEffect(() => {
-    if (!user?.id) return
-    const key = `cb_push_activated_${user.id}`
-    setHasDevicePush(localStorage.getItem(key) === '1')
-  }, [user?.id])
+  const { permission, error: pushError, requestPermission, subscribeUser } = usePushNotifications()
 
   useEffect(() => {
     async function loadProfile() {
@@ -80,26 +66,18 @@ export default function ConfiguracioPage() {
   if (status === 'loading') return <p className="p-4">Carregant…</p>
   if (!user) return <p className="p-4">No autoritzat.</p>
 
-  // Push
   const enablePush = async () => {
     if (!user?.id) return
     try {
-      setLoadingPush(true)
+      setPushLoading(true)
       const perm = await requestPermission()
       if (perm !== 'granted') return
       const ok = await subscribeUser(user.id)
       if (!ok) return
-      localStorage.setItem(`cb_push_activated_${user.id}`, '1')
-      setHasDevicePush(true)
+      setPushEnabled(true)
     } finally {
-      setLoadingPush(false)
+      setPushLoading(false)
     }
-  }
-
-  const disablePush = () => {
-    if (!user?.id) return
-    localStorage.removeItem(`cb_push_activated_${user.id}`)
-    setHasDevicePush(false)
   }
 
   // Desa perfil
@@ -149,24 +127,21 @@ export default function ConfiguracioPage() {
         </div>
 
         <div className="flex items-center justify-between">
-          <Label htmlFor="push-switch">Rebre notificacions</Label>
-          <Switch
-            id="push-switch"
-            checked={hasDevicePush}
-            disabled={loadingPush}
-            onCheckedChange={(val) => {
-              if (loadingPush) return
-              if (val) void enablePush()
-              else disablePush()
-            }}
-          />
+          <Label>Rebre notificacions al mòbil</Label>
+          <Button
+            onClick={enablePush}
+            disabled={pushLoading || pushEnabled}
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            {pushEnabled ? 'Activat' : 'Activar'}
+          </Button>
         </div>
 
-        {loadingPush && <p className="text-sm text-blue-600">Activant…</p>}
-        {pushError && <p className="text-xs text-red-600">Error notificacions: {pushError}</p>}
+        {pushLoading && <p className="text-sm text-blue-600">Activant…</p>}
+        {pushError && <p className="text-xs text-red-600">Error: {pushError}</p>}
         {permission === 'denied' && (
           <p className="text-xs text-amber-600">
-            Has bloquejat les notificacions al navegador. Caldrà activar-les als ajustos del navegador.
+            Has bloquejat les notificacions. Caldrà activar-les als ajustos del navegador.
           </p>
         )}
       </motion.div>

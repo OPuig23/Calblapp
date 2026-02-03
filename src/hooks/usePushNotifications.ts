@@ -1,14 +1,11 @@
-// file: src/hooks/usePushNotifications.ts
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 
 export function usePushNotifications() {
   const [permission, setPermission] = useState<NotificationPermission>('default')
   const [error, setError] = useState<string | null>(null)
-  const [subscription, setSubscription] = useState<PushSubscription | null>(null)
 
-  // Inicialitzar permisos un cop ja hi ha window
   useEffect(() => {
     if (typeof window === 'undefined') return
     if (!('Notification' in window)) {
@@ -18,13 +15,11 @@ export function usePushNotifications() {
     setPermission(Notification.permission)
   }, [])
 
-  // 1) Demanar permÇðs
   const requestPermission = async () => {
     try {
       if (typeof window === 'undefined' || !('Notification' in window)) {
         throw new Error('Notificacions no suportades')
       }
-
       const result = await Notification.requestPermission()
       setPermission(result)
       if (result !== 'granted') {
@@ -32,12 +27,11 @@ export function usePushNotifications() {
       }
       return result
     } catch (err) {
-      setError('No sƒ?Tha pogut demanar permÇðs')
+      setError('No s’ha pogut demanar permís')
       return 'denied'
     }
   }
 
-  // 2) Subscriure usuari
   const subscribeUser = async (userId: string) => {
     try {
       if (typeof window === 'undefined') throw new Error('No window')
@@ -52,18 +46,15 @@ export function usePushNotifications() {
         registration = await navigator.serviceWorker.ready
       }
       if (!registration || !registration.pushManager) {
-        throw new Error(
-          'Les notificacions encara no estan disponibles en aquest dispositiu'
-        )
+        throw new Error('Push no disponible en aquest dispositiu')
       }
-      // Fem servir la VAPID pÇ§blica correcta en producciÇü
+
       const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
       if (!vapidKey) {
         throw new Error('Falta NEXT_PUBLIC_VAPID_PUBLIC_KEY')
       }
 
       const convertedKey = urlBase64ToUint8Array(vapidKey)
-
       const existingSub = await registration.pushManager.getSubscription()
       const sub =
         existingSub ??
@@ -71,9 +62,6 @@ export function usePushNotifications() {
           userVisibleOnly: true,
           applicationServerKey: convertedKey,
         }))
-      const createdSub = !existingSub
-
-      setSubscription(sub)
 
       const res = await fetch('/api/push/subscribe', {
         method: 'POST',
@@ -82,23 +70,18 @@ export function usePushNotifications() {
       })
 
       if (!res.ok) {
-        if (createdSub) {
-          await sub.unsubscribe().catch(() => {})
-        }
-        throw new Error('Error enviant subscripciÇü')
+        throw new Error('Error enviant subscripció')
       }
       return true
     } catch (err: any) {
       setError(err?.message || 'Error activant notificacions')
-
       return false
     }
   }
 
-  return { permission, error, subscription, requestPermission, subscribeUser }
+  return { permission, error, requestPermission, subscribeUser }
 }
 
-// Helper
 function urlBase64ToUint8Array(base64String: string) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')

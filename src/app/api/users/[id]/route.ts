@@ -29,7 +29,6 @@ interface UserUpdate {
   workerRank?: string
   email?: string | null
   phone?: string | null
-  pushEnabled?: boolean
   updatedAt?: number
   createdAt?: number
   userId?: string
@@ -117,8 +116,6 @@ export async function PUT(
         workerRank: update.workerRank ?? snapData.workerRank ?? 'equip',
         email: update.email ?? snapData.email ?? null,
         phone: update.phone ?? snapData.phone ?? null,
-        // 🔔 FIX: mantenim pushEnabled també a `personnel`
-        pushEnabled: update.pushEnabled ?? snapData.pushEnabled ?? false,
         updatedAt: Date.now(),
         createdAt: snap.exists
           ? snapData.createdAt ?? Date.now()

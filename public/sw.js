@@ -1,5 +1,4 @@
-// public/sw.js
-// Service Worker bàsic – Cal Blay
+// Service Worker for Web Push (Cal Blay)
 
 self.addEventListener('install', event => {
   self.skipWaiting()
@@ -9,7 +8,6 @@ self.addEventListener('activate', event => {
   event.waitUntil(self.clients.claim())
 })
 
-// Handle Web Push payloads for background notifications.
 self.addEventListener('push', event => {
   let data = {}
   if (event.data) {
@@ -22,12 +20,11 @@ self.addEventListener('push', event => {
 
   const title = data.title || 'Cal Blay'
   const options = {
-    body: data.body || 'New notification',
-    icon: data.icon || '/icons/icon-192.png',
-    badge: data.badge || '/icons/icon-192.png',
+    body: data.body || '',
+    icon: '/icons/icon-192.png',
+    badge: '/icons/icon-192.png',
     data: {
       url: data.url || '/',
-      ...data,
     },
   }
 

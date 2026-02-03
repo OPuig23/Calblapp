@@ -11,7 +11,6 @@ import { LogOut, Settings } from 'lucide-react'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { normalizeRole } from '@/lib/roles'
 import { getVisibleModules } from '@/lib/accessControl'
-import { NotificationsProvider } from '@/context/NotificationsContext'
 import { FiltersProvider } from '@/context/FiltersContext'
 import FilterSlideOver from '@/components/ui/filter-slide-over'
 import PWARegister from '@/components/PWARegister'
@@ -21,13 +20,11 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   return (
     <Providers>
       <TooltipProvider>
-        <NotificationsProvider>
-          <FiltersProvider>
-            <InnerLayout>{children}</InnerLayout>
-            <FilterSlideOver />
-             <PWARegister /> 
-          </FiltersProvider>
-        </NotificationsProvider>
+        <FiltersProvider>
+          <InnerLayout>{children}</InnerLayout>
+          <FilterSlideOver />
+          <PWARegister />
+        </FiltersProvider>
       </TooltipProvider>
     </Providers>
   )

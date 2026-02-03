@@ -14,7 +14,6 @@ export type User = {
   available?: boolean
   isDriver?: boolean
   workerRank?: 'equip' | 'responsable'
-  pushEnabled?: boolean
 }
 
 export function useUsers() {
@@ -56,7 +55,6 @@ export function useUsers() {
       available:  data.available,
       isDriver:   data.isDriver,
       workerRank: data.workerRank,
-      pushEnabled: (data as any).pushEnabled,
     }
 
     let res: Response
