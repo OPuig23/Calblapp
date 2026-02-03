@@ -84,6 +84,48 @@ export async function POST(req: NextRequest) {
       { merge: true }
     )
 
+    // Crear notificacions + push
+    const eventName = stageData?.eventName || stageData?.Nom || 'Nou esdeveniment'
+    const pushTitle = 'Tens un nou torn assignat'
+    const pushBody = `${eventName} – ${prev?.startDate} ${prev?.startTime}`
+
+    if (validUsers.length > 0) {
+      const batch = db.batch()
+      const now = Date.now()
+      for (const u of validUsers) {
+        const notifRef = db
+          .collection('users')
+          .doc(u.userId)
+          .collection('notifications')
+          .doc()
+        batch.set(notifRef, {
+          title: pushTitle,
+          body: pushBody,
+          createdAt: now,
+          read: false,
+          type: 'torn',
+          eventId: String(eventId),
+          eventDate: prev?.startDate || null,
+        })
+      }
+      await batch.commit()
+
+      await Promise.all(
+        validUsers.map(u =>
+          fetch(`${req.nextUrl.origin}/api/push/send`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId: u.userId,
+              title: pushTitle,
+              body: pushBody,
+              url: `/menu/torns?open=${eventId}`,
+            }),
+          }).catch(() => {})
+        )
+      )
+    }
+
     return NextResponse.json({ ok: true, already })
   } catch (e) {
     console.error('[quadrants/confirm] error', e)

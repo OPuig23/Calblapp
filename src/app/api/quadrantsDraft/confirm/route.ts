@@ -82,6 +82,109 @@ async function lookupUidForAssigned(user: AssignedUser): Promise<string | null> 
   return null
 }
 
+async function lookupUidByName(name?: string): Promise<string | null> {
+  const rawName = String(name || '').trim()
+  if (!rawName) return null
+
+  // 1) Try users by name
+  let q = await db.collection('users').where('name', '==', rawName).limit(1).get()
+  if (!q.empty) return q.docs[0].id
+
+  // 2) Try personnel by name -> use doc id to find user
+  q = await db.collection('personnel').where('name', '==', rawName).limit(1).get()
+  if (!q.empty) {
+    const personId = q.docs[0].id
+    const userDoc = await db.collection('users').doc(personId).get()
+    if (userDoc.exists) return userDoc.id
+  }
+
+  return null
+}
+
+async function resolveUid(user: AssignedUser): Promise<string | null> {
+  const byId = await lookupUidForAssigned(user)
+  if (byId) return byId
+  return lookupUidByName(user?.name)
+}
+
+async function resolveUids(users: AssignedUser[]): Promise<string[]> {
+  if (!users.length) return []
+  const raw = await Promise.all(users.map(u => resolveUid(u)))
+  return Array.from(new Set(raw.filter(Boolean) as string[]))
+}
+
+async function sendPushToUids(params: {
+  baseUrl: string
+  uids: string[]
+  title: string
+  body: string
+  url: string
+}) {
+  const { baseUrl, uids, title, body, url } = params
+  if (!uids.length) return
+
+  await Promise.all(
+    uids.map(uid =>
+      fetch(`${baseUrl}/api/push/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: uid, title, body, url }),
+      }).catch(() => {})
+    )
+  )
+}
+
+async function createTornNotifications(params: {
+  uids: string[]
+  title: string
+  body: string
+  eventId: string
+  eventDate?: string
+}) {
+  const { uids, title, body, eventId, eventDate } = params
+  if (!uids.length) return
+
+  const batch = db.batch()
+  const now = Date.now()
+
+  for (const uid of uids) {
+    const notifRef = db
+      .collection('users')
+      .doc(uid)
+      .collection('notifications')
+      .doc()
+
+    batch.set(notifRef, {
+      title,
+      body,
+      createdAt: now,
+      read: false,
+      type: 'torn',
+      eventId,
+      eventDate: eventDate || null,
+    })
+  }
+
+  await batch.commit()
+
+  const apiKey = process.env.ABLY_API_KEY
+  if (!apiKey) return
+
+  try {
+    const Ably = (await import('ably')).default
+    const rest = new Ably.Rest({ key: apiKey })
+    await Promise.all(
+      uids.map(uid =>
+        rest.channels
+          .get(`user:${uid}:notifications`)
+          .publish('created', { type: 'torn', eventId, eventDate: eventDate || null, createdAt: now })
+      )
+    )
+  } catch (err) {
+    console.error('[quadrantsDraft/confirm] Ably publish error', err)
+  }
+}
+
 /* ------------------ Handler ------------------ */
 export async function POST(req: NextRequest) {
   try {
@@ -186,6 +289,47 @@ export async function POST(req: NextRequest) {
           old.vehicleType !== nu.vehicleType ||
           old.plate !== nu.plate
         )
+      })
+    }
+
+    const eventName =
+      ev?.eventName ||
+      ev?.Nom ||
+      ev?.name ||
+      'Nou esdeveniment'
+    const when = doc.startDate ? ` ${doc.startDate}` : ''
+
+    if (isFirstConfirm) {
+      const uids = await resolveUids(newUsers)
+      await createTornNotifications({
+        uids,
+        title: 'Tens un nou torn assignat',
+        body: `${eventName}${when}`,
+        eventId: String(eventId),
+        eventDate: doc.startDate || undefined,
+      })
+      await sendPushToUids({
+        baseUrl: req.nextUrl.origin,
+        uids,
+        title: 'Tens un nou torn assignat',
+        body: `${eventName}${when}`,
+        url: `/menu/torns?open=${eventId}`,
+      })
+    } else if (changed.length > 0) {
+      const uids = await resolveUids(changed)
+      await createTornNotifications({
+        uids,
+        title: 'Tens canvis al teu torn',
+        body: `${eventName}${when}`,
+        eventId: String(eventId),
+        eventDate: doc.startDate || undefined,
+      })
+      await sendPushToUids({
+        baseUrl: req.nextUrl.origin,
+        uids,
+        title: 'Tens canvis al teu torn',
+        body: `${eventName}${when}`,
+        url: `/menu/torns?open=${eventId}`,
       })
     }
 

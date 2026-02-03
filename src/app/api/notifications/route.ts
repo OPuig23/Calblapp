@@ -75,9 +75,10 @@ export async function PATCH(req: Request) {
   }
 
   try {
-    const body = (await req.json()) as { action?: string; type?: string }
+    const body = (await req.json()) as { action?: string; type?: string; notificationId?: string }
     const action = body.action || ''
     const type = (body.type || '').trim()
+    const notificationId = (body.notificationId || '').trim()
 
     let baseRef = db
       .collection('users')
@@ -93,6 +94,19 @@ export async function PATCH(req: Request) {
       const batch = db.batch()
       snap.docs.forEach(d => batch.update(d.ref, { read: true }))
       await batch.commit()
+      return NextResponse.json({ success: true })
+    }
+
+    if (action === 'markRead') {
+      if (!notificationId) {
+        return NextResponse.json({ error: 'notificationId required' }, { status: 400 })
+      }
+      await db
+        .collection('users')
+        .doc(userId)
+        .collection('notifications')
+        .doc(notificationId)
+        .set({ read: true }, { merge: true })
       return NextResponse.json({ success: true })
     }
 

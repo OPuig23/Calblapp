@@ -90,3 +90,42 @@ export function useUserRequestResultCount() {
     error,
   }
 }
+
+export function useTornNotificationCount() {
+  const { data: session, status } = useSession()
+  const isAuth = status === 'authenticated'
+  const userId = (session?.user as any)?.id
+
+  const url = isAuth ? '/api/notifications?mode=list' : null
+
+  const { data, error, mutate } = useSWR(url, fetcher, {
+    refreshInterval: isAuth ? 15000 : 0,
+  })
+
+  useEffect(() => {
+    if (!isAuth || !userId) return
+
+    const client = getAblyClient()
+    const channel = client.channels.get(`user:${userId}:notifications`)
+    const handler = () => {
+      mutate().catch(() => {})
+    }
+
+    channel.subscribe('created', handler)
+
+    return () => {
+      channel.unsubscribe('created', handler)
+    }
+  }, [isAuth, userId, mutate])
+
+  return {
+    count: (() => {
+      const notifications = Array.isArray(data?.notifications) ? data.notifications : []
+      return notifications.filter((n: any) =>
+        !n.read && (n.type === 'torn' || n.type === 'NEW_SHIFTS')
+      ).length
+    })(),
+    loading: status === 'loading' || (isAuth && !data && !error),
+    error,
+  }
+}

@@ -15,6 +15,8 @@ import EventAvisosReadOnlyModal from '@/components/events/EventAvisosReadOnlyMod
 import { useFilters } from '@/context/FiltersContext'
 import TornFilters from './components/TornFilters'
 import { format, startOfWeek, endOfWeek } from 'date-fns'
+import { useSearchParams, useRouter } from 'next/navigation'
+import TornNotificationsBanner from '@/components/torns/TornNotificationsBanner'
 
 type ApiWorker = { id?: string; name?: string }
 type ApiTorn = {
@@ -59,6 +61,8 @@ const norm = (s?: string | null) =>
 
 export default function TornsPage() {
   const { data: session, status } = useSession()
+  const searchParams = useSearchParams()
+  const router = useRouter()
 
   const [items, setItems] = useState<ApiTorn[]>([])
   const [deptOptions, setDeptOptions] = useState<string[]>([])
@@ -115,6 +119,7 @@ export default function TornsPage() {
     end: defaultEnd,
     roleType: 'all' as any,
   })
+  const [pendingOpenId, setPendingOpenId] = useState<string | null>(null)
 
   // ============================
   // 🟦 CONTEXT SLIDE FILTERS
@@ -192,6 +197,34 @@ export default function TornsPage() {
     return () => controller.abort()
   }, [filters, isAdminOrDireccio, status])
 
+  useEffect(() => {
+    const open = searchParams?.get('open')
+    const date = searchParams?.get('date')
+    if (!open && !date) return
+
+    if (date) {
+      const d = new Date(date)
+      const start = format(startOfWeek(d, { weekStartsOn: 1 }), 'yyyy-MM-dd')
+      const end = format(endOfWeek(d, { weekStartsOn: 1 }), 'yyyy-MM-dd')
+      setFilters((prev) => ({ ...prev, start, end, mode: 'week' }))
+    }
+    if (open) {
+      setPendingOpenId(open)
+    }
+    router.replace('/menu/torns')
+  }, [searchParams, router])
+
+  useEffect(() => {
+    if (!pendingOpenId || !items.length) return
+    const found = items.find(
+      (t) => t.eventId === pendingOpenId || t.id === pendingOpenId
+    )
+    if (found) {
+      openDetail(found)
+      setPendingOpenId(null)
+    }
+  }, [pendingOpenId, items])
+
   // ============================
   // DETALL
   // ============================
@@ -260,6 +293,8 @@ export default function TornsPage() {
         title="Torns Assignats"
         subtitle="Consulta i gestiona els torns assignats"
       />
+
+      <TornNotificationsBanner />
 
       {/* SMART FILTERS */}
       <div className="w-full px-3 py-2 sm:px-4 sm:py-3 mb-6">

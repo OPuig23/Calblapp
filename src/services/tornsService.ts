@@ -486,6 +486,9 @@ export async function fetchAllTorns(
           if (matchWorker) {
             t.workerName = matchWorker.name
             t.workerRole = matchWorker.role
+            t.startTime = matchWorker.startTime || t.startTime
+            t.endTime = matchWorker.endTime || t.endTime
+            t.meetingPoint = matchWorker.meetingPoint || t.meetingPoint
             return true
           }
           return false
