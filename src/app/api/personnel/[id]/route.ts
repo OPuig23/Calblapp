@@ -67,7 +67,6 @@ export async function GET(
 }
 
 /**
-/**
  * PUT: Modifica una persona pel seu ID
  */
 export async function PUT(
@@ -81,7 +80,6 @@ export async function PUT(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const personnelId = context.params.id
   try {
     const body = await request.json()
 
@@ -120,7 +118,6 @@ export async function DELETE(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const personnelId = context.params.id
   try {
     await firestoreAdmin.collection('personnel').doc(personnelId).delete()
     return NextResponse.json({ success: true }, { status: 200 }) // ✅ millor 200
