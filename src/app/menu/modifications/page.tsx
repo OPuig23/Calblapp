@@ -67,6 +67,12 @@ export default function ModificationsPage() {
   )
   const [showAdd, setShowAdd] = useState(false)
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
+  const formatEventDay = (value?: string) => {
+    if (!value) return ''
+    const parsed = new Date(value)
+    if (Number.isNaN(parsed.getTime())) return value
+    return format(parsed, 'dd/MM')
+  }
 
   const departmentOptions = useMemo(() => {
     const set = new Set<string>()
@@ -401,7 +407,7 @@ export default function ModificationsPage() {
               <SelectContent>
                 {events.map((ev) => (
                   <SelectItem key={ev.id} value={ev.id}>
-                    {ev.day} · {ev.summary}
+                    {formatEventDay(ev.day)} · {ev.summary} · {ev.location || 'Sense ubicació'}
                   </SelectItem>
                 ))}
               </SelectContent>

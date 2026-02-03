@@ -8,6 +8,7 @@ import ModuleHeader from '@/components/layout/ModuleHeader'
 import ExportMenu from '@/components/export/ExportMenu'
 import { Map } from 'lucide-react'
 import * as XLSX from 'xlsx'
+import FloatingAddButton from '@/components/ui/floating-add-button'
 
 type Espai = {
   id: string
@@ -270,6 +271,7 @@ export default function SpacesInfoClient({ espais, lnOptions }: Props) {
         </table>
       </div>
       </div>
+      <FloatingAddButton onClick={() => router.push('/menu/spaces/info/new')} />
     </section>
   )
 }

@@ -94,7 +94,7 @@ export async function GET(req: NextRequest) {
                 ''
 
               const normalizedCandidate = normalizeLabel(candidate)
-              if (!normalizedCandidate || normalizedCandidate === 'event') return null
+              if (!normalizedCandidate) return null
 
               const dateValue =
                 data?.phaseDate ||
@@ -113,16 +113,21 @@ export async function GET(req: NextRequest) {
               }
             })
             .filter((info): info is { normalizedCandidate: string; phaseLabel: string; phaseDate?: string; responsableName?: string } => Boolean(info))
-
+          const eventCandidate = candidates.find(
+            (info) => info.normalizedCandidate === 'event'
+          )
           const isMuntatge = (value: string) =>
             ['muntatge', 'montatge', 'montaje'].some((word) => value.includes(word))
+          const muntatgeCandidate = candidates.find((info) =>
+            isMuntatge(info.normalizedCandidate)
+          )
 
-          const muntatgeMatch = candidates.find((info) => isMuntatge(info.normalizedCandidate))
-          const selected = muntatgeMatch || candidates[0]
-          if (selected) {
-            phaseLabel = selected.phaseLabel
-            phaseDate = selected.phaseDate
-            responsableName = selected.responsableName
+          if (eventCandidate?.responsableName) {
+            responsableName = eventCandidate.responsableName
+          }
+          if (muntatgeCandidate) {
+            phaseLabel = muntatgeCandidate.phaseLabel
+            phaseDate = muntatgeCandidate.phaseDate
           }
         }
       } catch {}

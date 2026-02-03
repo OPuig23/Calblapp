@@ -10,12 +10,14 @@ export default async function SpacesInfoPage() {
   // Normalitzem dades base
   const espais = snap.docs.map((doc) => {
     const d = doc.data() as any
+    const rawCode = d.code || d.codi || ''
+    const rawTipus = d.tipus || ''
     return {
       id: doc.id,
-      code: d.code || '',
+      code: rawCode,
       nom: d.nom || doc.id,
       ln: d.ln || d.LN || '',
-      tipus: (d.code || '').startsWith('CC') ? 'Propi' : 'Extern',
+      tipus: rawTipus || (rawCode.startsWith('CC') ? 'Propi' : 'Extern'),
       comercial: d.comercial || {},
       produccio: d.produccio || {},
     }
