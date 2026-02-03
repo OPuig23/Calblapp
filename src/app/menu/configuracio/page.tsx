@@ -3,6 +3,7 @@
 
 import { useSession, signOut } from 'next-auth/react'
 import { useEffect, useState } from 'react'
+import useSWR from 'swr'
 import { motion } from 'framer-motion'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -21,11 +22,15 @@ import { usePushNotifications } from '@/hooks/usePushNotifications'
 type SessionUser = {
   id: string
   name?: string
+  role?: string
 }
+
+const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 export default function ConfiguracioPage() {
   const { data: session, status } = useSession()
   const user = session?.user as SessionUser | undefined
+  const isAdmin = (user?.role || '').toString().toLowerCase().includes('admin')
 
   const [profileLoading, setProfileLoading] = useState(false)
   const [profileSaving, setProfileSaving] = useState(false)
@@ -41,6 +46,19 @@ export default function ConfiguracioPage() {
   const [password, setPassword] = useState('')
 
   const { permission, error: pushError, requestPermission, subscribeUser } = usePushNotifications()
+
+  const { data: subsData, mutate: refreshSubs } = useSWR(
+    '/api/messaging/subscriptions',
+    fetcher
+  )
+  const channels = Array.isArray(subsData?.channels) ? subsData.channels : []
+  const [selectedChannels, setSelectedChannels] = useState<string[]>([])
+  const [savingSubs, setSavingSubs] = useState(false)
+
+  useEffect(() => {
+    const subscribed = channels.filter((c: any) => c.subscribed).map((c: any) => c.id)
+    setSelectedChannels(subscribed)
+  }, [channels])
 
   useEffect(() => {
     async function loadProfile() {
@@ -109,6 +127,31 @@ export default function ConfiguracioPage() {
     } finally {
       setProfileSaving(false)
     }
+  }
+
+  const toggleChannel = (id: string) => {
+    setSelectedChannels((prev) =>
+      prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]
+    )
+  }
+
+  const saveSubscriptions = async () => {
+    try {
+      setSavingSubs(true)
+      await fetch('/api/messaging/subscriptions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channelIds: selectedChannels }),
+      })
+      await refreshSubs()
+    } finally {
+      setSavingSubs(false)
+    }
+  }
+
+  const seedPilotChannels = async () => {
+    await fetch('/api/messaging/channels/seed', { method: 'POST' })
+    await refreshSubs()
   }
 
   return (
@@ -205,6 +248,64 @@ export default function ConfiguracioPage() {
                 {profileSaving ? 'Desant…' : 'Desar canvis'}
               </Button>
             </div>
+          </div>
+        )}
+      </motion.div>
+
+      {/* Subscripcions missatgeria */}
+      <motion.div
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="p-4 rounded-2xl bg-white shadow border border-gray-200 space-y-3"
+      >
+        <div className="flex items-center gap-2">
+          <Shield className="w-5 h-5 text-emerald-600" />
+          <h2 className="font-semibold text-lg">Missatgeria · Subscripcions</h2>
+        </div>
+
+        {channels.length === 0 ? (
+          <p className="text-sm text-gray-500">
+            Encara no tens canals disponibles.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {channels.map((ch: any) => (
+              <div key={ch.id} className="flex items-center justify-between text-sm">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={selectedChannels.includes(ch.id)}
+                    onChange={() => toggleChannel(ch.id)}
+                  />
+                  <span>{ch.name}</span>
+                </label>
+                <span className="text-xs text-gray-500">
+                  {ch.muted ? 'Silenciat' : ''}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex justify-end">
+          <Button
+            onClick={saveSubscriptions}
+            disabled={savingSubs}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white"
+          >
+            {savingSubs ? 'Desant…' : 'Desar subscripcions'}
+          </Button>
+        </div>
+
+        {isAdmin && (
+          <div className="flex justify-end">
+            <Button
+              variant="outline"
+              onClick={seedPilotChannels}
+              className="text-sm"
+            >
+              Crear canals pilot
+            </Button>
           </div>
         )}
       </motion.div>

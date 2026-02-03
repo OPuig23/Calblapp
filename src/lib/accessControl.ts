@@ -53,6 +53,9 @@ export const MODULES: ModuleDef[] = [
     departments: ['logistica','cuina','serveis'],
   },
 
+  { label: 'Missatgeria', path: '/menu/missatgeria',
+    roles: ['admin','direccio','cap','treballador'] },
+
   { label: 'Quadrants', path: '/menu/quadrants',
     roles: ['admin','direccio','cap'] ,
     departments: ['logistica','cuina','serveis'],

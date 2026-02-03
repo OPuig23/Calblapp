@@ -18,10 +18,12 @@ import {
   User,
   Leaf,
   ClipboardList,
+  MessageSquare,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { getVisibleModules } from '@/lib/accessControl'
 import { useAdminUserRequestCount, useUserRequestResultCount, useTornNotificationCount } from '@/hooks/useAdminNotifications'
+import { useMessagingUnreadCount } from '@/hooks/useMessagingUnread'
 
 /* ─────────────────────────────────────────────
    TIPUS
@@ -68,6 +70,11 @@ const UI_MAP: Record<
     icon: Users,
     color: 'from-green-100 to-lime-100',
     iconColor: 'text-green-600',
+  },
+  '/menu/missatgeria': {
+    icon: MessageSquare,
+    color: 'from-emerald-100 to-teal-100',
+    iconColor: 'text-emerald-600',
   },
   '/menu/quadrants': {
     icon: User,
@@ -148,6 +155,7 @@ function MenuContent({ user }: { user: SessionUser }) {
   const { count: userRequestsCount, isAdmin } = useAdminUserRequestCount()
   const { count: userRequestResultsCount } = useUserRequestResultCount()
   const { count: tornCount } = useTornNotificationCount()
+  const { count: messagingCount } = useMessagingUnreadCount()
 
   // 🔑 ÚNICA FONT DE MÒDULS
   const modules = getVisibleModules(user)
@@ -190,6 +198,11 @@ function MenuContent({ user }: { user: SessionUser }) {
                 {mod.path === '/menu/torns' && tornCount > 0 && (
                   <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
                     {tornCount}
+                  </span>
+                )}
+                {mod.path === '/menu/missatgeria' && messagingCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                    {messagingCount}
                   </span>
                 )}
                 {!isAdmin && mod.path === '/menu/personnel' && userRequestResultsCount > 0 && (
