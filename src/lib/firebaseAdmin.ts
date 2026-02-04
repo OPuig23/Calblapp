@@ -23,5 +23,6 @@ function getAdminApp() {
 const app = getAdminApp()
 const firestoreAdmin = getFirestore(app)
 const storageAdmin = admin.storage()
+const messagingAdmin = admin.messaging()
 
-export { app, firestoreAdmin, storageAdmin }
+export { app, firestoreAdmin, storageAdmin, messagingAdmin }

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">CalBlapp</string>
+    <string name="title_activity_main">CalBlapp</string>
+    <string name="package_name">com.calblay.calblapp</string>
+    <string name="custom_url_scheme">com.calblay.calblapp</string>
+</resources>

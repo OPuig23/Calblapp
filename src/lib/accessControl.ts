@@ -54,7 +54,7 @@ export const MODULES: ModuleDef[] = [
   },
 
   { label: 'WhatsBlapp', path: '/menu/missatgeria',
-    roles: ['admin','direccio','cap','treballador'] },
+    roles: ['admin','direccio'] },
 
   { label: 'Quadrants', path: '/menu/quadrants',
     roles: ['admin','direccio','cap'] ,

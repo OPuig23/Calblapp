@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "242061830816",
+    "project_id": "cal-blay-webapp",
+    "storage_bucket": "cal-blay-webapp.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:242061830816:android:f816c4000f383278f2f7c5",
+        "android_client_info": {
+          "package_name": "com.calblay.calblapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAoF_pNUqtpzvRP58wgiXGp0og1ZG2dEZQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -19,13 +19,7 @@ import PWARegister from '@/components/PWARegister'
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (typeof window === 'undefined') return
-    const media = window.matchMedia('(prefers-color-scheme: dark)')
-    const apply = () => {
-      document.documentElement.classList.toggle('dark', media.matches)
-    }
-    apply()
-    media.addEventListener('change', apply)
-    return () => media.removeEventListener('change', apply)
+    document.documentElement.classList.remove('dark')
   }, [])
 
   return (

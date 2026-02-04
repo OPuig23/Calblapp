@@ -1,13 +1,31 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useState } from 'react'
+import { Capacitor } from '@capacitor/core'
+import { PushNotifications } from '@capacitor/push-notifications'
 
 export function usePushNotifications() {
   const [permission, setPermission] = useState<NotificationPermission>('default')
   const [error, setError] = useState<string | null>(null)
+  const getIsNative = () => {
+    if (Capacitor.isNativePlatform?.()) return true
+    if (typeof window === 'undefined') return false
+    const nativeParam = new URLSearchParams(window.location.search).get('native') === '1'
+    if (nativeParam) return true
+    const cap = (window as any)?.Capacitor
+    if (cap?.isNativePlatform?.()) return true
+    const platform = cap?.getPlatform?.()
+    if (platform === 'android' || platform === 'ios') return true
+    if (cap?.Plugins?.PushNotifications) return true
+    return navigator.userAgent.includes('Capacitor')
+  }
 
   useEffect(() => {
     if (typeof window === 'undefined') return
+    if (getIsNative()) {
+      setPermission('default')
+      return
+    }
     if (!('Notification' in window)) {
       setError('Aquest navegador no suporta notificacions push')
       return
@@ -17,6 +35,13 @@ export function usePushNotifications() {
 
   const requestPermission = async () => {
     try {
+      if (getIsNative()) {
+        const res = await PushNotifications.requestPermissions()
+        const granted = res.receive === 'granted'
+        setPermission(granted ? 'granted' : 'denied')
+        if (!granted) setError('Has de permetre les notificacions al mòbil')
+        return granted ? 'granted' : 'denied'
+      }
       if (typeof window === 'undefined' || !('Notification' in window)) {
         throw new Error('Notificacions no suportades')
       }
@@ -27,13 +52,45 @@ export function usePushNotifications() {
       }
       return result
     } catch (err) {
-      setError('No s’ha pogut demanar permís')
+      setError(err?.message || 'No s’ha pogut demanar permís')
       return 'denied'
     }
   }
 
   const subscribeUser = async (userId: string) => {
     try {
+      if (getIsNative()) {
+        const permission = await PushNotifications.checkPermissions()
+        if (permission.receive !== 'granted') {
+          const req = await PushNotifications.requestPermissions()
+          if (req.receive !== 'granted') {
+            throw new Error('Has de permetre les notificacions al mòbil')
+          }
+        }
+
+        const token = await new Promise<string>((resolve, reject) => {
+          const reg = PushNotifications.addListener('registration', (token) => {
+            reg.remove()
+            err.remove()
+            resolve(token.value)
+          })
+          const err = PushNotifications.addListener('registrationError', (error) => {
+            reg.remove()
+            err.remove()
+            reject(error?.message || 'Error registrant push')
+          })
+          PushNotifications.register()
+        })
+
+        const res = await fetch('/api/push/register-fcm', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, token, platform: Capacitor.getPlatform() }),
+        })
+        if (!res.ok) throw new Error('Error activant notificacions natives')
+        setPermission('granted')
+        return true
+      }
       if (typeof window === 'undefined') throw new Error('No window')
       if (!('serviceWorker' in navigator)) throw new Error('No SW disponible')
 
@@ -92,3 +149,5 @@ function urlBase64ToUint8Array(base64String: string) {
   }
   return outputArray
 }
+
+

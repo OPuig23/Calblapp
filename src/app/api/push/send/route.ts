@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 import { NextResponse } from 'next/server'
-import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
+import { firestoreAdmin as db, messagingAdmin } from '@/lib/firebaseAdmin'
 import webpush from 'web-push'
 
 export async function POST(req: Request) {
@@ -67,6 +67,43 @@ export async function POST(req: Request) {
     })
 
     await Promise.all(sendTasks)
+
+    const fcmSnap = await db
+      .collection('users')
+      .doc(String(userId))
+      .collection('fcmTokens')
+      .get()
+
+    if (!fcmSnap.empty) {
+      const tokens = fcmSnap.docs
+        .map((d) => String(d.data().token || ''))
+        .filter(Boolean)
+
+      if (tokens.length > 0) {
+        const res = await messagingAdmin.sendEachForMulticast({
+          tokens,
+          notification: { title, body },
+          data: { url: url || '/' },
+          android: {
+            priority: 'high',
+            notification: {
+              icon: 'ic_stat_cb',
+              color: '#0f766e',
+            },
+          },
+        })
+
+        res.responses.forEach((r, idx) => {
+          if (r.success) return
+          const code = (r.error as any)?.code
+          if (code === 'messaging/registration-token-not-registered') {
+            const token = tokens[idx]
+            const doc = fcmSnap.docs.find((d) => d.data().token === token)
+            if (doc) doc.ref.delete()
+          }
+        })
+      }
+    }
 
     return NextResponse.json({ success: true, sent })
   } catch (err) {
