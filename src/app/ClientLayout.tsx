@@ -17,6 +17,17 @@ import PWARegister from '@/components/PWARegister'
 
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const media = window.matchMedia('(prefers-color-scheme: dark)')
+    const apply = () => {
+      document.documentElement.classList.toggle('dark', media.matches)
+    }
+    apply()
+    media.addEventListener('change', apply)
+    return () => media.removeEventListener('change', apply)
+  }, [])
+
   return (
     <Providers>
       <TooltipProvider>
@@ -52,7 +63,7 @@ function InnerLayout({ children }: { children: React.ReactNode }) {
   /* 🔓 Pantalla login sense layout */
   if (pathname.startsWith('/login')) {
     return (
-      <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-gray-50">
+      <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-background text-foreground">
         <Image src="/logo.png" alt="Cal Blay" width={200} height={80} />
         {children}
       </div>
@@ -69,15 +80,15 @@ function InnerLayout({ children }: { children: React.ReactNode }) {
   const visibleModules = getVisibleModules({ role, department })
 
   return (
-    <div className="min-h-[100dvh] bg-gray-50 text-gray-800">
+      <div className="min-h-[100dvh] bg-background text-foreground">
 
       {/* ---------------- CAPÇALERA ---------------- */}
-      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur border-b">
+      <header className="sticky top-0 z-50 bg-background/80 backdrop-blur border-b border-border">
         <div className="h-14 flex items-center justify-between px-4">
 
           <button
             onClick={() => setMenuOpen(true)}
-            className="p-2 rounded-md hover:bg-gray-100"
+            className="p-2 rounded-md hover:bg-muted"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
@@ -89,7 +100,7 @@ function InnerLayout({ children }: { children: React.ReactNode }) {
           </Link>
 
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold">
+            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-foreground font-bold">
               {avatarLetter}
             </div>
 
@@ -98,7 +109,7 @@ function InnerLayout({ children }: { children: React.ReactNode }) {
                 await signOut({ redirect: false })
                 router.replace('/login')
               }}
-              className="p-2 rounded hover:bg-gray-100"
+              className="p-2 rounded hover:bg-muted"
             >
               <LogOut className="w-5 h-5" />
             </button>
@@ -111,7 +122,7 @@ function InnerLayout({ children }: { children: React.ReactNode }) {
       {menuOpen && (
         <div className="fixed inset-0 z-[9999] bg-black/40" onClick={() => setMenuOpen(false)}>
           <aside
-            className="fixed left-0 top-0 h-full w-64 bg-white shadow-xl p-4"
+            className="fixed left-0 top-0 h-full w-64 bg-background shadow-xl p-4 border-r border-border"
             onClick={e => e.stopPropagation()}
           >
             <div className="flex justify-between mb-4">
@@ -125,7 +136,7 @@ function InnerLayout({ children }: { children: React.ReactNode }) {
                   key={mod.path}
                   href={mod.path}
                   onClick={() => setMenuOpen(false)}
-                  className="px-3 py-2 rounded-md hover:bg-gray-100"
+                  className="px-3 py-2 rounded-md hover:bg-muted"
                 >
                   {mod.label}
                 </Link>
@@ -134,7 +145,7 @@ function InnerLayout({ children }: { children: React.ReactNode }) {
               <Link
                 href="/menu/configuracio"
                 onClick={() => setMenuOpen(false)}
-                className="px-3 py-2 rounded-md hover:bg-gray-100 flex items-center gap-2"
+                className="px-3 py-2 rounded-md hover:bg-muted flex items-center gap-2"
               >
                 <Settings className="w-5 h-5" />
                 Configuració

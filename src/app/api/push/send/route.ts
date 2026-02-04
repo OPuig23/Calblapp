@@ -42,13 +42,22 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, sent: 0 })
     }
 
-    const payload = JSON.stringify({ title, body, url })
+    const payload = JSON.stringify({
+      title,
+      body,
+      url,
+      icon: '/icons/cb.svg',
+      badge: '/icons/cb.svg',
+    })
     let sent = 0
 
     const sendTasks = subsSnap.docs.map(async (doc) => {
       const sub = doc.data().subscription
       try {
-        await webpush.sendNotification(sub, payload)
+        await webpush.sendNotification(sub, payload, {
+          TTL: 60 * 60,
+          urgency: 'high',
+        })
         sent++
       } catch (err: any) {
         if (err?.statusCode === 404 || err?.statusCode === 410) {

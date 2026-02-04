@@ -21,8 +21,8 @@ self.addEventListener('push', event => {
   const title = data.title || 'Cal Blay'
   const options = {
     body: data.body || '',
-    icon: '/icons/icon-192.png',
-    badge: '/icons/icon-192.png',
+    icon: data.icon || '/icons/cb.svg',
+    badge: data.badge || '/icons/cb.svg',
     data: {
       url: data.url || '/',
     },

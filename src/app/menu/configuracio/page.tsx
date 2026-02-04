@@ -260,7 +260,7 @@ export default function ConfiguracioPage() {
       >
         <div className="flex items-center gap-2">
           <Shield className="w-5 h-5 text-emerald-600" />
-          <h2 className="font-semibold text-lg">Missatgeria · Subscripcions</h2>
+          <h2 className="font-semibold text-lg">WhatsBlapp · Subscripcions</h2>
         </div>
 
         {channels.length === 0 ? (

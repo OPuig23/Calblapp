@@ -1,15 +1,13 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import useSWR from 'swr'
 import { useSession } from 'next-auth/react'
-import { BellOff, BellRing, Camera, MessageSquare, Paperclip, Search, Trash2 } from 'lucide-react'
-import ModuleHeader from '@/components/layout/ModuleHeader'
+import { BellOff, BellRing, Paperclip, Search, Send, Trash2 } from 'lucide-react'
+import Link from 'next/link'
 import { RoleGuard } from '@/lib/withRoleGuard'
 import { getAblyClient } from '@/lib/ablyClient'
 import { useSearchParams } from 'next/navigation'
-import { storage } from '@/lib/firebaseClient'
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -98,7 +96,6 @@ export default function MissatgeriaPage() {
   const messagesCache = useRef<Map<string, Message[]>>(new Map())
   const typingThrottleRef = useRef<number>(0)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
-  const cameraInputRef = useRef<HTMLInputElement | null>(null)
   const [mobileView, setMobileView] = useState<'list' | 'chat'>('list')
 
   const { data: channelsData, mutate: refreshChannels } = useSWR(
@@ -387,13 +384,21 @@ export default function MissatgeriaPage() {
       if (size > 1024 * 1024) {
         throw new Error('La imatge encara pesa massa')
       }
-      const path = `messaging/${selectedChannelId}/${userId}/${Date.now()}.jpg`
-      const storageRef = ref(storage, path)
-      await uploadBytes(storageRef, blob, { contentType: 'image/jpeg' })
-      const url = await getDownloadURL(storageRef)
+      const form = new FormData()
+      form.append('file', blob, 'image.jpg')
+      form.append('channelId', selectedChannelId)
+
+      const res = await fetch('/api/messaging/upload-image', {
+        method: 'POST',
+        body: form,
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data?.error || 'Error pujant la imatge')
+      }
       setPendingImage({
-        url,
-        path,
+        url: data.url,
+        path: data.path,
         meta: { width, height, size, type },
       })
     } catch (err) {
@@ -437,28 +442,33 @@ export default function MissatgeriaPage() {
 
   return (
     <RoleGuard allowedRoles={['admin', 'direccio', 'cap', 'treballador']}>
-      <div className="p-4">
-        <ModuleHeader
-          icon={<MessageSquare className="w-7 h-7 text-emerald-600" />}
-          title="Missatgeria"
-          subtitle="Canals de manteniment"
-        />
+      <div className="p-0 lg:p-4">
+        {mobileView === 'list' && (
+          <div className="px-3 py-2 flex items-center justify-between">
+            <Link
+              href="/menu"
+              className="text-base font-semibold text-gray-900 hover:text-emerald-700 dark:text-slate-100"
+            >
+              WhatsBlapp
+            </Link>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
           <aside
-            className={`lg:col-span-1 border rounded-xl bg-white shadow-sm ${
+            className={`lg:col-span-1 bg-white dark:bg-slate-900 ${
               mobileView === 'chat' ? 'hidden lg:block' : 'block'
             }`}
           >
-            <div className="p-3 border-b space-y-3">
-                <div className="flex w-full rounded-lg border border-gray-200 overflow-hidden bg-gray-50">
-                  {[
-                    { key: 'manteniment', label: 'Manteniment' },
-                    { key: 'maquinaria', label: 'Maquinària' },
-                    { key: 'produccio', label: 'Producció' },
-                  ].map((chip, idx, arr) => {
-                    const active = typeFilter === chip.key
-                    const isLast = idx === arr.length - 1
+            <div className="p-3 space-y-3 border-b border-gray-100 lg:border-b lg:border-gray-100 dark:border-slate-800">
+              <div className="flex w-full rounded-lg border border-gray-200 overflow-hidden bg-gray-50 dark:border-slate-700 dark:bg-slate-800">
+                {[
+                  { key: 'manteniment', label: 'Manteniment' },
+                  { key: 'maquinaria', label: 'Maquinària' },
+                  { key: 'produccio', label: 'Producció' },
+                ].map((chip, idx, arr) => {
+                  const active = typeFilter === chip.key
+                  const isLast = idx === arr.length - 1
                   const typeUnread = unreadByType[chip.key] || 0
                   return (
                     <button
@@ -468,23 +478,23 @@ export default function MissatgeriaPage() {
                       className={`flex-1 px-3 py-2 text-xs font-semibold border-r last:border-r-0 relative ${
                         active
                           ? 'bg-emerald-600 text-white'
-                          : 'bg-transparent text-gray-600 hover:bg-gray-100'
-                      } ${isLast ? 'border-r-0' : 'border-gray-200'}`}
+                          : 'bg-transparent text-gray-600 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-700'
+                      } ${isLast ? 'border-r-0' : 'border-gray-200 dark:border-slate-700'}`}
                     >
-                        {typeUnread > 0 && !active && (
-                          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-semibold rounded-full px-1.5">
-                            {typeUnread}
-                          </span>
-                        )}
+                      {typeUnread > 0 && !active && (
+                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-semibold rounded-full px-1.5">
+                          {typeUnread}
+                        </span>
+                      )}
                       {chip.label}
                     </button>
                   )
                 })}
-                </div>
-              <div className="flex items-center gap-2 border rounded-lg px-2 py-1">
-                <Search className="w-4 h-4 text-gray-400" />
+              </div>
+              <div className="flex items-center gap-2 border rounded-lg px-2 py-1 dark:border-slate-700">
+                <Search className="w-4 h-4 text-gray-400 dark:text-slate-400" />
                 <input
-                  className="w-full text-sm outline-none"
+                  className="w-full text-sm outline-none bg-transparent text-gray-800 dark:text-slate-100"
                   placeholder="Cerca canal, finca o restaurant..."
                   value={channelQuery}
                   onChange={(e) => setChannelQuery(e.target.value)}
@@ -504,7 +514,7 @@ export default function MissatgeriaPage() {
                       className={`px-3 py-1 rounded-full text-xs border ${
                         active
                           ? 'bg-emerald-600 text-white border-emerald-600'
-                          : 'bg-white text-gray-600 border-gray-300'
+                          : 'bg-white text-gray-600 border-gray-300 dark:bg-slate-900 dark:text-slate-300 dark:border-slate-700'
                       }`}
                     >
                       {chip.label}
@@ -519,34 +529,40 @@ export default function MissatgeriaPage() {
                   <button
                     type="button"
                     onClick={() => openChannel(c.id)}
-                    className={`w-full text-left px-3 py-3 border-b hover:bg-gray-50 ${
-                      selectedChannelId === c.id ? 'bg-emerald-50' : ''
+                    className={`w-full text-left px-3 py-3 hover:bg-gray-50 dark:hover:bg-slate-800 ${
+                      selectedChannelId === c.id ? 'bg-emerald-50 dark:bg-emerald-900/30' : ''
                     }`}
                   >
-                    <div className="flex items-center justify-between">
-                    <div className="text-sm font-semibold text-gray-800 truncate">
-                      {c.location}
-                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full bg-gray-200 text-gray-700 dark:bg-slate-700 dark:text-slate-100 flex items-center justify-center text-xs font-semibold shrink-0">
+                        {initials(c.location || c.name)}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between">
+                          <div className="text-sm font-semibold text-gray-800 dark:text-slate-100 truncate">
+                            {c.location}
+                          </div>
                       {c.unreadCount ? (
                         <span className="text-xs bg-red-500 text-white rounded-full px-2 py-0.5">
                           {c.unreadCount}
                         </span>
                       ) : null}
-                    </div>
-                    <div className="text-xs text-gray-500 truncate">
-                      {labelType(c.type)} · {labelSource(c.source)}
-                    </div>
-                    <div className="text-xs text-gray-500 truncate">
-                      {c.lastMessagePreview || 'Sense missatges'}
-                    </div>
-                    <div className="text-[11px] text-gray-400">
-                      {timeLabel(c.lastMessageAt)}
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-slate-400 flex items-center justify-between gap-2">
+                          <span className="truncate">
+                            {c.lastMessagePreview || 'Sense missatges'}
+                          </span>
+                          <span className="text-[11px] text-gray-400 dark:text-slate-500 shrink-0">
+                            {timeLabel(c.lastMessageAt)}
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   </button>
                 </li>
               ))}
               {filteredChannels.length === 0 && (
-                <li className="p-4 text-sm text-gray-500">
+                <li className="p-4 text-sm text-gray-500 dark:text-slate-400">
                   No tens canals subscrits.
                 </li>
               )}
@@ -554,32 +570,31 @@ export default function MissatgeriaPage() {
           </aside>
 
           <section
-            className={`lg:col-span-3 border rounded-xl bg-white shadow-sm flex flex-col ${
+            className={`lg:col-span-3 bg-white dark:bg-slate-900 flex flex-col ${
               mobileView === 'list' ? 'hidden lg:flex' : 'flex'
-            }`}
+            } lg:border lg:rounded-xl lg:shadow-sm min-h-[100dvh] lg:min-h-0`}
           >
-            <div className="p-3 border-b flex items-center gap-2 justify-between">
-              <button
-                type="button"
-                className="lg:hidden text-sm text-gray-600 hover:text-gray-800"
-                onClick={() => setMobileView('list')}
-              >
-                ←
-              </button>
-              <div>
-                <div className="text-sm font-semibold text-gray-800">
-                  {selectedChannel?.name || 'Selecciona un canal'}
+            <div className="px-3 py-2 lg:py-3 lg:border-b flex items-center justify-between dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className="lg:hidden text-2xl text-gray-700 hover:text-gray-900 dark:text-slate-200 dark:hover:text-white -ml-1 px-2"
+                  onClick={() => setMobileView('list')}
+                  aria-label="Tornar"
+                >
+                  ←
+                </button>
+                <div className="w-8 h-8 rounded-full bg-gray-200 text-gray-700 dark:bg-slate-700 dark:text-slate-100 flex items-center justify-center text-xs font-semibold">
+                  {initials(selectedChannel?.location || selectedChannel?.name)}
                 </div>
-                <div className="text-xs text-gray-500">
-                  {selectedChannel
-                    ? `${selectedChannel.source} · ${selectedChannel.location}`
-                    : ''}
+                <div className="text-sm font-semibold text-gray-800 dark:text-slate-100">
+                  {selectedChannel?.location || 'Selecciona un canal'}
                 </div>
               </div>
               {selectedChannel && (
                 <button
                   type="button"
-                  className="text-gray-600 hover:text-gray-800"
+                  className="text-gray-600 hover:text-gray-800 dark:text-slate-300 dark:hover:text-white"
                   onClick={async () => {
                     const next = !selectedChannel.muted
                     await fetch(`/api/messaging/channels/${selectedChannel.id}/mute`, {
@@ -602,7 +617,7 @@ export default function MissatgeriaPage() {
 
             <div
               ref={scrollRef}
-              className="flex-1 p-4 space-y-3 overflow-y-auto"
+              className="flex-1 px-3 py-4 lg:p-4 space-y-3 overflow-y-auto pb-32"
               onScroll={(e) => {
                 const el = e.currentTarget
                 if (el.scrollTop < 40 && !loadingMore) {
@@ -622,9 +637,9 @@ export default function MissatgeriaPage() {
                       key={m.id}
                       className={`space-y-1 ${isMine ? 'flex flex-col items-end' : ''}`}
                     >
-                      <div className="text-xs text-gray-500 flex items-center gap-2">
+                      <div className="text-xs text-gray-500 dark:text-slate-400 flex items-center gap-2">
                         {!isMine && (
-                          <span className="w-6 h-6 rounded-full bg-gray-200 text-gray-700 flex items-center justify-center text-[10px] font-semibold">
+                          <span className="w-6 h-6 rounded-full bg-gray-200 text-gray-700 dark:bg-slate-700 dark:text-slate-100 flex items-center justify-center text-[10px] font-semibold">
                             {initials(m.senderName)}
                           </span>
                         )}
@@ -650,7 +665,7 @@ export default function MissatgeriaPage() {
                         className={`text-sm rounded-lg p-2 space-y-2 max-w-[85%] ${
                           isMine
                             ? 'bg-emerald-600 text-white'
-                            : 'bg-gray-100 text-gray-900'
+                            : 'bg-gray-100 text-gray-900 dark:bg-slate-800 dark:text-slate-100'
                         }`}
                       >
                         {m.body && <div>{m.body}</div>}
@@ -659,7 +674,7 @@ export default function MissatgeriaPage() {
                             <img
                               src={m.imageUrl}
                               alt="Imatge"
-                              className="max-h-64 rounded border"
+                              className="max-h-64 rounded border dark:border-slate-700"
                             />
                           </a>
                         )}
@@ -668,14 +683,14 @@ export default function MissatgeriaPage() {
                   )
                 })}
               {messagesState.length === 0 && (
-                <p className="text-sm text-gray-500">Encara no hi ha missatges.</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400">Encara no hi ha missatges.</p>
               )}
             </div>
 
-            <div className="border-t p-3 space-y-2 sticky bottom-0 bg-white">
+            <div className="border-t p-3 space-y-2 bg-white dark:bg-slate-900 fixed bottom-0 left-0 right-0 lg:sticky lg:bottom-0 pb-[env(safe-area-inset-bottom)] dark:border-slate-800">
               {Object.keys(typingUsers).length > 0 && (
-                <div className="text-xs text-gray-500">
-                  S’està escrivint…
+                <div className="text-xs text-gray-500 dark:text-slate-400">
+                  S'està escrivint…
                 </div>
               )}
               {pendingImage && (
@@ -683,7 +698,7 @@ export default function MissatgeriaPage() {
                   <img
                     src={pendingImage.url}
                     alt="Imatge adjunta"
-                    className="h-16 w-16 object-cover rounded border"
+                    className="h-16 w-16 object-cover rounded border dark:border-slate-700"
                   />
                   <button
                     type="button"
@@ -702,7 +717,7 @@ export default function MissatgeriaPage() {
                   <button
                     key={quick}
                     type="button"
-                    className="text-xs border rounded-full px-3 py-1 text-gray-600 hover:text-gray-800"
+                    className="text-xs border rounded-full px-3 py-1 text-gray-600 hover:text-gray-800 dark:text-slate-300 dark:border-slate-700 dark:hover:text-white"
                     onClick={() => setMessageText((prev) => `${prev} ${quick}`.trim())}
                   >
                     {quick}
@@ -723,34 +738,17 @@ export default function MissatgeriaPage() {
                   className="hidden"
                   onChange={(e) => handleImagePick(e.target.files?.[0] || null)}
                 />
-                <input
-                  ref={cameraInputRef}
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  className="hidden"
-                  onChange={(e) => handleImagePick(e.target.files?.[0] || null)}
-                />
                 <button
                   type="button"
-                  className="border rounded px-2 py-1 text-gray-600 hover:text-gray-800 hover:border-gray-400"
+                  className="border rounded px-2 py-1 text-gray-600 hover:text-gray-800 hover:border-gray-400 dark:text-slate-300 dark:border-slate-700 dark:hover:text-white dark:hover:border-slate-500"
                   onClick={() => fileInputRef.current?.click()}
                   title="Adjuntar imatge"
                   disabled={imageUploading}
                 >
                   <Paperclip className="w-4 h-4" />
                 </button>
-                <button
-                  type="button"
-                  className="border rounded px-2 py-1 text-gray-600 hover:text-gray-800 hover:border-gray-400"
-                  onClick={() => cameraInputRef.current?.click()}
-                  title="Fer foto"
-                  disabled={imageUploading}
-                >
-                  <Camera className="w-4 h-4" />
-                </button>
                 <input
-                  className="flex-1 border rounded-lg px-3 py-2 text-sm"
+                  className="flex-1 border rounded-lg px-3 py-2 text-sm bg-transparent text-gray-900 dark:text-slate-100 dark:border-slate-700"
                   placeholder="Escriu el missatge..."
                   value={messageText}
                   onChange={(e) => {
@@ -761,16 +759,17 @@ export default function MissatgeriaPage() {
                 />
                 <button
                   type="button"
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-sm px-4 py-2 rounded-lg"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white p-2 rounded-full"
                   onClick={sendMessage}
                   disabled={loadingSend || imageUploading}
+                  title="Enviar"
                 >
-                  Enviar
+                  <Send className="w-4 h-4" />
                 </button>
               </div>
 
               {mentionOpen && (
-                <div className="border rounded-lg bg-white shadow-sm max-h-40 overflow-y-auto">
+                <div className="border rounded-lg bg-white dark:bg-slate-900 dark:border-slate-700 shadow-sm max-h-40 overflow-y-auto">
                   {members
                     .filter((m) =>
                       m.userName.toLowerCase().includes(mentionQuery)
@@ -779,7 +778,7 @@ export default function MissatgeriaPage() {
                       <button
                         key={m.userId}
                         type="button"
-                        className="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm"
+                        className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-slate-800 text-sm"
                         onClick={() => selectMention(m)}
                       >
                         {m.userName}
@@ -788,7 +787,7 @@ export default function MissatgeriaPage() {
                   {members.filter((m) =>
                     m.userName.toLowerCase().includes(mentionQuery)
                   ).length === 0 && (
-                    <div className="px-3 py-2 text-xs text-gray-500">
+                    <div className="px-3 py-2 text-xs text-gray-500 dark:text-slate-400">
                       Cap usuari
                     </div>
                   )}
@@ -801,3 +800,5 @@ export default function MissatgeriaPage() {
     </RoleGuard>
   )
 }
+
+
