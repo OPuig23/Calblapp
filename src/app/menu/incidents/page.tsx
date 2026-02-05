@@ -103,8 +103,9 @@ export default function IncidentsPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Totes</SelectItem>
+              <SelectItem value="urgent">Urgent</SelectItem>
               <SelectItem value="alta">Alta</SelectItem>
-              <SelectItem value="mitjana">Mitjana</SelectItem>
+              <SelectItem value="normal">Normal</SelectItem>
               <SelectItem value="baixa">Baixa</SelectItem>
             </SelectContent>
           </Select>

@@ -27,6 +27,23 @@ export default function IncidentsRow({
   setEditValues,
   onUpdate
 }: Props) {
+  const normalizedImportance = (() => {
+    const value = (inc.importance || '').toLowerCase().trim()
+    if (value === 'mitjana') return 'normal'
+    if (value === 'urgent') return 'urgent'
+    if (value === 'alta') return 'alta'
+    if (value === 'baixa') return 'baixa'
+    return value || 'normal'
+  })()
+
+  const importanceLabel =
+    normalizedImportance === 'urgent'
+      ? 'Urgent'
+      : normalizedImportance === 'alta'
+      ? 'Alta'
+      : normalizedImportance === 'baixa'
+      ? 'Baixa'
+      : 'Normal'
 
   return (
     <tr
@@ -66,12 +83,13 @@ export default function IncidentsRow({
         <Badge
           className={cn(
             'text-[10px] px-2 py-0.5',
-            inc.importance === 'alta' && 'bg-red-100 text-red-700',
-            inc.importance === 'mitjana' && 'bg-orange-100 text-orange-700',
-            inc.importance === 'baixa' && 'bg-blue-100 text-blue-700'
+            normalizedImportance === 'urgent' && 'bg-red-100 text-red-700',
+            normalizedImportance === 'alta' && 'bg-orange-100 text-orange-700',
+            normalizedImportance === 'normal' && 'bg-slate-100 text-slate-700',
+            normalizedImportance === 'baixa' && 'bg-blue-100 text-blue-700'
           )}
         >
-          {inc.importance}
+          {importanceLabel}
         </Badge>
       </td>
 
@@ -140,7 +158,7 @@ export default function IncidentsRow({
             <SelectContent>
               <SelectItem value="urgent">Urgent</SelectItem>
               <SelectItem value="alta">Alta</SelectItem>
-              <SelectItem value="mitjana">Mitjana</SelectItem>
+              <SelectItem value="normal">Normal</SelectItem>
               <SelectItem value="baixa">Baixa</SelectItem>
             </SelectContent>
           </Select>

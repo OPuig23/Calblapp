@@ -2,6 +2,10 @@
 import { NextResponse } from "next/server";
 import { firestoreAdmin } from "@/lib/firebaseAdmin";
 import admin from "firebase-admin";
+import {
+  buildTicketBody,
+  notifyMaintenanceManagers,
+} from '@/lib/maintenanceNotifications'
 
 interface IncidentDoc {
   id?: string;
@@ -27,6 +31,14 @@ function normalizeTimestamp(ts: any): string {
   if (ts && typeof ts.toDate === "function") return ts.toDate().toISOString();
   if (typeof ts === "string") return ts;
   return "";
+}
+
+function normalizePriority(value?: string) {
+  const v = (value || "").trim().toLowerCase();
+  if (v === "urgent") return "urgent";
+  if (v === "alta") return "alta";
+  if (v === "baixa") return "baixa";
+  return "normal";
 }
 
 /* -------------------------------------------------------
@@ -108,6 +120,72 @@ export async function POST(req: Request) {
       },
     });
 
+    const categoryId = String(category?.id || "").trim();
+    const shouldCreateTicket = ["201", "202", "401"].includes(categoryId);
+
+    if (shouldCreateTicket) {
+      const now = Date.now();
+      const ticketRef = await firestoreAdmin.collection("maintenanceTickets").add({
+        ticketCode: incidentNumber,
+        incidentNumber,
+        location: ev.Ubicacio || "",
+        machine: "",
+        description,
+        priority: normalizePriority(importance),
+        status: "nou",
+        createdAt: now,
+        createdById: null,
+        createdByName: respSala || "",
+        assignedToIds: [],
+        assignedToNames: [],
+        assignedAt: null,
+        assignedById: null,
+        assignedByName: null,
+        plannedStart: null,
+        plannedEnd: null,
+        estimatedMinutes: null,
+        source: "incidencia",
+        sourceEventId: String(eventId),
+        sourceEventCode: ev.code || ev.Code || ev.C_digo || ev.codi || "",
+        sourceEventTitle: ev.NomEvent || "",
+        sourceEventLocation: ev.Ubicacio || "",
+        sourceEventDate: ev.DataInici || ev.DataPeticio || "",
+        imageUrl: null,
+        imagePath: null,
+        imageMeta: null,
+        needsVehicle: false,
+        vehicleId: null,
+        vehiclePlate: null,
+        statusHistory: [
+          {
+            status: "nou",
+            at: now,
+            byId: null,
+            byName: respSala || "",
+          },
+        ],
+      });
+
+      await notifyMaintenanceManagers({
+        payload: {
+          type: 'maintenance_ticket_new',
+          title: 'Nou ticket de manteniment',
+          body: buildTicketBody({
+            machine: '',
+            location: ev.Ubicacio || '',
+            description,
+          }),
+          ticketId: ticketRef.id,
+          ticketCode: incidentNumber,
+          status: 'nou',
+          priority: normalizePriority(importance),
+          location: ev.Ubicacio || '',
+          machine: '',
+          source: 'incidencia',
+        },
+      })
+    }
+
     return NextResponse.json({ id: docRef.id }, { status: 201 });
   } catch (err: any) {
     console.error("[incidents] POST error:", err);
@@ -141,8 +219,13 @@ export async function GET(req: Request) {
 
 
     if (eventId) ref = ref.where("eventId", "==", eventId);
-    if (importance && importance !== "all")
-      ref = ref.where("importance", "==", importance);
+    if (importance && importance !== "all") {
+      if (importance === "normal") {
+        ref = ref.where("importance", "in", ["normal", "mitjana"]);
+      } else {
+        ref = ref.where("importance", "==", importance);
+      }
+    }
     if (department && department !== "all")
       ref = ref.where("department", "==", department);
 

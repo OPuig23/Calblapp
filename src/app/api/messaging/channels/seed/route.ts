@@ -67,6 +67,8 @@ export async function POST() {
             createdAt: now,
             lastMessagePreview: '',
             lastMessageAt: 0,
+            responsibleUserId: null,
+            responsibleUserName: null,
           },
           { merge: true }
         )

@@ -3,11 +3,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import useSWR from 'swr'
 import { useSession } from 'next-auth/react'
-import { BellOff, BellRing, Paperclip, Search, Send, Trash2 } from 'lucide-react'
+import { BellOff, BellRing, Paperclip, Search, Send, Trash2, Users } from 'lucide-react'
 import Link from 'next/link'
 import { RoleGuard } from '@/lib/withRoleGuard'
 import { getAblyClient } from '@/lib/ablyClient'
 import { useSearchParams } from 'next/navigation'
+import { normalizeRole } from '@/lib/roles'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -17,6 +18,8 @@ type Channel = {
   type: string
   source: string
   location: string
+  responsibleUserId?: string | null
+  responsibleUserName?: string | null
   lastMessagePreview?: string
   lastMessageAt?: number
   unreadCount?: number
@@ -35,6 +38,9 @@ type Message = {
   imageUrl?: string | null
   imagePath?: string | null
   imageMeta?: { width?: number; height?: number; size?: number; type?: string } | null
+  ticketId?: string | null
+  ticketCode?: string | null
+  ticketStatus?: string | null
 }
 
 type Member = { userId: string; userName: string }
@@ -71,6 +77,7 @@ function labelSource(source?: string) {
 export default function MissatgeriaPage() {
   const { data: session } = useSession()
   const userId = (session?.user as any)?.id as string | undefined
+  const userRole = normalizeRole((session?.user as any)?.role || '')
   const searchParams = useSearchParams()
 
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null)
@@ -97,6 +104,9 @@ export default function MissatgeriaPage() {
   const typingThrottleRef = useRef<number>(0)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [mobileView, setMobileView] = useState<'list' | 'chat'>('list')
+  const [membersOpen, setMembersOpen] = useState(false)
+  const [savingResponsible, setSavingResponsible] = useState(false)
+  const [creatingTicketId, setCreatingTicketId] = useState<string | null>(null)
 
   const { data: channelsData, mutate: refreshChannels } = useSWR(
     '/api/messaging/channels?scope=mine',
@@ -171,6 +181,35 @@ export default function MissatgeriaPage() {
     () => channels.find((c) => c.id === selectedChannelId) || null,
     [channels, selectedChannelId]
   )
+
+  const canEditResponsible = userRole === 'admin' || userRole === 'direccio'
+  const canCreateTicket =
+    !!selectedChannel &&
+    (selectedChannel.type === 'manteniment' || selectedChannel.type === 'maquinaria') &&
+    !!userId &&
+    selectedChannel.responsibleUserId === userId
+
+  const createTicketFromMessage = async (message: Message) => {
+    if (!message?.id || !canCreateTicket) return
+    if (message.ticketId) return
+    try {
+      setCreatingTicketId(message.id)
+      const res = await fetch(`/api/messaging/messages/${message.id}/ticket`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        throw new Error(json?.error || `HTTP ${res.status}`)
+      }
+      await refreshMessages()
+      await refreshChannels()
+    } catch (err: any) {
+      alert(err?.message || 'No s’ha pogut crear el ticket')
+    } finally {
+      setCreatingTicketId(null)
+    }
+  }
 
   useEffect(() => {
     setMessagesState(messages)
@@ -440,6 +479,21 @@ export default function MissatgeriaPage() {
     setMobileView('chat')
   }
 
+  const updateResponsible = async (targetUserId: string) => {
+    if (!selectedChannel || !canEditResponsible) return
+    try {
+      setSavingResponsible(true)
+      await fetch(`/api/messaging/channels/${selectedChannel.id}/responsible`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: targetUserId }),
+      })
+      await refreshChannels()
+    } finally {
+      setSavingResponsible(false)
+    }
+  }
+
   return (
     <RoleGuard allowedRoles={['admin', 'direccio', 'cap', 'treballador']}>
       <div className="p-0 lg:p-4">
@@ -592,28 +646,100 @@ export default function MissatgeriaPage() {
                 </div>
               </div>
               {selectedChannel && (
-                <button
-                  type="button"
-                  className="text-gray-600 hover:text-gray-800 dark:text-slate-300 dark:hover:text-white"
-                  onClick={async () => {
-                    const next = !selectedChannel.muted
-                    await fetch(`/api/messaging/channels/${selectedChannel.id}/mute`, {
-                      method: 'PATCH',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ muted: next }),
-                    })
-                    refreshChannels()
-                  }}
-                  title={selectedChannel.muted ? 'Activar canal' : 'Silenciar canal'}
-                >
-                  {selectedChannel.muted ? (
-                    <BellRing className="w-4 h-4" />
-                  ) : (
-                    <BellOff className="w-4 h-4" />
-                  )}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="text-gray-600 hover:text-gray-800 dark:text-slate-300 dark:hover:text-white"
+                    onClick={() => setMembersOpen((prev) => !prev)}
+                    title="Membres del canal"
+                  >
+                    <Users className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    className="text-gray-600 hover:text-gray-800 dark:text-slate-300 dark:hover:text-white"
+                    onClick={async () => {
+                      const next = !selectedChannel.muted
+                      await fetch(`/api/messaging/channels/${selectedChannel.id}/mute`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ muted: next }),
+                      })
+                      refreshChannels()
+                    }}
+                    title={selectedChannel.muted ? 'Activar canal' : 'Silenciar canal'}
+                  >
+                    {selectedChannel.muted ? (
+                      <BellRing className="w-4 h-4" />
+                    ) : (
+                      <BellOff className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
               )}
             </div>
+
+            {membersOpen && selectedChannel && (
+              <div className="border-b bg-white dark:bg-slate-900 dark:border-slate-800 px-3 py-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-semibold text-gray-800 dark:text-slate-100">
+                    Membres del canal
+                  </div>
+                  <button
+                    type="button"
+                    className="text-xs text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-200"
+                    onClick={() => setMembersOpen(false)}
+                  >
+                    Tancar
+                  </button>
+                </div>
+                <div className="mt-1 text-xs text-gray-500 dark:text-slate-400">
+                  Responsable:{' '}
+                  <span className="font-semibold text-gray-700 dark:text-slate-200">
+                    {selectedChannel.responsibleUserName || 'No assignat'}
+                  </span>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {members.map((m) => {
+                    const isResponsible = selectedChannel.responsibleUserId === m.userId
+                    return (
+                      <div
+                        key={m.userId}
+                        className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 px-3 py-2 dark:border-slate-700"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-gray-200 text-gray-700 dark:bg-slate-700 dark:text-slate-100 flex items-center justify-center text-xs font-semibold">
+                            {initials(m.userName)}
+                          </div>
+                          <div className="text-sm text-gray-800 dark:text-slate-100">
+                            {m.userName}
+                          </div>
+                        </div>
+                        {isResponsible ? (
+                          <span className="text-xs font-semibold text-emerald-700">
+                            Responsable
+                          </span>
+                        ) : canEditResponsible ? (
+                          <button
+                            type="button"
+                            className="text-xs border rounded-full px-3 py-1 text-gray-600 hover:text-gray-800 dark:text-slate-300 dark:border-slate-600 dark:hover:text-white"
+                            onClick={() => updateResponsible(m.userId)}
+                            disabled={savingResponsible}
+                          >
+                            Fer responsable
+                          </button>
+                        ) : null}
+                      </div>
+                    )
+                  })}
+                  {members.length === 0 && (
+                    <div className="text-xs text-gray-500 dark:text-slate-400">
+                      Sense membres.
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             <div
               ref={scrollRef}
@@ -679,6 +805,27 @@ export default function MissatgeriaPage() {
                           </a>
                         )}
                       </div>
+                      {((canCreateTicket && m.visibility === 'channel') || m.ticketId) && (
+                        <div className="text-xs text-gray-600 dark:text-slate-300">
+                          {m.ticketId ? (
+                            <Link
+                              href={`/menu/manteniment/tickets?ticket=${m.ticketId}`}
+                              className="underline hover:text-emerald-600"
+                            >
+                              Veure ticket {m.ticketCode ? `· ${m.ticketCode}` : ''}
+                            </Link>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => createTicketFromMessage(m)}
+                              disabled={creatingTicketId === m.id}
+                              className="underline hover:text-emerald-600"
+                            >
+                              {creatingTicketId === m.id ? 'Creant ticket…' : 'Crear ticket'}
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )
                 })}

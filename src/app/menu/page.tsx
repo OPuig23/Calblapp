@@ -19,11 +19,15 @@ import {
   Leaf,
   ClipboardList,
   MessageSquare,
+  Wrench,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { getVisibleModules } from '@/lib/accessControl'
 import { useAdminUserRequestCount, useUserRequestResultCount, useTornNotificationCount } from '@/hooks/useAdminNotifications'
 import { useMessagingUnreadCount } from '@/hooks/useMessagingUnread'
+import { useMaintenanceNewCount } from '@/hooks/useMaintenanceNewCount'
+import { useMaintenanceAssignedCount } from '@/hooks/useMaintenanceAssignedCount'
+import { normalizeRole } from '@/lib/roles'
 
 /* ─────────────────────────────────────────────
    TIPUS
@@ -75,6 +79,11 @@ const UI_MAP: Record<
     icon: MessageSquare,
     color: 'from-emerald-100 to-teal-100',
     iconColor: 'text-emerald-600',
+  },
+  '/menu/manteniment': {
+    icon: Wrench,
+    color: 'from-emerald-50 to-green-100',
+    iconColor: 'text-emerald-700',
   },
   '/menu/quadrants': {
     icon: User,
@@ -156,6 +165,13 @@ function MenuContent({ user }: { user: SessionUser }) {
   const { count: userRequestResultsCount } = useUserRequestResultCount()
   const { count: tornCount } = useTornNotificationCount()
   const { count: messagingCount } = useMessagingUnreadCount()
+  const { count: maintenanceNewCount } = useMaintenanceNewCount()
+  const { count: maintenanceAssignedCount } = useMaintenanceAssignedCount()
+  const maintenanceBadge =
+    normalizeRole(user.role || '') === 'treballador' &&
+    (user.department || '').toString().toLowerCase() === 'manteniment'
+      ? maintenanceAssignedCount
+      : maintenanceNewCount
 
   // 🔑 ÚNICA FONT DE MÒDULS
   const modules = getVisibleModules(user)
@@ -203,6 +219,11 @@ function MenuContent({ user }: { user: SessionUser }) {
                 {mod.path === '/menu/missatgeria' && messagingCount > 0 && (
                   <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
                     {messagingCount}
+                  </span>
+                )}
+                {mod.path === '/menu/manteniment' && maintenanceBadge > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                    {maintenanceBadge}
                   </span>
                 )}
                 {!isAdmin && mod.path === '/menu/personnel' && userRequestResultsCount > 0 && (

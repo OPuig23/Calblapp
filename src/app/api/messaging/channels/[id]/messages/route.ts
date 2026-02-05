@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
 import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
+import {
+  buildTicketBody,
+  notifyMaintenanceManagers,
+} from '@/lib/maintenanceNotifications'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -32,6 +36,168 @@ async function ensureMember(channelId: string, userId: string) {
     .limit(1)
     .get()
   return !snap.empty
+}
+
+async function generateTicketCode(): Promise<string> {
+  const counterRef = db.collection('counters').doc('maintenanceTickets')
+  const next = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(counterRef)
+    const current = (snap.data()?.value as number) || 0
+    const updated = current + 1
+    tx.set(counterRef, { value: updated }, { merge: true })
+    return updated
+  })
+  return `TIC${String(next).padStart(6, '0')}`
+}
+
+async function createTicketFromMessage(args: {
+  channelId: string
+  messageId: string
+  messageBody: string
+  messageCreatedAt: number
+  userId: string
+  userName: string
+}) {
+  const { channelId, messageId, messageBody, messageCreatedAt, userId, userName } = args
+
+  const channelSnap = await db.collection('channels').doc(channelId).get()
+  if (!channelSnap.exists) return null
+  const channel = channelSnap.data() as any
+
+  const type = channel?.type || ''
+  if (type !== 'manteniment' && type !== 'maquinaria') return null
+  if (channel?.responsibleUserId !== userId) return null
+
+  const location = (channel?.location || '').toString().trim()
+  if (!location) return null
+
+  const description = (messageBody || '').replace(/#ticket/gi, '').trim()
+  if (!description) return null
+
+  const now = Date.now()
+  const ticketCode = await generateTicketCode()
+  const ticketRef = db.collection('maintenanceTickets').doc()
+  const summaryBody = `${ticketCode} · ${description}`
+
+  const membersSnap = await db
+    .collection('channelMembers')
+    .where('channelId', '==', channelId)
+    .get()
+  const memberDocs = membersSnap.docs
+  const memberIds = memberDocs.map((d) => d.id)
+  const memberUserIds = memberDocs.map((d) => (d.data() as any)?.userId).filter(Boolean)
+
+  const summaryRef = db.collection('messages').doc()
+  const summaryData = {
+    channelId,
+    senderId: userId,
+    senderName: userName || '',
+    body: summaryBody,
+    imageUrl: null,
+    imagePath: null,
+    imageMeta: null,
+    createdAt: now,
+    visibility: 'channel',
+    targetUserIds: [],
+    readCount: 0,
+    ticketId: ticketRef.id,
+    ticketCode,
+    ticketStatus: 'nou',
+    system: true,
+  }
+
+  const batch = db.batch()
+  batch.set(ticketRef, {
+    ticketCode,
+    incidentNumber: null,
+    location,
+    machine: '',
+    description,
+    priority: 'normal',
+    status: 'nou',
+    createdAt: now,
+    createdById: userId,
+    createdByName: userName || '',
+    assignedToIds: [],
+    assignedToNames: [],
+    assignedAt: null,
+    assignedById: null,
+    assignedByName: null,
+    plannedStart: null,
+    plannedEnd: null,
+    estimatedMinutes: null,
+    source: 'whatsblapp',
+    sourceChannelId: channelId,
+    sourceMessageId: messageId,
+    sourceMessageText: description.slice(0, 200),
+    sourceCreatedAt: messageCreatedAt || now,
+    imageUrl: null,
+    imagePath: null,
+    imageMeta: null,
+    needsVehicle: false,
+    vehicleId: null,
+    vehiclePlate: null,
+    statusHistory: [
+      {
+        status: 'nou',
+        at: now,
+        byId: userId,
+        byName: userName || '',
+      },
+    ],
+  })
+  batch.set(summaryRef, summaryData)
+  batch.set(
+    db.collection('channels').doc(channelId),
+    {
+      lastMessagePreview: summaryBody.slice(0, 180),
+      lastMessageAt: now,
+    },
+    { merge: true }
+  )
+
+  for (const docId of memberIds) {
+    const ref = db.collection('channelMembers').doc(docId)
+    const member = memberDocs.find((d) => d.id === docId)?.data() as any
+    const memberUserId = member?.userId
+    if (!memberUserId || memberUserId === userId) continue
+    batch.set(ref, { unreadCount: Number(member?.unreadCount || 0) + 1 }, { merge: true })
+  }
+
+  batch.set(
+    db.collection('messages').doc(messageId),
+    {
+      ticketId: ticketRef.id,
+      ticketCode,
+      ticketStatus: 'nou',
+    },
+    { merge: true }
+  )
+
+  await batch.commit()
+
+  await notifyMaintenanceManagers({
+    payload: {
+      type: 'maintenance_ticket_new',
+      title: 'Nou ticket de manteniment',
+      body: buildTicketBody({ machine: '', location, description }),
+      ticketId: ticketRef.id,
+      ticketCode,
+      status: 'nou',
+      priority: 'normal',
+      location,
+      machine: '',
+      source: 'whatsblapp',
+    },
+    excludeIds: [userId],
+  })
+
+  return {
+    ticketId: ticketRef.id,
+    ticketCode,
+    summaryData: { ...summaryData, id: summaryRef.id },
+    memberUserIds,
+  }
 }
 
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -266,6 +432,56 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     const url = `/menu/missatgeria?channel=${id}`
 
     await sendPushToUids(baseUrl, pushRecipients, title, pushBody, url)
+
+    const shouldAutoTicket =
+      visibility === 'channel' && text.toLowerCase().includes('#ticket')
+
+    if (shouldAutoTicket) {
+      const ticketResult = await createTicketFromMessage({
+        channelId: id,
+        messageId: msgRef.id,
+        messageBody: text,
+        messageCreatedAt: now,
+        userId,
+        userName: senderName,
+      })
+
+      if (ticketResult && apiKey) {
+        try {
+          const Ably = (await import('ably')).default
+          const rest = new Ably.Rest({ key: apiKey })
+          await rest.channels
+            .get(`chat:${id}`)
+            .publish('message', ticketResult.summaryData)
+
+          await Promise.all(
+            ticketResult.memberUserIds
+              .filter((uid) => uid && uid !== userId)
+              .map((uid) =>
+                rest.channels.get(`user:${uid}:inbox`).publish('updated', {
+                  channelId: id,
+                  at: Date.now(),
+                })
+              )
+          )
+        } catch {
+          // silent
+        }
+      }
+
+      if (ticketResult) {
+        const mutedUsersForTicket = new Set(
+          memberDocs
+            .map((d) => d.data() as any)
+            .filter((m) => m?.muted)
+            .map((m) => m.userId)
+        )
+        const pushRecipientsTicket = ticketResult.memberUserIds.filter(
+          (uid) => uid && uid !== userId && !mutedUsersForTicket.has(uid)
+        )
+        await sendPushToUids(baseUrl, pushRecipientsTicket, title, ticketResult.summaryData.body, url)
+      }
+    }
 
     return NextResponse.json({ success: true, messageId: msgRef.id })
   } catch (err: unknown) {

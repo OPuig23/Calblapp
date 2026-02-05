@@ -29,6 +29,15 @@ const normalizeTimestamp = (ts: any): string => {
   return ''
 }
 
+const normalizeImportance = (value?: string): string => {
+  const v = (value || '').toLowerCase().trim()
+  if (v === 'mitjana') return 'normal'
+  if (v === 'urgent') return 'urgent'
+  if (v === 'alta') return 'alta'
+  if (v === 'baixa') return 'baixa'
+  return v || 'normal'
+}
+
 export function useIncidents(_filters: {
   eventId?: string
   from?: string
@@ -96,7 +105,13 @@ export function useIncidents(_filters: {
           ? data
           : []
 
-        if (!cancel) setIncidents(raw as Incident[])
+        if (!cancel) {
+          const normalized = raw.map((inc: any) => ({
+            ...inc,
+            importance: normalizeImportance(inc.importance),
+          }))
+          setIncidents(normalized as Incident[])
+        }
       } catch (err: any) {
         if (!cancel) setError(err.message || 'Error carregant incidències')
       } finally {

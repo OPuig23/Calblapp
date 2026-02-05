@@ -64,10 +64,11 @@ export default function IncidentsFilters({
             <SelectValue placeholder="Totes" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">🌐 Totes</SelectItem>
-            <SelectItem value="Alta">🔴 Alta</SelectItem>
-            <SelectItem value="Mitjana">🟠 Mitjana</SelectItem>
-            <SelectItem value="Baixa">🔵 Baixa</SelectItem>
+            <SelectItem value="all">Totes</SelectItem>
+            <SelectItem value="urgent">Urgent</SelectItem>
+            <SelectItem value="alta">Alta</SelectItem>
+            <SelectItem value="normal">Normal</SelectItem>
+            <SelectItem value="baixa">Baixa</SelectItem>
           </SelectContent>
         </Select>
       </div>

@@ -54,7 +54,18 @@ export const MODULES: ModuleDef[] = [
   },
 
   { label: 'WhatsBlapp', path: '/menu/missatgeria',
-    roles: ['admin','direccio'] },
+    roles: ['admin','direccio','treballador'],
+    departments: ['manteniment'],
+  },
+
+  { label: 'Manteniment', path: '/menu/manteniment',
+    roles: ['admin','direccio','cap','treballador'],
+    departments: ['manteniment','Total'],
+    submodules: [
+      { label: 'Tickets', path: '/menu/manteniment/tickets', roles: ['admin','direccio','cap'] },
+      { label: 'Fulls de treball', path: '/menu/manteniment/treball', roles: ['admin','direccio','cap','treballador'] },
+    ],
+  },
 
   { label: 'Quadrants', path: '/menu/quadrants',
     roles: ['admin','direccio','cap'] ,
@@ -144,9 +155,29 @@ export function getVisibleModules(user: AccessUser): ModuleDef[] {
   const role = normalizeRole(user.role)
   const dept = normalizeDept(user.department)
   const matchesDept = (d?: string) => normalizeDept(d) === dept
+  const isMaintenanceWorker = role === 'treballador' && dept === 'manteniment'
 
   return MODULES
     .filter(mod => {
+      if (isMaintenanceWorker) {
+        return (
+          mod.path === '/menu/manteniment' ||
+          mod.path === '/menu/missatgeria' ||
+          mod.path === '/menu/spaces'
+        )
+      }
+
+      return true
+    })
+    .filter(mod => {
+      if (isMaintenanceWorker) {
+        return (
+          mod.path === '/menu/manteniment' ||
+          mod.path === '/menu/missatgeria' ||
+          mod.path === '/menu/spaces'
+        )
+      }
+
       if (mod.path === '/menu/torns') {
         if (role === 'admin' || role === 'direccio') return true
         if (role === 'treballador') return true

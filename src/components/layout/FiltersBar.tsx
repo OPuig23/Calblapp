@@ -16,6 +16,7 @@ export type FiltersState = {
   responsable?: string
   location?: string
   status?: string
+  priority?: string
 }
 
 type FilterKey = 'ln' | 'responsable' | 'location'
@@ -31,6 +32,10 @@ export type FiltersBarProps = {
   responsables?: string[]
   locations?: string[]
   collapseOnMobile?: boolean
+  statusOptions?: { value: string; label: string }[]
+  statusLabel?: string
+  priorityOptions?: { value: string; label: string }[]
+  priorityLabel?: string
 }
 
 export default function FiltersBar({
@@ -43,6 +48,10 @@ export default function FiltersBar({
   responsables = [],
   locations = [],
   collapseOnMobile = false,
+  statusOptions = [],
+  statusLabel = 'Estat',
+  priorityOptions = [],
+  priorityLabel = 'Prioritat',
 }: FiltersBarProps) {
   const pathname = usePathname()
   const isQuadrants = pathname?.startsWith('/menu/quadrants')
@@ -163,18 +172,45 @@ export default function FiltersBar({
                   </div>
                 )}
 
-                {isQuadrants && (
+                {(isQuadrants || statusOptions.length > 0) && (
                   <div className="flex flex-col gap-1">
-                    <label className="text-sm text-gray-600">Estat</label>
+                    <label className="text-sm text-gray-600">{statusLabel}</label>
                     <select
                       className="h-10 rounded-xl border bg-white px-3"
                       value={filters.status ?? '__all__'}
                       onChange={(e) => setFilters({ status: e.target.value })}
                     >
-                      <option value="__all__">Tots</option>
-                      <option value="pending">Pendents</option>
-                      <option value="draft">Esborranys</option>
-                      <option value="confirmed">Confirmats</option>
+                      {isQuadrants ? (
+                        <>
+                          <option value="__all__">Tots</option>
+                          <option value="pending">Pendents</option>
+                          <option value="draft">Esborranys</option>
+                          <option value="confirmed">Confirmats</option>
+                        </>
+                      ) : (
+                        statusOptions.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))
+                      )}
+                    </select>
+                  </div>
+                )}
+
+                {priorityOptions.length > 0 && (
+                  <div className="flex flex-col gap-1">
+                    <label className="text-sm text-gray-600">{priorityLabel}</label>
+                    <select
+                      className="h-10 rounded-xl border bg-white px-3"
+                      value={filters.priority ?? '__all__'}
+                      onChange={(e) => setFilters({ priority: e.target.value })}
+                    >
+                      {priorityOptions.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
                     </select>
                   </div>
                 )}
@@ -227,6 +263,7 @@ export default function FiltersBar({
                       responsable: undefined,
                       location: undefined,
                       status: undefined,
+                      priority: undefined,
                     })
                     setResetSignal((r) => r + 1)
                     onReset?.()

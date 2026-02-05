@@ -26,7 +26,7 @@ interface CreateIncidentModalProps {
 }
 
 const DEPARTAMENTS = ['Logística', 'Sala', 'Cuina', 'Comercial']
-const IMPORTANCIES = ['Alta', 'Mitjana', 'Baixa']
+const IMPORTANCIES = ['Urgent', 'Alta', 'Normal', 'Baixa']
 
 export default function CreateIncidentModal({
   open,
@@ -52,7 +52,7 @@ export default function CreateIncidentModal({
     }
     return list
   }, [normalizedUserDepartment])
-  const [importance, setImportance] = useState(IMPORTANCIES[1])
+  const [importance, setImportance] = useState('Normal')
   const [description, setDescription] = useState('')
   const [category, setCategory] = useState(categories[0])
   const [loading, setLoading] = useState(false)
