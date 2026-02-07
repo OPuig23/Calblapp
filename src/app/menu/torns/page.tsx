@@ -277,7 +277,8 @@ export default function TornsPage() {
   const openEventChat = (t: ApiTorn) => {
     const eventId = String(t.eventId || t.code || '').trim()
     if (!eventId) return
-    const url = `/menu/missatgeria?eventId=${encodeURIComponent(eventId)}&event=1`
+    const returnTo = encodeURIComponent(`/menu/torns?start=${filters.start}&end=${filters.end}`)
+    const url = `/menu/missatgeria?eventId=${encodeURIComponent(eventId)}&event=1&returnTo=${returnTo}`
     if (typeof window !== 'undefined') {
       window.open(url, '_blank', 'noopener')
       return

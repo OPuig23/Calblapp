@@ -24,6 +24,10 @@ export default function MissatgeriaPage() {
   const userRole = normalizeRole((session?.user as any)?.role || '')
   const searchParams = useSearchParams()
   const eventMode = searchParams?.get('event') === '1'
+  const returnTo = useMemo(() => {
+    const raw = searchParams?.get('returnTo')
+    return raw ? decodeURIComponent(raw) : null
+  }, [searchParams])
 
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null)
   const [messageText, setMessageText] = useState('')
@@ -610,12 +614,31 @@ export default function MissatgeriaPage() {
                   )}
                 </div>
                 <div className="min-w-0">
-                  <div className="text-sm font-semibold text-gray-800 dark:text-slate-100 truncate">
-                    {selectedChannel?.eventTitle ||
-                      selectedChannel?.location ||
-                      selectedChannel?.name ||
-                      'Selecciona un canal'}
-                  </div>
+                  {returnTo && selectedChannel ? (
+                    <button
+                      type="button"
+                      className="text-sm font-semibold text-gray-800 dark:text-slate-100 truncate hover:text-emerald-700 dark:hover:text-emerald-300 text-left"
+                      onClick={() => {
+                        if (typeof window !== 'undefined') {
+                          window.location.href = returnTo
+                          return
+                        }
+                      }}
+                      title="Tornar a l'esdeveniment"
+                    >
+                      {selectedChannel?.eventTitle ||
+                        selectedChannel?.location ||
+                        selectedChannel?.name ||
+                        'Selecciona un canal'}
+                    </button>
+                  ) : (
+                    <div className="text-sm font-semibold text-gray-800 dark:text-slate-100 truncate">
+                      {selectedChannel?.eventTitle ||
+                        selectedChannel?.location ||
+                        selectedChannel?.name ||
+                        'Selecciona un canal'}
+                    </div>
+                  )}
                   {selectedChannel?.source === 'events' && (
                     <div className="text-[11px] text-gray-500 dark:text-slate-400 truncate">
                       {[selectedChannel.eventCode, eventDateLabel(selectedChannel.eventStart)]

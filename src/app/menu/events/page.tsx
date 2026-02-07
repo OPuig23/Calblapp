@@ -202,7 +202,8 @@ export default function EventsPage() {
       if (!res.ok) return
       const json = await res.json()
       if (!json?.channelId) return
-      const url = `/menu/missatgeria?channel=${json.channelId}&event=1`
+      const returnTo = encodeURIComponent(`/menu/events?start=${filters.start}&end=${filters.end}`)
+      const url = `/menu/missatgeria?channel=${json.channelId}&event=1&returnTo=${returnTo}`
       if (typeof window !== 'undefined') {
         window.open(url, '_blank', 'noopener')
         return

@@ -8,16 +8,15 @@ export function usePushNotifications() {
   const [permission, setPermission] = useState<NotificationPermission>('default')
   const [error, setError] = useState<string | null>(null)
   const getIsNative = () => {
-    if (Capacitor.isNativePlatform?.()) return true
     if (typeof window === 'undefined') return false
-    const nativeParam = new URLSearchParams(window.location.search).get('native') === '1'
-    if (nativeParam) return true
     const cap = (window as any)?.Capacitor
-    if (cap?.isNativePlatform?.()) return true
-    const platform = cap?.getPlatform?.()
+    const platform = cap?.getPlatform?.() ?? Capacitor.getPlatform?.()
+    if (platform === 'android' || platform === 'ios') return true
+    if (platform === 'web') return false
+    if (Capacitor.isNativePlatform?.()) return true
     if (platform === 'android' || platform === 'ios') return true
     if (cap?.Plugins?.PushNotifications) return true
-    return navigator.userAgent.includes('Capacitor')
+    return false
   }
 
   useEffect(() => {
@@ -51,7 +50,12 @@ export function usePushNotifications() {
         setError('Has de permetre les notificacions al navegador')
       }
       return result
-    } catch (err) {
+    } catch (err: any) {
+      const msg = String(err?.message || '')
+      if (msg.toLowerCase().includes('not implemented')) {
+        setError('Push no disponible: cal actualitzar l’app')
+        return 'denied'
+      }
       setError(err?.message || 'No s’ha pogut demanar permís')
       return 'denied'
     }
@@ -131,6 +135,11 @@ export function usePushNotifications() {
       }
       return true
     } catch (err: any) {
+      const msg = String(err?.message || '')
+      if (msg.toLowerCase().includes('not implemented')) {
+        setError('Push no disponible: cal actualitzar l’app')
+        return false
+      }
       setError(err?.message || 'Error activant notificacions')
       return false
     }
