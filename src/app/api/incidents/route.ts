@@ -121,7 +121,9 @@ export async function POST(req: Request) {
     });
 
     const categoryId = String(category?.id || "").trim();
-    const shouldCreateTicket = ["201", "202", "401"].includes(categoryId);
+    const categoryPrefix = categoryId.charAt(0);
+    const shouldCreateTicket = categoryPrefix === "2" || categoryPrefix === "4";
+    const ticketType = categoryPrefix === "4" ? "deco" : "maquinaria";
 
     if (shouldCreateTicket) {
       const now = Date.now();
@@ -133,6 +135,7 @@ export async function POST(req: Request) {
         description,
         priority: normalizePriority(importance),
         status: "nou",
+        ticketType,
         createdAt: now,
         createdById: null,
         createdByName: respSala || "",

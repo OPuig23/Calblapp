@@ -3,7 +3,7 @@
 import React from 'react'
 import EventCard from './EventCard'
 import { Users, Calendar } from 'lucide-react'
-import { format, parseISO } from 'date-fns'
+import { addDays, format, isAfter, parseISO } from 'date-fns'
 import { ca } from 'date-fns/locale'
 
 export interface EventData {
@@ -16,15 +16,22 @@ export interface EventData {
   lnKey?: 'empresa' | 'casaments' | 'foodlovers' | 'agenda' | 'altres'
   lnLabel?: string
   responsableName?: string
+  eventCode?: string | null
+  state?: string
+  commercial?: string | null
+  chatUnread?: number
+  canChat?: boolean
 }
 
 interface Props {
   date: string
   events: EventData[]
   onEventClick?: (ev: EventData, mode?: 'menu' | 'avisos') => void
+  onEventChat?: (ev: EventData) => void
+  isAdmin?: boolean
 }
 
-export default function EventsDayGroup({ date, events, onEventClick }: Props) {
+export default function EventsDayGroup({ date, events, onEventClick, onEventChat, isAdmin }: Props) {
   const totalPax = events.reduce((sum, e) => sum + (Number(e.pax) || 0), 0)
   const totalEvents = events.length
 
@@ -64,6 +71,20 @@ export default function EventsDayGroup({ date, events, onEventClick }: Props) {
               event={event}
               onOpenMenu={() => onEventClick?.(event, 'menu')}
               onOpenAvisos={() => onEventClick?.(event, 'avisos')}
+              onOpenChat={() => onEventChat?.(event)}
+              showChat={(() => {
+                const code = String((event as any).eventCode || '').trim()
+                const commercial = String((event as any).commercial || '').trim()
+                if (!code || !commercial) return false
+                if (isAdmin) return true
+                if (!event.canChat) return false
+                const endRaw = String((event as any).end || (event as any).start || '').trim()
+                if (!endRaw) return true
+                const endDate = parseISO(endRaw)
+                if (Number.isNaN(endDate.getTime())) return true
+                const visibleUntil = addDays(endDate, 1)
+                return !isAfter(new Date(), visibleUntil)
+              })()}
             />
           </div>
         ))}

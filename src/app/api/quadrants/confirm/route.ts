@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
 import { getToken } from 'next-auth/jwt'
 import { Timestamp } from 'firebase-admin/firestore'
+import { ensureEventChatChannel } from '@/lib/messaging/eventChat'
 
 export const runtime = 'nodejs'
 
@@ -83,6 +84,12 @@ export async function POST(req: NextRequest) {
       },
       { merge: true }
     )
+
+    try {
+      await ensureEventChatChannel(String(eventId))
+    } catch {
+      // ignore chat creation errors
+    }
 
     // Crear notificacions + push
     const eventName = stageData?.eventName || stageData?.Nom || 'Nou esdeveniment'

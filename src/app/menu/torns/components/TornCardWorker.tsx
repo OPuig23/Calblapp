@@ -2,7 +2,7 @@
 'use client'
 
 import React from 'react'
-import { MapPin, Tag, Info } from 'lucide-react'
+import { MapPin, Tag, Info, MessageCircle } from 'lucide-react'
 import { TornCardItem } from './TornCard'
 
 /* Helpers */
@@ -32,10 +32,10 @@ function cleanEventName(s?: string) {
     'DINAR',
     'BRUNCH',
     'CERIMONIA',
-    'CERIMÒNIA',
+    'CERIM�NIA',
     'BANQUET',
     'COCTEL',
-    'CÒCTEL',
+    'C�CTEL',
     'PAX',
   ]
   const parts = t.split(/\s-\s/).map(p => p.trim())
@@ -132,7 +132,7 @@ type Props = {
   onAvisosClick?: () => void
 }
 
-export default function TornCardWorker({ item, onClick, onEventClick, onAvisosClick }: Props) {
+export default function TornCardWorker({ item, onClick, onEventClick, onAvisosClick, onChatClick }: Props) {
   if (!item) return null
 
   const ln = detectLN(item.code)
@@ -171,7 +171,7 @@ export default function TornCardWorker({ item, onClick, onEventClick, onAvisosCl
         {onAvisosClick && (
           <button
             type="button"
-            aria-label="Obrir avisos de producció"
+            aria-label="Obrir avisos de producci�"
             onClick={(e) => {
               e.stopPropagation()
               onAvisosClick()
@@ -179,6 +179,19 @@ export default function TornCardWorker({ item, onClick, onEventClick, onAvisosCl
             className="text-gray-400 hover:text-blue-600"
           >
             <Info className="h-4 w-4" />
+          </button>
+        )}
+        {onChatClick && (item.eventId || item.code) && (
+          <button
+            type="button"
+            aria-label="Obrir xat de l'esdeveniment"
+            onClick={(e) => {
+              e.stopPropagation()
+              onChatClick()
+            }}
+            className="text-gray-400 hover:text-amber-600"
+          >
+            <MessageCircle className="h-4 w-4" />
           </button>
         )}
       </div>
@@ -203,7 +216,7 @@ export default function TornCardWorker({ item, onClick, onEventClick, onAvisosCl
         )}
       </div>
 
-      {/* Ubicació curta amb enllaç */}
+      {/* Ubicaci� curta amb enlla� */}
       {item.location && (
         <div className="text-sm text-gray-700 mb-2 flex items-center gap-1">
           <MapPin className="h-4 w-4 text-gray-500 shrink-0" />
@@ -255,3 +268,4 @@ export default function TornCardWorker({ item, onClick, onEventClick, onAvisosCl
     </article>
   )
 }
+

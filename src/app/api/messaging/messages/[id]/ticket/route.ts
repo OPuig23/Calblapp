@@ -55,6 +55,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   }
 
   const { id } = await ctx.params
+  const body = (await req.json().catch(() => ({}))) as { ticketType?: string }
+  const ticketType = body?.ticketType === 'deco' || body?.ticketType === 'maquinaria'
+    ? body.ticketType
+    : 'maquinaria'
 
   try {
     const msgRef = db.collection('messages').doc(id)
@@ -82,8 +86,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     }
 
     const channel = channelSnap.data() as any
-    const type = channel?.type || ''
-    if (type !== 'manteniment' && type !== 'maquinaria') {
+    const source = channel?.source || ''
+    if (source !== 'finques') {
       return NextResponse.json({ error: 'Channel not allowed' }, { status: 400 })
     }
 
@@ -113,6 +117,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       description,
       priority: 'normal',
       status: 'nou',
+      ticketType,
       createdAt: now,
       createdById: user.id,
       createdByName: user.name || '',
@@ -172,6 +177,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       ticketId: ticketRef.id,
       ticketCode,
       ticketStatus: 'nou',
+      ticketType,
     }
 
     const batch = db.batch()
@@ -191,6 +197,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       const member = memberDocs.find((d) => d.id === docId)?.data() as any
       const memberUserId = member?.userId
       if (!memberUserId || memberUserId === user.id) continue
+      if (member?.hidden || member?.notify === false) continue
       batch.set(ref, { unreadCount: Number(member?.unreadCount || 0) + 1 }, { merge: true })
     }
 
@@ -200,6 +207,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         ticketId: ticketRef.id,
         ticketCode,
         ticketStatus: 'nou',
+        ticketType,
       },
       { merge: true }
     )
@@ -235,6 +243,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         await Promise.all(
           memberUserIds
             .filter((uid) => uid && uid !== user.id)
+            .filter((uid) => {
+              const m = memberDocs.find((d) => (d.data() as any)?.userId === uid)?.data() as any
+              return !m?.hidden && m?.notify !== false
+            })
             .map((uid) =>
               rest.channels.get(`user:${uid}:inbox`).publish('updated', {
                 channelId,
@@ -250,7 +262,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     const mutedUsers = new Set(
       memberDocs
         .map((d) => d.data() as any)
-        .filter((m) => m?.muted)
+        .filter((m) => m?.muted || m?.notify === false || m?.hidden)
         .map((m) => m.userId)
     )
 

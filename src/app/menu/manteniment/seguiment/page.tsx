@@ -21,6 +21,7 @@ type Ticket = {
   status: TicketStatus
   createdAt: number | string
   createdByName?: string
+  assignedToIds?: string[]
   assignedToNames?: string[]
   statusHistory?: Array<{
     status: TicketStatus
@@ -81,6 +82,9 @@ export default function MaintenanceTrackingPage() {
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [historyTicket, setHistoryTicket] = useState<Ticket | null>(null)
+  const [users, setUsers] = useState<Array<{ id: string; name?: string; department?: string }>>([])
+  const [departmentFilter, setDepartmentFilter] = useState('__all__')
+  const [workerFilter, setWorkerFilter] = useState('__all__')
 
   const fetchTickets = async () => {
     try {
@@ -110,9 +114,40 @@ export default function MaintenanceTrackingPage() {
     fetchTickets()
   }, [statusFilter, canView])
 
+  useEffect(() => {
+    if (!canView) return
+    const loadUsers = async () => {
+      try {
+        const res = await fetch('/api/users', { cache: 'no-store' })
+        if (!res.ok) return
+        const json = await res.json()
+        setUsers(Array.isArray(json) ? json : [])
+      } catch {
+        setUsers([])
+      }
+    }
+    loadUsers()
+  }, [canView])
+
   const filteredTickets = useMemo(() => {
     const query = search.trim().toLowerCase()
+    const userById = new Map(users.map((u) => [String(u.id), u]))
     const list = tickets.filter((ticket) => {
+      if (departmentFilter !== '__all__') {
+        const ids = Array.isArray(ticket.assignedToIds) ? ticket.assignedToIds : []
+        const hasDept = ids.some((id) => {
+          const u = userById.get(String(id))
+          const dep = String(u?.department || '').toLowerCase()
+          return dep === departmentFilter
+        })
+        if (!hasDept) return false
+      }
+
+      if (workerFilter !== '__all__') {
+        const ids = Array.isArray(ticket.assignedToIds) ? ticket.assignedToIds : []
+        if (!ids.map(String).includes(workerFilter)) return false
+      }
+
       if (!query) return true
       const code = (ticket.ticketCode || ticket.incidentNumber || '').toLowerCase()
       const machine = (ticket.machine || '').toLowerCase()
@@ -137,7 +172,36 @@ export default function MaintenanceTrackingPage() {
     })
 
     return list
-  }, [tickets, search])
+  }, [tickets, search, departmentFilter, workerFilter, users])
+
+  const departmentOptions = useMemo(() => {
+    const userById = new Map(users.map((u) => [String(u.id), u]))
+    const set = new Set<string>()
+    tickets.forEach((t) => {
+      const ids = Array.isArray(t.assignedToIds) ? t.assignedToIds : []
+      ids.forEach((id) => {
+        const dep = String(userById.get(String(id))?.department || '').toLowerCase()
+        if (dep) set.add(dep)
+      })
+    })
+    return Array.from(set).sort()
+  }, [users, tickets])
+
+  const workerOptions = useMemo(() => {
+    const userById = new Map(users.map((u) => [String(u.id), u]))
+    const set = new Map<string, string>()
+    tickets.forEach((t) => {
+      const ids = Array.isArray(t.assignedToIds) ? t.assignedToIds : []
+      ids.forEach((id) => {
+        const u = userById.get(String(id))
+        if (!u) return
+        const dep = String(u.department || '').toLowerCase()
+        if (departmentFilter !== '__all__' && dep !== departmentFilter) return
+        set.set(String(id), String(u.name || u.id))
+      })
+    })
+    return Array.from(set.entries()).map(([id, name]) => ({ id, name }))
+  }, [users, tickets, departmentFilter])
 
   return (
     <RoleGuard allowedRoles={['admin', 'direccio', 'cap', 'comercial', 'treballador']}>
@@ -152,6 +216,35 @@ export default function MaintenanceTrackingPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              className="h-8 rounded-full border px-3 text-xs bg-white"
+              value={departmentFilter}
+              onChange={(e) => {
+                setDepartmentFilter(e.target.value)
+                setWorkerFilter('__all__')
+              }}
+            >
+              <option value="__all__">Tots els departaments</option>
+              {departmentOptions.map((dep) => (
+                <option key={dep} value={dep}>
+                  {dep}
+                </option>
+              ))}
+            </select>
+            <select
+              className="h-8 rounded-full border px-3 text-xs bg-white"
+              value={workerFilter}
+              onChange={(e) => setWorkerFilter(e.target.value)}
+            >
+              <option value="__all__">Tots els treballadors</option>
+              {workerOptions.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name}
+                </option>
+              ))}
+            </select>
+          </div>
           <div className="hidden sm:flex flex-wrap items-center gap-2 justify-end flex-1">
             {[
               { value: '__all__', label: 'Tots' },

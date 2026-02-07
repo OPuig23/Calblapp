@@ -77,7 +77,12 @@ function findMissingFields(person: PersonnelDoc) {
     if (isEmpty((person as Record<string, unknown>)[field])) missing.push(field)
   })
 
-  if (person.driver?.isDriver) {
+  const dept = normLower(person.department || person.departmentLower)
+  const deptRaw = normLower(
+    `${person.department || ''} ${person.departmentLower || ''}`
+  )
+  const isServeis = dept.includes('servei') || deptRaw.includes('servei')
+  if (person.driver?.isDriver && !isServeis) {
     const hasType = person.driver.camioGran || person.driver.camioPetit
     if (!hasType) missing.push('driverType')
   }

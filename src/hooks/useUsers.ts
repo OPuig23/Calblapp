@@ -14,6 +14,8 @@ export type User = {
   available?: boolean
   isDriver?: boolean
   workerRank?: 'equip' | 'responsable'
+  opsChannelsConfigurable?: string[]
+  opsEventsConfigurable?: boolean
 }
 
 export function useUsers() {
@@ -55,6 +57,8 @@ export function useUsers() {
       available:  data.available,
       isDriver:   data.isDriver,
       workerRank: data.workerRank,
+      opsChannelsConfigurable: data.opsChannelsConfigurable,
+      opsEventsConfigurable: data.opsEventsConfigurable,
     }
 
     let res: Response

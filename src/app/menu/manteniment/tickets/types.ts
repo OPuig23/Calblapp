@@ -1,5 +1,6 @@
 export type TicketStatus = 'nou' | 'assignat' | 'en_curs' | 'espera' | 'resolut' | 'validat'
 export type TicketPriority = 'urgent' | 'alta' | 'normal' | 'baixa'
+export type TicketType = 'maquinaria' | 'deco'
 
 export type Ticket = {
   id: string
@@ -10,6 +11,7 @@ export type Ticket = {
   description: string
   priority: TicketPriority
   status: TicketStatus
+  ticketType?: TicketType
   source?: 'manual' | 'incidencia' | 'whatsblapp'
   sourceChannelId?: string | null
   sourceMessageId?: string | null

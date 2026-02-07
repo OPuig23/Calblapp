@@ -57,15 +57,19 @@ async function createTicketFromMessage(args: {
   messageCreatedAt: number
   userId: string
   userName: string
+  ticketType?: 'maquinaria' | 'deco'
 }) {
   const { channelId, messageId, messageBody, messageCreatedAt, userId, userName } = args
+  const ticketType = args.ticketType === 'deco' || args.ticketType === 'maquinaria'
+    ? args.ticketType
+    : 'maquinaria'
 
   const channelSnap = await db.collection('channels').doc(channelId).get()
   if (!channelSnap.exists) return null
   const channel = channelSnap.data() as any
 
-  const type = channel?.type || ''
-  if (type !== 'manteniment' && type !== 'maquinaria') return null
+  const source = channel?.source || ''
+  if (source !== 'finques') return null
   if (channel?.responsibleUserId !== userId) return null
 
   const location = (channel?.location || '').toString().trim()
@@ -103,6 +107,7 @@ async function createTicketFromMessage(args: {
     ticketId: ticketRef.id,
     ticketCode,
     ticketStatus: 'nou',
+    ticketType,
     system: true,
   }
 
@@ -115,6 +120,7 @@ async function createTicketFromMessage(args: {
     description,
     priority: 'normal',
     status: 'nou',
+    ticketType,
     createdAt: now,
     createdById: userId,
     createdByName: userName || '',
@@ -170,6 +176,7 @@ async function createTicketFromMessage(args: {
       ticketId: ticketRef.id,
       ticketCode,
       ticketStatus: 'nou',
+      ticketType,
     },
     { merge: true }
   )
@@ -365,6 +372,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       const memberUserId = member?.userId
 
       if (memberUserId === userId) continue
+      if (member?.hidden || member?.notify === false) continue
       if (visibility === 'direct' && memberUserId !== targetUserId) continue
 
       batch.set(
@@ -395,6 +403,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
         const recipients = memberDocs
           .map((d) => d.data() as any)
+          .filter((m) => !m?.hidden && m?.notify !== false)
           .map((m) => m.userId)
           .filter((uid) => uid && uid !== userId)
           .filter((uid) => (visibility === 'direct' ? uid === targetUserId : true))
@@ -413,6 +422,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
     const recipients = memberDocs
       .map((d) => d.data() as any)
+      .filter((m) => !m?.hidden && m?.notify !== false)
       .map((m) => m.userId)
       .filter((uid) => uid && uid !== userId)
       .filter((uid) => (visibility === 'direct' ? uid === targetUserId : true))
@@ -420,7 +430,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     const mutedUsers = new Set(
       memberDocs
         .map((d) => d.data() as any)
-        .filter((m) => m?.muted)
+        .filter((m) => m?.muted || m?.notify === false || m?.hidden)
         .map((m) => m.userId)
     )
 
@@ -444,6 +454,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         messageCreatedAt: now,
         userId,
         userName: senderName,
+        ticketType: 'maquinaria',
       })
 
       if (ticketResult && apiKey) {

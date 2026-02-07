@@ -6,8 +6,13 @@ import FiltersBar from '@/components/layout/FiltersBar'
 import TicketsList from './components/TicketsList'
 import CreateTicketModal from './components/CreateTicketModal'
 import AssignTicketModal from './components/AssignTicketModal'
-import type { TicketPriority, TicketStatus } from './types'
+import type { TicketPriority, TicketStatus, TicketType } from './types'
 import { useMaintenanceTickets } from './useMaintenanceTickets'
+import { markTicketSeen } from '@/lib/maintenanceSeen'
+import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
+import { normalizeRole } from '@/lib/roles'
+import { useEffect, useMemo } from 'react'
 
 const STATUS_LABELS: Record<TicketStatus, string> = {
   nou: 'Nou',
@@ -23,6 +28,11 @@ const PRIORITY_LABELS: Record<TicketPriority, string> = {
   alta: 'Alta',
   normal: 'Normal',
   baixa: 'Baixa',
+}
+
+const TICKET_TYPE_LABELS: Record<TicketType, string> = {
+  maquinaria: 'Maquinària',
+  deco: 'Deco',
 }
 
 const statusBadgeClasses: Record<TicketStatus, string> = {
@@ -59,9 +69,36 @@ const formatDateTime = (value?: number | string | null) => {
 }
 
 export default function MaintenanceTicketsPage() {
+  const { data: session, status } = useSession()
+  const router = useRouter()
+  const departmentRaw = (session?.user as any)?.department || ''
+  const userRole = normalizeRole((session?.user as any)?.role || '')
+  const department = useMemo(
+    () =>
+      (departmentRaw || '')
+        .toString()
+        .normalize('NFD')
+        .replace(/\p{Diacritic}/gu, '')
+        .toLowerCase()
+        .trim(),
+    [departmentRaw]
+  )
+
+  const hasAccess =
+    userRole === 'admin' ||
+    userRole === 'direccio' ||
+    (userRole === 'cap' && department === 'manteniment')
+
+  useEffect(() => {
+    if (status === 'loading') return
+    if (!hasAccess) router.replace('/menu')
+  }, [hasAccess, router, status])
+
+  if (!hasAccess && status !== 'loading') return null
+
   const {
-    role,
-    department,
+    role: ticketRole,
+    department: ticketDepartment,
     userId,
     loading,
     error,
@@ -87,6 +124,8 @@ export default function MaintenanceTicketsPage() {
     setCreateDescription,
     createPriority,
     setCreatePriority,
+    createTicketType,
+    setCreateTicketType,
     createImagePreview,
     createBusy,
     imageError,
@@ -122,14 +161,14 @@ export default function MaintenanceTicketsPage() {
     handleUpdateDetails,
     handleDelete,
     groupedTickets,
-  } = useMaintenanceTickets()
+  } = useMaintenanceTickets({ ticketType: 'maquinaria' })
 
   return (
     <RoleGuard allowedRoles={['admin', 'direccio', 'cap']}>
       <div className="space-y-5 px-4 pb-8">
         <ModuleHeader
-          title="Manteniment"
-          subtitle="Tickets de reparació i manteniment."
+          title="Tickets"
+          subtitle="Maquinària"
           actions={
             <button
               className="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2 rounded-full"
@@ -174,12 +213,15 @@ export default function MaintenanceTicketsPage() {
 
         <TicketsList
           groupedTickets={groupedTickets}
-          onSelect={(ticket) => setSelected(ticket)}
+          onSelect={(ticket) => {
+            markTicketSeen(ticket.id, 'maquinaria')
+            setSelected(ticket)
+          }}
           onDelete={handleDelete}
           canDelete={(ticket) =>
             ticket.createdById === userId ||
-            role === 'admin' ||
-            (role === 'cap' && department === 'manteniment')
+            ticketRole === 'admin' ||
+            (ticketRole === 'cap' && ticketDepartment === 'manteniment')
           }
           formatDateTime={formatDateTime}
           statusBadgeClasses={statusBadgeClasses}
@@ -194,6 +236,8 @@ export default function MaintenanceTicketsPage() {
             machines={machines}
             createPriority={createPriority}
             setCreatePriority={setCreatePriority}
+            createTicketType={createTicketType}
+            setCreateTicketType={setCreateTicketType}
             locationQuery={locationQuery}
             setLocationQuery={setLocationQuery}
             createLocation={createLocation}
@@ -209,6 +253,8 @@ export default function MaintenanceTicketsPage() {
             showMachineList={showMachineList}
             setShowMachineList={setShowMachineList}
             priorityLabels={PRIORITY_LABELS}
+            ticketTypeLabels={TICKET_TYPE_LABELS}
+            showTicketTypeSelector={false}
             onClose={() => setShowCreate(false)}
             onCreate={handleCreateTicket}
             createBusy={createBusy}

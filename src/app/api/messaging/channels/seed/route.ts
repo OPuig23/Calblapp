@@ -7,19 +7,17 @@ import { normalizeRole } from '@/lib/roles'
 export const runtime = 'nodejs'
 
 const PILOT_LOCATIONS = [
-  { source: 'events', location: 'Clos la Plana' },
-  { source: 'events', location: 'Josep Massachs' },
-  { source: 'events', location: 'Mirador Events' },
-  { source: 'events', location: 'Font de la Canya' },
-  { source: 'events', location: 'La Masia' },
+  { source: 'finques', location: 'Clos la Plana' },
+  { source: 'finques', location: 'Josep Massachs' },
+  { source: 'finques', location: 'Mirador Events' },
+  { source: 'finques', location: 'Font de la Canya' },
+  { source: 'finques', location: 'La Masia' },
   { source: 'restaurants', location: 'Mirador' },
   { source: 'restaurants', location: 'Nàutic' },
   { source: 'restaurants', location: 'La Masia' },
   { source: 'restaurants', location: 'Camp Nou' },
   { source: 'restaurants', location: 'Soliver' },
 ]
-
-const PILOT_TYPES = ['manteniment', 'maquinaria', 'produccio'] as const
 
 const slugify = (value: string) =>
   value
@@ -44,35 +42,27 @@ export async function POST() {
     const batch = db.batch()
     const now = Date.now()
 
-    for (const type of PILOT_TYPES) {
-      for (const ch of PILOT_LOCATIONS) {
-        const typeLabel =
-          type === 'manteniment'
-            ? 'Manteniment'
-            : type === 'maquinaria'
-            ? 'Maquinària'
-            : 'Producció'
-        const sourceLabel = ch.source === 'events' ? 'Events' : 'Restaurants'
-        const name = `${typeLabel} · ${sourceLabel} · ${ch.location}`
-        const docId = `${type}_${ch.source}_${slugify(ch.location)}`
-        const docRef = db.collection('channels').doc(docId)
-        batch.set(
-          docRef,
-          {
-            type,
-            source: ch.source,
-            location: ch.location,
-            name,
-            createdBy: (session.user as any)?.id || 'system',
-            createdAt: now,
-            lastMessagePreview: '',
-            lastMessageAt: 0,
-            responsibleUserId: null,
-            responsibleUserName: null,
-          },
-          { merge: true }
-        )
-      }
+    for (const ch of PILOT_LOCATIONS) {
+      const sourceLabel = ch.source === 'finques' ? 'Finques' : 'Restaurants'
+      const name = `Ops · ${sourceLabel} · ${ch.location}`
+      const docId = `${ch.source}_${slugify(ch.location)}`
+      const docRef = db.collection('channels').doc(docId)
+      batch.set(
+        docRef,
+        {
+          type: 'manteniment',
+          source: ch.source,
+          location: ch.location,
+          name,
+          createdBy: (session.user as any)?.id || 'system',
+          createdAt: now,
+          lastMessagePreview: '',
+          lastMessageAt: 0,
+          responsibleUserId: null,
+          responsibleUserName: null,
+        },
+        { merge: true }
+      )
     }
 
     await batch.commit()

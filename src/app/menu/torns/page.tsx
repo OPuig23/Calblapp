@@ -273,6 +273,18 @@ export default function TornsPage() {
     setEventMenuOpen(true)
   }
 
+
+  const openEventChat = (t: ApiTorn) => {
+    const eventId = String(t.eventId || t.code || '').trim()
+    if (!eventId) return
+    const url = `/menu/missatgeria?eventId=${encodeURIComponent(eventId)}&event=1`
+    if (typeof window !== 'undefined') {
+      window.open(url, '_blank', 'noopener')
+      return
+    }
+    router.push(url)
+  }
+
   const userForEventMenu = {
     id: (session?.user as any)?.id,
     role: (session?.user as any)?.role,
@@ -357,6 +369,7 @@ export default function TornsPage() {
           onTornClick={openDetail}
           onEventClick={openEventMenu}
           onAvisosClick={openAvisos}
+          onChatClick={openEventChat}
           groupByEvent={
             !isWorker && !(filters.workerId) && !(filters.workerName)
           }
@@ -386,4 +399,6 @@ export default function TornsPage() {
     </RoleGuard>
   )
 }
+
+
 

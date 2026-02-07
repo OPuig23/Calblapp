@@ -3,7 +3,7 @@
 
 import React from 'react'
 import { Card } from '@/components/ui/card'
-import { MapPin, Users, Tag, Info, Clock } from 'lucide-react'
+import { MapPin, Users, Tag, Info, Clock, MessageCircle } from 'lucide-react'
 import { colorByLN } from '@/lib/colors'
 
 interface LastAviso {
@@ -28,12 +28,16 @@ interface EventData {
   lnLabel?: string
   lastAviso?: LastAviso | null
   avisosUnread?: number
+  chatUnread?: number
+  canChat?: boolean
 }
 
 interface Props {
   event: EventData
   onOpenMenu: () => void
   onOpenAvisos: () => void
+  onOpenChat?: () => void
+  showChat?: boolean
 }
 
 function cleanEventName(s?: string) {
@@ -44,7 +48,7 @@ function cleanEventName(s?: string) {
   return t
 }
 
-export default function EventCard({ event, onOpenMenu, onOpenAvisos }: Props) {
+export default function EventCard({ event, onOpenMenu, onOpenAvisos, onOpenChat, showChat }: Props) {
   const name = event.NomEvent || event.summary || ''
   const displaySummary = cleanEventName(name)
   const isCodeUnconfirmed = event.codeConfirmed === false
@@ -114,6 +118,24 @@ export default function EventCard({ event, onOpenMenu, onOpenAvisos }: Props) {
         </div>
 
         <div className="flex shrink-0 items-center gap-1.5 pl-1">
+          {showChat && onOpenChat && (
+            <button
+              type="button"
+              aria-label="Obrir xat de l'esdeveniment"
+              className="relative"
+              onClick={(e) => {
+                e.stopPropagation()
+                onOpenChat()
+              }}
+            >
+              <MessageCircle className="h-4 w-4 text-amber-600" />
+              {Number(event.chatUnread || 0) > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-semibold leading-4 text-center">
+                  {Number(event.chatUnread) > 99 ? '99+' : Number(event.chatUnread)}
+                </span>
+              )}
+            </button>
+          )}
           <button
             type="button"
             aria-label="Obrir avisos de produccio"

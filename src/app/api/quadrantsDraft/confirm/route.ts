@@ -2,6 +2,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
 import { getToken } from 'next-auth/jwt'
+import { ensureEventChatChannel } from '@/lib/messaging/eventChat'
 
 export const runtime = 'nodejs'
 const ORIGIN = 'Molí Vinyals, 11, 08776 Sant Pere de Riudebitlles, Barcelona'
@@ -232,6 +233,12 @@ export async function POST(req: NextRequest) {
     const km = await calcDistanceKm(destination)
     if (km) {
       await ref.set({ distanceKm: km, distanceCalcAt: new Date() }, { merge: true })
+    }
+
+    try {
+      await ensureEventChatChannel(String(eventId))
+    } catch {
+      // ignore chat creation errors
     }
 
     // 3) Avisos intel·ligents

@@ -2,7 +2,7 @@
 'use client'
 
 import React from 'react'
-import { MapPin, Users, Tag, Info } from 'lucide-react'
+import { MapPin, Users, Tag, Info, MessageCircle } from 'lucide-react'
 
 type WorkerLite = {
   id?: string
@@ -17,6 +17,7 @@ type WorkerLite = {
 
 export type TornCardItem = {
   id: string
+  eventId?: string
   code: string
   eventName: string
   date: string
@@ -164,7 +165,7 @@ type Props = {
   onAvisosClick?: () => void
 }
 
-export default function TornCard({ item, onClick, onEventClick, onAvisosClick }: Props) {
+export default function TornCard({ item, onClick, onEventClick, onAvisosClick, onChatClick }: Props) {
   if (!item) return null
 
   const ln = detectLN(item.code)
@@ -217,6 +218,19 @@ export default function TornCard({ item, onClick, onEventClick, onAvisosClick }:
               className="text-gray-400 hover:text-blue-600"
             >
               <Info className="h-4 w-4" />
+            </button>
+          )}
+          {onChatClick && (item.eventId || item.code) && (
+            <button
+              type="button"
+              aria-label="Obrir xat de l'esdeveniment"
+              onClick={(e) => {
+                e.stopPropagation()
+                onChatClick()
+              }}
+              className="text-gray-400 hover:text-amber-600"
+            >
+              <MessageCircle className="h-4 w-4" />
             </button>
           )}
           {totalAssignats > 0 && (
@@ -304,3 +318,5 @@ export default function TornCard({ item, onClick, onEventClick, onAvisosClick }:
     </article>
   )
 }
+
+

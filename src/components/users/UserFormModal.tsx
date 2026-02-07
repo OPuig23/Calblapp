@@ -13,6 +13,8 @@ import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import { Trash2 } from 'lucide-react'
+import { DEPARTMENTS } from '@/data/departments'
+import useSWR from 'swr'
 
 export interface User {
   id?: string
@@ -26,6 +28,8 @@ export interface User {
   phone?: string
   email?: string
   password?: string
+  opsChannelsConfigurable?: string[]
+  opsEventsConfigurable?: boolean
 }
 
 export interface NewUserPayload {
@@ -33,6 +37,8 @@ export interface NewUserPayload {
   password: string
   role: string
   department: string
+  opsChannelsConfigurable?: string[]
+  opsEventsConfigurable?: boolean
   available?: boolean
   isDriver?: boolean
   workerRank?: string
@@ -48,25 +54,7 @@ type Props = {
 }
 
 const ROLES = ['Admin', 'Direcció', 'Cap Departament', 'Treballador', 'Usuari', 'Comercial'] as const
-const DEPARTS = [
-  'Total',
-  'Empresa',
-  'Compres',
-  'Comptabilitat',
-  'Restauracio',
-  'Marqueting',
-  'Manteniment',
-  'Plats Preparats',
-  'Recursos Humans',
-  'Serveis',
-  'Logistica',
-  'Cuina',
-  'Food Lover',
-  'Qualitat',
-  'Producció',
-  'Casaments',
-  'Transports',
-] as const
+const DEPARTS = DEPARTMENTS
 
 const RANKS = [
   { value: 'equip', label: 'Equip' },
@@ -85,6 +73,20 @@ export function UserFormModal({ user, onSubmit, onClose, onAfterAction }: Props)
   const [available, setAvailable] = React.useState(true)
   const [isDriver, setIsDriver] = React.useState(false)
   const [workerRank, setWorkerRank] = React.useState<string>('equip')
+  const [opsChannelsConfigurable, setOpsChannelsConfigurable] = React.useState<string[]>([])
+  const [opsEventsConfigurable, setOpsEventsConfigurable] = React.useState(false)
+
+  const { data: channelsData } = useSWR('/api/messaging/channels?scope=all', (url: string) =>
+    fetch(url).then((r) => r.json())
+  )
+  const allChannels = Array.isArray(channelsData?.channels) ? channelsData.channels : []
+  const opsChannels = allChannels.filter(
+    (ch: any) => ch?.source === 'finques' || ch?.source === 'restaurants' || ch?.source === 'events'
+  )
+  const opsByGroup = {
+    finques: opsChannels.filter((ch: any) => ch?.source === 'finques'),
+    restaurants: opsChannels.filter((ch: any) => ch?.source === 'restaurants'),
+  }
 
   const isWorker =
     role?.toLowerCase().trim() === 'treballador' ||
@@ -131,6 +133,11 @@ export function UserFormModal({ user, onSubmit, onClose, onAfterAction }: Props)
     setDepartment(user.department ?? 'Total')
     setPhone(user.phone ?? '')
     setEmail(user.email ?? '')
+    const baseOps = Array.isArray(user.opsChannelsConfigurable)
+      ? user.opsChannelsConfigurable.map(String)
+      : []
+    setOpsChannelsConfigurable(baseOps)
+    setOpsEventsConfigurable(Boolean(user.opsEventsConfigurable))
     if (user.role?.toLowerCase() === 'treballador') {
       setAvailable(user.available ?? true)
       setIsDriver(user.driver?.isDriver ?? false)
@@ -175,6 +182,8 @@ export function UserFormModal({ user, onSubmit, onClose, onAfterAction }: Props)
         available,
         isDriver,
         workerRank,
+        opsChannelsConfigurable,
+        opsEventsConfigurable,
       }
       if (password.trim()) payload.password = password.trim()
       onSubmit(payload)
@@ -189,6 +198,8 @@ export function UserFormModal({ user, onSubmit, onClose, onAfterAction }: Props)
       department,
       phone,
       email,
+      opsChannelsConfigurable,
+      opsEventsConfigurable,
     }
     if (isWorker) {
       payload.available = available
@@ -325,6 +336,64 @@ export function UserFormModal({ user, onSubmit, onClose, onAfterAction }: Props)
               </div>
             </div>
 
+            <div className="rounded-xl border p-3">
+              <div className="mb-2 text-xs font-semibold text-gray-500">
+                Canals configurables (Ops)
+              </div>
+              <div className="space-y-3">
+                {(['finques', 'restaurants', 'events'] as const).map((group) => {
+                  const list = group === 'events' ? [] : opsByGroup[group]
+                  if (group !== 'events' && (!list || list.length === 0)) return null
+                  const label =
+                    group === 'finques' ? 'Finques' : group === 'restaurants' ? 'Restaurants' : 'Events'
+                  const isEvents = group === 'events'
+                  return (
+                    <details key={group} className="border rounded-lg px-3 py-2">
+                      <summary className="cursor-pointer text-sm font-medium">
+                        {label}
+                      </summary>
+                      <div className="mt-2 space-y-2">
+                        {isEvents ? (
+                          <label className="flex items-center gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={opsEventsConfigurable}
+                              onChange={(e) => setOpsEventsConfigurable(e.target.checked)}
+                            />
+                            <span>Permetre xats d'events</span>
+                          </label>
+                        ) : (
+                          list.map((ch: any) => {
+                            const id = String(ch.id)
+                            const text = ch.location || ch.name || id
+                            return (
+                              <label key={id} className="flex items-center gap-2 text-sm">
+                                <input
+                                  type="checkbox"
+                                  checked={opsChannelsConfigurable.includes(id)}
+                                  onChange={() =>
+                                    setOpsChannelsConfigurable((prev) =>
+                                      prev.includes(id)
+                                        ? prev.filter((v) => v !== id)
+                                        : [...prev, id]
+                                    )
+                                  }
+                                />
+                                <span>{text}</span>
+                              </label>
+                            )
+                          })
+                        )}
+                      </div>
+                    </details>
+                  )
+                })}
+                {opsChannels.length === 0 && (
+                  <div className="text-xs text-gray-500">No hi ha canals disponibles.</div>
+                )}
+              </div>
+            </div>
+
             <div className="mt-6 flex items-center justify-end gap-3">
               <Button
                 type="button"
@@ -355,3 +424,4 @@ export function UserFormModal({ user, onSubmit, onClose, onAfterAction }: Props)
 }
 
 export default UserFormModal
+

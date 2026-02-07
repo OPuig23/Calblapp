@@ -1,10 +1,12 @@
-import type { MachineItem, TicketPriority } from '../types'
+import type { MachineItem, TicketPriority, TicketType } from '../types'
 
 type Props = {
   locations: string[]
   machines: MachineItem[]
   createPriority: TicketPriority
   setCreatePriority: (value: TicketPriority) => void
+  createTicketType: TicketType
+  setCreateTicketType: (value: TicketType) => void
   locationQuery: string
   setLocationQuery: (value: string) => void
   createLocation: string
@@ -20,6 +22,8 @@ type Props = {
   showMachineList: boolean
   setShowMachineList: (value: boolean) => void
   priorityLabels: Record<TicketPriority, string>
+  ticketTypeLabels: Record<TicketType, string>
+  showTicketTypeSelector?: boolean
   onClose: () => void
   onCreate: () => void
   createBusy: boolean
@@ -33,6 +37,8 @@ export default function CreateTicketModal({
   machines,
   createPriority,
   setCreatePriority,
+  createTicketType,
+  setCreateTicketType,
   locationQuery,
   setLocationQuery,
   createLocation,
@@ -48,6 +54,8 @@ export default function CreateTicketModal({
   showMachineList,
   setShowMachineList,
   priorityLabels,
+  ticketTypeLabels,
+  showTicketTypeSelector = true,
   onClose,
   onCreate,
   createBusy,
@@ -55,6 +63,9 @@ export default function CreateTicketModal({
   imageError,
   imagePreview,
 }: Props) {
+  const isDeco = createTicketType === 'deco'
+  const machineLabel = isDeco ? 'Material' : 'Maquinària'
+  const machinePlaceholder = isDeco ? 'Cerca material...' : 'Cerca maquinària...'
   return (
     <div
       className="fixed inset-0 bg-black/30 flex items-center justify-center p-4 z-50"
@@ -92,6 +103,24 @@ export default function CreateTicketModal({
         </div>
 
         <div className="space-y-3">
+          {showTicketTypeSelector && (
+            <div className="flex items-center gap-2 flex-wrap">
+              {(['maquinaria', 'deco'] as TicketType[]).map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setCreateTicketType(key)}
+                  className={`px-3 py-1 rounded-full text-xs border font-semibold ${
+                    createTicketType === key
+                      ? 'bg-emerald-600 text-white border-emerald-600'
+                      : 'bg-gray-100 text-gray-800 border-gray-200'
+                  }`}
+                >
+                  {ticketTypeLabels[key]}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div className="relative">
               <input
@@ -151,7 +180,7 @@ export default function CreateTicketModal({
             <div className="relative">
               <input
                 className="w-full border rounded-xl px-3 py-2 text-[13px] pr-8"
-                placeholder="Cerca maquinària..."
+                placeholder={machinePlaceholder}
                 value={machineQuery}
                 onFocus={() => setShowMachineList(true)}
                 onChange={(e) => {
@@ -199,10 +228,9 @@ export default function CreateTicketModal({
                   )}
                 </div>
               )}
-              {machines.length === 0 && (
+              {machines.length === 0 && !isDeco && (
                 <div className="text-xs text-amber-600 mt-1">
-                  No s’ha pogut carregar la maquinària.
-                </div>
+                  No s’ha pogut carregar la maquinària.</div>
               )}
             </div>
           </div>
@@ -264,3 +292,5 @@ export default function CreateTicketModal({
     </div>
   )
 }
+
+

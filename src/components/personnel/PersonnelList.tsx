@@ -86,7 +86,12 @@ export default function PersonnelList({ personnel, mutate, onEdit }: Props) {
     if (!p.department?.toString().trim()) missing.push('departament')
     if (!p.email?.toString().trim()) missing.push('email')
     if (!p.phone?.toString().trim()) missing.push('telèfon')
-    if (p.driver?.isDriver) {
+    const deptLower = (p.department || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+    const isServeis = deptLower.includes('servei')
+    if (p.driver?.isDriver && !isServeis) {
       const hasType = p.driver.camioGran || p.driver.camioPetit
       if (!hasType) missing.push('tipus conductor')
     }
@@ -297,3 +302,4 @@ export default function PersonnelList({ personnel, mutate, onEdit }: Props) {
     </div>
   )
 }
+

@@ -24,6 +24,8 @@ export interface AppUser {
   department: string
   phone?: string
   email?: string
+  opsChannelsConfigurable?: string[]
+  opsEventsConfigurable?: boolean
 
   available?: boolean
   isDriver?: boolean
@@ -221,9 +223,12 @@ function UsersPage() {
             role: modalUser.role,
             department: modalUser.department,
             phone: modalUser.phone ?? '',
+            email: modalUser.email ?? '',
             available: modalUser.available ?? true,
             driver: { isDriver: modalUser.isDriver ?? false },
             workerRank: modalUser.workerRank ?? 'equip',
+            opsChannelsConfigurable: (modalUser as any).opsChannelsConfigurable ?? [],
+            opsEventsConfigurable: (modalUser as any).opsEventsConfigurable ?? false,
           }}
           onSubmit={(data) => {
             if (modalUser.personId) {

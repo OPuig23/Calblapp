@@ -11,6 +11,7 @@ type Props = {
   onTornClick?: (t: TornCardItem) => void
   onEventClick?: (t: TornCardItem) => void
   onAvisosClick?: (t: TornCardItem) => void
+  onChatClick?: (t: TornCardItem) => void
   groupByEvent?: boolean
   role?: 'Admin' | 'Direcció' | 'Cap Departament' | 'Treballador'
   filters?: {
@@ -133,6 +134,7 @@ export default function TornsList({
   onTornClick,
   onEventClick,
   onAvisosClick,
+  onChatClick,
   groupByEvent = false,
   role = 'Treballador',
   filters,
@@ -231,6 +233,7 @@ export default function TornsList({
       item={t}
       onEventClick={onEventClick ? () => onEventClick(t) : undefined}
       onAvisosClick={onAvisosClick ? () => onAvisosClick(t) : undefined}
+      onChatClick={onChatClick ? () => onChatClick(t) : undefined}
     />
   </>
 ) : (
@@ -243,6 +246,7 @@ export default function TornsList({
       item={t}
       onEventClick={onEventClick ? () => onEventClick(t) : undefined}
       onAvisosClick={onAvisosClick ? () => onAvisosClick(t) : undefined}
+      onChatClick={onChatClick ? () => onChatClick(t) : undefined}
     />
   </>
 )}
@@ -260,4 +264,6 @@ export default function TornsList({
     </div>
   )
 }
+
+
 

@@ -214,7 +214,25 @@ export async function GET(req: NextRequest) {
       const endISO = d?.DataFi ? `${d.DataFi}T00:00:00.000Z` : startISO
       const pax = Number(d?.NumPax ?? 0) || 0
       const importAmount = Number(d?.Import ?? d?.import ?? d?.importAmount ?? 0) || 0
-      const eventCode = d?.code || null
+      const eventCode =
+        d?.code ||
+        d?.Code ||
+        d?.C_digo ||
+        d?.codi ||
+        d?.Codi ||
+        null
+      const commercial =
+        d?.Comercial ||
+        d?.COMERCIAL ||
+        d?.comercial ||
+        d?.comercialNom ||
+        d?.Comercial_nom ||
+        d?.Commercial ||
+        d?.Sales ||
+        d?.ResponsableComercial ||
+        d?.ComercialName ||
+        d?.ComercialNom ||
+        null
       const codeConfirmed =
         typeof d?.codeConfirmed === 'boolean' ? d.codeConfirmed : undefined
       const codeMatchScore =
@@ -259,6 +277,7 @@ export async function GET(req: NextRequest) {
         pax,
         importAmount,
         eventCode,
+        commercial,
         codeConfirmed,
         codeMatchScore,
         htmlLink: null,

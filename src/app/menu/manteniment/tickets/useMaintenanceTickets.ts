@@ -8,6 +8,7 @@ import type {
   Ticket,
   TicketPriority,
   TicketStatus,
+  TicketType,
   TransportItem,
   UserItem,
 } from './types'
@@ -21,7 +22,7 @@ const normalizeDept = (raw?: string) =>
     .toLowerCase()
     .trim()
 
-export function useMaintenanceTickets() {
+export function useMaintenanceTickets(options?: { ticketType?: TicketType }) {
   const { data: session } = useSession()
   const role = normalizeRole((session?.user as any)?.role || '')
   const department = normalizeDept((session?.user as any)?.department || '')
@@ -50,6 +51,7 @@ export function useMaintenanceTickets() {
   const statusFilter = filters.status ?? '__all__'
   const priorityFilter = filters.priority ?? '__all__'
   const locationFilter = filters.location ?? '__all__'
+  const ticketTypeFilter = options?.ticketType || 'maquinaria'
 
   const [locations, setLocations] = useState<string[]>([])
   const [machines, setMachines] = useState<MachineItem[]>([])
@@ -63,6 +65,7 @@ export function useMaintenanceTickets() {
   const [showMachineList, setShowMachineList] = useState(false)
   const [createDescription, setCreateDescription] = useState('')
   const [createPriority, setCreatePriority] = useState<TicketPriority>('normal')
+  const [createTicketType, setCreateTicketType] = useState<TicketType>(ticketTypeFilter)
   const [createImageFile, setCreateImageFile] = useState<File | null>(null)
   const [createImagePreview, setCreateImagePreview] = useState<string | null>(null)
   const [createBusy, setCreateBusy] = useState(false)
@@ -86,14 +89,20 @@ export function useMaintenanceTickets() {
 
   const { data: transports } = useTransports()
 
+  const targetDept = ticketTypeFilter === 'deco' ? 'decoracio' : 'manteniment'
   const maintenanceUsers = useMemo(
     () =>
-      users.filter(
-        (u) =>
-          normalizeDept(u.departmentLower || u.department) === 'manteniment' &&
-          normalizeRole(u.role || '') === 'treballador'
-      ),
-    [users]
+      users.filter((u) => {
+        const dept = normalizeDept(u.departmentLower || u.department)
+        const role = normalizeRole(u.role || '')
+        const isAssignable = role === 'treballador' || role === 'cap'
+        if (!isAssignable) return false
+        if (ticketTypeFilter === 'deco') {
+          return dept === 'decoracio' || dept === 'decoracions' || dept === 'decoracion'
+        }
+        return dept === 'manteniment'
+      }),
+    [users, ticketTypeFilter]
   )
 
   const furgonetes = useMemo(
@@ -108,6 +117,7 @@ export function useMaintenanceTickets() {
       const params = new URLSearchParams()
       if (statusFilter !== '__all__') params.set('status', statusFilter)
       if (priorityFilter !== '__all__') params.set('priority', priorityFilter)
+      if (ticketTypeFilter) params.set('ticketType', ticketTypeFilter)
       if (locationFilter && locationFilter !== '__all__') {
         params.set('location', locationFilter)
       }
@@ -148,6 +158,10 @@ export function useMaintenanceTickets() {
   }
 
   const fetchMachines = async () => {
+    if (ticketTypeFilter === 'deco') {
+      setMachines([])
+      return
+    }
     try {
       const res = await fetch('/api/maintenance/machines', { cache: 'no-store' })
       if (!res.ok) return
@@ -160,7 +174,7 @@ export function useMaintenanceTickets() {
 
   useEffect(() => {
     fetchTickets()
-  }, [statusFilter, priorityFilter, locationFilter])
+  }, [statusFilter, priorityFilter, locationFilter, ticketTypeFilter])
 
   useEffect(() => {
     fetchLocations()
@@ -250,6 +264,7 @@ export function useMaintenanceTickets() {
           machine: createMachine,
           description: createDescription,
           priority: createPriority,
+          ticketType: createTicketType,
           source: 'manual',
           imageUrl: image.url,
           imagePath: image.path,
@@ -262,6 +277,7 @@ export function useMaintenanceTickets() {
       setCreateMachine('')
       setCreateDescription('')
       setCreatePriority('normal')
+      setCreateTicketType(ticketTypeFilter)
       setCreateImageFile(null)
       setCreateImagePreview(null)
       await fetchTickets()
@@ -292,8 +308,8 @@ export function useMaintenanceTickets() {
   const handleAssign = async (ticket: Ticket, assignedIds: string[], assignedNames: string[]) => {
     try {
     if ((ticket.source === 'whatsblapp' || ticket.source === 'incidencia') && ticket.status === 'nou') {
-      if (!detailsLocation.trim() || !detailsDescription.trim() || !detailsMachine.trim()) {
-        alert('Completa ubicació, maquinària i observacions abans d’assignar.')
+      if (!detailsLocation.trim() || !detailsDescription.trim()) {
+        alert('Completa ubicació i observacions abans d’assignar.')
         return
       }
     }
@@ -523,6 +539,8 @@ export function useMaintenanceTickets() {
     setCreateDescription,
     createPriority,
     setCreatePriority,
+    createTicketType,
+    setCreateTicketType,
     createImagePreview,
     createBusy,
     imageError,
@@ -561,3 +579,4 @@ export function useMaintenanceTickets() {
     groupedTickets,
   }
 }
+

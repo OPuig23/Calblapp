@@ -1,112 +1,56 @@
 ﻿'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import useSWR from 'swr'
 import { useSession } from 'next-auth/react'
-import { BellOff, BellRing, Paperclip, Search, Send, Trash2, Users } from 'lucide-react'
+import { BellOff, BellRing, Users } from 'lucide-react'
 import Link from 'next/link'
 import { RoleGuard } from '@/lib/withRoleGuard'
 import { getAblyClient } from '@/lib/ablyClient'
 import { useSearchParams } from 'next/navigation'
 import { normalizeRole } from '@/lib/roles'
+import ChannelsSidebar from './components/ChannelsSidebar'
+import MembersPanel from './components/MembersPanel'
+import MessageList from './components/MessageList'
+import Composer from './components/Composer'
+import type { Channel, Member, Message, PendingImage } from './types'
+import { eventDateLabel, initials } from './utils'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
-
-type Channel = {
-  id: string
-  name: string
-  type: string
-  source: string
-  location: string
-  responsibleUserId?: string | null
-  responsibleUserName?: string | null
-  lastMessagePreview?: string
-  lastMessageAt?: number
-  unreadCount?: number
-  muted?: boolean
-}
-
-type Message = {
-  id: string
-  channelId: string
-  senderId: string
-  senderName: string
-  body: string
-  createdAt: number
-  visibility: 'channel' | 'direct'
-  targetUserIds?: string[]
-  imageUrl?: string | null
-  imagePath?: string | null
-  imageMeta?: { width?: number; height?: number; size?: number; type?: string } | null
-  ticketId?: string | null
-  ticketCode?: string | null
-  ticketStatus?: string | null
-}
-
-type Member = { userId: string; userName: string }
-
-function timeLabel(ts?: number) {
-  if (!ts) return ''
-  const d = new Date(ts)
-  if (Number.isNaN(d.getTime())) return ''
-  return d.toLocaleTimeString('ca-ES', { hour: '2-digit', minute: '2-digit' })
-}
-
-function initials(name?: string) {
-  const clean = (name || '').trim()
-  if (!clean) return '?'
-  const parts = clean.split(/\s+/)
-  const a = parts[0]?.charAt(0) || ''
-  const b = parts[1]?.charAt(0) || ''
-  return (a + b).toUpperCase()
-}
-
-function labelType(type?: string) {
-  if (type === 'manteniment') return 'Manteniment'
-  if (type === 'maquinaria') return 'Maquinària'
-  if (type === 'produccio') return 'Producció'
-  return type || ''
-}
-
-function labelSource(source?: string) {
-  if (source === 'events') return 'Events'
-  if (source === 'restaurants') return 'Restaurants'
-  return source || ''
-}
 
 export default function MissatgeriaPage() {
   const { data: session } = useSession()
   const userId = (session?.user as any)?.id as string | undefined
   const userRole = normalizeRole((session?.user as any)?.role || '')
   const searchParams = useSearchParams()
+  const eventMode = searchParams?.get('event') === '1'
 
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null)
   const [messageText, setMessageText] = useState('')
   const [loadingSend, setLoadingSend] = useState(false)
   const [messagesState, setMessagesState] = useState<Message[]>([])
   const [loadingMore, setLoadingMore] = useState(false)
-  const [typeFilter, setTypeFilter] = useState<'manteniment' | 'maquinaria' | 'produccio'>('manteniment')
-  const [sourceFilter, setSourceFilter] = useState<'events' | 'restaurants'>('events')
+  const [categoryFilter, setCategoryFilter] = useState<'finques' | 'restaurants' | 'events'>('finques')
   const [channelQuery, setChannelQuery] = useState('')
   const [imageUploading, setImageUploading] = useState(false)
   const [imageError, setImageError] = useState<string | null>(null)
-  const [pendingImage, setPendingImage] = useState<{
-    url: string
-    path: string
-    meta: { width?: number; height?: number; size?: number; type?: string }
-  } | null>(null)
+  const [pendingImage, setPendingImage] = useState<PendingImage | null>(null)
   const [mentionQuery, setMentionQuery] = useState('')
   const [mentionOpen, setMentionOpen] = useState(false)
   const [mentionTarget, setMentionTarget] = useState<Member | null>(null)
   const [typingUsers, setTypingUsers] = useState<Record<string, number>>({})
+  const [showArchivedEvents, setShowArchivedEvents] = useState(false)
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const messagesCache = useRef<Map<string, Message[]>>(new Map())
   const typingThrottleRef = useRef<number>(0)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const lastEventIdRef = useRef<string | null>(null)
   const [mobileView, setMobileView] = useState<'list' | 'chat'>('list')
   const [membersOpen, setMembersOpen] = useState(false)
   const [savingResponsible, setSavingResponsible] = useState(false)
   const [creatingTicketId, setCreatingTicketId] = useState<string | null>(null)
+  const [ticketTypePickerId, setTicketTypePickerId] = useState<string | null>(null)
+  const [eventChannel, setEventChannel] = useState<Channel | null>(null)
 
   const { data: channelsData, mutate: refreshChannels } = useSWR(
     '/api/messaging/channels?scope=mine',
@@ -118,41 +62,139 @@ export default function MissatgeriaPage() {
     ? channelsData.channels
     : []
 
+  useEffect(() => {
+    const rawEventId = String(searchParams?.get('eventId') || '').trim()
+    if (!rawEventId) return
+    if (lastEventIdRef.current === rawEventId) return
+    lastEventIdRef.current = rawEventId
+
+    setCategoryFilter('events')
+    setChannelQuery('')
+    setMobileView('chat')
+
+    let active = true
+    fetch('/api/messaging/events/ensure', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ eventId: rawEventId }),
+    })
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((json) => {
+        if (!active) return
+        if (!json?.channelId) return
+        setSelectedChannelId(String(json.channelId))
+        refreshChannels()
+      })
+      .catch(() => {
+        if (!active) return
+      })
+
+    return () => {
+      active = false
+    }
+  }, [searchParams, refreshChannels])
+
+  useEffect(() => {
+    const queryChannel = searchParams?.get('channel')
+    if (!queryChannel) {
+      setEventChannel(null)
+      return
+    }
+    if (channels.some((c) => c.id === queryChannel)) {
+      setEventChannel(null)
+      return
+    }
+    let active = true
+    fetch(`/api/messaging/channels/${queryChannel}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((json) => {
+        if (!active) return
+        setEventChannel(json?.channel || null)
+      })
+      .catch(() => {
+        if (!active) return
+        setEventChannel(null)
+      })
+    return () => {
+      active = false
+    }
+  }, [searchParams, channels])
+
+  const allChannels = useMemo(() => {
+    if (!eventChannel) return channels
+    const map = new Map(channels.map((c) => [c.id, c]))
+    map.set(eventChannel.id, eventChannel)
+    return Array.from(map.values())
+  }, [channels, eventChannel])
+
+  const isActiveEventChannelForList = useCallback((c: Channel) => {
+    if (c.source !== 'events') return false
+    if (!showArchivedEvents && String(c.status || '').toLowerCase() === 'archived') return false
+
+    const until = typeof c.visibleUntil === 'number' ? c.visibleUntil : null
+    if (!showArchivedEvents && until && Date.now() > until) return false
+
+    return true
+  }, [showArchivedEvents])
+
+  const activeEventChannels = useMemo(
+    () => allChannels.filter(isActiveEventChannelForList),
+    [allChannels, isActiveEventChannelForList]
+  )
+
+  const activeEventUnread = useMemo(
+    () => activeEventChannels.reduce((acc, c) => acc + Number(c.unreadCount || 0), 0),
+    [activeEventChannels]
+  )
+
   const filteredChannels = useMemo(() => {
-    let out = channels
-    out = out.filter((c) => c.type === typeFilter)
-    out = out.filter((c) => c.source === sourceFilter)
+    let out = allChannels
+    if (eventMode && selectedChannelId) {
+      return out.filter((c) => c.id === selectedChannelId)
+    }
+    if (categoryFilter === 'events') {
+      out = out.filter(isActiveEventChannelForList)
+    } else {
+      out = out.filter((c) => c.source === categoryFilter)
+    }
     const q = channelQuery.trim().toLowerCase()
     if (q) {
       out = out.filter((c) => {
-        const hay = `${c.name} ${c.source} ${c.location}`.toLowerCase()
+        const hay = [
+          c.name,
+          c.source,
+          c.location,
+          c.eventCode,
+          c.eventTitle,
+          c.eventStart,
+          c.eventEnd,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
         return hay.includes(q)
       })
     }
     return out
-  }, [channels, typeFilter, sourceFilter, channelQuery])
-
-  const unreadByType = useMemo(() => {
-    const map: Record<string, number> = {}
-    channels.forEach((c) => {
-      const n = Number(c.unreadCount || 0)
-      if (!n) return
-      map[c.type] = (map[c.type] || 0) + n
-    })
-    return map
-  }, [channels])
+  }, [allChannels, categoryFilter, channelQuery, eventMode, selectedChannelId, isActiveEventChannelForList])
 
   useEffect(() => {
     const queryChannel = searchParams?.get('channel')
-    if (queryChannel && channels.some((c) => c.id === queryChannel)) {
+    if (queryChannel && allChannels.some((c) => c.id === queryChannel)) {
       setSelectedChannelId(queryChannel)
       setMobileView('chat')
       return
     }
-    if (!selectedChannelId && filteredChannels.length > 0) {
+    if (filteredChannels.length === 0) return
+    if (!selectedChannelId) {
+      setSelectedChannelId(filteredChannels[0].id)
+      return
+    }
+    const stillVisible = filteredChannels.some((c) => c.id === selectedChannelId)
+    if (!stillVisible) {
       setSelectedChannelId(filteredChannels[0].id)
     }
-  }, [channels, filteredChannels, selectedChannelId, searchParams])
+  }, [allChannels, filteredChannels, selectedChannelId, searchParams])
 
   const { data: messagesData, mutate: refreshMessages } = useSWR(
     selectedChannelId
@@ -166,7 +208,7 @@ export default function MissatgeriaPage() {
     ? messagesData.messages
     : []
 
-  const { data: membersData } = useSWR(
+  const { data: membersData, mutate: refreshMembers } = useSWR(
     selectedChannelId
       ? `/api/messaging/channels/${selectedChannelId}/members`
       : null,
@@ -177,19 +219,36 @@ export default function MissatgeriaPage() {
     ? membersData.members
     : []
 
-  const selectedChannel = useMemo(
-    () => channels.find((c) => c.id === selectedChannelId) || null,
-    [channels, selectedChannelId]
+  const selfMember = useMemo(
+    () => members.find((m) => m.userId === userId) || null,
+    [members, userId]
   )
+
+  const selectedChannel = useMemo(
+    () => allChannels.find((c) => c.id === selectedChannelId) || null,
+    [allChannels, selectedChannelId]
+  )
+
+  const isReadOnlyEvent = useMemo(() => {
+    if (!selectedChannel || selectedChannel.source !== 'events') return false
+    const status = String(selectedChannel.status || '').toLowerCase()
+    const until =
+      typeof selectedChannel.visibleUntil === 'number'
+        ? selectedChannel.visibleUntil
+        : null
+    if (status === 'archived') return true
+    if (until && Date.now() > until) return true
+    return false
+  }, [selectedChannel])
 
   const canEditResponsible = userRole === 'admin' || userRole === 'direccio'
   const canCreateTicket =
     !!selectedChannel &&
-    (selectedChannel.type === 'manteniment' || selectedChannel.type === 'maquinaria') &&
+    selectedChannel.source === 'finques' &&
     !!userId &&
     selectedChannel.responsibleUserId === userId
 
-  const createTicketFromMessage = async (message: Message) => {
+  const createTicketFromMessage = async (message: Message, ticketType: 'maquinaria' | 'deco') => {
     if (!message?.id || !canCreateTicket) return
     if (message.ticketId) return
     try {
@@ -197,6 +256,7 @@ export default function MissatgeriaPage() {
       const res = await fetch(`/api/messaging/messages/${message.id}/ticket`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ticketType }),
       })
       if (!res.ok) {
         const json = await res.json().catch(() => ({}))
@@ -208,6 +268,7 @@ export default function MissatgeriaPage() {
       alert(err?.message || 'No s’ha pogut crear el ticket')
     } finally {
       setCreatingTicketId(null)
+      setTicketTypePickerId(null)
     }
   }
 
@@ -503,125 +564,28 @@ export default function MissatgeriaPage() {
               href="/menu"
               className="text-base font-semibold text-gray-900 hover:text-emerald-700 dark:text-slate-100"
             >
-              WhatsBlapp
+              Ops · Canal intern
             </Link>
           </div>
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-          <aside
-            className={`lg:col-span-1 bg-white dark:bg-slate-900 ${
-              mobileView === 'chat' ? 'hidden lg:block' : 'block'
-            }`}
-          >
-            <div className="p-3 space-y-3 border-b border-gray-100 lg:border-b lg:border-gray-100 dark:border-slate-800">
-              <div className="flex w-full rounded-lg border border-gray-200 overflow-hidden bg-gray-50 dark:border-slate-700 dark:bg-slate-800">
-                {[
-                  { key: 'manteniment', label: 'Manteniment' },
-                  { key: 'maquinaria', label: 'Maquinària' },
-                  { key: 'produccio', label: 'Producció' },
-                ].map((chip, idx, arr) => {
-                  const active = typeFilter === chip.key
-                  const isLast = idx === arr.length - 1
-                  const typeUnread = unreadByType[chip.key] || 0
-                  return (
-                    <button
-                      key={chip.key}
-                      type="button"
-                      onClick={() => setTypeFilter(chip.key as any)}
-                      className={`flex-1 px-3 py-2 text-xs font-semibold border-r last:border-r-0 relative ${
-                        active
-                          ? 'bg-emerald-600 text-white'
-                          : 'bg-transparent text-gray-600 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-700'
-                      } ${isLast ? 'border-r-0' : 'border-gray-200 dark:border-slate-700'}`}
-                    >
-                      {typeUnread > 0 && !active && (
-                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-semibold rounded-full px-1.5">
-                          {typeUnread}
-                        </span>
-                      )}
-                      {chip.label}
-                    </button>
-                  )
-                })}
-              </div>
-              <div className="flex items-center gap-2 border rounded-lg px-2 py-1 dark:border-slate-700">
-                <Search className="w-4 h-4 text-gray-400 dark:text-slate-400" />
-                <input
-                  className="w-full text-sm outline-none bg-transparent text-gray-800 dark:text-slate-100"
-                  placeholder="Cerca canal, finca o restaurant..."
-                  value={channelQuery}
-                  onChange={(e) => setChannelQuery(e.target.value)}
-                />
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {[
-                  { key: 'events', label: 'Events' },
-                  { key: 'restaurants', label: 'Restaurants' },
-                ].map((chip) => {
-                  const active = sourceFilter === chip.key
-                  return (
-                    <button
-                      key={chip.key}
-                      type="button"
-                      onClick={() => setSourceFilter(chip.key as any)}
-                      className={`px-3 py-1 rounded-full text-xs border ${
-                        active
-                          ? 'bg-emerald-600 text-white border-emerald-600'
-                          : 'bg-white text-gray-600 border-gray-300 dark:bg-slate-900 dark:text-slate-300 dark:border-slate-700'
-                      }`}
-                    >
-                      {chip.label}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-            <ul className="max-h-[70vh] overflow-y-auto">
-              {filteredChannels.map((c) => (
-                <li key={c.id}>
-                  <button
-                    type="button"
-                    onClick={() => openChannel(c.id)}
-                    className={`w-full text-left px-3 py-3 hover:bg-gray-50 dark:hover:bg-slate-800 ${
-                      selectedChannelId === c.id ? 'bg-emerald-50 dark:bg-emerald-900/30' : ''
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-gray-200 text-gray-700 dark:bg-slate-700 dark:text-slate-100 flex items-center justify-center text-xs font-semibold shrink-0">
-                        {initials(c.location || c.name)}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between">
-                          <div className="text-sm font-semibold text-gray-800 dark:text-slate-100 truncate">
-                            {c.location}
-                          </div>
-                      {c.unreadCount ? (
-                        <span className="text-xs bg-red-500 text-white rounded-full px-2 py-0.5">
-                          {c.unreadCount}
-                        </span>
-                      ) : null}
-                        </div>
-                        <div className="text-xs text-gray-500 dark:text-slate-400 flex items-center justify-between gap-2">
-                          <span className="truncate">
-                            {c.lastMessagePreview || 'Sense missatges'}
-                          </span>
-                          <span className="text-[11px] text-gray-400 dark:text-slate-500 shrink-0">
-                            {timeLabel(c.lastMessageAt)}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </button>
-                </li>
-              ))}
-              {filteredChannels.length === 0 && (
-                <li className="p-4 text-sm text-gray-500 dark:text-slate-400">
-                  No tens canals subscrits.
-                </li>
-              )}
-            </ul>
-          </aside>
+          <div className={`lg:col-span-1 ${mobileView === 'chat' ? 'hidden lg:block' : 'block'}`}>
+            <ChannelsSidebar
+              eventMode={eventMode}
+              categoryFilter={categoryFilter}
+              setCategoryFilter={setCategoryFilter}
+              channelQuery={channelQuery}
+              setChannelQuery={setChannelQuery}
+              filteredChannels={filteredChannels}
+              selectedChannelId={selectedChannelId}
+              onOpenChannel={openChannel}
+              activeEventUnread={activeEventUnread}
+              showArchivedEvents={showArchivedEvents}
+              setShowArchivedEvents={setShowArchivedEvents}
+              userRole={userRole}
+            />
+          </div>
 
           <section
             className={`lg:col-span-3 bg-white dark:bg-slate-900 flex flex-col ${
@@ -639,10 +603,26 @@ export default function MissatgeriaPage() {
                   ←
                 </button>
                 <div className="w-8 h-8 rounded-full bg-gray-200 text-gray-700 dark:bg-slate-700 dark:text-slate-100 flex items-center justify-center text-xs font-semibold">
-                  {initials(selectedChannel?.location || selectedChannel?.name)}
+                  {initials(
+                    selectedChannel?.eventTitle ||
+                      selectedChannel?.location ||
+                      selectedChannel?.name
+                  )}
                 </div>
-                <div className="text-sm font-semibold text-gray-800 dark:text-slate-100">
-                  {selectedChannel?.location || 'Selecciona un canal'}
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-gray-800 dark:text-slate-100 truncate">
+                    {selectedChannel?.eventTitle ||
+                      selectedChannel?.location ||
+                      selectedChannel?.name ||
+                      'Selecciona un canal'}
+                  </div>
+                  {selectedChannel?.source === 'events' && (
+                    <div className="text-[11px] text-gray-500 dark:text-slate-400 truncate">
+                      {[selectedChannel.eventCode, eventDateLabel(selectedChannel.eventStart)]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </div>
+                  )}
                 </div>
               </div>
               {selectedChannel && (
@@ -680,65 +660,26 @@ export default function MissatgeriaPage() {
             </div>
 
             {membersOpen && selectedChannel && (
-              <div className="border-b bg-white dark:bg-slate-900 dark:border-slate-800 px-3 py-3">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm font-semibold text-gray-800 dark:text-slate-100">
-                    Membres del canal
-                  </div>
-                  <button
-                    type="button"
-                    className="text-xs text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-200"
-                    onClick={() => setMembersOpen(false)}
-                  >
-                    Tancar
-                  </button>
-                </div>
-                <div className="mt-1 text-xs text-gray-500 dark:text-slate-400">
-                  Responsable:{' '}
-                  <span className="font-semibold text-gray-700 dark:text-slate-200">
-                    {selectedChannel.responsibleUserName || 'No assignat'}
-                  </span>
-                </div>
-                <div className="mt-3 space-y-2">
-                  {members.map((m) => {
-                    const isResponsible = selectedChannel.responsibleUserId === m.userId
-                    return (
-                      <div
-                        key={m.userId}
-                        className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 px-3 py-2 dark:border-slate-700"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-gray-200 text-gray-700 dark:bg-slate-700 dark:text-slate-100 flex items-center justify-center text-xs font-semibold">
-                            {initials(m.userName)}
-                          </div>
-                          <div className="text-sm text-gray-800 dark:text-slate-100">
-                            {m.userName}
-                          </div>
-                        </div>
-                        {isResponsible ? (
-                          <span className="text-xs font-semibold text-emerald-700">
-                            Responsable
-                          </span>
-                        ) : canEditResponsible ? (
-                          <button
-                            type="button"
-                            className="text-xs border rounded-full px-3 py-1 text-gray-600 hover:text-gray-800 dark:text-slate-300 dark:border-slate-600 dark:hover:text-white"
-                            onClick={() => updateResponsible(m.userId)}
-                            disabled={savingResponsible}
-                          >
-                            Fer responsable
-                          </button>
-                        ) : null}
-                      </div>
-                    )
-                  })}
-                  {members.length === 0 && (
-                    <div className="text-xs text-gray-500 dark:text-slate-400">
-                      Sense membres.
-                    </div>
-                  )}
-                </div>
-              </div>
+              <MembersPanel
+                members={members}
+                selectedChannel={selectedChannel}
+                canEditResponsible={canEditResponsible}
+                updateResponsible={updateResponsible}
+                savingResponsible={savingResponsible}
+                userRole={userRole}
+                selfMember={selfMember}
+                onToggleVisibility={async () => {
+                  if (!selectedChannel) return
+                  const nextHidden = !(selfMember?.hidden)
+                  await fetch(`/api/messaging/channels/${selectedChannel.id}/visibility`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ hidden: nextHidden }),
+                  })
+                  refreshChannels()
+                  refreshMembers()
+                }}
+              />
             )}
 
             <div
@@ -751,201 +692,50 @@ export default function MissatgeriaPage() {
                 }
               }}
             >
-              {messagesState
-                .slice()
-                .reverse()
-                .map((m) => {
-                  const isMine = userId && m.senderId === userId
-                  const ticks =
-                    isMine && (m as any)?.readCount > 0 ? '✓✓' : isMine ? '✓' : ''
-                  return (
-                    <div
-                      key={m.id}
-                      className={`space-y-1 ${isMine ? 'flex flex-col items-end' : ''}`}
-                    >
-                      <div className="text-xs text-gray-500 dark:text-slate-400 flex items-center gap-2">
-                        {!isMine && (
-                          <span className="w-6 h-6 rounded-full bg-gray-200 text-gray-700 dark:bg-slate-700 dark:text-slate-100 flex items-center justify-center text-[10px] font-semibold">
-                            {initials(m.senderName)}
-                          </span>
-                        )}
-                        <span>
-                          {isMine ? 'Tu' : m.senderName || 'Usuari'} · {timeLabel(m.createdAt)}
-                          {m.visibility === 'direct' ? ' · Directe' : ''}
-                        </span>
-                        {ticks && (
-                          <span className="text-[10px] text-gray-400">{ticks}</span>
-                        )}
-                        {isMine && (
-                          <button
-                            type="button"
-                            className="text-gray-400 hover:text-red-600"
-                            onClick={() => deleteMessage(m.id)}
-                            title="Esborrar missatge"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        )}
-                      </div>
-                      <div
-                        className={`text-sm rounded-lg p-2 space-y-2 max-w-[85%] ${
-                          isMine
-                            ? 'bg-emerald-600 text-white'
-                            : 'bg-gray-100 text-gray-900 dark:bg-slate-800 dark:text-slate-100'
-                        }`}
-                      >
-                        {m.body && <div>{m.body}</div>}
-                        {m.imageUrl && (
-                          <a href={m.imageUrl} target="_blank" rel="noopener noreferrer">
-                            <img
-                              src={m.imageUrl}
-                              alt="Imatge"
-                              className="max-h-64 rounded border dark:border-slate-700"
-                            />
-                          </a>
-                        )}
-                      </div>
-                      {((canCreateTicket && m.visibility === 'channel') || m.ticketId) && (
-                        <div className="text-xs text-gray-600 dark:text-slate-300">
-                          {m.ticketId ? (
-                            <Link
-                              href={`/menu/manteniment/tickets?ticket=${m.ticketId}`}
-                              className="underline hover:text-emerald-600"
-                            >
-                              Veure ticket {m.ticketCode ? `· ${m.ticketCode}` : ''}
-                            </Link>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => createTicketFromMessage(m)}
-                              disabled={creatingTicketId === m.id}
-                              className="underline hover:text-emerald-600"
-                            >
-                              {creatingTicketId === m.id ? 'Creant ticket…' : 'Crear ticket'}
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              {messagesState.length === 0 && (
-                <p className="text-sm text-gray-500 dark:text-slate-400">Encara no hi ha missatges.</p>
-              )}
+              <MessageList
+                messages={messagesState}
+                userId={userId}
+                canCreateTicket={canCreateTicket}
+                creatingTicketId={creatingTicketId}
+                ticketTypePickerId={ticketTypePickerId}
+                onDelete={deleteMessage}
+                onCreateTicket={createTicketFromMessage}
+                onPickTicketType={setTicketTypePickerId}
+              />
             </div>
-
-            <div className="border-t p-3 space-y-2 bg-white dark:bg-slate-900 fixed bottom-0 left-0 right-0 lg:sticky lg:bottom-0 pb-[env(safe-area-inset-bottom)] dark:border-slate-800">
-              {Object.keys(typingUsers).length > 0 && (
-                <div className="text-xs text-gray-500 dark:text-slate-400">
-                  S'està escrivint…
-                </div>
-              )}
-              {pendingImage && (
-                <div className="flex items-center gap-3 text-sm">
-                  <img
-                    src={pendingImage.url}
-                    alt="Imatge adjunta"
-                    className="h-16 w-16 object-cover rounded border dark:border-slate-700"
-                  />
-                  <button
-                    type="button"
-                    className="text-red-600 text-xs"
-                    onClick={() => setPendingImage(null)}
-                  >
-                    Eliminar imatge
-                  </button>
-                </div>
-              )}
-              {imageError && (
-                <div className="text-xs text-red-600">{imageError}</div>
-              )}
-              <div className="flex flex-wrap gap-2">
-                {['Rebut', 'Ho reviso', 'Fet'].map((quick) => (
-                  <button
-                    key={quick}
-                    type="button"
-                    className="text-xs border rounded-full px-3 py-1 text-gray-600 hover:text-gray-800 dark:text-slate-300 dark:border-slate-700 dark:hover:text-white"
-                    onClick={() => setMessageText((prev) => `${prev} ${quick}`.trim())}
-                  >
-                    {quick}
-                  </button>
-                ))}
-              </div>
-              {mentionTarget && (
-                <div className="text-xs text-emerald-700">
-                  Directe a: <strong>{mentionTarget.userName}</strong>
-                </div>
-              )}
-
-              <div className="flex items-center gap-2">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => handleImagePick(e.target.files?.[0] || null)}
-                />
-                <button
-                  type="button"
-                  className="border rounded px-2 py-1 text-gray-600 hover:text-gray-800 hover:border-gray-400 dark:text-slate-300 dark:border-slate-700 dark:hover:text-white dark:hover:border-slate-500"
-                  onClick={() => fileInputRef.current?.click()}
-                  title="Adjuntar imatge"
-                  disabled={imageUploading}
-                >
-                  <Paperclip className="w-4 h-4" />
-                </button>
-                <input
-                  className="flex-1 border rounded-lg px-3 py-2 text-sm bg-transparent text-gray-900 dark:text-slate-100 dark:border-slate-700"
-                  placeholder="Escriu el missatge..."
-                  value={messageText}
-                  onChange={(e) => {
-                    setMessageText(e.target.value)
-                    updateMentionState(e.target.value)
-                    handleTyping(e.target.value)
-                  }}
-                />
-                <button
-                  type="button"
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white p-2 rounded-full"
-                  onClick={sendMessage}
-                  disabled={loadingSend || imageUploading}
-                  title="Enviar"
-                >
-                  <Send className="w-4 h-4" />
-                </button>
-              </div>
-
-              {mentionOpen && (
-                <div className="border rounded-lg bg-white dark:bg-slate-900 dark:border-slate-700 shadow-sm max-h-40 overflow-y-auto">
-                  {members
-                    .filter((m) =>
-                      m.userName.toLowerCase().includes(mentionQuery)
-                    )
-                    .map((m) => (
-                      <button
-                        key={m.userId}
-                        type="button"
-                        className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-slate-800 text-sm"
-                        onClick={() => selectMention(m)}
-                      >
-                        {m.userName}
-                      </button>
-                    ))}
-                  {members.filter((m) =>
-                    m.userName.toLowerCase().includes(mentionQuery)
-                  ).length === 0 && (
-                    <div className="px-3 py-2 text-xs text-gray-500 dark:text-slate-400">
-                      Cap usuari
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+            <Composer
+              typingUsers={typingUsers}
+              pendingImage={pendingImage}
+              imageError={imageError}
+              imageUploading={imageUploading}
+              isSending={loadingSend}
+              messageText={messageText}
+              onTextChange={(value) => {
+                setMessageText(value)
+                updateMentionState(value)
+                handleTyping(value)
+              }}
+              onRemoveImage={() => setPendingImage(null)}
+              onPickFile={() => fileInputRef.current?.click()}
+              onSend={sendMessage}
+              onQuick={(quick) => setMessageText((prev) => `${prev} ${quick}`.trim())}
+              mentionTarget={mentionTarget}
+              mentionOpen={mentionOpen}
+              mentionQuery={mentionQuery}
+              members={members}
+              onSelectMention={selectMention}
+              isReadOnly={isReadOnlyEvent}
+              fileInputRef={fileInputRef}
+              onFileChange={(file) => handleImagePick(file)}
+            />
           </section>
         </div>
       </div>
     </RoleGuard>
   )
 }
+
+
+
 
 

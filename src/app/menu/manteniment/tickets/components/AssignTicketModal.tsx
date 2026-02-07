@@ -79,6 +79,9 @@ export default function AssignTicketModal({
   onAssignVehicle,
   onClose,
 }: Props) {
+  const isDeco = ticket.ticketType === 'deco'
+  const machineLabel = isDeco ? 'Material' : 'Maquinària'
+  const machinePlaceholder = isDeco ? 'Selecciona material' : 'Selecciona maquinària'
   const eventTitleShort = (ticket.sourceEventTitle || '')
     .split('/')
     .map((chunk) => chunk.trim())
@@ -144,13 +147,13 @@ export default function AssignTicketModal({
                   </select>
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-[11px] text-gray-500 mb-1">Maquinària</span>
+                  <span className="text-[11px] text-gray-500 mb-1">{machineLabel}</span>
                   <select
                     className="border rounded-lg px-3 py-1 text-xs h-9 bg-gray-50"
                     value={detailsMachine}
                     onChange={(e) => setDetailsMachine(e.target.value)}
                   >
-                    <option value="">Selecciona maquinària</option>
+                    <option value="">{machinePlaceholder}</option>
                     {machines.map((m) => (
                       <option key={`${m.code}-${m.name}`} value={m.label}>
                         {m.label}
@@ -339,3 +342,5 @@ export default function AssignTicketModal({
     </div>
   )
 }
+
+

@@ -56,7 +56,7 @@ export default function TicketsList({
                           className="text-emerald-700 hover:text-emerald-800 underline"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          WhatsBlapp
+                          Ops
                         </Link>
                       )}
                       {canDelete(ticket) && (

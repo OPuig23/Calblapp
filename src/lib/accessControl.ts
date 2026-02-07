@@ -42,6 +42,11 @@ export const MODULES: ModuleDef[] = [
   { label: 'Esdeveniments', path: '/menu/events',
     roles: ['admin','direccio','cap','comercial','usuari'] },
 
+  { label: 'Ops', path: '/menu/missatgeria',
+    roles: ['admin','direccio','treballador'],
+    departments: ['manteniment'],
+  },
+
   { label: 'Pissarra', path: '/menu/pissarra',
     roles: ['admin','direccio','cap','comercial','usuari'] },
 
@@ -53,17 +58,24 @@ export const MODULES: ModuleDef[] = [
     departments: ['logistica','cuina','serveis'],
   },
 
-  { label: 'WhatsBlapp', path: '/menu/missatgeria',
-    roles: ['admin','direccio','treballador'],
-    departments: ['manteniment'],
-  },
-
   { label: 'Manteniment', path: '/menu/manteniment',
     roles: ['admin','direccio','cap','treballador'],
-    departments: ['manteniment','Total'],
+    departments: ['manteniment','decoracio','decoracions','Total'],
     submodules: [
-      { label: 'Tickets', path: '/menu/manteniment/tickets', roles: ['admin','direccio','cap'] },
-      { label: 'Fulls de treball', path: '/menu/manteniment/treball', roles: ['admin','direccio','cap','treballador'] },
+      {
+        label: 'Tickets',
+        path: '/menu/manteniment/tickets',
+        roles: ['admin','direccio','cap'],
+        departments: ['manteniment'],
+      },
+      {
+        label: 'Tickets',
+        path: '/menu/manteniment/tickets-deco',
+        roles: ['admin','direccio','cap'],
+        departments: ['decoracio','decoracions'],
+      },
+      { label: 'Fulls de treball', path: '/menu/manteniment/treball', roles: ['admin','direccio','cap','treballador'], departments: ['manteniment','decoracio','decoracions'] },
+      { label: 'Seguiment', path: '/menu/manteniment/seguiment', roles: ['admin','direccio','cap','comercial','treballador'] },
     ],
   },
 

@@ -18,7 +18,6 @@ import {
   User,
   Leaf,
   ClipboardList,
-  MessageSquare,
   Wrench,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
@@ -41,9 +40,67 @@ interface SessionUser {
 /* ─────────────────────────────────────────────
    MAPA UI (només estètica, NO permisos)
 ───────────────────────────────────────────── */
+const OPSIA_ICON_VARIANT: 'a' | 'b' = 'b'
+
+const OpsiaIconA: LucideIcon = (props) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+    {...props}
+  >
+    <circle cx="7.6" cy="7" r="1.8" />
+    <circle cx="16.4" cy="7" r="1.8" />
+    <path d="M6.3 11.2h2.6" />
+    <path d="M15.1 11.2h2.6" />
+    <path d="M5.8 15.8c.4-1.6 1.6-2.7 2.6-2.7s2.2 1.1 2.6 2.7" />
+    <path d="M13 15.8c.4-1.6 1.6-2.7 2.6-2.7s2.2 1.1 2.6 2.7" />
+    <path d="M4.8 18.4h5.6" />
+    <path d="M13.6 18.4h5.6" />
+    <rect x="7.1" y="16.8" width="1" height="1" rx="0.2" />
+    <rect x="15.9" y="16.8" width="1" height="1" rx="0.2" />
+    <circle cx="12" cy="3.8" r="0.6" />
+    <path d="M11.4 4.3 9.8 5.6" />
+    <path d="M12.6 4.3 14.2 5.6" />
+  </svg>
+)
+
+const OpsiaIconB: LucideIcon = (props) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+    {...props}
+  >
+    <circle cx="7.5" cy="6.9" r="1.7" />
+    <circle cx="16.5" cy="6.9" r="1.7" />
+    <path d="M6.3 11.1h2.4" />
+    <path d="M15.3 11.1h2.4" />
+    <path d="M6 15.6c.4-1.5 1.5-2.5 2.4-2.5s2 1 2.4 2.5" />
+    <path d="M13.2 15.6c.4-1.5 1.5-2.5 2.4-2.5s2 1 2.4 2.5" />
+    <path d="M5.3 18.1h4.8" />
+    <path d="M14 18.1h4.8" />
+    <rect x="7.1" y="16.6" width="0.9" height="0.9" rx="0.2" />
+    <rect x="16" y="16.6" width="0.9" height="0.9" rx="0.2" />
+    <circle cx="12" cy="3.7" r="0.55" />
+    <path d="M11.5 4.1 10.2 5.3" />
+    <path d="M12.5 4.1 13.8 5.3" />
+  </svg>
+)
+
+const OpsiaIcon: LucideIcon = OPSIA_ICON_VARIANT === 'a' ? OpsiaIconA : OpsiaIconB
+
 const UI_MAP: Record<
   string,
-  { icon: LucideIcon; color: string; iconColor: string }
+  { icon: LucideIcon; color: string; iconColor: string; tileClass?: string }
 > = {
   '/menu/torns': {
     icon: Grid,
@@ -52,8 +109,8 @@ const UI_MAP: Record<
   },
   '/menu/events': {
     icon: Calendar,
-    color: 'from-yellow-100 to-orange-100',
-    iconColor: 'text-orange-500',
+    color: 'from-orange-100 to-rose-50',
+    iconColor: 'text-orange-600',
   },
   '/menu/pissarra': {
     icon: FileEdit,
@@ -76,9 +133,10 @@ const UI_MAP: Record<
     iconColor: 'text-green-600',
   },
   '/menu/missatgeria': {
-    icon: MessageSquare,
-    color: 'from-emerald-100 to-teal-100',
-    iconColor: 'text-emerald-600',
+    icon: OpsiaIcon,
+    color: 'from-[#FFF6CC] to-[#FFF2B3]',
+    iconColor: 'text-amber-700',
+    tileClass: 'ring-1 ring-amber-200/70',
   },
   '/menu/manteniment': {
     icon: Wrench,
@@ -166,12 +224,32 @@ function MenuContent({ user }: { user: SessionUser }) {
   const { count: tornCount } = useTornNotificationCount()
   const { count: messagingCount } = useMessagingUnreadCount()
   const { count: maintenanceNewCount } = useMaintenanceNewCount()
+  const { count: maintenanceNewCountMach } = useMaintenanceNewCount({ ticketType: 'maquinaria' })
+  const { count: maintenanceNewCountDeco } = useMaintenanceNewCount({ ticketType: 'deco' })
   const { count: maintenanceAssignedCount } = useMaintenanceAssignedCount()
-  const maintenanceBadge =
-    normalizeRole(user.role || '') === 'treballador' &&
-    (user.department || '').toString().toLowerCase() === 'manteniment'
-      ? maintenanceAssignedCount
-      : maintenanceNewCount
+  const normDept = (raw?: string) =>
+    (raw || '')
+      .toString()
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '')
+      .toLowerCase()
+      .trim()
+  const role = normalizeRole(user.role || '')
+  const dept = normDept(user.department)
+  const isMaintenanceWorker = role === 'treballador' && dept === 'manteniment'
+  const isMaintenanceCap = role === 'cap' && dept === 'manteniment'
+  const isDecorationsCap = role === 'cap' && (dept === 'decoracio' || dept === 'decoracions')
+  const isAdminOrDir = role === 'admin' || role === 'direccio'
+
+  const maintenanceBadge = isMaintenanceWorker
+    ? maintenanceAssignedCount
+    : isDecorationsCap
+    ? maintenanceNewCountDeco
+    : isMaintenanceCap
+    ? maintenanceNewCountMach
+    : isAdminOrDir
+    ? maintenanceNewCountMach + maintenanceNewCountDeco
+    : maintenanceNewCount
 
   // 🔑 ÚNICA FONT DE MÒDULS
   const modules = getVisibleModules(user)
@@ -197,6 +275,7 @@ function MenuContent({ user }: { user: SessionUser }) {
               className={cn(
                 `group rounded-2xl bg-gradient-to-br ${ui.color} p-4 flex flex-col items-center justify-center transition-all shadow hover:shadow-lg hover:scale-105 active:scale-95 border border-blue-200`,
                 isActive && 'ring-2 ring-blue-400 scale-105',
+                ui.tileClass,
               )}
             >
               <div
@@ -236,6 +315,11 @@ function MenuContent({ user }: { user: SessionUser }) {
               <span className="text-base font-semibold text-gray-700 text-center">
                 {mod.label}
               </span>
+              {mod.path === '/menu/missatgeria' && (
+                <span className="text-[11px] font-medium text-amber-700/80 text-center -mt-0.5">
+                  Canal intern
+                </span>
+              )}
             </Link>
           )
         })}

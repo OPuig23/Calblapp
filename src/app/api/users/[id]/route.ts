@@ -24,6 +24,9 @@ interface UserUpdate {
   role?: string
   department?: string
   departmentLower?: string
+  opsEventsConfigurable?: boolean
+  opsEventsEnabled?: boolean
+  opsChannelsConfigurable?: string[]
   available?: boolean
   isDriver?: boolean
   workerRank?: string
@@ -72,6 +75,12 @@ export async function PUT(
       ...data,
       userId: undefined, // no permetre canviar
       updatedAt: Date.now(),
+    }
+
+    if (Array.isArray(rawUpdate.opsChannelsConfigurable)) {
+      rawUpdate.opsChannelsConfigurable = rawUpdate.opsChannelsConfigurable
+        .map(String)
+        .filter(Boolean)
     }
 
     // 🔹 Normalitzar departament

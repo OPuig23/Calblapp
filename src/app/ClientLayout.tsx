@@ -116,7 +116,7 @@ function InnerLayout({ children }: { children: React.ReactNode }) {
       {menuOpen && (
         <div className="fixed inset-0 z-[9999] bg-black/40" onClick={() => setMenuOpen(false)}>
           <aside
-            className="fixed left-0 top-0 h-full w-64 bg-background shadow-xl p-4 border-r border-border"
+            className="fixed left-0 top-0 h-full w-64 bg-background shadow-xl p-4 border-r border-border overflow-y-auto"
             onClick={e => e.stopPropagation()}
           >
             <div className="flex justify-between mb-4">

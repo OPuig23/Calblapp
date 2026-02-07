@@ -24,6 +24,7 @@ type TicketPayload = {
   machine?: string
   description?: string
   priority?: 'urgent' | 'alta' | 'normal' | 'baixa'
+  ticketType?: 'maquinaria' | 'deco'
   imageUrl?: string | null
   imagePath?: string | null
   imageMeta?: { size?: number; type?: string } | null
@@ -88,6 +89,7 @@ export async function GET(req: Request) {
   const priority = (searchParams.get('priority') || 'all').toLowerCase()
   const location = (searchParams.get('location') || '').trim()
   const assignedToId = (searchParams.get('assignedToId') || '').trim()
+  const ticketType = (searchParams.get('ticketType') || 'all').toLowerCase()
 
   try {
     const snap = await db.collection('maintenanceTickets').orderBy('createdAt', 'desc').get()
@@ -102,6 +104,7 @@ export async function GET(req: Request) {
         ...data,
         status: normalizeStatus(data.status),
         priority: normalizePriority(data.priority),
+        ticketType: (data.ticketType || 'maquinaria').toString().toLowerCase(),
         createdAt,
       }
     })
@@ -114,6 +117,9 @@ export async function GET(req: Request) {
     }
     if (location) {
       tickets = tickets.filter((t: any) => String(t.location || '') === location)
+    }
+    if (ticketType && ticketType !== 'all') {
+      tickets = tickets.filter((t: any) => String(t.ticketType || 'maquinaria') === ticketType)
     }
     if (role === 'treballador' && dept === 'manteniment') {
       tickets = tickets.filter((t: any) =>
@@ -151,6 +157,10 @@ export async function POST(req: Request) {
     const description = (body.description || '').trim()
     const priority = normalizePriority(body.priority)
     const status = normalizeStatus(body.status)
+    const ticketType =
+      body.ticketType === 'deco' || body.ticketType === 'maquinaria'
+        ? body.ticketType
+        : 'maquinaria'
 
     const isWhatsBlapp = body.source === 'whatsblapp'
 
@@ -180,6 +190,7 @@ export async function POST(req: Request) {
       plannedStart: body.plannedStart || null,
       plannedEnd: body.plannedEnd || null,
       estimatedMinutes: body.estimatedMinutes || null,
+      ticketType,
       source: body.source || 'manual',
       imageUrl: body.imageUrl || null,
       imagePath: body.imagePath || null,

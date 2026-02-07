@@ -26,6 +26,9 @@ interface UserPayload {
   departmentLower: string
   email: string | null
   phone: string | null
+  opsEventsConfigurable?: boolean
+  opsEventsEnabled?: boolean
+  opsChannelsConfigurable?: string[]
   available?: boolean
   isDriver?: boolean
   workerRank?: string
@@ -61,6 +64,9 @@ export async function POST(req: Request) {
       department?: string
       email?: string
       phone?: string
+      opsEventsConfigurable?: boolean
+      opsEventsEnabled?: boolean
+      opsChannelsConfigurable?: string[]
       available?: boolean
       isDriver?: boolean
       workerRank?: string
@@ -74,6 +80,9 @@ export async function POST(req: Request) {
       department = '',
       email = '',
       phone = '',
+      opsEventsConfigurable = false,
+      opsEventsEnabled = false,
+      opsChannelsConfigurable = [],
       available,
       isDriver,
       workerRank,
@@ -88,6 +97,11 @@ export async function POST(req: Request) {
       departmentLower: normLower(department),
       email: email.trim() || null,
       phone: phone.trim() || null,
+      opsEventsConfigurable: Boolean(opsEventsConfigurable),
+      opsEventsEnabled: Boolean(opsEventsEnabled),
+      opsChannelsConfigurable: Array.isArray(opsChannelsConfigurable)
+        ? opsChannelsConfigurable.map(String).filter(Boolean)
+        : [],
       available: isTreballador(role) ? (available ?? true) : undefined,
       isDriver: isTreballador(role) ? (isDriver ?? false) : undefined,
       workerRank: isTreballador(role) ? (workerRank || 'equip') : undefined,

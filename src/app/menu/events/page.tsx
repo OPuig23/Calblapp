@@ -2,6 +2,8 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
+import useSWR from 'swr'
 import { startOfWeek, endOfWeek, format } from 'date-fns'
 import { CalendarDays } from 'lucide-react'
 
@@ -42,9 +44,11 @@ type EventMenuData = {
 }
 
 export default function EventsPage() {
-  const { data: session } = useSession()
+  const { data: session, status: sessionStatus } = useSession()
+  const router = useRouter()
 
   const role = String(session?.user?.role || '').toLowerCase()
+  const isAdmin = role === 'admin' || role === 'direccio'
   const userDept = String((session?.user as SessionUser)?.department || 'total').toLowerCase()
 
   const scope: 'all' | 'mine' = role === 'treballador' ? 'mine' : 'all'
@@ -63,6 +67,38 @@ export default function EventsPage() {
 
   const { events, loading, error, responsablesDetailed } =
     useEvents(userDept, fromISO, toISO, scope, includeQuadrants)
+
+  const isAuth = sessionStatus === 'authenticated'
+  const fetcher = (url: string) => fetch(url).then(r => r.json())
+  const { data: channelsData } = useSWR(
+    isAuth ? '/api/messaging/channels?scope=mine' : null,
+    fetcher,
+    { refreshInterval: isAuth ? 15000 : 0 }
+  )
+
+  const eventChatUnread = useMemo(() => {
+    const map = new Map<string, number>()
+    const channels = Array.isArray(channelsData?.channels) ? channelsData.channels : []
+    channels.forEach((c: any) => {
+      if (c?.source !== 'events') return
+      const eventId = String(c?.eventId || '').trim()
+      if (!eventId) return
+      const unread = Number(c?.unreadCount || 0)
+      map.set(eventId, Number.isNaN(unread) ? 0 : unread)
+    })
+    return map
+  }, [channelsData])
+
+  const eventChatVisible = useMemo(() => {
+    const set = new Set<string>()
+    const channels = Array.isArray(channelsData?.channels) ? channelsData.channels : []
+    channels.forEach((c: any) => {
+      if (c?.source !== 'events') return
+      const eventId = String(c?.eventId || '').trim()
+      if (eventId) set.add(eventId)
+    })
+    return set
+  }, [channelsData])
 
   const [isMenuOpen, setMenuOpen] = useState(false)
   const [selectedEvent, setSelectedEvent] = useState<EventMenuData | null>(null)
@@ -109,6 +145,8 @@ export default function EventsPage() {
 
     return {
       ...ev,
+      chatUnread: eventChatUnread.get(String(ev.id)) || 0,
+      canChat: eventChatVisible.has(String(ev.id)),
       lastAviso: hasAvisos
         ? ev.lastAviso || {
             content: '',
@@ -149,6 +187,30 @@ export default function EventsPage() {
     })
 
     setMenuOpen(true)
+  }
+
+  const handleEventChat = async (ev: any) => {
+    const code = String(ev?.eventCode || '').trim()
+    const commercial = String(ev?.commercial || '').trim()
+    if (!code || !commercial) return
+    try {
+      const res = await fetch('/api/messaging/events/ensure', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventId: String(ev.id) }),
+      })
+      if (!res.ok) return
+      const json = await res.json()
+      if (!json?.channelId) return
+      const url = `/menu/missatgeria?channel=${json.channelId}&event=1`
+      if (typeof window !== 'undefined') {
+        window.open(url, '_blank', 'noopener')
+        return
+      }
+      router.push(url)
+    } catch {
+      // silent
+    }
   }
 
   const userForModal = {
@@ -260,6 +322,8 @@ export default function EventsPage() {
                   date={day}
                   events={evs}
                   onEventClick={handleEventClick}
+                  onEventChat={handleEventChat}
+                  isAdmin={isAdmin}
                 />
               ))}
           </div>

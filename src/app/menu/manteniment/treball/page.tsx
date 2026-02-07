@@ -86,7 +86,7 @@ export default function MaintenanceWorkPage() {
   const userName = (session?.user as any)?.name || ''
   const role = normalizeRole((session?.user as any)?.role || '')
   const dept = normalizeDept((session?.user as any)?.department || '')
-  const isMaintenanceCap = role === 'cap' && dept === 'manteniment'
+  const isCap = role === 'cap'
   const isAdmin = role === 'admin' || role === 'direccio'
 
   const todayStart = startOfWeek(new Date(), { weekStartsOn: 1 })
@@ -100,6 +100,7 @@ export default function MaintenanceWorkPage() {
   }))
 
   const [tickets, setTickets] = useState<Ticket[]>([])
+  const [usersById, setUsersById] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [statusPopoverId, setStatusPopoverId] = useState<string | null>(null)
@@ -138,9 +139,31 @@ export default function MaintenanceWorkPage() {
     }
   }
 
+  const fetchUsers = async () => {
+    try {
+      const res = await fetch('/api/users', { cache: 'no-store' })
+      if (!res.ok) return
+      const json = await res.json()
+      const list = Array.isArray(json) ? json : []
+      const next: Record<string, string> = {}
+      list.forEach((u: any) => {
+        if (!u?.id) return
+        const d = normalizeDept(u.departmentLower || u.department)
+        if (d) next[String(u.id)] = d
+      })
+      setUsersById(next)
+    } catch {
+      setUsersById({})
+    }
+  }
+
   useEffect(() => {
     fetchTickets()
   }, [statusFilter])
+
+  useEffect(() => {
+    fetchUsers()
+  }, [])
 
   const handleStatusChange = async (
     ticket: Ticket,
@@ -174,8 +197,12 @@ export default function MaintenanceWorkPage() {
 
   const filteredTickets = useMemo(() => {
     const list = tickets.filter((t) => {
-      if (isAdmin || isMaintenanceCap) return true
-      if (role === 'treballador' && dept === 'manteniment') {
+      if (isAdmin) return true
+      if (isCap) {
+        const ids = Array.isArray(t.assignedToIds) ? t.assignedToIds : []
+        return ids.some((id) => usersById[String(id)] === dept)
+      }
+      if (role === 'treballador') {
         return Array.isArray(t.assignedToIds) && t.assignedToIds.includes(userId)
       }
       return false
@@ -184,7 +211,7 @@ export default function MaintenanceWorkPage() {
       return list.filter((t) => t.status === statusFilter)
     }
     return list
-  }, [tickets, role, dept, userId, isMaintenanceCap, statusFilter])
+  }, [tickets, role, dept, userId, isCap, statusFilter, usersById])
 
   const weekStart = parseISO(filters.start)
   const weekEnd = parseISO(filters.end)

@@ -22,7 +22,7 @@ export interface EventData {
   eventCode: string | null
   codeConfirmed?: boolean
   codeMatchScore?: number | null
-  commercial?: string
+  commercial?: string | null
   locationShort?: string
   mapsUrl?: string
   htmlLink?: string | null
@@ -57,6 +57,7 @@ interface EventPayload {
   code?: string
   codeConfirmed?: boolean
   codeMatchScore?: number | null
+  commercial?: string | null
   responsableName?: string
   responsable?: { name?: string }
   LN?: string
@@ -219,7 +220,8 @@ export default function useEvents(
             mapsUrl: computeMapsUrl(location),
 
             state: normalizeStatus(q?.status || ev.state || ev.status),
-            eventCode,
+          eventCode,
+          commercial: (ev as any).commercial ?? null,
             lastAviso,
             codeConfirmed: (ev as any).codeConfirmed ?? undefined,
             codeMatchScore: (ev as any).codeMatchScore ?? undefined,
