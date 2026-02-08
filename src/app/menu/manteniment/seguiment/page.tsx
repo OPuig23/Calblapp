@@ -1,11 +1,21 @@
 'use client'
 
 import React, { useEffect, useMemo, useState } from 'react'
-import { format } from 'date-fns'
+import { format, parseISO } from 'date-fns'
 import { useSession } from 'next-auth/react'
 import ModuleHeader from '@/components/layout/ModuleHeader'
 import { RoleGuard } from '@/lib/withRoleGuard'
 import { normalizeRole } from '@/lib/roles'
+import SmartFilters, { type SmartFiltersChange } from '@/components/filters/SmartFilters'
+import FilterButton from '@/components/ui/filter-button'
+import { useFilters } from '@/context/FiltersContext'
+import {
+  Select,
+  SelectTrigger,
+  SelectContent,
+  SelectItem,
+  SelectValue,
+} from '@/components/ui/select'
 
 type TicketStatus = 'nou' | 'assignat' | 'en_curs' | 'espera' | 'resolut' | 'validat'
 type TicketPriority = 'urgent' | 'alta' | 'normal' | 'baixa'
@@ -20,6 +30,7 @@ type Ticket = {
   priority: TicketPriority
   status: TicketStatus
   createdAt: number | string
+  plannedStart?: number | string | null
   createdByName?: string
   assignedToIds?: string[]
   assignedToNames?: string[]
@@ -28,6 +39,27 @@ type Ticket = {
     at?: number | string | null
     byName?: string | null
   }>
+}
+
+type PlannedItem = {
+  id: string
+  kind: 'preventiu' | 'ticket'
+  title: string
+  date?: string
+  start?: string
+  end?: string
+  location?: string
+  worker?: string
+  templateId?: string
+}
+
+type CompletedRecord = {
+  id: string
+  templateId?: string | null
+  title: string
+  worker?: string | null
+  completedAt: string
+  checklist?: Record<string, boolean>
 }
 
 const STATUS_LABELS: Record<TicketStatus, string> = {
@@ -54,11 +86,18 @@ const formatMachine = (value?: string) => {
 }
 
 const getTicketDate = (ticket: Ticket) => {
-  const base = ticket.createdAt
+  const base = ticket.plannedStart || ticket.createdAt
   if (!base) return null
   const date = typeof base === 'string' ? new Date(base) : new Date(Number(base))
   if (Number.isNaN(date.getTime())) return null
   return date
+}
+
+const getChecklistProgress = (checklist?: Record<string, boolean>) => {
+  const values = checklist ? Object.values(checklist) : []
+  if (values.length === 0) return 0
+  const done = values.filter(Boolean).length
+  return Math.round((done / values.length) * 100)
 }
 
 export default function MaintenanceTrackingPage() {
@@ -76,6 +115,7 @@ export default function MaintenanceTrackingPage() {
   const [statusFilter, setStatusFilter] = useState<'__all__' | TicketStatus>(
     '__all__'
   )
+  const [dateRange, setDateRange] = useState<{ start?: string; end?: string }>({})
 
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [loading, setLoading] = useState(false)
@@ -83,8 +123,10 @@ export default function MaintenanceTrackingPage() {
   const [search, setSearch] = useState('')
   const [historyTicket, setHistoryTicket] = useState<Ticket | null>(null)
   const [users, setUsers] = useState<Array<{ id: string; name?: string; department?: string }>>([])
-  const [departmentFilter, setDepartmentFilter] = useState('__all__')
+  const [typeFilter, setTypeFilter] = useState<'__all__' | 'ticket' | 'preventiu'>('__all__')
   const [workerFilter, setWorkerFilter] = useState('__all__')
+  const [plannedItems, setPlannedItems] = useState<PlannedItem[]>([])
+  const [completed, setCompleted] = useState<CompletedRecord[]>([])
 
   const fetchTickets = async () => {
     try {
@@ -94,6 +136,7 @@ export default function MaintenanceTrackingPage() {
       if (statusFilter && statusFilter !== '__all__') {
         params.set('status', statusFilter)
       }
+      params.set('ticketType', 'maquinaria')
       const res = await fetch(`/api/maintenance/tickets?${params.toString()}`, {
         cache: 'no-store',
       })
@@ -129,24 +172,71 @@ export default function MaintenanceTrackingPage() {
     loadUsers()
   }, [canView])
 
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('maintenance.planificador.items')
+      const list = raw ? JSON.parse(raw) : []
+      if (!Array.isArray(list)) {
+        setPlannedItems([])
+        return
+      }
+      const mapped = list
+        .map((item: any) => {
+          if (!item?.title) return null
+          const title = String(item.title || '')
+          const templateId = title.toLowerCase().includes('fuites de gas')
+            ? 'template-fuites-gas'
+            : undefined
+          return {
+            id: String(item.id || item.sourceId || `plan_${Math.random().toString(36).slice(2, 6)}`),
+            kind: item.kind === 'ticket' ? 'ticket' : 'preventiu',
+            title,
+            date: item.date,
+            start: item.start,
+            end: item.end,
+            location: item.location || '',
+            worker: Array.isArray(item.workers) ? item.workers.join(', ') : '',
+            templateId,
+          } as PlannedItem
+        })
+        .filter(Boolean)
+      setPlannedItems(mapped as PlannedItem[])
+    } catch {
+      setPlannedItems([])
+    }
+  }, [])
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await fetch('/api/maintenance/preventius/completed', { cache: 'no-store' })
+        if (!res.ok) {
+          setCompleted([])
+          return
+        }
+        const json = await res.json()
+        const list = Array.isArray(json?.records) ? json.records : []
+        setCompleted(list)
+      } catch {
+        setCompleted([])
+      }
+    }
+    load()
+    const onFocus = () => load()
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [])
+
   const filteredTickets = useMemo(() => {
     const query = search.trim().toLowerCase()
     const userById = new Map(users.map((u) => [String(u.id), u]))
     const list = tickets.filter((ticket) => {
-      if (departmentFilter !== '__all__') {
-        const ids = Array.isArray(ticket.assignedToIds) ? ticket.assignedToIds : []
-        const hasDept = ids.some((id) => {
-          const u = userById.get(String(id))
-          const dep = String(u?.department || '').toLowerCase()
-          return dep === departmentFilter
-        })
-        if (!hasDept) return false
-      }
-
       if (workerFilter !== '__all__') {
         const ids = Array.isArray(ticket.assignedToIds) ? ticket.assignedToIds : []
         if (!ids.map(String).includes(workerFilter)) return false
       }
+
+      if (typeFilter === 'preventiu') return false
 
       if (!query) return true
       const code = (ticket.ticketCode || ticket.incidentNumber || '').toLowerCase()
@@ -154,7 +244,18 @@ export default function MaintenanceTrackingPage() {
       return code.includes(query) || machine.includes(query)
     })
 
-    list.sort((a, b) => {
+    const start = dateRange.start ? parseISO(dateRange.start) : null
+    const end = dateRange.end ? parseISO(dateRange.end) : null
+    const ranged = list.filter((t) => {
+      if (!start && !end) return true
+      const date = getTicketDate(t)
+      if (!date) return false
+      if (start && date < start) return false
+      if (end && date > new Date(end.getTime() + 24 * 60 * 60 * 1000)) return false
+      return true
+    })
+
+    ranged.sort((a, b) => {
       const order: Record<TicketStatus, number> = {
         validat: 0,
         resolut: 1,
@@ -171,21 +272,58 @@ export default function MaintenanceTrackingPage() {
       return db - da
     })
 
-    return list
-  }, [tickets, search, departmentFilter, workerFilter, users])
+    return ranged
+  }, [tickets, search, workerFilter, users, dateRange, typeFilter])
 
-  const departmentOptions = useMemo(() => {
-    const userById = new Map(users.map((u) => [String(u.id), u]))
-    const set = new Set<string>()
-    tickets.forEach((t) => {
-      const ids = Array.isArray(t.assignedToIds) ? t.assignedToIds : []
-      ids.forEach((id) => {
-        const dep = String(userById.get(String(id))?.department || '').toLowerCase()
-        if (dep) set.add(dep)
-      })
+  const preventiusRows = useMemo(() => {
+    const byPlanned = new Map<string, CompletedRecord>()
+    const byTemplate = new Map<string, CompletedRecord>()
+    completed.forEach((c) => {
+      if (c.plannedId) {
+        const prev = byPlanned.get(c.plannedId)
+        if (!prev || c.completedAt > prev.completedAt) byPlanned.set(c.plannedId, c)
+      }
+      if (c.templateId) {
+        const prev = byTemplate.get(c.templateId)
+        if (!prev || c.completedAt > prev.completedAt) byTemplate.set(c.templateId, c)
+      }
     })
-    return Array.from(set).sort()
-  }, [users, tickets])
+
+    const query = search.trim().toLowerCase()
+    if (typeFilter === 'ticket') return []
+    const list = plannedItems
+      .filter((item) => item.kind === 'preventiu')
+      .filter((item) => {
+        if (!query) return true
+        return item.title.toLowerCase().includes(query)
+      })
+      .filter((item) => {
+        if (!dateRange.start && !dateRange.end) return true
+        if (!item.date) return false
+        const date = parseISO(item.date)
+        const start = dateRange.start ? parseISO(dateRange.start) : null
+        const end = dateRange.end ? parseISO(dateRange.end) : null
+        if (start && date < start) return false
+        if (end && date > new Date(end.getTime() + 24 * 60 * 60 * 1000)) return false
+        return true
+      })
+      .map((item) => {
+        const last =
+          byPlanned.get(item.id) ||
+          (item.templateId ? byTemplate.get(item.templateId) : null) ||
+          null
+        const progress = getChecklistProgress(last?.checklist)
+        return {
+          ...item,
+          progress,
+          completedAt: last?.completedAt || null,
+          checklist: last?.checklist || null,
+          record: last,
+          status: last?.status || 'pendent',
+        }
+      })
+    return list
+  }, [plannedItems, completed, search, dateRange, typeFilter])
 
   const workerOptions = useMemo(() => {
     const userById = new Map(users.map((u) => [String(u.id), u]))
@@ -195,79 +333,103 @@ export default function MaintenanceTrackingPage() {
       ids.forEach((id) => {
         const u = userById.get(String(id))
         if (!u) return
-        const dep = String(u.department || '').toLowerCase()
-        if (departmentFilter !== '__all__' && dep !== departmentFilter) return
         set.set(String(id), String(u.name || u.id))
       })
     })
     return Array.from(set.entries()).map(([id, name]) => ({ id, name }))
-  }, [users, tickets, departmentFilter])
+  }, [users, tickets])
+
+  const { setContent, setOpen } = useFilters()
+
+  const openFiltersPanel = () => {
+    setContent(
+      <div className="p-4 space-y-4">
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-700">Tipus</label>
+          <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as any)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Tots" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">Tots</SelectItem>
+              <SelectItem value="ticket">Tickets</SelectItem>
+              <SelectItem value="preventiu">Preventius</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-700">Treballador</label>
+          <Select value={workerFilter} onValueChange={(v) => setWorkerFilter(v)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Tots" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">Tots</SelectItem>
+              {workerOptions.map((u) => (
+                <SelectItem key={u.id} value={u.id}>
+                  {u.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-700">Estat</label>
+          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Tots" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">Tots</SelectItem>
+              <SelectItem value="validat">Validat</SelectItem>
+              <SelectItem value="resolut">Resolut</SelectItem>
+              <SelectItem value="en_curs">En curs</SelectItem>
+              <SelectItem value="espera">Espera</SelectItem>
+              <SelectItem value="assignat">Assignat</SelectItem>
+              <SelectItem value="nou">Nou</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+    )
+    setOpen(true)
+  }
+
+  const handleFilterChange = (f: SmartFiltersChange) => {
+    setDateRange({ start: f.start, end: f.end })
+  }
 
   return (
     <RoleGuard allowedRoles={['admin', 'direccio', 'cap', 'comercial', 'treballador']}>
       <main className="w-full">
         <ModuleHeader subtitle="Seguiment de tickets" />
 
-        <div className="mx-auto w-full max-w-none px-3 flex flex-wrap items-center justify-between gap-3">
-          <input
-            type="text"
-            placeholder="Cerca per codi o maquinària..."
-            className="h-8 w-full max-w-sm rounded-full border px-4 text-sm"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          <div className="flex flex-wrap items-center gap-2">
-            <select
-              className="h-8 rounded-full border px-3 text-xs bg-white"
-              value={departmentFilter}
-              onChange={(e) => {
-                setDepartmentFilter(e.target.value)
-                setWorkerFilter('__all__')
-              }}
-            >
-              <option value="__all__">Tots els departaments</option>
-              {departmentOptions.map((dep) => (
-                <option key={dep} value={dep}>
-                  {dep}
-                </option>
-              ))}
-            </select>
-            <select
-              className="h-8 rounded-full border px-3 text-xs bg-white"
-              value={workerFilter}
-              onChange={(e) => setWorkerFilter(e.target.value)}
-            >
-              <option value="__all__">Tots els treballadors</option>
-              {workerOptions.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.name}
-                </option>
-              ))}
-            </select>
+        <div className="mx-auto w-full max-w-none px-3 py-3">
+          <div className="rounded-2xl border border-gray-200 bg-white p-3 shadow-sm flex items-center gap-3 flex-nowrap">
+            <SmartFilters
+              role="Direcció"
+              onChange={handleFilterChange}
+              showDepartment={false}
+              showWorker={false}
+              showLocation={false}
+              showStatus={false}
+              showImportance={false}
+              showAdvanced={false}
+              compact
+            />
+            <div className="flex-1 min-w-[8px]" />
+            <FilterButton onClick={openFiltersPanel} />
           </div>
-          <div className="hidden sm:flex flex-wrap items-center gap-2 justify-end flex-1">
-            {[
-              { value: '__all__', label: 'Tots' },
-              { value: 'validat', label: 'Validat' },
-              { value: 'resolut', label: 'Resolut' },
-              { value: 'en_curs', label: 'En curs' },
-              { value: 'espera', label: 'Espera' },
-              { value: 'assignat', label: 'Assignat' },
-              { value: 'nou', label: 'Nou' },
-            ].map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => setStatusFilter(opt.value as any)}
-                className={`px-3 py-1 rounded-full text-xs border ${
-                  statusFilter === opt.value
-                    ? 'bg-emerald-600 text-white border-emerald-600'
-                    : 'bg-white'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
+          <div className="mt-3">
+            <input
+              type="text"
+              placeholder="Cerca per codi o maquinària..."
+              className="h-8 w-full max-w-sm rounded-full border px-4 text-sm"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
           </div>
         </div>
 
@@ -284,15 +446,16 @@ export default function MaintenanceTrackingPage() {
             </p>
           )}
 
-          {!loading && !error && filteredTickets.length > 0 && (
+          {!loading && !error && (filteredTickets.length > 0 || preventiusRows.length > 0) && (
             <div className="overflow-x-auto rounded-xl border bg-white shadow-sm">
               <table className="w-full text-sm">
                 <thead className="bg-indigo-100 text-indigo-900 font-semibold">
                   <tr>
-                    <th className="px-3 py-2 text-left">Codi</th>
+                    <th className="px-3 py-2 text-left">Tipus</th>
+                    <th className="px-3 py-2 text-left">Codi / Plantilla</th>
                     <th className="px-3 py-2 text-left">Equip</th>
                     <th className="px-3 py-2 text-left">Màquina</th>
-                    <th className="px-3 py-2 text-left">Estat</th>
+                    <th className="px-3 py-2 text-left">Estat / %</th>
                     <th className="px-3 py-2 text-left">Històric</th>
                   </tr>
                 </thead>
@@ -305,6 +468,7 @@ export default function MaintenanceTrackingPage() {
                     const machineLabel = formatMachine(ticket.machine)
                     return (
                       <tr key={ticket.id} className="border-t">
+                        <td className="px-3 py-2">Ticket</td>
                         <td className="px-3 py-2 whitespace-nowrap">
                           {ticket.incidentNumber || ticket.ticketCode || 'TIC'}
                         </td>
@@ -325,6 +489,32 @@ export default function MaintenanceTrackingPage() {
                       </tr>
                     )
                   })}
+                  {preventiusRows.map((item) => (
+                    <tr key={`preventiu_${item.id}`} className="border-t">
+                      <td className="px-3 py-2">Preventiu</td>
+                      <td className="px-3 py-2 whitespace-nowrap">{item.title}</td>
+                      <td className="px-3 py-2">{item.worker || '-'}</td>
+                      <td className="px-3 py-2 font-semibold">{item.location || '-'}</td>
+                      <td className="px-3 py-2">
+                        {item.status ? `${item.status} · ${item.progress}%` : `${item.progress}%`}
+                      </td>
+                      <td className="px-3 py-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const url = item.record?.id
+                              ? `/menu/manteniment/preventius/completat/${item.record.id}`
+                              : `/menu/manteniment/preventius/fulls/${item.id}`
+                            const win = window.open(url, '_blank', 'noopener')
+                            if (win) win.opener = null
+                          }}
+                          className="text-xs text-indigo-700 underline"
+                        >
+                          Checklist
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -367,6 +557,7 @@ export default function MaintenanceTrackingPage() {
           </div>
         </div>
       )}
+
     </RoleGuard>
   )
 }

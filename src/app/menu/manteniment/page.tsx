@@ -1,12 +1,11 @@
 ﻿'use client'
 
 import Link from 'next/link'
-import { Wrench, ClipboardList, Eye } from 'lucide-react'
+import { Wrench, Eye, CalendarCheck2, FileStack } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { RoleGuard } from '@/lib/withRoleGuard'
 import { normalizeRole } from '@/lib/roles'
 import ModuleHeader from '@/components/layout/ModuleHeader'
-import { useMaintenanceNewCount } from '@/hooks/useMaintenanceNewCount'
 import { useMaintenanceAssignedCount } from '@/hooks/useMaintenanceAssignedCount'
 
 const normalizeDept = (raw?: string) =>
@@ -23,16 +22,9 @@ export default function MantenimentIndexPage() {
   const userDepartment = normalizeDept((session?.user as any)?.department || '')
   const isMaintenanceWorker = userRole === 'treballador' && userDepartment === 'manteniment'
   const isMaintenanceCap = userRole === 'cap' && userDepartment === 'manteniment'
-  const isDecorationsCap =
-    userRole === 'cap' &&
-    (userDepartment === 'decoracio' ||
-      userDepartment === 'decoracions' ||
-      userDepartment === 'decoracion')
   const isAdmin = userRole === 'admin' || userRole === 'direccio'
   const isProductionWorker = userRole === 'treballador' && userDepartment === 'produccio'
   const isCommercial = userRole === 'comercial'
-  const { count: newTicketsCount } = useMaintenanceNewCount({ ticketType: 'maquinaria' })
-  const { count: newDecoTicketsCount } = useMaintenanceNewCount({ ticketType: 'deco' })
   const { count: assignedTicketsCount } = useMaintenanceAssignedCount()
 
   return (
@@ -41,57 +33,43 @@ export default function MantenimentIndexPage() {
         <ModuleHeader subtitle="Gestió i assignació" />
 
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+          {(isAdmin || isMaintenanceCap || isMaintenanceWorker) && (
+            <Link
+              href="/menu/manteniment/preventius/planificador"
+              className="border rounded-2xl p-4 hover:shadow-sm bg-gradient-to-br from-teal-50 to-cyan-100"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-white shadow flex items-center justify-center text-teal-700">
+                  <CalendarCheck2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="text-base font-semibold text-gray-900">Planificador</div>
+                  <div className="text-xs text-gray-500">Preventius + tickets</div>
+                </div>
+              </div>
+            </Link>
+          )}
+
           {(isAdmin || isMaintenanceCap) && (
             <Link
-              href="/menu/manteniment/tickets"
-              className="border rounded-2xl p-4 hover:shadow-sm bg-gradient-to-br from-sky-50 to-blue-100"
+              href="/menu/manteniment/preventius/plantilles"
+              className="border rounded-2xl p-4 hover:shadow-sm bg-gradient-to-br from-slate-50 to-gray-100"
             >
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-white shadow flex items-center justify-center text-blue-600">
-                  <div className="relative">
-                    <ClipboardList className="w-5 h-5" />
-                    {newTicketsCount > 0 && (
-                      <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center">
-                        {newTicketsCount}
-                      </span>
-                    )}
-                  </div>
+                <div className="w-10 h-10 rounded-full bg-white shadow flex items-center justify-center text-slate-700">
+                  <FileStack className="w-5 h-5" />
                 </div>
                 <div>
-                  <div className="text-base font-semibold text-gray-900">Tickets</div>
-                  <div className="text-xs text-gray-500">Maquinària</div>
+                  <div className="text-base font-semibold text-gray-900">Plantilles</div>
+                  <div className="text-xs text-gray-500">Plans i checklists</div>
                 </div>
               </div>
             </Link>
           )}
 
-          {(isAdmin || isDecorationsCap) && (
+          {(isMaintenanceWorker || isMaintenanceCap || isAdmin) && (
             <Link
-              href="/menu/manteniment/tickets-deco"
-              className="border rounded-2xl p-4 hover:shadow-sm bg-gradient-to-br from-amber-50 to-yellow-100"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-white shadow flex items-center justify-center text-amber-700">
-                  <div className="relative">
-                    <ClipboardList className="w-5 h-5" />
-                    {newDecoTicketsCount > 0 && (
-                      <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center">
-                        {newDecoTicketsCount}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-base font-semibold text-gray-900">Tickets</div>
-                  <div className="text-xs text-gray-500">Deco</div>
-                </div>
-              </div>
-            </Link>
-          )}
-
-          {(isMaintenanceWorker || isMaintenanceCap || isDecorationsCap || isAdmin) && (
-            <Link
-              href="/menu/manteniment/treball"
+              href="/menu/manteniment/preventius/fulls"
               className="border rounded-2xl p-4 hover:shadow-sm bg-gradient-to-br from-emerald-50 to-green-100"
             >
               <div className="flex items-center gap-3">
@@ -106,8 +84,8 @@ export default function MantenimentIndexPage() {
                   </div>
                 </div>
                 <div>
-                  <div className="text-base font-semibold text-gray-900">Fulls de treball</div>
-                  <div className="text-xs text-gray-500">La teva fitxa diària</div>
+                  <div className="text-base font-semibold text-gray-900">Jornada</div>
+                  <div className="text-xs text-gray-500">Preventius + tickets</div>
                 </div>
               </div>
             </Link>

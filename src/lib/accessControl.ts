@@ -43,7 +43,7 @@ export const MODULES: ModuleDef[] = [
     roles: ['admin','direccio','cap','comercial','usuari'] },
 
   { label: 'Ops', path: '/menu/missatgeria',
-    roles: ['admin','direccio','treballador'],
+    roles: ['admin'],
     departments: ['manteniment'],
   },
 
@@ -59,23 +59,41 @@ export const MODULES: ModuleDef[] = [
   },
 
   { label: 'Manteniment', path: '/menu/manteniment',
-    roles: ['admin','direccio','cap','treballador'],
-    departments: ['manteniment','decoracio','decoracions','Total'],
+    roles: ['admin'],
+    departments: ['manteniment','Total'],
     submodules: [
       {
-        label: 'Tickets',
-        path: '/menu/manteniment/tickets',
-        roles: ['admin','direccio','cap'],
+        label: 'Planificador',
+        path: '/menu/manteniment/preventius',
+        roles: ['admin'],
         departments: ['manteniment'],
       },
       {
         label: 'Tickets',
-        path: '/menu/manteniment/tickets-deco',
-        roles: ['admin','direccio','cap'],
-        departments: ['decoracio','decoracions'],
+        path: '/menu/manteniment/tickets',
+        roles: ['admin'],
+        departments: ['manteniment'],
       },
-      { label: 'Fulls de treball', path: '/menu/manteniment/treball', roles: ['admin','direccio','cap','treballador'], departments: ['manteniment','decoracio','decoracions'] },
-      { label: 'Seguiment', path: '/menu/manteniment/seguiment', roles: ['admin','direccio','cap','comercial','treballador'] },
+      { label: 'Seguiment', path: '/menu/manteniment/seguiment', roles: ['admin'] },
+    ],
+  },
+
+  { label: 'Deco', path: '/menu/deco',
+    roles: ['admin'],
+    departments: ['decoracio','decoracions','decoracion','Total'],
+    submodules: [
+      {
+        label: 'Tickets',
+        path: '/menu/manteniment/tickets-deco',
+        roles: ['admin'],
+        departments: ['decoracio','decoracions','decoracion'],
+      },
+      {
+        label: 'Fulls de treball',
+        path: '/menu/manteniment/treball',
+        roles: ['admin'],
+        departments: ['decoracio','decoracions','decoracion'],
+      },
     ],
   },
 

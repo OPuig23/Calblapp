@@ -3,12 +3,10 @@
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
-export default function MaintenanceTicketsPage() {
+export default function PreventiusHistorialPage() {
   const router = useRouter()
-
   useEffect(() => {
-    router.replace('/menu/manteniment/preventius/fulls')
+    router.replace('/menu/manteniment/seguiment')
   }, [router])
-
   return null
 }

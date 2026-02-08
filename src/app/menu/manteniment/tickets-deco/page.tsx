@@ -169,8 +169,8 @@ export default function MaintenanceTicketsDecoPage() {
     <RoleGuard allowedRoles={['admin', 'direccio', 'cap']}>
       <div className="space-y-5 px-4 pb-8">
         <ModuleHeader
-          title="Tickets"
-          subtitle="Deco."
+          title="Deco"
+          mainHref="/menu/deco"
           actions={
             <button
               className="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2 rounded-full"

@@ -1,0 +1,115 @@
+import { NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth/next'
+import { authOptions } from '@/app/api/auth/[...nextauth]/route'
+import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
+import { normalizeRole } from '@/lib/roles'
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
+type SessionUser = {
+  id: string
+  name?: string
+  role?: string
+  department?: string
+}
+
+type CompletedPayload = {
+  plannedId?: string | null
+  templateId?: string | null
+  title: string
+  worker?: string | null
+  startTime?: string
+  endTime?: string
+  status?: string
+  notes?: string
+  completedAt?: string | number
+  nextDue?: string | null
+  checklist?: Record<string, boolean>
+}
+
+export async function GET(req: Request) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const user = session.user as SessionUser
+  const role = normalizeRole(user.role || '')
+  if (role !== 'admin' && role !== 'direccio' && role !== 'cap' && role !== 'treballador') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  const { searchParams } = new URL(req.url)
+  const templateId = (searchParams.get('templateId') || '').trim()
+  const plannedId = (searchParams.get('plannedId') || '').trim()
+
+  try {
+    let query: FirebaseFirestore.Query = db.collection('maintenancePreventiusCompleted')
+    if (templateId) query = query.where('templateId', '==', templateId)
+    if (plannedId) query = query.where('plannedId', '==', plannedId)
+
+    const snap = await query.get()
+    const items = snap.docs
+      .map((doc) => {
+        const data = doc.data() as any
+        return {
+          id: doc.id,
+          ...data,
+        }
+      })
+      .sort((a: any, b: any) => {
+        const da = typeof a.completedAt === 'number' ? a.completedAt : Date.parse(a.completedAt || '') || 0
+        const dbTime = typeof b.completedAt === 'number' ? b.completedAt : Date.parse(b.completedAt || '') || 0
+        return dbTime - da
+      })
+    return NextResponse.json({ records: items })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Internal error'
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
+}
+
+export async function POST(req: Request) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const user = session.user as SessionUser
+  const role = normalizeRole(user.role || '')
+  if (role !== 'admin' && role !== 'direccio' && role !== 'cap' && role !== 'treballador') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  try {
+    const body = (await req.json()) as CompletedPayload
+    const now = Date.now()
+    const completedAt =
+      typeof body.completedAt === 'string' || typeof body.completedAt === 'number'
+        ? body.completedAt
+        : now
+
+    const doc = await db.collection('maintenancePreventiusCompleted').add({
+      plannedId: body.plannedId || null,
+      templateId: body.templateId || null,
+      title: body.title || '',
+      worker: body.worker || null,
+      startTime: body.startTime || '',
+      endTime: body.endTime || '',
+      status: body.status || 'pendent',
+      notes: body.notes || '',
+      completedAt,
+      nextDue: body.nextDue || null,
+      checklist: body.checklist || {},
+      createdById: user.id,
+      createdByName: user.name || '',
+      createdAt: now,
+    })
+
+    return NextResponse.json({ id: doc.id }, { status: 201 })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Internal error'
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
+}

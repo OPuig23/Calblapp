@@ -8,9 +8,10 @@ interface Props {
   subtitle?: string
   icon?: React.ReactNode
   actions?: React.ReactNode
+  mainHref?: string
 }
 
-export default function ModuleHeader({ title, subtitle, icon, actions }: Props) {
+export default function ModuleHeader({ title, subtitle, icon, actions, mainHref }: Props) {
   const pathname = usePathname() ?? ''
 
   // Exemple: /menu/spaces/reserves Ã¢â€ â€™ ['','menu','spaces','reserves']
@@ -19,6 +20,7 @@ export default function ModuleHeader({ title, subtitle, icon, actions }: Props) 
   // Identifiquem el mòdul (spaces, torns, quadrants, etc.)
   const module = segments[1] || ''
   const submodule = segments[2] || ''
+  const subsubmodule = segments[3] || ''
 
   // Map colors automàtics
   const colorMap: Record<string, string> = {
@@ -29,6 +31,7 @@ export default function ModuleHeader({ title, subtitle, icon, actions }: Props) 
     quadrants: 'from-indigo-100 to-indigo-50',
     allergens: 'from-amber-100 to-yellow-50',
     manteniment: 'from-emerald-50 to-green-100',
+    deco: 'from-rose-50 to-pink-100',
   }
 
   const color = colorMap[module] ?? 'from-gray-50 to-gray-100'
@@ -42,9 +45,10 @@ export default function ModuleHeader({ title, subtitle, icon, actions }: Props) 
     events: 'Esdeveniments',
     allergens: 'Al·lèrgens',
     manteniment: 'Manteniment',
+    deco: 'Deco',
   }
 
-  const mainLabel = moduleLabels[module] || module
+  const mainLabel = title || moduleLabels[module] || module
 
   // Traducció Ã¢â‚¬Å“submòdul Ã¢â€ â€™ nom visibleÃ¢â‚¬Â
   const subLabels: Record<string, string> = {
@@ -57,9 +61,23 @@ export default function ModuleHeader({ title, subtitle, icon, actions }: Props) 
     buscador: 'Buscador',
     treball: 'Fulls de treball',
     tickets: 'Tickets',
+    'tickets-deco': 'Tickets',
+    preventius: 'Preventius',
+    planificador: 'Planificador',
+    plantilles: 'Plantilles',
+    fulls: 'Full de Treball',
+    seguiment: 'Seguiment',
+    historial: 'Historial',
   }
 
-  const subLabel = subLabels[submodule] || ''
+  const subKey = subLabels[subsubmodule] ? subsubmodule : submodule
+  const subLabel = subtitle || subLabels[subKey] || ''
+  const subHref =
+    subLabel && subKey === subsubmodule && submodule && subsubmodule
+      ? `/menu/${module}/${submodule}/${subsubmodule}`
+      : subLabel
+        ? `/menu/${module}/${submodule}`
+        : ''
 
   return (
     <div className={`w-full bg-gradient-to-r ${color} border-b border-gray-200 px-4 py-3`}>
@@ -75,12 +93,19 @@ export default function ModuleHeader({ title, subtitle, icon, actions }: Props) 
             <div className="flex items-center gap-1 text-sm font-semibold">
               
               {/* MÃƒâ€™DUL PRINCIPAL (clicable) */}
-              <a
-                href={`/menu/${module}`}
-                className="text-gray-800 hover:underline"
-              >
-                {mainLabel}
-              </a>
+              {title ? (
+                mainHref ? (
+                  <a href={mainHref} className="text-gray-800 hover:underline">
+                    {mainLabel}
+                  </a>
+                ) : (
+                  <span className="text-gray-800">{mainLabel}</span>
+                )
+              ) : (
+                <a href={`/menu/${module}`} className="text-gray-800 hover:underline">
+                  {mainLabel}
+                </a>
+              )}
 
               {/* SEPARADOR */}
               {subLabel && <span className="text-gray-500">/</span>}
@@ -88,7 +113,7 @@ export default function ModuleHeader({ title, subtitle, icon, actions }: Props) 
               {/* SUBMÃƒâ€™DUL (clicable) */}
               {subLabel && (
                 <a
-                  href={`/menu/${module}/${submodule}`}
+                  href={subHref}
                   className="text-gray-700 hover:underline"
                 >
                   {subLabel}

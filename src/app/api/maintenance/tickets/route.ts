@@ -90,6 +90,7 @@ export async function GET(req: Request) {
   const location = (searchParams.get('location') || '').trim()
   const assignedToId = (searchParams.get('assignedToId') || '').trim()
   const ticketType = (searchParams.get('ticketType') || 'all').toLowerCase()
+  const code = (searchParams.get('code') || '').trim().toUpperCase()
 
   try {
     const snap = await db.collection('maintenanceTickets').orderBy('createdAt', 'desc').get()
@@ -120,6 +121,13 @@ export async function GET(req: Request) {
     }
     if (ticketType && ticketType !== 'all') {
       tickets = tickets.filter((t: any) => String(t.ticketType || 'maquinaria') === ticketType)
+    }
+    if (code) {
+      tickets = tickets.filter((t: any) => {
+        const ticketCode = String(t.ticketCode || '').toUpperCase()
+        const incident = String(t.incidentNumber || '').toUpperCase()
+        return ticketCode === code || incident === code
+      })
     }
     if (role === 'treballador' && dept === 'manteniment') {
       tickets = tickets.filter((t: any) =>

@@ -149,8 +149,10 @@ export default function SmartFilters({
   const [dayStr, setDayStr] = useState<string>(toIso(new Date()))
   const [rangeStartStr, setRangeStartStr] = useState<string>('')
   const [rangeEndStr, setRangeEndStr] = useState<string>('')
-  // 🔹 Inicialitza automàticament el mode i les dates si venen donades per props
+// 🔹 Inicialitza automàticament el mode i les dates si venen donades per props
+const didInitRef = useRef(false)
 useEffect(() => {
+  if (didInitRef.current) return
   if (initialStart && initialEnd) {
     const parsedStart = parseISO(initialStart)
 
@@ -160,6 +162,7 @@ useEffect(() => {
       setDayStr(initialStart)
       setRangeStartStr(initialStart)
       setRangeEndStr(initialEnd)
+      didInitRef.current = true
       return
     }
 
@@ -167,11 +170,14 @@ useEffect(() => {
       setMode('day')
       setDayStr(initialStart)
       setAnchor(parsedStart)
-    } else {
-      setMode('range')
-      setRangeStartStr(initialStart)
-      setRangeEndStr(initialEnd)
+      didInitRef.current = true
+      return
     }
+
+    setMode('range')
+    setRangeStartStr(initialStart)
+    setRangeEndStr(initialEnd)
+    didInitRef.current = true
   }
 }, [initialStart, initialEnd, modeDefault])
 
@@ -191,19 +197,10 @@ const rangeEndRef = useRef<HTMLInputElement | null>(null)
 const [openRange, setOpenRange] = useState(false)
 const [openDay, setOpenDay] = useState(false)
 
-/* Obrir automàticament el calendari quan es selecciona Dia o Rang */
+/* Obrir calendari manualment (sense auto-open) */
 useEffect(() => {
-  if (mode === 'day') {
-    setTimeout(() => setOpenDay(true), 50)   // petit delay per garantir render
-  } else {
-    setOpenDay(false)
-  }
-
-  if (mode === 'range') {
-    setTimeout(() => setOpenRange(true), 50)
-  } else {
-    setOpenRange(false)
-  }
+  if (mode !== 'day') setOpenDay(false)
+  if (mode !== 'range') setOpenRange(false)
 }, [mode])
 
 /* Control del rang: quan s’escull el "des de", salta automàticament al "fins" */
@@ -264,18 +261,6 @@ useEffect(() => {
   () => `${format(weekStart, 'd MMM', { locale: es })} – ${format(weekEnd, 'd MMM', { locale: es })}`,
   [weekStart, weekEnd]
 )
-useEffect(() => {
-  const start = toIso(weekStart)
-  const end = toIso(weekEnd)
-
-  onChange({
-    mode: 'week',
-    start,
-    end
-  })
-}, []) 
-
-
   const headerLabel = useMemo(() => {
     if (mode === 'week') return weekLabel
     if (mode === 'day') {
@@ -386,14 +371,13 @@ if (key !== lastPayloadRef.current) {
   ])
 
   useEffect(() => {
-    if (resetSignal !== undefined) {
-      setMode('week')
-      setAnchor(new Date())
-      setDayStr(toIso(new Date()))
-      setRangeStartStr('')
-      setRangeEndStr('')
-      setRoleType('all')
-    }
+    if (resetSignal === undefined || resetSignal <= 0) return
+    setMode('week')
+    setAnchor(new Date())
+    setDayStr(toIso(new Date()))
+    setRangeStartStr('')
+    setRangeEndStr('')
+    setRoleType('all')
   }, [resetSignal])
 
   const containerClass = compact
@@ -430,11 +414,7 @@ if (key !== lastPayloadRef.current) {
       </span>
     )}
 
-    {mode === 'day' && (
-      <span className="text-[13px] font-medium whitespace-nowrap px-0.5">
-        {format(parseISO(dayStr), 'd MMM yyyy', { locale: es })}
-      </span>
-    )}
+    {mode === 'day' ? null : null}
 
     <Button
       size="icon"
@@ -454,8 +434,15 @@ if (key !== lastPayloadRef.current) {
 {mode === 'day' && (
   <Popover open={openDay} onOpenChange={setOpenDay}>
     <PopoverTrigger asChild>
-  <div onClick={() => setOpenDay(true)} />
-</PopoverTrigger>
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-9 text-sm whitespace-nowrap"
+        onClick={() => setOpenDay(true)}
+      >
+        {format(parseISO(dayStr), 'd MMM yyyy', { locale: es })}
+      </Button>
+    </PopoverTrigger>
 
     <PopoverContent className="p-3 w-auto flex flex-col gap-2 items-center">
       <Calendar

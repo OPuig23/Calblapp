@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { startOfWeek, endOfWeek, format, parseISO } from 'date-fns'
 import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
 import ModuleHeader from '@/components/layout/ModuleHeader'
 import FiltersBar, { type FiltersState } from '@/components/layout/FiltersBar'
 import { RoleGuard } from '@/lib/withRoleGuard'
@@ -81,13 +82,24 @@ const getDayKey = (date: Date | null) => {
 }
 
 export default function MaintenanceWorkPage() {
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
+  const router = useRouter()
   const userId = (session?.user as any)?.id || ''
-  const userName = (session?.user as any)?.name || ''
   const role = normalizeRole((session?.user as any)?.role || '')
   const dept = normalizeDept((session?.user as any)?.department || '')
   const isCap = role === 'cap'
   const isAdmin = role === 'admin' || role === 'direccio'
+
+  const isDecorations =
+    dept === 'decoracio' || dept === 'decoracions' || dept === 'decoracion'
+  const hasAccess = isAdmin || isDecorations
+
+  useEffect(() => {
+    if (status === 'loading') return
+    if (!hasAccess) router.replace('/menu')
+  }, [hasAccess, router, status])
+
+  if (!hasAccess && status !== 'loading') return null
 
   const todayStart = startOfWeek(new Date(), { weekStartsOn: 1 })
   const todayEnd = endOfWeek(new Date(), { weekStartsOn: 1 })
@@ -121,8 +133,12 @@ export default function MaintenanceWorkPage() {
       setLoading(true)
       setError(null)
       const params = new URLSearchParams()
+      params.set('ticketType', 'deco')
       if (statusFilter && statusFilter !== '__all__') {
         params.set('status', statusFilter)
+      }
+      if (role === 'treballador' && userId) {
+        params.set('assignedToId', userId)
       }
       const res = await fetch(`/api/maintenance/tickets?${params.toString()}`, {
         cache: 'no-store',
@@ -244,7 +260,7 @@ export default function MaintenanceWorkPage() {
   return (
     <RoleGuard allowedRoles={['treballador', 'cap', 'admin', 'direccio']}>
       <main className="w-full">
-        <ModuleHeader subtitle="Fulls de treball" />
+        <ModuleHeader title="Deco" mainHref="/menu/deco" />
 
         <FiltersBar
           filters={filters}
