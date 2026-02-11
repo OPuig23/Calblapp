@@ -128,7 +128,7 @@ export default function ComercialPage() {
       : 'Sense nom'
 
   return (
-    <RoleGuard allowedRoles={['admin']}>
+    <RoleGuard allowedRoles={['admin', 'observer']}>
       <main className="min-h-screen bg-[#f7f8fb] cmd-app">
         {!selectedEvent ? (
           <div className="mx-auto max-w-7xl px-4 py-5 space-y-4">

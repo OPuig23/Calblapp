@@ -53,7 +53,15 @@ type Props = {
   onAfterAction?: () => void
 }
 
-const ROLES = ['Admin', 'Direcció', 'Cap Departament', 'Treballador', 'Usuari', 'Comercial'] as const
+const ROLES = [
+  'Admin',
+  'Direcció',
+  'Cap Departament',
+  'Treballador',
+  'Usuari',
+  'Comercial',
+  'Observer',
+] as const
 const DEPARTS = DEPARTMENTS
 
 const RANKS = [

@@ -40,7 +40,7 @@ function UsersPage() {
   const [pendingRequests, setPendingRequests] = React.useState<any[]>([])
   const [loadingRequests, setLoadingRequests] = React.useState(false)
 
-  const roleOptions = ['Admin', 'Direcció', 'Cap Departament', 'Treballador']
+  const roleOptions = ['Admin', 'Direcció', 'Cap Departament', 'Treballador', 'Observer']
 
   const deptOptions = Array.from(
     new Set(users.map((u) => u.department).filter(Boolean)),

@@ -21,6 +21,7 @@ const isTreballador = (role?: string) => normLower(role) === 'treballador'
 // ──────────────────────────────────────────────────────────────
 interface UserUpdate {
   name?: string
+  nameFold?: string
   role?: string
   department?: string
   departmentLower?: string
@@ -87,6 +88,12 @@ export async function PUT(
     if (typeof rawUpdate.department === 'string') {
       rawUpdate.department = rawUpdate.department.trim()
       rawUpdate.departmentLower = normLower(rawUpdate.department)
+    }
+
+    // 🔹 Normalitzar nom (per login case/accents insensitive)
+    if (typeof rawUpdate.name === 'string') {
+      rawUpdate.name = rawUpdate.name.trim()
+      rawUpdate.nameFold = normLower(rawUpdate.name)
     }
 
     // 🔹 Si NO és treballador → netegem camps específics de torns

@@ -6,6 +6,7 @@ export type Role =
   | 'cap'
   | 'treballador'
   | 'comercial'
+  | 'observer'
   | 'usuari'
 
 /** Conjunt de rols permesos, en minúscules i sense accents */
@@ -15,6 +16,7 @@ export const allowedRoles = new Set<Role>([
   'cap',
   'treballador',
   'comercial',
+  'observer',
   'usuari',
 ])
 
@@ -51,6 +53,8 @@ export function normalizeRole(input?: string | null): Role {
     empleat: 'treballador',
     comercial: 'comercial',
     comercialo: 'comercial', // opcional
+    observer: 'observer',
+    observador: 'observer',
     usuari: 'usuari',
     user: 'usuari',
     invitado: 'usuari',

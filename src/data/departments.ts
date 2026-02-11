@@ -3,6 +3,7 @@ export const DEPARTMENTS = [
   'Empresa',
   'Compres',
   'Comptabilitat',
+  'Delsys',
   'Restauracio',
   'Marqueting',
   'Manteniment',

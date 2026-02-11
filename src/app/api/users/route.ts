@@ -20,6 +20,7 @@ const isTreballador = (role?: string) => normLower(role) === 'treballador'
 // ──────────────────────────────────────────────────────────────
 interface UserPayload {
   name: string
+  nameFold: string
   password: string
   role: string
   department: string
@@ -91,6 +92,7 @@ export async function POST(req: Request) {
     // 🔹 Construir payload base
     let userPayload: UserPayload = {
       name: name.trim(),
+      nameFold: normLower(name),
       password: password.toString(),
       role: role.trim(),
       department: department.trim(),
