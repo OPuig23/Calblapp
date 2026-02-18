@@ -150,6 +150,71 @@ const normalizeTextForMatch = (raw: string): string =>
     .toLowerCase()
     .trim()
 
+const normalizeLocationKey = (raw: string): string =>
+  normalizeTextForMatch(stripCode(raw))
+    .replace(/\b(empresa|empreses|casament|casaments|restaurant|restaurants|grup|grups)\b/g, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+const normalizeLocationCompactKey = (raw: string): string =>
+  normalizeLocationKey(raw).replace(/\s+/g, '')
+
+const normalizeLnBucket = (raw?: string | null): string => {
+  const n = normalizeTextForMatch(raw || '')
+  if (!n) return ''
+  if (n.includes('casament')) return 'casaments'
+  if (n.includes('empresa')) return 'empresa'
+  if (n.includes('restaurant') || n.includes('grups restaurant')) return 'grups restaurants'
+  return n
+}
+
+const levenshteinDistance = (a: string, b: string): number => {
+  if (a === b) return 0
+  if (!a) return b.length
+  if (!b) return a.length
+
+  const rows = b.length + 1
+  const cols = a.length + 1
+  const dp: number[][] = Array.from({ length: rows }, () => Array(cols).fill(0))
+
+  for (let i = 0; i < rows; i++) dp[i][0] = i
+  for (let j = 0; j < cols; j++) dp[0][j] = j
+
+  for (let i = 1; i < rows; i++) {
+    for (let j = 1; j < cols; j++) {
+      const cost = a[j - 1] === b[i - 1] ? 0 : 1
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + cost
+      )
+    }
+  }
+
+  return dp[b.length][a.length]
+}
+
+const nameSimilarity = (a: string, b: string): number => {
+  const left = normalizeLocationKey(a)
+  const right = normalizeLocationKey(b)
+  if (!left || !right) return 0
+  if (left === right) return 1
+  const leftCompact = left.replace(/\s+/g, '')
+  const rightCompact = right.replace(/\s+/g, '')
+  if (leftCompact && leftCompact === rightCompact) return 1
+  const maxLen = Math.max(left.length, right.length)
+  if (maxLen === 0) return 1
+  const dist = levenshteinDistance(left, right)
+  const spacedScore = 1 - dist / maxLen
+  const compactMaxLen = Math.max(leftCompact.length, rightCompact.length)
+  const compactScore =
+    compactMaxLen > 0
+      ? 1 - levenshteinDistance(leftCompact, rightCompact) / compactMaxLen
+      : 1
+  return Math.max(spacedScore, compactScore)
+}
+
 const hasRestaurantKeyword = (raw: string): boolean => {
   const n = normalizeTextForMatch(raw)
   return (
@@ -160,15 +225,46 @@ const hasRestaurantKeyword = (raw: string): boolean => {
   )
 }
 
-const nextCEUCode = (currentMax: string | null): string => {
-  const base = 'CEU'
-  if (!currentMax || !currentMax.startsWith(base)) {
-    return 'CEU0173'
-  }
-  const num = parseInt(currentMax.slice(3), 10) || 172
-  const next = num + 1
-  return `${base}${next.toString().padStart(4, '0')}`
+const CEU_BASE_FALLBACK = 172
+
+const parseCeuNumber = (code?: string | null): number | null => {
+  const value = String(code || '').trim().toUpperCase()
+  const m = value.match(/^CEU(\d+)$/)
+  if (!m) return null
+  const n = Number.parseInt(m[1], 10)
+  return Number.isFinite(n) ? n : null
 }
+
+const parseCeuNumberStrict4 = (code?: string | null): number | null => {
+  const value = String(code || '').trim().toUpperCase()
+  const m = value.match(/^CEU(\d{4})$/)
+  if (!m) return null
+  const n = Number.parseInt(m[1], 10)
+  return Number.isFinite(n) ? n : null
+}
+
+const formatCeuCode = (num: number): string => `CEU${Math.max(0, num).toString().padStart(4, '0')}`
+
+const normalizeSyncedCode = (code?: string | null): string | null => {
+  const value = String(code || '').trim().toUpperCase()
+  if (!value) return null
+  const ceuNum = parseCeuNumber(value)
+  if (ceuNum !== null) return formatCeuCode(ceuNum)
+  return value
+}
+
+const normalizeIncomingZohoCode = (code?: string | null): string | null => {
+  const value = String(code || '').trim().toUpperCase()
+  if (!value) return null
+  if (value.startsWith('CEU')) {
+    // Des de Zoho només acceptem CEUXXXX (4 dígits exactes)
+    return /^CEU\d{4}$/.test(value) ? value : null
+  }
+  return value
+}
+
+const nextCEUCode = (currentMaxNum: number | null): string =>
+  formatCeuCode((currentMaxNum ?? CEU_BASE_FALLBACK) + 1)
 
 function normalizeName(raw: string): string {
   if (!raw) return ''
@@ -266,22 +362,60 @@ export async function syncZohoDealsToFirestore(): Promise<{
     id: string
     code: string
     ln?: string
+    nomKey?: string
   }
 
   const finquesByCode = new Map<string, FincaIndexEntry>()
+  const finquesByName = new Map<string, FincaIndexEntry[]>()
+  const finquesByCompactName = new Map<string, FincaIndexEntry[]>()
+  const finquesList: FincaIndexEntry[] = []
   for (const doc of finquesMatchSnap.docs) {
     const d = doc.data() as any
-    const code = (d.code || '').toString().trim().toUpperCase()
+    const docIdCode = String(doc.id || '').trim().toUpperCase()
+    const fallbackIdAsCode =
+      /^(CCB|CCE|CCR|CCF|CEU)\d+$/i.test(docIdCode) ? docIdCode : ''
+    const rawCode = (d.code || d.codi || fallbackIdAsCode || '').toString().trim().toUpperCase()
+    const code = normalizeSyncedCode(rawCode) || rawCode
+    const nom = (d.nom || '').toString()
+    const nomKey = normalizeLocationKey(nom)
+    const compactKey = normalizeLocationCompactKey(nom)
     if (!code) continue
-    finquesByCode.set(code, {
+    const entry: FincaIndexEntry = {
       id: doc.id,
       code,
       ln: (d.ln || d.LN || '') as string,
-    })
+      nomKey,
+    }
+    finquesList.push(entry)
+    finquesByCode.set(code, entry)
+    if (rawCode && rawCode !== code) {
+      finquesByCode.set(rawCode, entry)
+    }
+    if (nomKey) {
+      const prev = finquesByName.get(nomKey) || []
+      prev.push(entry)
+      finquesByName.set(nomKey, prev)
+    }
+    if (compactKey) {
+      const prevCompact = finquesByCompactName.get(compactKey) || []
+      prevCompact.push(entry)
+      finquesByCompactName.set(compactKey, prevCompact)
+    }
   }
 
+  const pickBestByLn = (items: FincaIndexEntry[], lnHint?: string): FincaIndexEntry | null => {
+    if (!items.length) return null
+    const lnBucket = normalizeLnBucket(lnHint)
+    if (!lnBucket) return items[0]
+    const sameLn = items.find((item) => normalizeLnBucket(item.ln) === lnBucket)
+    return sameLn || items[0]
+  }
+
+  const fuzzyCache = new Map<string, FincaIndexEntry | null>()
+
   function findFincaForUbicacio(
-    ubicacions: (string | null | undefined)[]
+    ubicacions: (string | null | undefined)[],
+    lnHint?: string
   ): FincaIndexEntry | null {
     const candidates = ubicacions
       .filter(Boolean)
@@ -291,10 +425,56 @@ export async function syncZohoDealsToFirestore(): Promise<{
     if (candidates.length === 0) return null
 
     for (const raw of candidates) {
-      const code = extractCodeFromName(raw)
-      if (!code || isBadCode(code)) continue
-      const finca = finquesByCode.get(code)
-      if (finca) return finca
+      const code = normalizeIncomingZohoCode(extractCodeFromName(raw))
+      if (code && !isBadCode(code)) {
+        const fincaByCode = finquesByCode.get(code)
+        if (fincaByCode) return fincaByCode
+      }
+
+      // Si no troba per codi, provar també per nom.
+      const nameKey = normalizeLocationKey(raw)
+      const compactKey = normalizeLocationCompactKey(raw)
+      if (!nameKey) continue
+      const byName = finquesByName.get(nameKey)
+      const exactMatch = byName ? pickBestByLn(byName, lnHint) : null
+      if (exactMatch) return exactMatch
+      const byCompact = compactKey ? finquesByCompactName.get(compactKey) : null
+      const compactMatch = byCompact ? pickBestByLn(byCompact, lnHint) : null
+      if (compactMatch) return compactMatch
+
+      const lnBucket = normalizeLnBucket(lnHint)
+      const cacheKey = `${nameKey}::${lnBucket}`
+      if (fuzzyCache.has(cacheKey)) {
+        const cached = fuzzyCache.get(cacheKey)
+        if (cached) return cached
+        continue
+      }
+
+      let best: FincaIndexEntry | null = null
+      let bestScore = 0
+      let bestLnMatch = false
+
+      for (const finca of finquesList) {
+        const fincaKey = finca.nomKey || ''
+        if (!fincaKey) continue
+        const score = nameSimilarity(nameKey, fincaKey)
+        if (score < 0.9) continue
+
+        const lnMatch =
+          !!lnBucket && normalizeLnBucket(finca.ln) === lnBucket
+
+        if (
+          score > bestScore ||
+          (score === bestScore && lnMatch && !bestLnMatch)
+        ) {
+          best = finca
+          bestScore = score
+          bestLnMatch = lnMatch
+        }
+      }
+
+      fuzzyCache.set(cacheKey, best)
+      if (best) return best
     }
 
     return null
@@ -351,7 +531,7 @@ export async function syncZohoDealsToFirestore(): Promise<{
   ''
 
 const ubicacioLabel = stripCode(ubicacioRaw).trim()
-    const ubicacioCodeRaw = extractCodeFromName(ubicacioRaw)
+    const ubicacioCodeRaw = normalizeIncomingZohoCode(extractCodeFromName(ubicacioRaw))
     const ubicacioCode =
       ubicacioCodeRaw && !isBadCode(ubicacioCodeRaw) ? ubicacioCodeRaw : null
     const forceGrupsRestaurants =
@@ -365,7 +545,7 @@ const ubicacioLabel = stripCode(ubicacioRaw).trim()
 
 
     // Matching de finca només per codi
-    const fincaMatch = findFincaForUbicacio(ubicacions)
+    const fincaMatch = findFincaForUbicacio(ubicacions, LN)
     const fincaId = fincaMatch?.id
     const fincaCode = fincaMatch?.code
     const fincaLN = fincaMatch?.ln
@@ -547,16 +727,19 @@ StageGroup:
 
     const existingCodes = new Set<string>()
     const createdNoCodeNames = new Set<string>()
-    let maxCEU: string | null = null
+    let maxCEUNum: number | null = null
 
     for (const doc of finquesSnap.docs) {
       const d = doc.data()
-      const code = (d.code || '').toString().trim().toUpperCase()
+      const rawCode = (d.code || '').toString().trim().toUpperCase()
+      const code = normalizeSyncedCode(rawCode) || rawCode
 
       if (code) existingCodes.add(code)
+      if (rawCode) existingCodes.add(rawCode)
 
-      if (code.startsWith('CEU')) {
-        if (!maxCEU || code > maxCEU) maxCEU = code
+      const ceuNum = parseCeuNumberStrict4(code)
+      if (ceuNum !== null && (maxCEUNum === null || ceuNum > maxCEUNum)) {
+        maxCEUNum = ceuNum
       }
     }
 
@@ -567,8 +750,8 @@ StageGroup:
       const rawNom = deal.Ubicacio || ''
       if (!rawNom) continue
 
-      const nomNetZoho = normalizeName(rawNom)
-      let code = (deal.FincaCode || deal.UbicacioCode || '').trim().toUpperCase() || null
+      const nomNetZoho = normalizeLocationKey(rawNom)
+      let code = normalizeIncomingZohoCode(deal.FincaCode || deal.UbicacioCode) || null
 
       if (isBadCode(code)) {
         code = null
@@ -586,10 +769,12 @@ StageGroup:
 
       // Si no tenim codi → generar CEU
       if (!code) {
-        const next = nextCEUCode(maxCEU)
+        const next = nextCEUCode(maxCEUNum)
         code = next
-        maxCEU = next
+        maxCEUNum = parseCeuNumber(next)
       }
+
+      code = normalizeSyncedCode(code) || code
 
       if (existingCodes.has(code)) continue
 
