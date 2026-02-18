@@ -143,6 +143,23 @@ const extractCodeFromName = (raw: string): string | null => {
   return trailing ? trailing[1].toUpperCase() : null
 }
 
+const normalizeTextForMatch = (raw: string): string =>
+  String(raw || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+
+const hasRestaurantKeyword = (raw: string): boolean => {
+  const n = normalizeTextForMatch(raw)
+  return (
+    n.includes('restaurant') ||
+    n.includes('restaurante') ||
+    n.includes('restuarnat') ||
+    n.includes('resautaurant')
+  )
+}
+
 const nextCEUCode = (currentMax: string | null): string => {
   const base = 'CEU'
   if (!currentMax || !currentMax.startsWith(base)) {
@@ -327,26 +344,24 @@ export async function syncZohoDealsToFirestore(): Promise<{
     // Ubicacions que venen de Zoho
     const ubicacions = [...(d.Espai_2 || []), ...(d.Finca_2 || [])]
 
-    // Regla ZZ per Empresa → Grups Restaurants
-    if (LN === 'Empresa') {
-      const esZZ = ubicacions.some((u) =>
-        u?.toString().trim().toUpperCase().startsWith('ZZ')
-      )
-      if (esZZ) {
-        LN = 'Grups Restaurants'
-      }
-    }
-
     // Ubicació que es guarda a les col·leccions stage_*
    const ubicacioRaw =
   d.Finca_2?.[0] ||
   d.Espai_2?.[0] ||
   ''
 
-const ubicacioLabel = stripZZ(stripCode(ubicacioRaw)).trim()
+const ubicacioLabel = stripCode(ubicacioRaw).trim()
     const ubicacioCodeRaw = extractCodeFromName(ubicacioRaw)
     const ubicacioCode =
       ubicacioCodeRaw && !isBadCode(ubicacioCodeRaw) ? ubicacioCodeRaw : null
+    const forceGrupsRestaurants =
+      (ubicacioCode || '').startsWith('CCR') ||
+      ubicacions.some((u) => hasRestaurantKeyword(String(u || ''))) ||
+      hasRestaurantKeyword(ubicacioRaw)
+
+    if (forceGrupsRestaurants) {
+      LN = 'Grups Restaurants'
+    }
 
 
     // Matching de finca només per codi
@@ -374,7 +389,7 @@ const ubicacioLabel = stripZZ(stripCode(ubicacioRaw)).trim()
       Ubicacio: ubicacioLabel,
       FincaId: fincaId,
       FincaCode: fincaCode,
-      FincaLN: fincaLN || LN,
+      FincaLN: forceGrupsRestaurants ? 'Grups Restaurants' : (fincaLN || LN),
       UbicacioCode: ubicacioCode,
 
 Color:
@@ -578,11 +593,14 @@ StageGroup:
 
       if (existingCodes.has(code)) continue
 
-      // LN segons prefix
+      // LN amb prioritat absoluta per restaurants (codi CCR o paraula restaurant)
+      const forceGrupsRestaurants =
+        code.startsWith('CCR') || hasRestaurantKeyword(rawNom)
+
       let LN = ''
-      if (code.startsWith('CCB')) LN = 'Casaments'
+      if (forceGrupsRestaurants) LN = 'Grups Restaurants'
+      else if (code.startsWith('CCB')) LN = 'Casaments'
       else if (code.startsWith('CCE')) LN = 'Empreses'
-      else if (code.startsWith('CCR')) LN = 'Grups Restaurants'
       else if (code.startsWith('CCF')) LN = 'Foodlovers'
       else if (code.startsWith('CEU')) LN = deal.LN
 
@@ -590,7 +608,7 @@ StageGroup:
 
       batchFinques.set(ref, {
         code,
-        nom: stripZZ(stripCode(rawNom)).trim(),
+        nom: stripCode(rawNom).trim(),
         nomNet: nomNetZoho,
         LN,
         searchable: `${rawNom} ${code}`.toLowerCase(),
