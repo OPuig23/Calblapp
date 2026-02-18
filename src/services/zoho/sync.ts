@@ -47,6 +47,7 @@ interface NormalizedDeal {
   FincaId?: string
   FincaCode?: string
   FincaLN?: string
+  UbicacioCode?: string | null
 
   Color: string
   StageDot: string
@@ -79,9 +80,6 @@ const unaccent = (s: string) =>
 
 const stripCode = (t: string) =>
   t.replace(/\s*\([^)]+\)\s*/g, '').trim()
-
-const stripZZ = (t: string) =>
-  t.replace(/^ZZRestaurant\s*/i, '').replace(/^ZZ\s*/i, '').trim()
 
 const slugify = (t: string) =>
   unaccent(t)
@@ -131,32 +129,28 @@ const parseZohoTime = (raw?: string | null): string | null => {
   return match ? match[1] : null
 }
 
-const normalizeExactName = (raw: string): string => {
-  if (!raw) return ''
-  return raw
-    .normalize('NFKC')
-    .replace(/[\u200B-\u200D\uFEFF]/g, '')
-    .replace(/[\s\u00A0]+/g, ' ')
-    .trim()
-    .toLowerCase()
-}
-
 const isBadCode = (code?: string | null) =>
   code === 'CCB00001' || code === 'CCE00004'
 
 const extractCodeFromName = (raw: string): string | null => {
-  const match = raw.match(/\(([A-Z0-9]{3,})\)/i)
-  return match ? match[1].toUpperCase() : null
+  const value = String(raw || '').trim()
+  if (!value) return null
+
+  const inParens = value.match(/\(([A-Z]{3}\d{3,})\)\s*$/i)
+  if (inParens) return inParens[1].toUpperCase()
+
+  const trailing = value.match(/\b([A-Z]{3}\d{3,})\b\s*$/i)
+  return trailing ? trailing[1].toUpperCase() : null
 }
 
 const nextCEUCode = (currentMax: string | null): string => {
   const base = 'CEU'
   if (!currentMax || !currentMax.startsWith(base)) {
-    return 'CEU000173'
+    return 'CEU0173'
   }
   const num = parseInt(currentMax.slice(3), 10) || 172
   const next = num + 1
-  return `${base}${next.toString().padStart(6, '0')}`
+  return `${base}${next.toString().padStart(4, '0')}`
 }
 
 function normalizeName(raw: string): string {
@@ -166,7 +160,6 @@ function normalizeName(raw: string): string {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '') // treure accents
     .toLowerCase()
-    .replace(/\bzz\b/g, '')
     .replace(/\bcasaments\b/g, '')
     .replace(/\bempresa\b/g, '')
     .replace(/\brestaurant\b/g, '')
@@ -186,14 +179,6 @@ function normalizeName(raw: string): string {
     .join(' ')
 }
 
-function matchExcelZoho(nomExcel: string, nomZoho: string): boolean {
-  const a = normalizeName(nomExcel)
-  const b = normalizeName(nomZoho)
-
-  if (!a || !b) return false
-
-  return a === b || a.includes(b) || b.includes(a)
-}
 
 // ─────────────────────────────
 // SYNC PRINCIPAL
@@ -263,22 +248,20 @@ export async function syncZohoDealsToFirestore(): Promise<{
   type FincaIndexEntry = {
     id: string
     code: string
-    nom: string
     ln?: string
-    norm: string
   }
 
-  const finquesIndex: FincaIndexEntry[] = finquesMatchSnap.docs.map((doc) => {
+  const finquesByCode = new Map<string, FincaIndexEntry>()
+  for (const doc of finquesMatchSnap.docs) {
     const d = doc.data() as any
-    const nom = (d.nom || '').toString()
-    return {
+    const code = (d.code || '').toString().trim().toUpperCase()
+    if (!code) continue
+    finquesByCode.set(code, {
       id: doc.id,
-      code: (d.code || '').toString(),
-      nom,
+      code,
       ln: (d.ln || d.LN || '') as string,
-      norm: normalizeName(nom),
-    }
-  })
+    })
+  }
 
   function findFincaForUbicacio(
     ubicacions: (string | null | undefined)[]
@@ -291,17 +274,10 @@ export async function syncZohoDealsToFirestore(): Promise<{
     if (candidates.length === 0) return null
 
     for (const raw of candidates) {
-      const senseCodi = stripCode(raw)
-      const normZoho = normalizeName(senseCodi)
-
-      for (const finca of finquesIndex) {
-        if (!finca.norm) continue
-
-        if (finca.norm === normZoho) return finca
-        if (matchExcelZoho(finca.nom, raw) || matchExcelZoho(raw, finca.nom)) {
-          return finca
-        }
-      }
+      const code = extractCodeFromName(raw)
+      if (!code || isBadCode(code)) continue
+      const finca = finquesByCode.get(code)
+      if (finca) return finca
     }
 
     return null
@@ -368,9 +344,12 @@ export async function syncZohoDealsToFirestore(): Promise<{
   ''
 
 const ubicacioLabel = stripZZ(stripCode(ubicacioRaw)).trim()
+    const ubicacioCodeRaw = extractCodeFromName(ubicacioRaw)
+    const ubicacioCode =
+      ubicacioCodeRaw && !isBadCode(ubicacioCodeRaw) ? ubicacioCodeRaw : null
 
 
-    // Matching de finca només per metadades (no per LN ni ubicació)
+    // Matching de finca només per codi
     const fincaMatch = findFincaForUbicacio(ubicacions)
     const fincaId = fincaMatch?.id
     const fincaCode = fincaMatch?.code
@@ -396,6 +375,7 @@ const ubicacioLabel = stripZZ(stripCode(ubicacioRaw)).trim()
       FincaId: fincaId,
       FincaCode: fincaCode,
       FincaLN: fincaLN || LN,
+      UbicacioCode: ubicacioCode,
 
 Color:
   group === 'taronja'
@@ -551,29 +531,20 @@ StageGroup:
     const finquesSnap = await firestore.collection('finques').get()
 
     const existingCodes = new Set<string>()
-    const existingExactNames = new Set<string>()
-    const existingNames = new Map<string, string>() // nomNet → code
+    const createdNoCodeNames = new Set<string>()
     let maxCEU: string | null = null
 
     for (const doc of finquesSnap.docs) {
       const d = doc.data()
-      const code = (d.code || '').toString().trim()
-      const nom = (d.nom || '').toString().trim()
-      const nomNetRaw = (d.nomNet || nom).toString()
-      const nomNet = normalizeName(nomNetRaw)
-      const nomExact = normalizeExactName(nom)
+      const code = (d.code || '').toString().trim().toUpperCase()
 
       if (code) existingCodes.add(code)
-      if (nomNet) existingNames.set(nomNet, code)
-      if (nomExact) existingExactNames.add(nomExact)
 
       if (code.startsWith('CEU')) {
         if (!maxCEU || code > maxCEU) maxCEU = code
       }
     }
 
-    const newlyCreated = new Map<string, string>() // nomNet → CEUxxxxxx
-    const newlyCreatedExact = new Set<string>()
     const batchFinques = firestore.batch()
     let created = 0
 
@@ -582,24 +553,20 @@ StageGroup:
       if (!rawNom) continue
 
       const nomNetZoho = normalizeName(rawNom)
-      const nomExactZoho = normalizeExactName(rawNom)
-
-      // Ja existeix
-      if (existingNames.has(nomNetZoho)) continue
-      if (newlyCreated.has(nomNetZoho)) continue
-      if (nomExactZoho && existingExactNames.has(nomExactZoho)) continue
-      if (nomExactZoho && newlyCreatedExact.has(nomExactZoho)) continue
-
-      // Extreure codi del nom
-      let code = extractCodeFromName(rawNom)
+      let code = (deal.FincaCode || deal.UbicacioCode || '').trim().toUpperCase() || null
 
       if (isBadCode(code)) {
         code = null
       }
 
       if (code && existingCodes.has(code)) {
-        // El codi ja existeix; si el nom no coincideix, no fem res
+        // Codi existent: reutilitzem registre actual
         continue
+      }
+
+      if (!code) {
+        if (!nomNetZoho || createdNoCodeNames.has(nomNetZoho)) continue
+        createdNoCodeNames.add(nomNetZoho)
       }
 
       // Si no tenim codi → generar CEU
@@ -615,7 +582,7 @@ StageGroup:
       let LN = ''
       if (code.startsWith('CCB')) LN = 'Casaments'
       else if (code.startsWith('CCE')) LN = 'Empreses'
-      else if (code.startsWith('CCR')) LN = 'Restaurants'
+      else if (code.startsWith('CCR')) LN = 'Grups Restaurants'
       else if (code.startsWith('CCF')) LN = 'Foodlovers'
       else if (code.startsWith('CEU')) LN = deal.LN
 
@@ -632,9 +599,6 @@ StageGroup:
       })
 
       existingCodes.add(code)
-      newlyCreated.set(nomNetZoho, code)
-      if (nomExactZoho) newlyCreatedExact.add(nomExactZoho)
-      if (nomExactZoho) existingExactNames.add(nomExactZoho)
       created++
     }
 

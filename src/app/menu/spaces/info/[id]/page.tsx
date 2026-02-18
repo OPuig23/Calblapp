@@ -7,14 +7,15 @@ import SpaceDetailClient, { EspaiDetall } from '../SpaceDetailClient'
 import ModuleHeader from '@/components/layout/ModuleHeader'
 
 interface Props {
-  params: { id: string }
-  searchParams?: { readonly?: string }
+  params: Promise<{ id: string }>
+  searchParams?: Promise<{ readonly?: string }>
 }
 
 export default async function SpaceDetailPage(props: Props) {
   const params = await props.params
+  const searchParams = props.searchParams ? await props.searchParams : undefined
   const id = params.id
-  const forceReadOnly = props.searchParams?.readonly === '1'
+  const forceReadOnly = searchParams?.readonly === '1'
 
 
   const snap = await firestoreAdmin.collection('finques').doc(id).get()

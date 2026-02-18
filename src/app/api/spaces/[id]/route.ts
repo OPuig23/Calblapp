@@ -20,7 +20,7 @@ const normalizeDept = (raw?: string) => {
 
 export async function DELETE(
   _req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -49,7 +49,7 @@ export async function DELETE(
       )
     }
 
-    const id = params.id
+    const { id } = await params
     if (!id) {
       return NextResponse.json(
         { error: 'Falta ID de la finca.' },
