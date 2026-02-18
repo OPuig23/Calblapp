@@ -1,70 +1,91 @@
 import { NextResponse } from 'next/server'
-import path from 'path'
-import fs from 'fs'
-import * as XLSX from 'xlsx'
+import { getServerSession } from 'next-auth/next'
+import { authOptions } from '@/app/api/auth/[...nextauth]/route'
+import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
+import { normalizeRole } from '@/lib/roles'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-type TemplateSection = {
-  location: string
-  items: { label: string }[]
+type SessionUser = {
+  id: string
+  name?: string
+  role?: string
+  department?: string
 }
 
 export async function GET() {
+  const session = await getServerSession(authOptions)
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const user = session.user as SessionUser
+  const role = normalizeRole(user.role || '')
+  if (role !== 'admin' && role !== 'direccio' && role !== 'cap' && role !== 'treballador') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
   try {
-    const filePath = path.join(process.cwd(), 'public', 'FUITES - Preventiu.xlsx')
-    if (!fs.existsSync(filePath)) {
-      return NextResponse.json({ templates: [] })
-    }
+    const snap = await db.collection('maintenancePreventiusTemplates').get()
+    const templates = snap.docs
+      .map((doc) => ({ id: doc.id, ...(doc.data() as any) }))
+      .sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || '')))
+    return NextResponse.json({ templates })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Internal error'
+    return NextResponse.json({ templates: [], error: message }, { status: 500 })
+  }
+}
 
-    let workbook: XLSX.WorkBook
-    try {
-      workbook = XLSX.readFile(filePath, { cellDates: false })
-    } catch {
-      const buffer = fs.readFileSync(filePath)
-      workbook = XLSX.read(buffer, { type: 'buffer', cellDates: false })
-    }
-    const sheetName = workbook.SheetNames.includes('Hoja1')
-      ? 'Hoja1'
-      : workbook.SheetNames[0]
-    const ws = workbook.Sheets[sheetName]
-    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' }) as string[][]
+type TemplateSection = { location: string; items: { label: string }[] }
+type TemplatePayload = {
+  name: string
+  periodicity?: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly'
+  lastDone?: string | null
+  location?: string
+  primaryOperator?: string
+  backupOperator?: string
+  sections?: TemplateSection[]
+}
 
-    let currentLocation = ''
-    const sectionsMap = new Map<string, TemplateSection>()
+export async function POST(req: Request) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
-    rows.forEach((row, idx) => {
-      if (idx < 3) return
-      const rawLocation = String(row[0] || '').trim()
-      const rawTask = String(row[3] || '').trim()
-      if (rawLocation.toUpperCase().startsWith('OBSERV')) return
-      if (rawLocation) currentLocation = rawLocation
-      if (!currentLocation || !rawTask) return
+  const user = session.user as SessionUser
+  const role = normalizeRole(user.role || '')
+  if (role !== 'admin' && role !== 'direccio' && role !== 'cap') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
-      const section = sectionsMap.get(currentLocation) || {
-        location: currentLocation,
-        items: [],
-      }
-      section.items.push({ label: rawTask })
-      sectionsMap.set(currentLocation, section)
+  try {
+    const body = (await req.json()) as TemplatePayload
+    const name = (body.name || '').trim()
+    if (!name) return NextResponse.json({ error: 'Falten camps obligatoris' }, { status: 400 })
+
+    const now = Date.now()
+    const doc = await db.collection('maintenancePreventiusTemplates').add({
+      name,
+      periodicity: body.periodicity || null,
+      lastDone: body.lastDone || null,
+      location: (body.location || '').trim(),
+      primaryOperator: (body.primaryOperator || '').trim(),
+      backupOperator: (body.backupOperator || '').trim(),
+      sections: Array.isArray(body.sections) ? body.sections : [],
+      createdAt: now,
+      createdById: user.id,
+      createdByName: user.name || '',
+      updatedAt: now,
+      updatedById: user.id,
+      updatedByName: user.name || '',
     })
 
-    const template = {
-      id: 'template-fuites-gas',
-      name: 'PREVENTIU FUITES DE GAS',
-      source: 'FUITES - Preventiu.xlsx',
-      periodicity: 'monthly',
-      lastDone: null,
-      location: 'Central alta temperatura',
-      primaryOperator: 'Javi',
-      backupOperator: 'Dani',
-      sections: Array.from(sectionsMap.values()),
-    }
-
-    return NextResponse.json({ templates: [template] })
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    return NextResponse.json({ templates: [], error: message }, { status: 500 })
+    return NextResponse.json({ id: doc.id }, { status: 201 })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Internal error'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

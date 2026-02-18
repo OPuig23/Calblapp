@@ -15,6 +15,7 @@ type SessionUser = {
 }
 
 type CompletedPayload = {
+  id?: string
   plannedId?: string | null
   templateId?: string | null
   title: string
@@ -26,6 +27,14 @@ type CompletedPayload = {
   completedAt?: string | number
   nextDue?: string | null
   checklist?: Record<string, boolean>
+}
+
+const computeProgress = (checklist?: Record<string, boolean>) => {
+  if (!checklist || typeof checklist !== 'object') return 0
+  const values = Object.values(checklist)
+  if (values.length === 0) return 0
+  const done = values.filter(Boolean).length
+  return Math.round((done / values.length) * 100)
 }
 
 export async function GET(req: Request) {
@@ -90,7 +99,7 @@ export async function POST(req: Request) {
         ? body.completedAt
         : now
 
-    const doc = await db.collection('maintenancePreventiusCompleted').add({
+    const payload = {
       plannedId: body.plannedId || null,
       templateId: body.templateId || null,
       title: body.title || '',
@@ -105,9 +114,37 @@ export async function POST(req: Request) {
       createdById: user.id,
       createdByName: user.name || '',
       createdAt: now,
-    })
+      updatedAt: now,
+      updatedById: user.id,
+      updatedByName: user.name || '',
+    }
 
-    return NextResponse.json({ id: doc.id }, { status: 201 })
+    const requestedId = (body.id || '').trim()
+    let docId = ''
+
+    if (requestedId) {
+      await db.collection('maintenancePreventiusCompleted').doc(requestedId).set(payload, { merge: true })
+      docId = requestedId
+    } else {
+      const doc = await db.collection('maintenancePreventiusCompleted').add(payload)
+      docId = doc.id
+    }
+
+    if (body.plannedId) {
+      const progress = computeProgress(body.checklist)
+      await db.collection('maintenancePreventiusPlanned').doc(body.plannedId).set(
+        {
+          lastRecordId: docId,
+          lastStatus: body.status || 'pendent',
+          lastProgress: progress,
+          lastCompletedAt: completedAt,
+          lastUpdatedAt: now,
+        },
+        { merge: true }
+      )
+    }
+
+    return NextResponse.json({ id: docId }, { status: 201 })
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Internal error'
     return NextResponse.json({ error: message }, { status: 500 })

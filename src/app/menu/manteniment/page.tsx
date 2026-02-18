@@ -91,7 +91,7 @@ export default function MantenimentIndexPage() {
             </Link>
           )}
 
-          {(isAdmin || isMaintenanceCap || isDecorationsCap || isCommercial || isProductionWorker) && (
+          {(isAdmin || isMaintenanceCap || isCommercial || isProductionWorker) && (
             <Link
               href="/menu/manteniment/seguiment"
               className="border rounded-2xl p-4 hover:shadow-sm bg-gradient-to-br from-indigo-50 to-purple-100"

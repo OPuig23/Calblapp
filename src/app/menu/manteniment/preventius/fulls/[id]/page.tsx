@@ -4,54 +4,26 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { addDays, addMonths } from 'date-fns'
 import { useParams, useSearchParams } from 'next/navigation'
 import { RoleGuard } from '@/lib/withRoleGuard'
-type MockDailyItem = {
-  id: string
-  machine: string
-  title: string
-  location: string
-  company?: string
-  worker?: string
-  templateId?: string
-  date: string
-  startTime: string
-  endTime: string
-  status: 'pendent' | 'en_curs' | 'fet' | 'no_fet'
-}
-
-type MockAssignedTicket = {
-  id: string
-  code: string
-  title: string
-  location: string
-  company?: string
-  worker?: string
-  templateId?: string
-  date: string
-  startTime: string
-  endTime: string
-  status: 'assignat' | 'en_curs' | 'espera' | 'resolut'
-}
 
 type TemplateSection = { location: string; items: { label: string }[] }
 type Template = {
   id: string
   name: string
-  source: string
   periodicity?: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly'
   sections: TemplateSection[]
 }
 
 type Draft = {
   id: string
-  kind: 'preventiu' | 'ticket'
   title: string
   startTime: string
   endTime: string
   status: string
   notes: string
-  templateId?: string
-  worker?: string
+  templateId: string | null
+  worker: string
 }
+
 type CompletedRecord = {
   id: string
   plannedId?: string | null
@@ -67,104 +39,38 @@ type CompletedRecord = {
   checklist?: Record<string, boolean>
 }
 
-const toDraft = (item: MockDailyItem | MockAssignedTicket): Draft => {
-  if ('code' in item) {
-    return {
-      id: item.id,
-      kind: 'ticket',
-      title: `${item.code} - ${item.title}`,
-      startTime: item.startTime,
-      endTime: item.endTime,
-      status: item.status,
-      notes: '',
-      templateId: item.templateId,
-      worker: item.worker,
-    }
-  }
-  return {
-    id: item.id,
-    kind: 'preventiu',
-    title: item.title,
-    startTime: item.startTime,
-    endTime: item.endTime,
-    status: item.status,
-    notes: '',
-    templateId: item.templateId,
-    worker: item.worker,
-  }
-}
-
 export default function PreventiusFullsFitxaPage() {
   const params = useParams()
-  const id = Array.isArray(params?.id) ? params?.id[0] : (params?.id as string)
+  const plannedId = Array.isArray(params?.id) ? params?.id[0] : (params?.id as string)
   const searchParams = useSearchParams()
   const recordId = searchParams?.get('recordId') || null
 
-  const [plannedItems, setPlannedItems] = useState<(MockDailyItem | MockAssignedTicket)[]>([])
-  const [plannedLoaded, setPlannedLoaded] = useState(false)
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem('maintenance.planificador.items')
-      const list = raw ? JSON.parse(raw) : []
-      if (!Array.isArray(list)) return
-      const mapped = list
-        .map((item: any) => {
-          if (!item?.start || !item?.end) return null
-          const title = String(item.title || '')
-          const codeMatch = title.match(/^([A-Z]+\d+)/)
-          const baseTitle = codeMatch ? title.replace(codeMatch[0], '').trim().replace(/^[-·]/, '').trim() : title
-          const templateId = title.toLowerCase().includes('fuites de gas')
-            ? 'template-fuites-gas'
-            : undefined
-          if (item.kind === 'ticket') {
-            return {
-              id: String(item.id || `plan_${Math.random().toString(36).slice(2, 6)}`),
-              code: codeMatch ? codeMatch[1] : 'TIC',
-              title: baseTitle || title,
-              location: item.location || '',
-              worker: Array.isArray(item.workers) ? item.workers.join(', ') : '',
-              templateId,
-              date: item.date || '',
-              startTime: item.start,
-              endTime: item.end,
-              status: 'assignat',
-            } as MockAssignedTicket
-          }
-          return {
-            id: String(item.id || `plan_${Math.random().toString(36).slice(2, 6)}`),
-            machine: '',
-            title,
-            location: item.location || '',
-            worker: Array.isArray(item.workers) ? item.workers.join(', ') : '',
-            templateId,
-            date: item.date || '',
-            startTime: item.start,
-            endTime: item.end,
-            status: 'pendent',
-          } as MockDailyItem
-        })
-        .filter(Boolean) as Array<MockDailyItem | MockAssignedTicket>
-      setPlannedItems(mapped)
-    } catch {
-      setPlannedItems([])
-    } finally {
-      setPlannedLoaded(true)
-    }
-  }, [])
-
-  const currentItem = useMemo(() => {
-    return plannedItems.find((i) => i.id === id)
-  }, [plannedItems, id])
-
   const [templates, setTemplates] = useState<Template[]>([])
   const [draft, setDraft] = useState<Draft | null>(null)
+  const [loadingDraft, setLoadingDraft] = useState(true)
   const [checklistState, setChecklistState] = useState<Record<string, boolean>>({})
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({})
   const [imagePreview, setImagePreview] = useState<string | null>(null)
-  const [savedAt, setSavedAt] = useState<string | null>(null)
   const [lastRecord, setLastRecord] = useState<CompletedRecord | null>(null)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [activeRecordId, setActiveRecordId] = useState<string | null>(recordId)
+
+  const applyRecordToDraft = (record: any) => {
+    if (!record) return
+    setLastRecord(record)
+    if (record.checklist) setChecklistState(record.checklist)
+    setDraft({
+      id: String(record.plannedId || plannedId),
+      title: String(record.title || 'Preventiu'),
+      startTime: String(record.startTime || ''),
+      endTime: String(record.endTime || ''),
+      status: String(record.status || 'pendent'),
+      notes: String(record.notes || ''),
+      templateId: record.templateId || null,
+      worker: String(record.worker || ''),
+    })
+    if (record.id) setActiveRecordId(String(record.id))
+  }
 
   useEffect(() => {
     const cacheKey = 'maintenance.templates.cache'
@@ -172,21 +78,24 @@ export default function PreventiusFullsFitxaPage() {
       const raw = localStorage.getItem(cacheKey)
       if (raw) {
         const parsed = JSON.parse(raw)
-        if (Array.isArray(parsed?.templates)) {
-          setTemplates(parsed.templates)
-        }
+        if (Array.isArray(parsed?.templates)) setTemplates(parsed.templates)
       }
     } catch {
-      // ignore cache errors
+      // ignore
     }
+
     const load = async () => {
-      const res = await fetch('/api/maintenance/templates', { cache: 'no-store' })
-      if (!res.ok) return
-      const json = await res.json()
-      const list = Array.isArray(json?.templates) ? json.templates : []
-      setTemplates(list)
       try {
-        localStorage.setItem(cacheKey, JSON.stringify({ templates: list, at: Date.now() }))
+        const res = await fetch('/api/maintenance/templates', { cache: 'no-store' })
+        if (!res.ok) return
+        const json = await res.json()
+        const list = Array.isArray(json?.templates) ? json.templates : []
+        setTemplates(list)
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify({ templates: list, at: Date.now() }))
+        } catch {
+          return
+        }
       } catch {
         return
       }
@@ -195,9 +104,81 @@ export default function PreventiusFullsFitxaPage() {
   }, [])
 
   useEffect(() => {
-    if (!currentItem) return
-    setDraft(toDraft(currentItem))
-  }, [currentItem])
+    const loadFromPlanned = async () => {
+      try {
+        const res = await fetch(
+          `/api/maintenance/preventius/planned/${encodeURIComponent(plannedId)}`,
+          { cache: 'no-store' }
+        )
+        if (!res.ok) {
+          setDraft(null)
+          return
+        }
+        const json = await res.json()
+        const item = json?.item
+        if (!item) {
+          setDraft(null)
+          return
+        }
+
+        const linkedRecordId = String(item.lastRecordId || '').trim()
+        if (linkedRecordId) {
+          try {
+            const recRes = await fetch(
+              `/api/maintenance/preventius/completed/${encodeURIComponent(linkedRecordId)}`,
+              { cache: 'no-store' }
+            )
+            if (recRes.ok) {
+              const recJson = await recRes.json()
+              if (recJson?.record) {
+                applyRecordToDraft(recJson.record)
+                return
+              }
+            }
+          } catch {
+            // fallback to latest record
+          }
+        }
+
+        // fallback: load latest completed record for this planned item
+        try {
+          const latestRes = await fetch(
+            `/api/maintenance/preventius/completed?plannedId=${encodeURIComponent(item.id || plannedId)}`,
+            { cache: 'no-store' }
+          )
+          if (latestRes.ok) {
+            const latestJson = await latestRes.json()
+            const list = Array.isArray(latestJson?.records) ? latestJson.records : []
+            if (list[0]) {
+              applyRecordToDraft(list[0])
+              return
+            }
+          }
+        } catch {
+          // ignore
+        }
+
+        const workerNames = Array.isArray(item.workerNames) ? item.workerNames.map(String) : []
+        setDraft({
+          id: String(item.id || plannedId),
+          title: String(item.title || ''),
+          startTime: String(item.startTime || ''),
+          endTime: String(item.endTime || ''),
+          status: 'pendent',
+          notes: '',
+          templateId: item.templateId || null,
+          worker: workerNames.length ? workerNames.join(', ') : '',
+        })
+      } catch {
+        setDraft(null)
+      } finally {
+        setLoadingDraft(false)
+      }
+    }
+
+    if (recordId) return
+    loadFromPlanned()
+  }, [plannedId, recordId])
 
   useEffect(() => {
     if (!recordId) return
@@ -211,72 +192,33 @@ export default function PreventiusFullsFitxaPage() {
         const json = await res.json()
         const record = json?.record || null
         if (!record) return
-        setLastRecord(record)
-        if (record.checklist) setChecklistState(record.checklist)
-        setDraft({
-          id: record.plannedId || id,
-          kind: 'preventiu',
-          title: record.title || 'Preventiu',
-          startTime: record.startTime || '',
-          endTime: record.endTime || '',
-          status: record.status || 'pendent',
-          notes: record.notes || '',
-          templateId: record.templateId || undefined,
-          worker: record.worker || undefined,
-        })
-      } catch {
-        return
+        applyRecordToDraft(record)
+      } finally {
+        setLoadingDraft(false)
       }
     }
     loadRecord()
-  }, [recordId, id])
-
-  useEffect(() => {
-    if (!draft || recordId) return
-    const load = async () => {
-      try {
-        const res = await fetch(
-          `/api/maintenance/preventius/completed?plannedId=${encodeURIComponent(draft.id)}`,
-          { cache: 'no-store' }
-        )
-        if (!res.ok) return
-        const json = await res.json()
-        const list = Array.isArray(json?.records) ? json.records : []
-        const latest = list[0] || null
-        setLastRecord(latest)
-        if (latest && latest.checklist) {
-          setChecklistState(latest.checklist)
-        }
-        if (latest && latest.notes !== undefined) {
-          setDraft((prev) => (prev ? { ...prev, notes: latest.notes, status: latest.status } : prev))
-        }
-      } catch {
-        return
-      }
-    }
-    load()
-  }, [draft?.id, recordId])
+  }, [recordId, plannedId])
 
   const selectedTemplate = useMemo(() => {
     if (!draft?.templateId) return null
     return templates.find((t) => t.id === draft.templateId) || null
-  }, [draft, templates])
+  }, [draft?.templateId, templates])
 
   useEffect(() => {
-    if (!draft?.templateId || !selectedTemplate) return
+    if (!selectedTemplate) return
     if (Object.keys(checklistState).length > 0) return
     const nextState: Record<string, boolean> = {}
     const nextOpen: Record<string, boolean> = {}
     selectedTemplate.sections.forEach((sec) => {
       sec.items.forEach((it) => {
-        const key = `${sec.location}::${it.label}`
-        nextState[key] = false
+        nextState[`${sec.location}::${it.label}`] = false
       })
       nextOpen[sec.location] = false
     })
     setChecklistState(nextState)
     setOpenSections(nextOpen)
-  }, [draft, selectedTemplate, checklistState])
+  }, [selectedTemplate, checklistState])
 
   const computeNextDue = (date: Date, periodicity?: Template['periodicity']) => {
     if (!periodicity) return null
@@ -288,17 +230,16 @@ export default function PreventiusFullsFitxaPage() {
     return null
   }
 
-  const saveCompletion = () => {
+  const saveCompletion = async () => {
     if (!draft) return
     if (lastRecord?.status === 'resolut') {
-      alert('Aquest preventiu ja està resolt i no es pot editar.')
+      alert('Aquest preventiu ja esta resolt i no es pot editar.')
       return
     }
     setSaveStatus('saving')
     const now = new Date()
     const nextDue = computeNextDue(now, selectedTemplate?.periodicity)
     const record = {
-      id: `comp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
       plannedId: draft.id || null,
       templateId: draft.templateId || null,
       title: draft.title,
@@ -311,27 +252,29 @@ export default function PreventiusFullsFitxaPage() {
       nextDue: nextDue ? nextDue.toISOString() : null,
       checklist: checklistState,
     }
-    fetch('/api/maintenance/preventius/completed', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(record),
-    })
-      .then(async (res) => {
-        if (!res.ok) throw new Error()
-        const json = await res.json().catch(() => null)
-        const docId = json?.id ? String(json.id) : record.id
-        setSavedAt(now.toISOString())
-        setLastRecord({ ...record, id: docId })
-        setSaveStatus('saved')
-        setTimeout(() => setSaveStatus('idle'), 2000)
+    try {
+      const res = await fetch('/api/maintenance/preventius/completed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...(activeRecordId ? { id: activeRecordId } : {}),
+          ...record,
+        }),
       })
-      .catch(() => {
-        setSaveStatus('error')
-        setTimeout(() => setSaveStatus('idle'), 3000)
-      })
+      if (!res.ok) throw new Error('save_failed')
+      const json = await res.json().catch(() => null)
+      const docId = json?.id ? String(json.id) : `comp_${Date.now()}`
+      setLastRecord({ ...(record as any), id: docId })
+      setActiveRecordId(docId)
+      setSaveStatus('saved')
+      setTimeout(() => setSaveStatus('idle'), 2000)
+    } catch {
+      setSaveStatus('error')
+      setTimeout(() => setSaveStatus('idle'), 3000)
+    }
   }
 
-  if (!draft && !plannedLoaded) {
+  if (loadingDraft) {
     return (
       <RoleGuard allowedRoles={['admin', 'direccio', 'cap', 'treballador']}>
         <div className="p-6 text-sm text-gray-600">Carregant fitxa...</div>
@@ -350,13 +293,12 @@ export default function PreventiusFullsFitxaPage() {
   return (
     <RoleGuard allowedRoles={['admin', 'direccio', 'cap', 'treballador']}>
       <div className="min-h-screen w-full bg-white flex flex-col">
-        <div className="border-b px-4 py-3 sm:px-6 sm:py-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div className="text-base font-semibold text-gray-900">{draft.title}</div>
-          <div className="flex items-center gap-2">
-            {savedAt && <div className="text-xs text-emerald-700">Guardat</div>}
+        <div className="w-full max-w-6xl mx-auto px-4 py-6">
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-lg font-semibold text-gray-900">{draft.title}</div>
             <button
               type="button"
-              className="rounded-full border px-4 py-2 text-xs text-gray-600"
+              className="rounded-full border px-4 py-2 text-xs text-gray-700"
               onClick={() => window.close()}
             >
               Tancar pestanya
@@ -364,10 +306,10 @@ export default function PreventiusFullsFitxaPage() {
           </div>
         </div>
 
-        <div className="flex-1 overflow-hidden">
-          <div className="h-full grid grid-cols-1 xl:grid-cols-[420px_1fr] gap-0">
-            <div className="px-4 py-4 sm:px-6 sm:py-6 overflow-y-auto border-b xl:border-b-0 xl:border-r">
-              <div className="grid grid-cols-1 gap-4 text-sm pb-24 xl:pb-6">
+        <div className="border-y">
+          <div className="w-full max-w-6xl mx-auto grid grid-cols-1 gap-0 md:grid-cols-2">
+            <div className="px-4 py-6 md:px-6 md:py-8 border-r">
+              <div className="space-y-4">
                 <label className="flex flex-col gap-1">
                   <span className="text-xs text-gray-600">Hora inici</span>
                   <input
@@ -409,11 +351,10 @@ export default function PreventiusFullsFitxaPage() {
                     <option value="en_curs">En curs</option>
                     <option value="fet">Fet</option>
                     <option value="no_fet">No fet</option>
-                    <option value="assignat">Assignat</option>
-                    <option value="espera">Espera</option>
                     <option value="resolut">Resolut</option>
                   </select>
                 </label>
+
                 <div className="flex flex-col gap-2">
                   <div className="text-xs text-gray-600">Adjuntar imatge</div>
                   <div className="flex items-center gap-2">
@@ -446,7 +387,7 @@ export default function PreventiusFullsFitxaPage() {
                   {imagePreview && (
                     <img
                       src={imagePreview}
-                      alt="Previsualització"
+                      alt="Previsualitzacio"
                       className="w-full max-h-48 object-cover rounded-xl border"
                     />
                   )}
@@ -454,16 +395,18 @@ export default function PreventiusFullsFitxaPage() {
               </div>
             </div>
 
-            <div className="px-4 py-4 sm:px-6 sm:py-6 overflow-y-auto">
+            <div className="px-4 py-6 md:px-6 md:py-8">
               <div className="text-xs text-gray-600 mb-2">Checklist</div>
-              {selectedTemplate ? (
+              {!selectedTemplate && (
+                <div className="rounded-xl border px-3 py-2 text-xs text-gray-500">
+                  Aquesta tasca no te plantilla assignada.
+                </div>
+              )}
+              {selectedTemplate && (
                 <div className="rounded-2xl border px-2 py-2 text-xs text-gray-700">
                   {selectedTemplate.sections.map((sec) => {
                     const isOpen = !!openSections[sec.location]
-                    const doneCount = sec.items.filter((it) => {
-                      const key = `${sec.location}::${it.label}`
-                      return checklistState[key]
-                    }).length
+                    const doneCount = sec.items.filter((it) => checklistState[`${sec.location}::${it.label}`]).length
                     return (
                       <div key={sec.location} className="border-b last:border-b-0">
                         <button
@@ -476,27 +419,26 @@ export default function PreventiusFullsFitxaPage() {
                             }))
                           }
                         >
-                          <div className="text-[11px] font-semibold text-gray-700">
-                            {sec.location}
-                          </div>
+                          <div className="text-[11px] font-semibold text-gray-700">{sec.location}</div>
                           <div className="text-[11px] text-gray-500">
                             {doneCount}/{sec.items.length}
                           </div>
                         </button>
                         {isOpen && (
                           <div className="px-3 pb-4 space-y-2">
-                            {sec.items.map((it) => {
-                              const key = `${sec.location}::${it.label}`
+                            {sec.items.map((it, idx) => {
+                              const key = `${sec.location}::${it.label}::${idx}`
+                              const entryKey = `${sec.location}::${it.label}`
                               return (
                                 <label key={key} className="flex items-start gap-2">
                                   <input
                                     type="checkbox"
-                                    checked={!!checklistState[key]}
+                                    checked={!!checklistState[entryKey]}
                                     disabled={lastRecord?.status === 'resolut'}
                                     onChange={() =>
                                       setChecklistState((prev) => ({
                                         ...prev,
-                                        [key]: !prev[key],
+                                        [entryKey]: !prev[entryKey],
                                       }))
                                     }
                                   />
@@ -510,29 +452,27 @@ export default function PreventiusFullsFitxaPage() {
                     )
                   })}
                 </div>
-              ) : (
-                <div className="rounded-xl border px-3 py-2 text-xs text-gray-500">
-                  (Aquí es generarà el checklist del preventiu / ticket)
-                </div>
               )}
             </div>
           </div>
         </div>
 
-        <div className="border-t px-4 py-3 sm:px-6 sm:py-4 flex items-center justify-end gap-2 sticky bottom-0 bg-white">
-          {saveStatus === 'saved' && (
-            <div className="mr-auto text-xs text-emerald-700">Guardat correctament.</div>
-          )}
-          {saveStatus === 'error' && (
-            <div className="mr-auto text-xs text-red-600">No s’ha pogut guardar.</div>
-          )}
-          <button
-            type="button"
-            className="rounded-full bg-emerald-600 px-4 py-2 text-xs font-semibold text-white"
-            onClick={saveCompletion}
-          >
-            {saveStatus === 'saving' ? 'Guardant...' : 'Guardar'}
-          </button>
+        <div className="sticky bottom-0 border-t bg-white">
+          <div className="w-full max-w-6xl mx-auto px-4 py-3 flex items-center justify-end gap-2">
+            {saveStatus === 'saved' && (
+              <div className="mr-auto text-xs text-emerald-700">Guardat correctament.</div>
+            )}
+            {saveStatus === 'error' && (
+              <div className="mr-auto text-xs text-red-600">No s'ha pogut guardar.</div>
+            )}
+            <button
+              type="button"
+              className="rounded-full bg-emerald-600 px-4 py-2 text-xs font-semibold text-white"
+              onClick={saveCompletion}
+            >
+              {saveStatus === 'saving' ? 'Guardant...' : 'Guardar'}
+            </button>
+          </div>
         </div>
       </div>
     </RoleGuard>

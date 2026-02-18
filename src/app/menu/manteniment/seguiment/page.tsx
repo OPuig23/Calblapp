@@ -55,9 +55,11 @@ type PlannedItem = {
 
 type CompletedRecord = {
   id: string
+  plannedId?: string | null
   templateId?: string | null
   title: string
   worker?: string | null
+  status?: string
   completedAt: string
   checklist?: Record<string, boolean>
 }
@@ -173,38 +175,46 @@ export default function MaintenanceTrackingPage() {
   }, [canView])
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem('maintenance.planificador.items')
-      const list = raw ? JSON.parse(raw) : []
-      if (!Array.isArray(list)) {
+    if (!canView) return
+    const loadPlanned = async () => {
+      try {
+        const params = new URLSearchParams()
+        if (dateRange.start) params.set('start', dateRange.start)
+        if (dateRange.end) params.set('end', dateRange.end)
+        const qs = params.toString()
+        const res = await fetch(
+          `/api/maintenance/preventius/planned${qs ? `?${qs}` : ''}`,
+          { cache: 'no-store' }
+        )
+        if (!res.ok) {
+          setPlannedItems([])
+          return
+        }
+        const json = await res.json()
+        const list = Array.isArray(json?.items) ? json.items : []
+        const mapped = list
+          .map((item: any) => {
+            if (!item?.id || !item?.title) return null
+            return {
+              id: String(item.id),
+              kind: 'preventiu',
+              title: String(item.title || ''),
+              date: String(item.date || ''),
+              start: String(item.startTime || ''),
+              end: String(item.endTime || ''),
+              location: String(item.location || ''),
+              worker: Array.isArray(item.workerNames) ? item.workerNames.join(', ') : '',
+              templateId: item.templateId || undefined,
+            } as PlannedItem
+          })
+          .filter(Boolean)
+        setPlannedItems(mapped as PlannedItem[])
+      } catch {
         setPlannedItems([])
-        return
       }
-      const mapped = list
-        .map((item: any) => {
-          if (!item?.title) return null
-          const title = String(item.title || '')
-          const templateId = title.toLowerCase().includes('fuites de gas')
-            ? 'template-fuites-gas'
-            : undefined
-          return {
-            id: String(item.id || item.sourceId || `plan_${Math.random().toString(36).slice(2, 6)}`),
-            kind: item.kind === 'ticket' ? 'ticket' : 'preventiu',
-            title,
-            date: item.date,
-            start: item.start,
-            end: item.end,
-            location: item.location || '',
-            worker: Array.isArray(item.workers) ? item.workers.join(', ') : '',
-            templateId,
-          } as PlannedItem
-        })
-        .filter(Boolean)
-      setPlannedItems(mapped as PlannedItem[])
-    } catch {
-      setPlannedItems([])
     }
-  }, [])
+    loadPlanned()
+  }, [canView, dateRange.start, dateRange.end])
 
   useEffect(() => {
     const load = async () => {

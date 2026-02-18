@@ -6,15 +6,16 @@ import ModuleHeader from '@/components/layout/ModuleHeader'
 import { RoleGuard } from '@/lib/withRoleGuard'
 import FiltersBar, { type FiltersState } from '@/components/layout/FiltersBar'
 
-type MockTask = {
+type Template = {
   id: string
-  title: string
-  asset: string
-  minutes: number
-  allowedOperators: string[]
+  name: string
+  periodicity?: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly'
+  location?: string
+  primaryOperator?: string
+  backupOperator?: string
 }
 
-type MockTicket = {
+type TicketCard = {
   id: string
   code: string
   title: string
@@ -34,12 +35,11 @@ type ScheduledItem = {
   start: string
   end: string
   minutes: number
-  date?: string
-  meta?: string
   priority?: 'urgent' | 'alta' | 'normal' | 'baixa'
   location?: string
   machine?: string
-  sourceId?: string
+  templateId?: string | null
+  ticketId?: string | null
 }
 
 const ROW_HEIGHT = 40
@@ -48,13 +48,6 @@ const HEADER_HEIGHT = 32
 const TIME_COL_WIDTH = 80
 const DAY_COUNT = 6
 
-const MOCK_OPERATORS = [
-  { id: 'javi', name: 'Javi' },
-  { id: 'dani', name: 'Dani' },
-  { id: 'pep', name: 'Pep' },
-  { id: 'fernando', name: 'Fernando' },
-]
-
 const normalizeName = (value: string) =>
   value
     .toString()
@@ -62,49 +55,6 @@ const normalizeName = (value: string) =>
     .replace(/\p{Diacritic}/gu, '')
     .toLowerCase()
     .trim()
-
-const MOCK_TASKS: MockTask[] = [
-  {
-    id: 'fuites-gas-central',
-    title: 'Preventiu fuites de gas',
-    asset: 'Central alta temperatura',
-    minutes: 120,
-    allowedOperators: ['javi', 'dani', 'fernando', 'pep'],
-  },
-  {
-    id: 'fuites-gas-negativa',
-    title: 'Preventiu fuites de gas',
-    asset: 'Condensador negativa',
-    minutes: 60,
-    allowedOperators: ['javi', 'dani'],
-  },
-  {
-    id: 'fuites-gas-abatidor',
-    title: 'Preventiu fuites de gas',
-    asset: 'Condensador abatidor',
-    minutes: 75,
-    allowedOperators: ['pep', 'fernando'],
-  },
-]
-
-const MOCK_TICKETS: MockTicket[] = [
-  {
-    id: 'tk1',
-    code: 'TIC000128',
-    title: 'Vibracio motor cinta',
-    priority: 'alta',
-    minutes: 60,
-    machine: '',
-  },
-  {
-    id: 'tk2',
-    code: 'TIC000131',
-    title: 'Soroll anormal AACC',
-    priority: 'normal',
-    minutes: 45,
-    machine: '',
-  },
-]
 
 export default function PreventiusPlanificadorPage() {
   const [filters, setFiltersState] = useState<FiltersState>(() => {
@@ -117,7 +67,8 @@ export default function PreventiusPlanificadorPage() {
     }
   })
   const [tab, setTab] = useState<'preventius' | 'tickets'>('preventius')
-  const [realTickets, setRealTickets] = useState<MockTicket[]>([])
+  const [templates, setTemplates] = useState<Template[]>([])
+  const [realTickets, setRealTickets] = useState<TicketCard[]>([])
   const [machines, setMachines] = useState<Array<{ code: string; name: string; label: string }>>([])
   const [users, setUsers] = useState<Array<{ id: string; name: string; department?: string }>>([])
   const [scheduledItems, setScheduledItems] = useState<ScheduledItem[]>([])
@@ -125,6 +76,8 @@ export default function PreventiusPlanificadorPage() {
   const [draft, setDraft] = useState<{
     id?: string
     kind: 'preventiu' | 'ticket'
+    templateId?: string | null
+    ticketId?: string | null
     title: string
     dayIndex: number
     start: string
@@ -135,8 +88,6 @@ export default function PreventiusPlanificadorPage() {
     priority: 'urgent' | 'alta' | 'normal' | 'baixa'
     location: string
     machine: string
-    meta?: string
-    sourceId?: string
   } | null>(null)
 
   const setFilters = (partial: Partial<FiltersState>) =>
@@ -150,9 +101,9 @@ export default function PreventiusPlanificadorPage() {
   )
 
   const visibleItems = useMemo(() => {
-    if (tab === 'preventius') return MOCK_TASKS
-    return realTickets.length > 0 ? realTickets : MOCK_TICKETS
-  }, [tab, realTickets])
+    if (tab === 'preventius') return templates
+    return realTickets
+  }, [tab, templates, realTickets])
 
   const timeSlots = useMemo(() => {
     const slots: string[] = []
@@ -184,7 +135,7 @@ export default function PreventiusPlanificadorPage() {
               id: String(t.id || code),
               code,
               title,
-              priority: (t.priority || 'normal') as MockTicket['priority'],
+              priority: (t.priority || 'normal') as TicketCard['priority'],
               minutes,
               location: t.location || '',
               machine: t.machine || '',
@@ -197,6 +148,34 @@ export default function PreventiusPlanificadorPage() {
     }
     loadTickets()
   }, [tab])
+
+  useEffect(() => {
+    const loadTemplates = async () => {
+      try {
+        const res = await fetch('/api/maintenance/templates', { cache: 'no-store' })
+        if (!res.ok) {
+          setTemplates([])
+          return
+        }
+        const json = await res.json()
+        const list = Array.isArray(json?.templates) ? json.templates : []
+        const mapped = list
+          .filter((t: any) => t?.id && (t?.name || t?.title))
+          .map((t: any) => ({
+            id: String(t.id),
+            name: String(t.name || t.title || ''),
+            periodicity: t.periodicity,
+            location: t.location || '',
+            primaryOperator: t.primaryOperator || '',
+            backupOperator: t.backupOperator || '',
+          }))
+        setTemplates(mapped)
+      } catch {
+        setTemplates([])
+      }
+    }
+    loadTemplates()
+  }, [])
 
   useEffect(() => {
     const loadMachines = async () => {
@@ -234,87 +213,94 @@ export default function PreventiusPlanificadorPage() {
     loadUsers()
   }, [])
 
-  useEffect(() => {
+  const loadWeekSchedule = async () => {
+    const startStr = format(weekStart, 'yyyy-MM-dd')
+    const endStr = format(addDays(weekStart, DAY_COUNT - 1), 'yyyy-MM-dd')
     try {
-      const raw = localStorage.getItem('maintenance.planificador.items')
-      if (raw) {
-        const parsed = JSON.parse(raw)
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setScheduledItems(parsed)
-          return
-        }
-      }
+      const [plannedRes, ticketsRes] = await Promise.all([
+        fetch(
+          `/api/maintenance/preventius/planned?start=${encodeURIComponent(startStr)}&end=${encodeURIComponent(endStr)}`,
+          { cache: 'no-store' }
+        ),
+        fetch('/api/maintenance/tickets?ticketType=maquinaria', { cache: 'no-store' }),
+      ])
+
+      const plannedJson = plannedRes.ok ? await plannedRes.json() : { items: [] }
+      const plannedList = Array.isArray(plannedJson?.items) ? plannedJson.items : []
+      const plannedMapped: ScheduledItem[] = plannedList
+        .map((p: any) => {
+          const date = parseISO(String(p.date || ''))
+          const dayIndex = Math.round((date.getTime() - weekStart.getTime()) / 86400000)
+          if (dayIndex < 0 || dayIndex >= DAY_COUNT) return null
+          const startTime = String(p.startTime || '')
+          const endTime = String(p.endTime || '')
+          if (!startTime || !endTime) return null
+          const minutes = Math.max(30, minutesFromTime(endTime) - minutesFromTime(startTime))
+          const workers = Array.isArray(p.workerNames) ? p.workerNames.map(String) : []
+          return {
+            id: String(p.id || ''),
+            kind: 'preventiu' as const,
+            title: String(p.title || ''),
+            workers,
+            workersCount: workers.length || 1,
+            dayIndex,
+            start: startTime,
+            end: endTime,
+            minutes,
+            location: String(p.location || ''),
+            templateId: p.templateId || null,
+            ticketId: null,
+          }
+        })
+        .filter(Boolean) as ScheduledItem[]
+
+      const ticketsJson = ticketsRes.ok ? await ticketsRes.json() : { tickets: [] }
+      const ticketList = Array.isArray(ticketsJson?.tickets) ? ticketsJson.tickets : []
+      const ticketsMapped: ScheduledItem[] = ticketList
+        .filter((t: any) => t.plannedStart && t.plannedEnd)
+        .map((t: any) => {
+          const start = new Date(Number(t.plannedStart))
+          const end = new Date(Number(t.plannedEnd))
+          const date = format(start, 'yyyy-MM-dd')
+          if (date < startStr || date > endStr) return null
+          const dayIndex = Math.round(
+            (parseISO(date).getTime() - weekStart.getTime()) / 86400000
+          )
+          if (dayIndex < 0 || dayIndex >= DAY_COUNT) return null
+          const workers = Array.isArray(t.assignedToNames) ? t.assignedToNames.map(String) : []
+          const title = String(t.description || t.machine || t.location || '')
+          const code = String(t.ticketCode || t.incidentNumber || 'TIC')
+          return {
+            id: String(t.id || ''),
+            kind: 'ticket' as const,
+            title: `${code} - ${title}`.trim(),
+            workers,
+            workersCount: workers.length || 1,
+            dayIndex,
+            start: format(start, 'HH:mm'),
+            end: format(end, 'HH:mm'),
+            minutes: Math.max(30, Number(t.estimatedMinutes || 60)),
+            priority: (t.priority || 'normal') as any,
+            location: String(t.location || ''),
+            machine: String(t.machine || ''),
+            templateId: null,
+            ticketId: String(t.id || ''),
+          }
+        })
+        .filter(Boolean) as ScheduledItem[]
+
+      setScheduledItems([...plannedMapped, ...ticketsMapped])
     } catch {
-      // ignore parse errors
+      setScheduledItems([])
     }
-    setScheduledItems([
-      {
-        id: 's1',
-        kind: 'preventiu',
-        title: 'Preventiu fuites de gas',
-        workers: ['Javi'],
-        workersCount: 1,
-        dayIndex: 0,
-        start: '09:00',
-        end: '11:00',
-        minutes: 120,
-        meta: 'Central alta temperatura',
-        sourceId: 'fuites-gas-central',
-      },
-      {
-        id: 's2',
-        kind: 'preventiu',
-        title: 'Preventiu fuites de gas',
-        workers: ['Dani'],
-        workersCount: 1,
-        dayIndex: 0,
-        start: '09:30',
-        end: '10:30',
-        minutes: 60,
-        meta: 'Condensador negativa',
-        sourceId: 'fuites-gas-negativa',
-      },
-      {
-        id: 's3',
-        kind: 'preventiu',
-        title: 'Preventiu fuites de gas',
-        workers: ['Pep'],
-        workersCount: 1,
-        dayIndex: 2,
-        start: '14:00',
-        end: '15:15',
-        minutes: 75,
-        meta: 'Condensador abatidor',
-        sourceId: 'fuites-gas-abatidor',
-      },
-      {
-        id: 's4',
-        kind: 'ticket',
-        title: 'TIC000128 · Vibracio motor cinta',
-        workers: ['Fernando'],
-        workersCount: 1,
-        dayIndex: 1,
-        start: '10:00',
-        end: '11:00',
-        minutes: 60,
-        priority: 'alta',
-        location: 'Sala envasat',
-        sourceId: 'tk1',
-      },
-    ])
-  }, [])
+  }
 
   useEffect(() => {
-    try {
-      const payload = scheduledItems.map((item) => ({
-        ...item,
-        date: format(addDays(weekStart, item.dayIndex), 'yyyy-MM-dd'),
-      }))
-      localStorage.setItem('maintenance.planificador.items', JSON.stringify(payload))
-    } catch {
-      return
-    }
-  }, [scheduledItems, weekStart])
+    loadWeekSchedule()
+    const onFocus = () => loadWeekSchedule()
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [weekStart])
 
   const getRowIndex = (time: string) => {
     const [hh, mm] = time.split(':').map(Number)
@@ -358,7 +344,12 @@ export default function PreventiusPlanificadorPage() {
   }
 
   const availableWorkers = (dayIndex: number, start: string, end: string, ignoreId?: string) => {
-    return MOCK_OPERATORS.filter((op) => {
+    const operators =
+      users
+        .filter((u) => normalizeName(u.department || '').includes('manten'))
+        .map((u) => ({ id: u.id, name: u.name })) || []
+    const list = operators.length > 0 ? operators : users.map((u) => ({ id: u.id, name: u.name }))
+    return list.filter((op) => {
       const has = scheduledItems.some((i) => {
         if (ignoreId && i.id === ignoreId) return false
         if (i.dayIndex !== dayIndex) return false
@@ -384,7 +375,8 @@ export default function PreventiusPlanificadorPage() {
   }
 
   const persistTicketPlanning = async (item: ScheduledItem) => {
-    if (!item.sourceId) return
+    const ticketId = item.ticketId || (item.kind === 'ticket' ? item.id : null)
+    if (!ticketId) return
     const day = addDays(weekStart, item.dayIndex)
     const dateStr = format(day, 'yyyy-MM-dd')
     const plannedStart = new Date(`${dateStr}T${item.start}:00`).getTime()
@@ -393,7 +385,7 @@ export default function PreventiusPlanificadorPage() {
     const assignedToIds = resolveWorkerIds(assignedToNames)
 
     try {
-      await fetch(`/api/maintenance/tickets/${item.sourceId}`, {
+      await fetch(`/api/maintenance/tickets/${ticketId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -419,7 +411,23 @@ export default function PreventiusPlanificadorPage() {
   const handleDrop = (dayIndex: number, startTime: string, data: string) => {
     try {
       const payload = JSON.parse(data) as
-        | { type: 'card'; cardId: string; kind: 'preventiu' | 'ticket'; title: string; minutes: number; meta?: string; machine?: string }
+        | {
+            type: 'card'
+            kind: 'preventiu'
+            templateId: string
+            title: string
+            minutes: number
+            location?: string
+          }
+        | {
+            type: 'card'
+            kind: 'ticket'
+            ticketId: string
+            title: string
+            minutes: number
+            location?: string
+            machine?: string
+          }
         | { type: 'scheduled'; id: string }
 
       if (payload.type === 'scheduled') {
@@ -431,6 +439,8 @@ export default function PreventiusPlanificadorPage() {
       openModal({
         id: target.id,
         kind: target.kind,
+        templateId: target.templateId || null,
+        ticketId: target.ticketId || (target.kind === 'ticket' ? target.id : null),
         title: target.title,
         dayIndex,
         start: newStart,
@@ -441,15 +451,25 @@ export default function PreventiusPlanificadorPage() {
         priority: target.priority || 'normal',
         location: target.location || '',
         machine: target.machine || '',
-        meta: target.meta,
-        sourceId: target.sourceId,
       })
         return
       }
 
-      if (scheduledItems.some((i) => i.sourceId === payload.cardId)) return
+      if (payload.kind === 'ticket') {
+        const alreadyPlanned = scheduledItems.some(
+          (i) => i.kind === 'ticket' && (i.ticketId || i.id) === payload.ticketId
+        )
+        if (alreadyPlanned) return
+      } else {
+        const alreadyPlanned = scheduledItems.some(
+          (i) => i.kind === 'preventiu' && i.templateId === payload.templateId
+        )
+        if (alreadyPlanned) return
+      }
       openModal({
         kind: payload.kind,
+        templateId: payload.kind === 'preventiu' ? payload.templateId : null,
+        ticketId: payload.kind === 'ticket' ? payload.ticketId : null,
         title: payload.title,
         dayIndex,
         start: startTime,
@@ -458,10 +478,8 @@ export default function PreventiusPlanificadorPage() {
         workersCount: 1,
         workers: [],
         priority: 'normal',
-        location: payload.meta || '',
-        machine: payload.machine || '',
-        meta: payload.meta,
-        sourceId: payload.cardId,
+        location: payload.location || '',
+        machine: payload.kind === 'ticket' ? payload.machine || '' : '',
       })
     } catch {
       return
@@ -473,6 +491,8 @@ export default function PreventiusPlanificadorPage() {
       openModal({
         id: item.id,
         kind: item.kind,
+        templateId: item.templateId || null,
+        ticketId: item.ticketId || (item.kind === 'ticket' ? item.id : null),
         title: item.title,
         dayIndex: item.dayIndex,
         start: item.start,
@@ -483,14 +503,14 @@ export default function PreventiusPlanificadorPage() {
         priority: item.priority || 'normal',
         location: item.location || '',
         machine: item.machine || '',
-        meta: item.meta,
-        sourceId: item.sourceId,
       })
   }
 
   const handleCreateEmpty = (dayIndex: number, startTime: string) => {
+    if (tab !== 'preventius') return
       openModal({
-        kind: tab === 'preventius' ? 'preventiu' : 'ticket',
+        kind: 'preventiu',
+        templateId: null,
         title: '',
         dayIndex,
         start: startTime,
@@ -551,8 +571,10 @@ export default function PreventiusPlanificadorPage() {
               </div>
               <div className="mt-3 space-y-2">
                 {tab === 'preventius' &&
-                  (visibleItems as MockTask[]).map((t) => {
-                    const alreadyPlanned = scheduledItems.some((i) => i.sourceId === t.id)
+                  (visibleItems as Template[]).map((t) => {
+                    const alreadyPlanned = scheduledItems.some(
+                      (i) => i.kind === 'preventiu' && i.templateId === t.id
+                    )
                     return (
                       <div
                         key={t.id}
@@ -568,27 +590,29 @@ export default function PreventiusPlanificadorPage() {
                             'text/plain',
                             JSON.stringify({
                               type: 'card',
-                              cardId: t.id,
                               kind: 'preventiu',
-                              title: t.title,
-                              minutes: t.minutes,
-                              meta: t.asset,
+                              templateId: t.id,
+                              title: t.name,
+                              minutes: 60,
+                              location: t.location || '',
                             })
                           )
                         }}
                       >
-                        <div className="font-semibold text-gray-900 leading-snug">{t.title}</div>
-                        <div className="text-[10px] text-gray-600">{t.asset}</div>
+                        <div className="font-semibold text-gray-900 leading-snug">{t.name}</div>
+                        {t.location && <div className="text-[10px] text-gray-600">{t.location}</div>}
                         <div className="mt-1 flex items-center justify-between text-[10px] text-gray-600">
-                          <span>{t.minutes} min</span>
-                          <span className="rounded-full bg-gray-100 px-2 py-0.5">Permesos</span>
+                          <span>{t.periodicity || '—'}</span>
+                          <span className="rounded-full bg-gray-100 px-2 py-0.5">Plantilla</span>
                         </div>
                       </div>
                     )
                   })}
                 {tab === 'tickets' &&
-                  (visibleItems as MockTicket[]).map((t) => {
-                    const alreadyPlanned = scheduledItems.some((i) => i.sourceId === t.id)
+                  (visibleItems as TicketCard[]).map((t) => {
+                    const alreadyPlanned = scheduledItems.some(
+                      (i) => i.kind === 'ticket' && (i.ticketId || i.id) === t.id
+                    )
                     return (
                       <div
                         key={t.id}
@@ -604,11 +628,11 @@ export default function PreventiusPlanificadorPage() {
                             'text/plain',
                             JSON.stringify({
                               type: 'card',
-                              cardId: t.id,
                               kind: 'ticket',
-                              title: `${t.code} - ${t.title}`,
+                              ticketId: t.id,
+                              title: `${t.code} - ${t.title}`.trim(),
                               minutes: t.minutes,
-                              meta: t.location || '',
+                              location: t.location || '',
                               machine: t.machine || '',
                             })
                           )
@@ -954,9 +978,38 @@ export default function PreventiusPlanificadorPage() {
                   <button
                     type="button"
                     className="rounded-full border px-4 py-2 text-xs text-red-600"
-                    onClick={() => {
-                      setScheduledItems((prev) => prev.filter((i) => i.id !== draft.id))
+                    onClick={async () => {
+                      if (!draft?.id) return
+                      if (draft.kind === 'preventiu') {
+                        try {
+                          await fetch(`/api/maintenance/preventius/planned/${draft.id}`, {
+                            method: 'DELETE',
+                          })
+                        } catch {
+                          // ignore
+                        }
+                        setIsModalOpen(false)
+                        loadWeekSchedule()
+                        return
+                      }
+
+                      const ticketId = draft.ticketId || draft.id
+                      if (!ticketId) return
+                      try {
+                        await fetch(`/api/maintenance/tickets/${ticketId}`, {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            plannedStart: null,
+                            plannedEnd: null,
+                            estimatedMinutes: null,
+                          }),
+                        })
+                      } catch {
+                        // ignore
+                      }
                       setIsModalOpen(false)
+                      loadWeekSchedule()
                     }}
                   >
                     Eliminar
@@ -976,38 +1029,99 @@ export default function PreventiusPlanificadorPage() {
                     type="button"
                     className="rounded-full bg-emerald-600 px-4 py-2 text-xs font-semibold text-white"
                     onClick={async () => {
-                      if (!draft.title) return
                       if (!draft.start || !draft.end) return
-                      const id =
-                        draft.id || `s_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
-                      const nextItem: ScheduledItem = {
-                        id,
-                        kind: draft.kind,
-                        title: draft.title,
-                        workers: draft.workers,
-                        workersCount: draft.workersCount,
-                        dayIndex: draft.dayIndex,
-                        start: draft.start,
-                        end: draft.end,
-                        minutes: draft.duration,
-                        meta: draft.meta,
-                        priority: draft.priority,
-                        location: draft.location,
-                        machine: draft.machine,
-                        sourceId: draft.sourceId,
-                      }
-                      setScheduledItems((prev) => {
-                        const next = prev.filter((i) => {
-                          if (i.id === id) return false
-                          if (draft.sourceId) return i.sourceId !== draft.sourceId
-                          return true
+                      if (draft.kind === 'ticket') {
+                        const ticketId = draft.ticketId || draft.id
+                        if (!ticketId) {
+                          alert('Arrossega un ticket des de la columna lateral.')
+                          return
+                        }
+                        const nextItem: ScheduledItem = {
+                          id: ticketId,
+                          kind: 'ticket',
+                          ticketId,
+                          title: draft.title,
+                          workers: draft.workers,
+                          workersCount: draft.workersCount,
+                          dayIndex: draft.dayIndex,
+                          start: draft.start,
+                          end: draft.end,
+                          minutes: draft.duration,
+                          priority: draft.priority,
+                          location: draft.location,
+                          machine: draft.machine,
+                          templateId: null,
+                        }
+                        setScheduledItems((prev) => {
+                          const next = prev.filter((i) => i.id !== ticketId)
+                          return [...next, nextItem]
                         })
-                        return [...next, nextItem]
-                      })
-                      if (draft.kind === 'ticket' && draft.sourceId) {
                         await persistTicketPlanning(nextItem)
+                        setIsModalOpen(false)
+                        loadWeekSchedule()
+                        return
+                      }
+
+                      if (!draft.title) {
+                        alert('Omple el titol del preventiu.')
+                        return
+                      }
+
+                      const dateStr = format(addDays(weekStart, draft.dayIndex), 'yyyy-MM-dd')
+                      const workerNames = draft.workers || []
+                      const workerIds = resolveWorkerIds(workerNames)
+                      const payload = {
+                        templateId: draft.templateId || null,
+                        title: draft.title,
+                        date: dateStr,
+                        startTime: draft.start,
+                        endTime: draft.end,
+                        location: draft.location || '',
+                        workerNames,
+                        workerIds,
+                      }
+
+                      try {
+                        if (draft.id) {
+                          await fetch(`/api/maintenance/preventius/planned/${draft.id}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload),
+                          })
+                        } else {
+                          const res = await fetch('/api/maintenance/preventius/planned', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload),
+                          })
+                          if (!res.ok) throw new Error('create_failed')
+                          const json = await res.json().catch(() => null)
+                          const newId = json?.id ? String(json.id) : null
+                          if (newId) {
+                            setScheduledItems((prev) => [
+                              ...prev,
+                              {
+                                id: newId,
+                                kind: 'preventiu',
+                                templateId: payload.templateId,
+                                ticketId: null,
+                                title: payload.title,
+                                workers: workerNames,
+                                workersCount: workerNames.length || 1,
+                                dayIndex: draft.dayIndex,
+                                start: payload.startTime,
+                                end: payload.endTime,
+                                minutes: draft.duration,
+                                location: payload.location,
+                              } as ScheduledItem,
+                            ])
+                          }
+                        }
+                      } catch {
+                        alert('No s’ha pogut guardar el preventiu.')
                       }
                       setIsModalOpen(false)
+                      loadWeekSchedule()
                     }}
                   >
                     Guardar

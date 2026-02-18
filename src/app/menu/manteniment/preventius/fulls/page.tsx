@@ -30,21 +30,23 @@ const STATUS_LABELS: Record<TicketStatus, string> = {
 
 export default function PreventiusFullsPage() {
   const [filters, setFiltersState] = useState<{ start: string; end: string; mode: 'day' }>(() => {
-    const value = '2026-02-02'
+    const value = format(new Date(), 'yyyy-MM-dd')
     return { start: value, end: value, mode: 'day' }
   })
   const [plannedItems, setPlannedItems] = useState<
     Array<{
       id: string
-      kind: 'preventiu' | 'ticket'
+      kind: 'preventiu'
       title: string
       date: string
       startTime: string
       endTime: string
       location?: string
       worker?: string
-      templateId?: string
-      code?: string
+      templateId?: string | null
+      lastRecordId?: string | null
+      lastStatus?: string | null
+      lastProgress?: number | null
     }>
   >([])
   const [ticketItems, setTicketItems] = useState<
@@ -63,9 +65,6 @@ export default function PreventiusFullsPage() {
       templateId?: string
     }>
   >([])
-  const [completed, setCompleted] = useState<
-    Array<{ id?: string; plannedId?: string | null; status?: string; completedAt?: string }>
-  >([])
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null)
   const [statusDraft, setStatusDraft] = useState<{
     status?: TicketStatus
@@ -74,56 +73,34 @@ export default function PreventiusFullsPage() {
     note: string
   }>({ startTime: '', endTime: '', note: '' })
 
-  const loadPlannedItems = () => {
+  const loadPlannedItems = async (start: string, end: string) => {
     try {
-      const raw = localStorage.getItem('maintenance.planificador.items')
-      let list = raw ? JSON.parse(raw) : []
-      if (!Array.isArray(list)) list = []
-      const hasDemo = list.some(
-        (i: any) =>
-          i?.kind === 'preventiu' &&
-          i?.title === 'Preventiu fuites de gas' &&
-          i?.date === '2026-02-02'
+      const res = await fetch(
+        `/api/maintenance/preventius/planned?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`,
+        { cache: 'no-store' }
       )
-      if (!hasDemo) {
-        const demo = {
-          id: 'plan_demo_fuites_2026_02_02',
-          kind: 'preventiu',
-          title: 'Preventiu fuites de gas',
-          date: '2026-02-02',
-          start: '09:00',
-          end: '11:00',
-          location: 'Central alta temperatura',
-          workers: ['Javi'],
-          sourceId: 'fuites-gas-central',
-        }
-        list = [...list, demo]
-        localStorage.setItem('maintenance.planificador.items', JSON.stringify(list))
+      if (!res.ok) {
+        setPlannedItems([])
+        return
       }
+      const json = await res.json()
+      const list = Array.isArray(json?.items) ? json.items : []
       const mapped = list
         .map((item: any) => {
-          if (!item?.date || !item?.start || !item?.end) return null
-          const title = String(item.title || '')
-          const codeMatch = title.match(/^([A-Z]+\\d+)/)
-          const templateId = title.toLowerCase().includes('fuites de gas')
-            ? 'template-fuites-gas'
-            : undefined
-          const isTicket = item.kind === 'ticket'
-          const resolvedId =
-            isTicket && item.sourceId ? String(item.sourceId) : String(item.id || '')
+          if (!item?.date || !item?.startTime || !item?.endTime) return null
           return {
-            id:
-              resolvedId ||
-              String(item.id || `plan_${Math.random().toString(36).slice(2, 6)}`),
-            kind: isTicket ? 'ticket' : 'preventiu',
-            title,
-            code: codeMatch ? codeMatch[1] : undefined,
-            date: item.date,
-            startTime: item.start,
-            endTime: item.end,
-            location: item.location || '',
-            worker: Array.isArray(item.workers) ? item.workers.join(', ') : '',
-            templateId,
+            id: String(item.id || ''),
+            kind: 'preventiu' as const,
+            title: String(item.title || ''),
+            date: String(item.date || ''),
+            startTime: String(item.startTime || ''),
+            endTime: String(item.endTime || ''),
+            location: String(item.location || ''),
+            worker: Array.isArray(item.workerNames) ? item.workerNames.join(', ') : '',
+            templateId: item.templateId || null,
+            lastRecordId: item.lastRecordId || null,
+            lastStatus: item.lastStatus || null,
+            lastProgress: typeof item.lastProgress === 'number' ? item.lastProgress : null,
           }
         })
         .filter(Boolean)
@@ -134,40 +111,20 @@ export default function PreventiusFullsPage() {
   }
 
   useEffect(() => {
-    loadPlannedItems()
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === 'maintenance.planificador.items') loadPlannedItems()
-    }
-    const onFocus = () => loadPlannedItems()
-    window.addEventListener('storage', onStorage)
-    window.addEventListener('focus', onFocus)
-    return () => {
-      window.removeEventListener('storage', onStorage)
-      window.removeEventListener('focus', onFocus)
-    }
-  }, [])
-
-  const loadCompleted = () => {
-    fetch('/api/maintenance/preventius/completed', { cache: 'no-store' })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((json) => {
-        const list = Array.isArray(json?.records) ? json.records : []
-        setCompleted(list)
-      })
-      .catch(() => setCompleted([]))
-  }
-
-  useEffect(() => {
-    loadCompleted()
-    const onFocus = () => loadCompleted()
+    loadPlannedItems(filters.start, filters.end)
+    const onFocus = () => loadPlannedItems(filters.start, filters.end)
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)
-  }, [])
+  }, [filters.start, filters.end])
 
   useEffect(() => {
-    const loadTickets = async () => {
+    const loadTickets = async (start: string, end: string) => {
       try {
-        const res = await fetch('/api/maintenance/tickets?ticketType=maquinaria', {
+        const params = new URLSearchParams()
+        params.set('ticketType', 'maquinaria')
+        if (start) params.set('start', start)
+        if (end) params.set('end', end)
+        const res = await fetch(`/api/maintenance/tickets?${params.toString()}`, {
           cache: 'no-store',
         })
         if (!res.ok) return
@@ -180,11 +137,6 @@ export default function PreventiusFullsPage() {
             const end = new Date(Number(t.plannedEnd))
             const code = t.ticketCode || t.incidentNumber || 'TIC'
             const title = t.description || t.machine || t.location || ''
-            const templateId = String(title || '')
-              .toLowerCase()
-              .includes('fuites de gas')
-              ? 'template-fuites-gas'
-              : undefined
             return {
               id: String(t.id || code),
               kind: 'ticket' as const,
@@ -197,7 +149,6 @@ export default function PreventiusFullsPage() {
               endTime: format(end, 'HH:mm'),
               location: t.location || '',
               worker: Array.isArray(t.assignedToNames) ? t.assignedToNames.join(', ') : '',
-              templateId,
             }
           })
         setTicketItems(mapped)
@@ -205,8 +156,11 @@ export default function PreventiusFullsPage() {
         setTicketItems([])
       }
     }
-    loadTickets()
-  }, [])
+    loadTickets(filters.start, filters.end)
+    const onFocus = () => loadTickets(filters.start, filters.end)
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [filters.start, filters.end])
 
   const handleDateChange = (f: SmartFiltersChange) => {
     if (!f.start) return
@@ -230,7 +184,7 @@ export default function PreventiusFullsPage() {
     })
 
     return Array.from(map.entries()).sort(([a], [b]) => (a > b ? 1 : -1))
-  }, [filters.start, filters.end])
+  }, [filters.start, filters.end, plannedItems, ticketItems])
 
   const statusClasses: Record<string, string> = {
     nou: 'bg-emerald-100 text-emerald-800',
@@ -244,24 +198,7 @@ export default function PreventiusFullsPage() {
     no_fet: 'bg-red-100 text-red-700',
   }
 
-  const lastCompletedByPlan = useMemo(() => {
-    const map = new Map<string, { id?: string; status?: string; completedAt?: string }>()
-    completed.forEach((c) => {
-      if (!c.plannedId) return
-      const prev = map.get(c.plannedId)
-      if (!prev) {
-        map.set(c.plannedId, c)
-        return
-      }
-      if ((c.completedAt || '') > (prev.completedAt || '')) {
-        map.set(c.plannedId, c)
-      }
-    })
-    return map
-  }, [completed])
-
-  const openFitxa = (id: string) => {
-    const recordId = lastCompletedByPlan.get(id)?.id
+  const openFitxa = (id: string, recordId?: string | null) => {
     const url = recordId
       ? `/menu/manteniment/preventius/fulls/${id}?recordId=${encodeURIComponent(recordId)}`
       : `/menu/manteniment/preventius/fulls/${id}`
@@ -376,7 +313,6 @@ export default function PreventiusFullsPage() {
                         </div>
                         <div className="text-xs text-gray-500">
                           {item.location}
-                          {item.company ? ` · ${item.company}` : ''}
                           {item.worker ? ` · ${item.worker}` : ''}
                         </div>
                       </div>
@@ -393,11 +329,14 @@ export default function PreventiusFullsPage() {
                         {item.kind === 'preventiu' && (
                           <span
                             className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${
-                              statusClasses[lastCompletedByPlan.get(item.id)?.status || 'pendent'] ||
+                              statusClasses[(item as any).lastStatus || 'pendent'] ||
                               'bg-slate-100 text-slate-700'
                             }`}
                           >
-                            {lastCompletedByPlan.get(item.id)?.status || 'pendent'}
+                            {(item as any).lastStatus || 'pendent'}
+                            {typeof (item as any).lastProgress === 'number'
+                              ? ` · ${(item as any).lastProgress}%`
+                              : ''}
                           </span>
                         )}
                         <button
@@ -410,7 +349,7 @@ export default function PreventiusFullsPage() {
                                   (item as any).code,
                                   (item as any).ticketType
                                 )
-                              : openFitxa(item.id)
+                              : openFitxa(item.id, (item as any).lastRecordId || null)
                           }
                         >
                           {item.kind === 'ticket' ? 'Obrir ticket' : 'Obrir fitxa'}

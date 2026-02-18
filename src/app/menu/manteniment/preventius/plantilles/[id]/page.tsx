@@ -43,11 +43,12 @@ export default function PlantillaDetailPage() {
 
   useEffect(() => {
     const load = async () => {
-      const res = await fetch('/api/maintenance/templates', { cache: 'no-store' })
+      const res = await fetch(`/api/maintenance/templates/${encodeURIComponent(id)}`, {
+        cache: 'no-store',
+      })
       if (!res.ok) return
       const json = await res.json()
-      const list = Array.isArray(json?.templates) ? json.templates : []
-      const found = list.find((t: Template) => t.id === id) || null
+      const found = (json?.template as Template) || null
       setTemplate(found)
       if (found) {
         setForm({
@@ -68,19 +69,6 @@ export default function PlantillaDetailPage() {
   }, [id])
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem('maintenance.templates.meta')
-      const parsed = raw ? JSON.parse(raw) : {}
-      const meta = parsed?.[id]
-      if (meta) {
-        setForm((prev) => ({ ...prev, ...meta }))
-      }
-    } catch {
-      return
-    }
-  }, [id])
-
-  useEffect(() => {
     const loadLastDone = async () => {
       try {
         const res = await fetch(
@@ -97,7 +85,7 @@ export default function PlantillaDetailPage() {
           const mm = String(date.getMonth() + 1).padStart(2, '0')
           const dd = String(date.getDate()).padStart(2, '0')
           const formatted = `${yyyy}-${mm}-${dd}`
-          setForm((prev) => ({ ...prev, lastDone: formatted }))
+          setForm((prev) => (prev.lastDone ? prev : { ...prev, lastDone: formatted }))
         }
       } catch {
         return
@@ -108,15 +96,20 @@ export default function PlantillaDetailPage() {
 
   const lastDoneRequired = !form.lastDone
 
-  const save = () => {
+  const save = async () => {
     try {
-      const raw = localStorage.getItem('maintenance.templates.meta')
-      const parsed = raw ? JSON.parse(raw) : {}
-      const next = {
-        ...(parsed && typeof parsed === 'object' ? parsed : {}),
-        [id]: { ...form },
-      }
-      localStorage.setItem('maintenance.templates.meta', JSON.stringify(next))
+      const res = await fetch(`/api/maintenance/templates/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          periodicity: form.periodicity || null,
+          lastDone: form.lastDone || null,
+          location: form.location || '',
+          primaryOperator: form.primaryOperator || '',
+          backupOperator: form.backupOperator || '',
+        }),
+      })
+      if (!res.ok) throw new Error('save_failed')
       setSavedAt(new Date().toISOString())
     } catch {
       return

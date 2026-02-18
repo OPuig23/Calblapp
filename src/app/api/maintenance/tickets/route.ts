@@ -91,6 +91,8 @@ export async function GET(req: Request) {
   const assignedToId = (searchParams.get('assignedToId') || '').trim()
   const ticketType = (searchParams.get('ticketType') || 'all').toLowerCase()
   const code = (searchParams.get('code') || '').trim().toUpperCase()
+  const start = (searchParams.get('start') || '').trim()
+  const end = (searchParams.get('end') || '').trim()
 
   try {
     const snap = await db.collection('maintenanceTickets').orderBy('createdAt', 'desc').get()
@@ -127,6 +129,17 @@ export async function GET(req: Request) {
         const ticketCode = String(t.ticketCode || '').toUpperCase()
         const incident = String(t.incidentNumber || '').toUpperCase()
         return ticketCode === code || incident === code
+      })
+    }
+    if (start || end) {
+      const startMs = start ? new Date(`${start}T00:00:00.000Z`).getTime() : null
+      const endMs = end ? new Date(`${end}T23:59:59.999Z`).getTime() : null
+      tickets = tickets.filter((t: any) => {
+        const plannedStart = typeof t.plannedStart === 'number' ? t.plannedStart : null
+        if (plannedStart === null) return false
+        if (startMs !== null && plannedStart < startMs) return false
+        if (endMs !== null && plannedStart > endMs) return false
+        return true
       })
     }
     if (role === 'treballador' && dept === 'manteniment') {
