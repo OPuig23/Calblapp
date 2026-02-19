@@ -2,9 +2,13 @@
 
 import React, { useEffect, useMemo, useState } from 'react'
 import { format, parseISO } from 'date-fns'
+import * as XLSX from 'xlsx'
+import { useSession } from 'next-auth/react'
 import ModuleHeader from '@/components/layout/ModuleHeader'
 import SmartFilters, { type SmartFiltersChange } from '@/components/filters/SmartFilters'
 import { RoleGuard } from '@/lib/withRoleGuard'
+import ExportMenu from '@/components/export/ExportMenu'
+import { normalizeRole } from '@/lib/roles'
 type TicketStatus = 'nou' | 'assignat' | 'en_curs' | 'espera' | 'resolut' | 'validat'
 
 type Ticket = {
@@ -29,10 +33,14 @@ const STATUS_LABELS: Record<TicketStatus, string> = {
 }
 
 export default function PreventiusFullsPage() {
+  const { data: session } = useSession()
+  const role = normalizeRole((session?.user as any)?.role || '')
+  const canFilterByWorker = role === 'admin' || role === 'direccio' || role === 'cap'
   const [filters, setFiltersState] = useState<{ start: string; end: string; mode: 'day' }>(() => {
     const value = format(new Date(), 'yyyy-MM-dd')
     return { start: value, end: value, mode: 'day' }
   })
+  const [workerFilter, setWorkerFilter] = useState<string>('all')
   const [plannedItems, setPlannedItems] = useState<
     Array<{
       id: string
@@ -168,12 +176,38 @@ export default function PreventiusFullsPage() {
     setFiltersState({ start: value, end: value, mode: 'day' })
   }
 
-  const grouped = useMemo(() => {
+  const filteredByDate = useMemo(() => {
     const start = parseISO(filters.start)
     const end = parseISO(filters.end)
-    const items = [...plannedItems, ...ticketItems].filter((item) => {
+    return [...plannedItems, ...ticketItems].filter((item) => {
       const date = parseISO(item.date)
       return date >= start && date <= end
+    })
+  }, [filters.start, filters.end, plannedItems, ticketItems])
+
+  const workerOptions = useMemo(() => {
+    const values = new Set<string>()
+    filteredByDate.forEach((item) => {
+      const raw = (item.worker || '').trim()
+      if (!raw) return
+      raw
+        .split(',')
+        .map((w) => w.trim())
+        .filter(Boolean)
+        .forEach((w) => values.add(w))
+    })
+    return Array.from(values).sort((a, b) => a.localeCompare(b))
+  }, [filteredByDate])
+
+  const grouped = useMemo(() => {
+    const workerNeedle = workerFilter.toLowerCase()
+    const items = filteredByDate.filter((item) => {
+      if (!canFilterByWorker || workerFilter === 'all') return true
+      const workers = (item.worker || '')
+        .split(',')
+        .map((w) => w.trim().toLowerCase())
+        .filter(Boolean)
+      return workers.includes(workerNeedle)
     })
 
     const map = new Map<string, typeof items>()
@@ -184,7 +218,7 @@ export default function PreventiusFullsPage() {
     })
 
     return Array.from(map.entries()).sort(([a], [b]) => (a > b ? 1 : -1))
-  }, [filters.start, filters.end, plannedItems, ticketItems])
+  }, [filteredByDate, workerFilter, canFilterByWorker])
 
   const statusClasses: Record<string, string> = {
     nou: 'bg-emerald-100 text-emerald-800',
@@ -197,6 +231,125 @@ export default function PreventiusFullsPage() {
     fet: 'bg-green-100 text-green-800',
     no_fet: 'bg-red-100 text-red-700',
   }
+
+  const exportBase = `manteniment-fulls-${filters.start || 'start'}-${filters.end || 'end'}`
+
+  const exportRows = useMemo(
+    () =>
+      grouped.flatMap(([day, items]) =>
+        items.map((item) => {
+          const isTicket = item.kind === 'ticket'
+          const status = isTicket
+            ? (item as any).status || 'assignat'
+            : (item as any).lastStatus || 'pendent'
+          const progress =
+            !isTicket && typeof (item as any).lastProgress === 'number'
+              ? `${(item as any).lastProgress}%`
+              : ''
+          return {
+            Data: format(parseISO(day), 'dd/MM/yyyy'),
+            Tipus: isTicket ? 'Ticket' : 'Preventiu',
+            Codi: isTicket ? (item as any).code || '' : '',
+            Titol: item.title || '',
+            HoraInici: item.startTime || '',
+            HoraFi: item.endTime || '',
+            Ubicacio: item.location || '',
+            Operari: item.worker || '',
+            Estat: status,
+            Progres: progress,
+          }
+        })
+      ),
+    [grouped]
+  )
+
+  const handleExportExcel = () => {
+    const ws = XLSX.utils.json_to_sheet(exportRows)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'FullsTreball')
+    XLSX.writeFile(wb, `${exportBase}.xlsx`)
+  }
+
+  const escapeHtml = (value: string) =>
+    value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\"/g, '&quot;')
+      .replace(/'/g, '&#39;')
+
+  const buildPdfTableHtml = () => {
+    const cols = [
+      'Data',
+      'Tipus',
+      'Codi',
+      'Titol',
+      'HoraInici',
+      'HoraFi',
+      'Ubicacio',
+      'Operari',
+      'Estat',
+      'Progres',
+    ]
+
+    const header = cols.map((c) => `<th>${escapeHtml(c)}</th>`).join('')
+    const body = exportRows
+      .map((row) => {
+        const cells = cols
+          .map((key) => `<td>${escapeHtml(String((row as any)[key] ?? ''))}</td>`)
+          .join('')
+        return `<tr>${cells}</tr>`
+      })
+      .join('')
+
+    return `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>${escapeHtml(exportBase)}</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 24px; color: #111; }
+      h1 { font-size: 16px; margin-bottom: 8px; }
+      .meta { font-size: 12px; color: #555; margin-bottom: 16px; }
+      table { width: 100%; border-collapse: collapse; font-size: 11px; }
+      th, td { border: 1px solid #ddd; padding: 6px 8px; vertical-align: top; }
+      th { background: #f3f4f6; text-align: left; }
+      tr:nth-child(even) td { background: #fafafa; }
+    </style>
+  </head>
+  <body>
+    <h1>Manteniment - Fulls de treball</h1>
+    <div class="meta">Rang: ${escapeHtml(filters.start || '')} - ${escapeHtml(
+      filters.end || ''
+    )}</div>
+    <table>
+      <thead><tr>${header}</tr></thead>
+      <tbody>${body}</tbody>
+    </table>
+  </body>
+</html>`
+  }
+
+  const handleExportPdfTable = () => {
+    const html = buildPdfTableHtml()
+    const win = window.open('', '_blank', 'width=1200,height=900')
+    if (!win) return
+    win.document.open()
+    win.document.write(html)
+    win.document.close()
+    win.focus()
+    setTimeout(() => win.print(), 300)
+  }
+
+  const handleExportPdfView = () => {
+    window.print()
+  }
+
+  const exportItems = [
+    { label: 'Excel (.xlsx)', onClick: handleExportExcel, disabled: exportRows.length === 0 },
+    { label: 'PDF (vista)', onClick: handleExportPdfView, disabled: grouped.length === 0 },
+    { label: 'PDF (taula)', onClick: handleExportPdfTable, disabled: exportRows.length === 0 },
+  ]
 
   const openFitxa = (id: string, recordId?: string | null) => {
     const url = recordId
@@ -273,7 +426,14 @@ export default function PreventiusFullsPage() {
   return (
     <RoleGuard allowedRoles={['admin', 'direccio', 'cap', 'treballador']}>
       <div className="w-full max-w-4xl mx-auto p-4 space-y-4">
-        <ModuleHeader />
+        <style>{`
+          @media print {
+            body * { visibility: hidden; }
+            #manteniment-fulls-print-root, #manteniment-fulls-print-root * { visibility: visible; }
+            #manteniment-fulls-print-root { position: absolute; left: 0; top: 0; width: 100%; }
+          }
+        `}</style>
+        <ModuleHeader actions={<ExportMenu items={exportItems} />} />
 
         <SmartFilters
           modeDefault="day"
@@ -286,8 +446,25 @@ export default function PreventiusFullsPage() {
           initialStart={filters.start}
           initialEnd={filters.end}
         />
+        {canFilterByWorker && (
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-gray-600">Treballador</label>
+            <select
+              className="h-9 rounded-xl border bg-white px-3 text-sm"
+              value={workerFilter}
+              onChange={(e) => setWorkerFilter(e.target.value)}
+            >
+              <option value="all">Tots</option>
+              {workerOptions.map((w) => (
+                <option key={w} value={w.toLowerCase()}>
+                  {w}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
-        <div className="rounded-2xl border bg-white overflow-hidden">
+        <div id="manteniment-fulls-print-root" className="rounded-2xl border bg-white overflow-hidden">
           <div className="divide-y">
             {grouped.length === 0 && (
               <div className="px-4 py-6 text-sm text-gray-500">No hi ha tasques.</div>

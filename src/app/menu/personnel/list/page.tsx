@@ -16,6 +16,7 @@ import ExportMenu from '@/components/export/ExportMenu'
 import { Users } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import UserRequestResultsList from '@/components/users/UserRequestResultsList'
+import { RoleGuard } from '@/lib/withRoleGuard'
 
 type SessionUser = {
   department?: string
@@ -168,6 +169,7 @@ if (filters.isDriver !== 'all') {
   ]
 
   return (
+    <RoleGuard allowedRoles={['admin', 'direccio', 'cap']}>
     <section className="p-0 space-y-4">
       <ModuleHeader
         icon={<Users className="h-7 w-7 text-indigo-600" />}
@@ -247,6 +249,7 @@ if (filters.isDriver !== 'all') {
       <FloatingAddButton onClick={() => setModalOpen(true)} />
 
     </section>
+    </RoleGuard>
   )
 }
 

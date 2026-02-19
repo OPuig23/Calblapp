@@ -67,6 +67,7 @@ export default function PersonnelFilters({ filters, onFiltersChange }: Props) {
         >
           <option value="">🌐 Tots</option>
           <option value="serveis">Serveis</option>
+          <option value="manteniment">Manteniment</option>
           <option value="cuina">Cuina</option>
           <option value="logistica">Logística</option>
           <option value="foodlovers">Food Lovers</option>

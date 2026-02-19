@@ -1,11 +1,13 @@
 'use client'
 
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
+import { Trash2 } from 'lucide-react'
 import ModuleHeader from '@/components/layout/ModuleHeader'
 import { RoleGuard } from '@/lib/withRoleGuard'
 
 type TemplateSection = { location: string; items: { label: string }[] }
+type EditableSection = { id: string; location: string; items: { id: string; label: string }[] }
 type Template = {
   id: string
   name: string
@@ -26,18 +28,27 @@ const PERIODICITY_OPTIONS: { value: string; label: string }[] = [
   { value: 'yearly', label: 'Anual' },
 ]
 
+const createLocalId = () => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
+}
+
 export default function PlantillaDetailPage() {
   const params = useParams()
   const id = Array.isArray(params?.id) ? params?.id[0] : (params?.id as string)
 
   const [template, setTemplate] = useState<Template | null>(null)
   const [form, setForm] = useState<{
+    name?: string
     periodicity?: Template['periodicity']
     lastDone?: string | null
     location?: string
     primaryOperator?: string
     backupOperator?: string
   }>({})
+  const [sections, setSections] = useState<EditableSection[]>([])
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({})
   const [savedAt, setSavedAt] = useState<string | null>(null)
 
@@ -52,15 +63,26 @@ export default function PlantillaDetailPage() {
       setTemplate(found)
       if (found) {
         setForm({
+          name: found.name || '',
           periodicity: found.periodicity,
           lastDone: found.lastDone || '',
           location: found.location || '',
           primaryOperator: found.primaryOperator || '',
           backupOperator: found.backupOperator || '',
         })
+        const mappedSections: EditableSection[] = (Array.isArray(found.sections) ? found.sections : [])
+          .map((sec) => ({
+            id: createLocalId(),
+            location: String(sec.location || ''),
+            items: (Array.isArray(sec.items) ? sec.items : []).map((item) => ({
+              id: createLocalId(),
+              label: String(item.label || ''),
+            })),
+          }))
+        setSections(mappedSections)
         const nextOpen: Record<string, boolean> = {}
-        found.sections.forEach((sec) => {
-          nextOpen[sec.location] = false
+        mappedSections.forEach((sec) => {
+          nextOpen[sec.id] = false
         })
         setOpenSections(nextOpen)
       }
@@ -97,23 +119,99 @@ export default function PlantillaDetailPage() {
   const lastDoneRequired = !form.lastDone
 
   const save = async () => {
+    const cleanSections: TemplateSection[] = sections
+      .map((sec) => ({
+        location: String(sec.location || '').trim(),
+        items: sec.items
+          .map((it) => ({ label: String(it.label || '').trim() }))
+          .filter((it) => Boolean(it.label)),
+      }))
+      .filter((sec) => Boolean(sec.location) || sec.items.length > 0)
+      .map((sec) => ({
+        location: sec.location || 'GENERAL',
+        items: sec.items,
+      }))
+
     try {
       const res = await fetch(`/api/maintenance/templates/${encodeURIComponent(id)}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          name: form.name || '',
           periodicity: form.periodicity || null,
           lastDone: form.lastDone || null,
           location: form.location || '',
           primaryOperator: form.primaryOperator || '',
           backupOperator: form.backupOperator || '',
+          sections: cleanSections,
         }),
       })
       if (!res.ok) throw new Error('save_failed')
       setSavedAt(new Date().toISOString())
+      setTemplate((prev) =>
+        prev
+          ? {
+              ...prev,
+              name: String(form.name || prev.name),
+              sections: cleanSections,
+            }
+          : prev
+      )
     } catch {
       return
     }
+  }
+
+  const addSection = () => {
+    const id = createLocalId()
+    setSections((prev) => [...prev, { id, location: '', items: [] }])
+    setOpenSections((prev) => ({ ...prev, [id]: true }))
+  }
+
+  const removeSection = (sectionId: string) => {
+    setSections((prev) => prev.filter((sec) => sec.id !== sectionId))
+    setOpenSections((prev) => {
+      const next = { ...prev }
+      delete next[sectionId]
+      return next
+    })
+  }
+
+  const updateSectionLocation = (sectionId: string, location: string) => {
+    setSections((prev) =>
+      prev.map((sec) => (sec.id === sectionId ? { ...sec, location } : sec))
+    )
+  }
+
+  const addItem = (sectionId: string) => {
+    setSections((prev) =>
+      prev.map((sec) =>
+        sec.id === sectionId
+          ? { ...sec, items: [...sec.items, { id: createLocalId(), label: '' }] }
+          : sec
+      )
+    )
+  }
+
+  const updateItemLabel = (sectionId: string, itemId: string, label: string) => {
+    setSections((prev) =>
+      prev.map((sec) =>
+        sec.id === sectionId
+          ? {
+              ...sec,
+              items: sec.items.map((it) => (it.id === itemId ? { ...it, label } : it)),
+            }
+          : sec
+      )
+    )
+  }
+
+  const removeItem = (sectionId: string, itemId: string) => {
+    setSections((prev) =>
+      prev.map((sec) =>
+        sec.id === sectionId ? { ...sec, items: sec.items.filter((it) => it.id !== itemId) } : sec
+      )
+    )
   }
 
   const openHistory = () => {
@@ -133,10 +231,10 @@ export default function PlantillaDetailPage() {
   return (
     <RoleGuard allowedRoles={['admin', 'direccio', 'cap']}>
       <div className="min-h-screen w-full bg-white flex flex-col">
-        <ModuleHeader subtitle={template.name} />
+        <ModuleHeader subtitle={form.name || template.name} />
 
         <div className="border-b px-4 py-3 sm:px-6 sm:py-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div className="text-base font-semibold text-gray-900">{template.name}</div>
+          <div className="text-base font-semibold text-gray-900">{form.name || template.name}</div>
           <div className="flex items-center gap-2">
             {savedAt && <div className="text-xs text-emerald-700">Guardat</div>}
             <button
@@ -153,6 +251,14 @@ export default function PlantillaDetailPage() {
           <div className="h-full grid grid-cols-1 xl:grid-cols-[420px_1fr] gap-0">
             <div className="px-4 py-4 sm:px-6 sm:py-6 overflow-y-auto border-b xl:border-b-0 xl:border-r">
               <div className="grid grid-cols-1 gap-4 text-sm pb-24 xl:pb-6">
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs text-gray-600">Nom plantilla</span>
+                  <input
+                    className="h-10 rounded-xl border px-3"
+                    value={form.name || ''}
+                    onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
+                  />
+                </label>
                 <label className="flex flex-col gap-1">
                   <span className="text-xs text-gray-600">Temporalitat</span>
                   <select
@@ -218,39 +324,87 @@ export default function PlantillaDetailPage() {
             </div>
 
             <div className="px-4 py-4 sm:px-6 sm:py-6 overflow-y-auto">
-              <div className="text-xs text-gray-600 mb-2">Checklist</div>
+              <div className="mb-2 flex items-center justify-between">
+                <div className="text-xs text-gray-600">Checklist</div>
+                <button
+                  type="button"
+                  className="rounded-full border px-3 py-1 text-xs text-gray-700"
+                  onClick={addSection}
+                >
+                  + Grup
+                </button>
+              </div>
               <div className="rounded-2xl border px-2 py-2 text-xs text-gray-700">
-                {template.sections.map((sec) => {
-                  const isOpen = !!openSections[sec.location]
+                {sections.map((sec) => {
+                  const isOpen = !!openSections[sec.id]
                   return (
-                    <div key={sec.location} className="border-b last:border-b-0">
+                    <div key={sec.id} className="border-b last:border-b-0">
                       <button
                         type="button"
                         className="w-full flex items-center justify-between px-3 py-3 text-left"
                         onClick={() =>
                           setOpenSections((prev) => ({
                             ...prev,
-                            [sec.location]: !prev[sec.location],
+                            [sec.id]: !prev[sec.id],
                           }))
                         }
                       >
-                        <div className="text-[11px] font-semibold text-gray-700">
-                          {sec.location}
-                        </div>
+                        <div className="text-[11px] font-semibold text-gray-700">{sec.location || 'Nou grup'}</div>
                         <div className="text-[11px] text-gray-500">{sec.items.length}</div>
                       </button>
                       {isOpen && (
                         <div className="px-3 pb-4 space-y-2">
+                          <div className="flex items-center gap-2">
+                            <input
+                              className="h-9 flex-1 rounded-xl border px-3"
+                              value={sec.location}
+                              onChange={(e) => updateSectionLocation(sec.id, e.target.value)}
+                              placeholder="Nom del grup / ubicacio"
+                            />
+                            <button
+                              type="button"
+                              title="Eliminar grup"
+                              aria-label="Eliminar grup"
+                              className="rounded-full border border-red-300 p-2 text-red-600 hover:bg-red-50"
+                              onClick={() => removeSection(sec.id)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
                           {sec.items.map((it) => (
-                            <div key={`${sec.location}-${it.label}`} className="leading-snug">
-                              {it.label}
+                            <div key={it.id} className="flex items-center gap-2">
+                              <input
+                                className="h-9 flex-1 rounded-xl border px-3"
+                                value={it.label}
+                                onChange={(e) => updateItemLabel(sec.id, it.id, e.target.value)}
+                                placeholder="Camp checklist"
+                              />
+                              <button
+                                type="button"
+                                title="Eliminar camp"
+                                aria-label="Eliminar camp"
+                                className="rounded-full border border-red-300 p-2 text-red-600 hover:bg-red-50"
+                                onClick={() => removeItem(sec.id, it.id)}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
                             </div>
                           ))}
+                          <button
+                            type="button"
+                            className="rounded-full border px-3 py-1 text-[11px] text-gray-700"
+                            onClick={() => addItem(sec.id)}
+                          >
+                            + Camp
+                          </button>
                         </div>
                       )}
                     </div>
                   )
                 })}
+                {sections.length === 0 && (
+                  <div className="px-3 py-4 text-gray-500">No hi ha grups. Crea el primer amb “+ Grup”.</div>
+                )}
               </div>
             </div>
           </div>

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react'
 import { addDays, endOfWeek, format, parseISO, startOfWeek } from 'date-fns'
+import { Trash2 } from 'lucide-react'
 import ModuleHeader from '@/components/layout/ModuleHeader'
 import { RoleGuard } from '@/lib/withRoleGuard'
 import FiltersBar, { type FiltersState } from '@/components/layout/FiltersBar'
@@ -10,9 +11,15 @@ type Template = {
   id: string
   name: string
   periodicity?: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly'
+  lastDone?: string | null
   location?: string
   primaryOperator?: string
   backupOperator?: string
+}
+
+type DueTemplate = Template & {
+  dueState: 'due' | 'overdue'
+  dueDate: string
 }
 
 type TicketCard = {
@@ -56,6 +63,42 @@ const normalizeName = (value: string) =>
     .toLowerCase()
     .trim()
 
+const parseStoredDate = (value?: string | null) => {
+  const raw = (value || '').trim()
+  if (!raw) return null
+
+  const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (isoMatch) {
+    const date = new Date(Number(isoMatch[1]), Number(isoMatch[2]) - 1, Number(isoMatch[3]))
+    date.setHours(0, 0, 0, 0)
+    return Number.isNaN(date.getTime()) ? null : date
+  }
+
+  const slashMatch = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+  if (slashMatch) {
+    const date = new Date(Number(slashMatch[3]), Number(slashMatch[2]) - 1, Number(slashMatch[1]))
+    date.setHours(0, 0, 0, 0)
+    return Number.isNaN(date.getTime()) ? null : date
+  }
+
+  const parsed = parseISO(raw)
+  if (Number.isNaN(parsed.getTime())) return null
+  parsed.setHours(0, 0, 0, 0)
+  return parsed
+}
+
+const calculateNextDue = (lastDone: Date, periodicity?: Template['periodicity']) => {
+  if (!periodicity) return null
+  const next = new Date(lastDone)
+  if (periodicity === 'daily') next.setDate(next.getDate() + 1)
+  if (periodicity === 'weekly') next.setDate(next.getDate() + 7)
+  if (periodicity === 'monthly') next.setMonth(next.getMonth() + 1)
+  if (periodicity === 'quarterly') next.setMonth(next.getMonth() + 3)
+  if (periodicity === 'yearly') next.setFullYear(next.getFullYear() + 1)
+  next.setHours(23, 59, 59, 999)
+  return next
+}
+
 export default function PreventiusPlanificadorPage() {
   const [filters, setFiltersState] = useState<FiltersState>(() => {
     const base = startOfWeek(new Date(), { weekStartsOn: 1 })
@@ -67,6 +110,7 @@ export default function PreventiusPlanificadorPage() {
     }
   })
   const [tab, setTab] = useState<'preventius' | 'tickets'>('preventius')
+  const [preventiusFilter, setPreventiusFilter] = useState<'all' | 'due' | 'overdue'>('all')
   const [templates, setTemplates] = useState<Template[]>([])
   const [realTickets, setRealTickets] = useState<TicketCard[]>([])
   const [machines, setMachines] = useState<Array<{ code: string; name: string; label: string }>>([])
@@ -100,10 +144,44 @@ export default function PreventiusPlanificadorPage() {
     [weekStart]
   )
 
+  const dueTemplates = useMemo<DueTemplate[]>(() => {
+    const weekEnd = addDays(weekStart, DAY_COUNT - 1)
+    weekEnd.setHours(23, 59, 59, 999)
+    const weekStartDay = new Date(weekStart)
+    weekStartDay.setHours(0, 0, 0, 0)
+
+    return templates
+      .map((template) => {
+        const lastDone = parseStoredDate(template.lastDone)
+        const nextDue = lastDone ? calculateNextDue(lastDone, template.periodicity) : null
+        return { template, nextDue }
+      })
+      .filter(({ nextDue }) => Boolean(nextDue) && (nextDue as Date).getTime() <= weekEnd.getTime())
+      .sort((a, b) => {
+        const da = (a.nextDue as Date).getTime()
+        const db = (b.nextDue as Date).getTime()
+        if (da !== db) return da - db
+        return a.template.name.localeCompare(b.template.name)
+      })
+      .map(({ template, nextDue }) => {
+        const due = nextDue as Date
+        return {
+          ...template,
+          dueState: due.getTime() < weekStartDay.getTime() ? 'overdue' : 'due',
+          dueDate: format(due, 'yyyy-MM-dd'),
+        }
+      })
+  }, [templates, weekStart])
+
+  const filteredDueTemplates = useMemo(() => {
+    if (preventiusFilter === 'all') return dueTemplates
+    return dueTemplates.filter((t) => t.dueState === preventiusFilter)
+  }, [dueTemplates, preventiusFilter])
+
   const visibleItems = useMemo(() => {
-    if (tab === 'preventius') return templates
+    if (tab === 'preventius') return filteredDueTemplates
     return realTickets
-  }, [tab, templates, realTickets])
+  }, [tab, filteredDueTemplates, realTickets])
 
   const timeSlots = useMemo(() => {
     const slots: string[] = []
@@ -165,6 +243,7 @@ export default function PreventiusPlanificadorPage() {
             id: String(t.id),
             name: String(t.name || t.title || ''),
             periodicity: t.periodicity,
+            lastDone: t.lastDone || null,
             location: t.location || '',
             primaryOperator: t.primaryOperator || '',
             backupOperator: t.backupOperator || '',
@@ -194,10 +273,10 @@ export default function PreventiusPlanificadorPage() {
   useEffect(() => {
     const loadUsers = async () => {
       try {
-        const res = await fetch('/api/users', { cache: 'no-store' })
+        const res = await fetch('/api/personnel?department=manteniment', { cache: 'no-store' })
         if (!res.ok) return
         const json = await res.json()
-        const list = Array.isArray(json) ? json : []
+        const list = Array.isArray(json?.data) ? json.data : []
         const mapped = list
           .filter((u: any) => u?.id && u?.name)
           .map((u: any) => ({
@@ -418,6 +497,7 @@ export default function PreventiusPlanificadorPage() {
             title: string
             minutes: number
             location?: string
+            priority?: 'urgent' | 'alta' | 'normal' | 'baixa'
           }
         | {
             type: 'card'
@@ -477,7 +557,7 @@ export default function PreventiusPlanificadorPage() {
         end: timeFromMinutes(minutesFromTime(startTime) + payload.minutes),
         workersCount: 1,
         workers: [],
-        priority: 'normal',
+        priority: payload.kind === 'preventiu' ? payload.priority || 'normal' : 'normal',
         location: payload.location || '',
         machine: payload.kind === 'ticket' ? payload.machine || '' : '',
       })
@@ -562,6 +642,46 @@ export default function PreventiusPlanificadorPage() {
             >
               Tickets
             </button>
+            {tab === 'preventius' && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setPreventiusFilter('all')}
+                  className={[
+                    'rounded-full px-3 py-2 text-xs font-semibold border',
+                    preventiusFilter === 'all'
+                      ? 'bg-gray-900 text-white border-gray-900'
+                      : 'bg-white text-gray-700 border-gray-200',
+                  ].join(' ')}
+                >
+                  Tots
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPreventiusFilter('due')}
+                  className={[
+                    'rounded-full px-3 py-2 text-xs font-semibold border',
+                    preventiusFilter === 'due'
+                      ? 'bg-amber-100 text-amber-800 border-amber-200'
+                      : 'bg-white text-gray-700 border-gray-200',
+                  ].join(' ')}
+                >
+                  Aquesta setmana
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPreventiusFilter('overdue')}
+                  className={[
+                    'rounded-full px-3 py-2 text-xs font-semibold border',
+                    preventiusFilter === 'overdue'
+                      ? 'bg-red-100 text-red-800 border-red-200'
+                      : 'bg-white text-gray-700 border-gray-200',
+                  ].join(' ')}
+                >
+                  Atencio
+                </button>
+              </>
+            )}
           </div>
 
           <div className="grid grid-cols-[200px_1fr] gap-3">
@@ -571,7 +691,7 @@ export default function PreventiusPlanificadorPage() {
               </div>
               <div className="mt-3 space-y-2">
                 {tab === 'preventius' &&
-                  (visibleItems as Template[]).map((t) => {
+                  (visibleItems as DueTemplate[]).map((t) => {
                     const alreadyPlanned = scheduledItems.some(
                       (i) => i.kind === 'preventiu' && i.templateId === t.id
                     )
@@ -595,6 +715,7 @@ export default function PreventiusPlanificadorPage() {
                               title: t.name,
                               minutes: 60,
                               location: t.location || '',
+                              priority: t.dueState === 'overdue' ? 'alta' : 'normal',
                             })
                           )
                         }}
@@ -603,7 +724,15 @@ export default function PreventiusPlanificadorPage() {
                         {t.location && <div className="text-[10px] text-gray-600">{t.location}</div>}
                         <div className="mt-1 flex items-center justify-between text-[10px] text-gray-600">
                           <span>{t.periodicity || '—'}</span>
-                          <span className="rounded-full bg-gray-100 px-2 py-0.5">Plantilla</span>
+                          {t.dueState === 'overdue' ? (
+                            <span className="rounded-full bg-red-100 text-red-700 px-2 py-0.5">
+                              Atencio
+                            </span>
+                          ) : (
+                            <span className="rounded-full bg-amber-100 text-amber-700 px-2 py-0.5">
+                              Aquesta setmana
+                            </span>
+                          )}
                         </div>
                       </div>
                     )
@@ -977,7 +1106,9 @@ export default function PreventiusPlanificadorPage() {
                 {draft.id ? (
                   <button
                     type="button"
-                    className="rounded-full border px-4 py-2 text-xs text-red-600"
+                    title="Eliminar"
+                    aria-label="Eliminar"
+                    className="rounded-full border border-red-300 p-2 text-red-600 hover:bg-red-50"
                     onClick={async () => {
                       if (!draft?.id) return
                       if (draft.kind === 'preventiu') {
@@ -1012,7 +1143,7 @@ export default function PreventiusPlanificadorPage() {
                       loadWeekSchedule()
                     }}
                   >
-                    Eliminar
+                    <Trash2 className="h-4 w-4" />
                   </button>
                 ) : (
                   <div />

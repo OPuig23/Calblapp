@@ -33,7 +33,7 @@ export default function MantenimentIndexPage() {
         <ModuleHeader subtitle="Gestió i assignació" />
 
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-          {(isAdmin || isMaintenanceCap || isMaintenanceWorker) && (
+          {(isAdmin || isMaintenanceCap) && (
             <Link
               href="/menu/manteniment/preventius/planificador"
               className="border rounded-2xl p-4 hover:shadow-sm bg-gradient-to-br from-teal-50 to-cyan-100"

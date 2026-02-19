@@ -90,7 +90,10 @@ export default function NewPersonnelModal({
   })
 
   const isServicesDepartment = (form.department || defaultDepartment).toLowerCase().trim()
-  const usesServicesDepartment = isServicesDepartment === 'serveis' || isServicesDepartment === 'servei'
+  const usesServicesDepartment =
+    isServicesDepartment === 'serveis' ||
+    isServicesDepartment === 'servei' ||
+    isServicesDepartment === 'manteniment'
 
   const [nameError, setNameError] = useState(false)
   const [suggestions, setSuggestions] = useState<string[]>([])

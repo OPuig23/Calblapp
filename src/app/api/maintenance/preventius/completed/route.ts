@@ -37,6 +37,23 @@ const computeProgress = (checklist?: Record<string, boolean>) => {
   return Math.round((done / values.length) * 100)
 }
 
+const toIsoDate = (value: string | number | undefined) => {
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return null
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed
+    const parsed = new Date(trimmed)
+    if (Number.isNaN(parsed.getTime())) return null
+    return parsed.toISOString().slice(0, 10)
+  }
+  if (typeof value === 'number') {
+    const parsed = new Date(value)
+    if (Number.isNaN(parsed.getTime())) return null
+    return parsed.toISOString().slice(0, 10)
+  }
+  return null
+}
+
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions)
   if (!session?.user) {
@@ -99,6 +116,8 @@ export async function POST(req: Request) {
         ? body.completedAt
         : now
 
+    const normalizedStatus = String(body.status || 'pendent').trim().toLowerCase()
+
     const payload = {
       plannedId: body.plannedId || null,
       templateId: body.templateId || null,
@@ -106,7 +125,7 @@ export async function POST(req: Request) {
       worker: body.worker || null,
       startTime: body.startTime || '',
       endTime: body.endTime || '',
-      status: body.status || 'pendent',
+      status: normalizedStatus || 'pendent',
       notes: body.notes || '',
       completedAt,
       nextDue: body.nextDue || null,
@@ -135,13 +154,28 @@ export async function POST(req: Request) {
       await db.collection('maintenancePreventiusPlanned').doc(body.plannedId).set(
         {
           lastRecordId: docId,
-          lastStatus: body.status || 'pendent',
+          lastStatus: normalizedStatus || 'pendent',
           lastProgress: progress,
           lastCompletedAt: completedAt,
           lastUpdatedAt: now,
         },
         { merge: true }
       )
+    }
+
+    if (body.templateId && normalizedStatus === 'resolut') {
+      const resolvedOn = toIsoDate(completedAt) || toIsoDate(Date.now())
+      if (resolvedOn) {
+        await db.collection('maintenancePreventiusTemplates').doc(body.templateId).set(
+          {
+            lastDone: resolvedOn,
+            updatedAt: now,
+            updatedById: user.id,
+            updatedByName: user.name || '',
+          },
+          { merge: true }
+        )
+      }
     }
 
     return NextResponse.json({ id: docId }, { status: 201 })

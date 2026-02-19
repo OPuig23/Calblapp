@@ -71,7 +71,10 @@ export default function EditPersonnelModal({
     unavailableIndefinite: person.unavailableIndefinite ?? false,
   }))
   const normalizedDept = (form.department || person.department || '').toLowerCase().trim()
-  const usesServicesDepartment = normalizedDept === 'serveis' || normalizedDept === 'servei'
+  const usesServicesDepartment =
+    normalizedDept === 'serveis' ||
+    normalizedDept === 'servei' ||
+    normalizedDept === 'manteniment'
 
   // Estat validació nom
   const [nameError, setNameError] = useState(false)

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react'
 import * as XLSX from 'xlsx'
+import { Trash2 } from 'lucide-react'
 import ModuleHeader from '@/components/layout/ModuleHeader'
 import { RoleGuard } from '@/lib/withRoleGuard'
 import FloatingAddButton from '@/components/ui/floating-add-button'
@@ -33,6 +34,7 @@ type ImportPreview = {
   templates: ImportCandidate[]
   warnings: string[]
 }
+type ModelBImportMode = 'single' | 'split' | 'custom'
 
 const PERIODICITY_OPTIONS: { value: string; label: string }[] = [
   { value: 'all', label: 'Totes' },
@@ -381,6 +383,9 @@ export default function PreventiusPlantillesPage() {
   const [periodicity, setPeriodicity] = useState('all')
   const [preview, setPreview] = useState<ImportPreview | null>(null)
   const [importing, setImporting] = useState(false)
+  const [modelBMode, setModelBMode] = useState<ModelBImportMode>('single')
+  const [modelBAvailablePeriods, setModelBAvailablePeriods] = useState<string[]>([])
+  const [modelBSelectedPeriods, setModelBSelectedPeriods] = useState<string[]>([])
 
   const loadTemplates = async () => {
     const res = await fetch('/api/maintenance/templates', { cache: 'no-store' })
@@ -428,6 +433,19 @@ export default function PreventiusPlantillesPage() {
       const wb = XLSX.read(buffer, { type: 'array' })
       const parsed = parseWorkbook(file.name, wb)
       setPreview(parsed)
+      if (parsed.model === 'B') {
+        const first = parsed.templates[0]
+        const periods = (first?.sections || [])
+          .map((s) => s.location)
+          .filter((loc) => loc !== 'GENERAL' && isPeriodLabel(loc))
+        setModelBAvailablePeriods(periods)
+        setModelBSelectedPeriods(periods)
+        setModelBMode(periods.length > 1 ? 'single' : 'single')
+      } else {
+        setModelBAvailablePeriods([])
+        setModelBSelectedPeriods([])
+        setModelBMode('single')
+      }
     } catch {
       setPreview({
         fileName: file.name,
@@ -438,12 +456,47 @@ export default function PreventiusPlantillesPage() {
     }
   }
 
+  const buildModelBImportTargets = (base: ImportCandidate) => {
+    const periodSections = base.sections.filter(
+      (s) => s.location !== 'GENERAL' && isPeriodLabel(s.location)
+    )
+    if (periodSections.length === 0) return [base]
+
+    if (modelBMode === 'single') {
+      return [base]
+    }
+
+    const selected =
+      modelBMode === 'custom'
+        ? periodSections.filter((s) => modelBSelectedPeriods.includes(s.location))
+        : periodSections
+
+    if (selected.length === 0) return []
+
+    return selected.map((s) => ({
+      name: `${base.name} - ${s.location}`,
+      periodicity: periodFromLabel(s.location),
+      location: base.location,
+      sections: [{ location: 'GENERAL', items: s.items }],
+    }))
+  }
+
   const importTemplates = async () => {
     if (!preview || preview.templates.length === 0) return
     setImporting(true)
     try {
+      const targets =
+        preview.model === 'B'
+          ? buildModelBImportTargets(preview.templates[0])
+          : preview.templates
+      if (targets.length === 0) {
+        alert('No hi ha temporalitats seleccionades per importar.')
+        setImporting(false)
+        return
+      }
+
       let ok = 0
-      for (const candidate of preview.templates) {
+      for (const candidate of targets) {
         const res = await fetch('/api/maintenance/templates', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -456,8 +509,11 @@ export default function PreventiusPlantillesPage() {
         if (res.ok) ok += 1
       }
       await loadTemplates()
-      alert(`Importacio finalitzada: ${ok}/${preview.templates.length} plantilles creades.`)
+      alert(`Importacio finalitzada: ${ok}/${targets.length} plantilles creades.`)
       setPreview(null)
+      setModelBAvailablePeriods([])
+      setModelBSelectedPeriods([])
+      setModelBMode('single')
     } catch {
       alert('No s\'ha pogut completar la importacio.')
     } finally {
@@ -491,6 +547,61 @@ export default function PreventiusPlantillesPage() {
               {preview.warnings.map((w, idx) => (
                 <div key={idx} className="text-xs text-amber-700">{w}</div>
               ))}
+              {preview.model === 'B' && (
+                <div className="rounded-lg border p-2 space-y-2">
+                  <div className="text-xs font-semibold text-gray-700">Importacio model B</div>
+                  <label className="flex items-center gap-2 text-xs">
+                    <input
+                      type="radio"
+                      name="modelBMode"
+                      checked={modelBMode === 'single'}
+                      onChange={() => setModelBMode('single')}
+                    />
+                    Crear una sola plantilla (fusionada)
+                  </label>
+                  <label className="flex items-center gap-2 text-xs">
+                    <input
+                      type="radio"
+                      name="modelBMode"
+                      checked={modelBMode === 'split'}
+                      onChange={() => setModelBMode('split')}
+                    />
+                    Crear una plantilla per temporalitat
+                  </label>
+                  <label className="flex items-center gap-2 text-xs">
+                    <input
+                      type="radio"
+                      name="modelBMode"
+                      checked={modelBMode === 'custom'}
+                      onChange={() => setModelBMode('custom')}
+                    />
+                    Seleccionar temporalitats concretes
+                  </label>
+                  {modelBMode === 'custom' && (
+                    <div className="flex flex-wrap gap-2 pl-5">
+                      {modelBAvailablePeriods.map((p) => {
+                        const checked = modelBSelectedPeriods.includes(p)
+                        return (
+                          <label key={p} className="flex items-center gap-1 text-xs">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setModelBSelectedPeriods((prev) => Array.from(new Set([...prev, p])))
+                                } else {
+                                  setModelBSelectedPeriods((prev) => prev.filter((x) => x !== p))
+                                }
+                              }}
+                            />
+                            {p}
+                          </label>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
               {preview.templates.slice(0, 4).map((t, idx) => (
                 <div key={`${t.name}-${idx}`} className="text-xs text-gray-700">
                   {t.name} · {t.periodicity || 'sense temporalitat'} · {t.sections.length} seccions
@@ -568,7 +679,9 @@ export default function PreventiusPlantillesPage() {
                   </div>
                   <button
                     type="button"
-                    className="rounded-full border border-red-300 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-50"
+                    title="Eliminar plantilla"
+                    aria-label="Eliminar plantilla"
+                    className="rounded-full border border-red-300 p-2 text-red-700 hover:bg-red-50"
                     onClick={async () => {
                       const ok = window.confirm(`Vols eliminar la plantilla \"${t.name}\"?`)
                       if (!ok) return
@@ -583,7 +696,7 @@ export default function PreventiusPlantillesPage() {
                       }
                     }}
                   >
-                    Eliminar
+                    <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
               </div>

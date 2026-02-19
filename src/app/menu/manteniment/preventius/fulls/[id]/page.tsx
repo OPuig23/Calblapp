@@ -3,7 +3,9 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { addDays, addMonths } from 'date-fns'
 import { useParams, useSearchParams } from 'next/navigation'
+import * as XLSX from 'xlsx'
 import { RoleGuard } from '@/lib/withRoleGuard'
+import ExportMenu from '@/components/export/ExportMenu'
 
 type TemplateSection = { location: string; items: { label: string }[] }
 type Template = {
@@ -205,6 +207,21 @@ export default function PreventiusFullsFitxaPage() {
     return templates.find((t) => t.id === draft.templateId) || null
   }, [draft?.templateId, templates])
 
+  const checklistRows = useMemo(() => {
+    if (!selectedTemplate) return []
+    return selectedTemplate.sections.flatMap((sec) =>
+      sec.items.map((it, idx) => {
+        const entryKey = `${sec.location}::${it.label}`
+        return {
+          Grup: sec.location,
+          Camp: it.label,
+          Fet: checklistState[entryKey] ? 'Si' : 'No',
+          Ordre: idx + 1,
+        }
+      })
+    )
+  }, [selectedTemplate, checklistState])
+
   useEffect(() => {
     if (!selectedTemplate) return
     if (Object.keys(checklistState).length > 0) return
@@ -274,6 +291,101 @@ export default function PreventiusFullsFitxaPage() {
     }
   }
 
+  const exportBase = `fitxa-${(draft?.title || 'preventiu')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'preventiu'}`
+
+  const handleExportExcel = () => {
+    const metadata = [
+      {
+        Titol: draft.title,
+        Estat: draft.status,
+        HoraInici: draft.startTime,
+        HoraFi: draft.endTime,
+        Operari: draft.worker || '',
+        Observacions: draft.notes || '',
+      },
+    ]
+    const wb = XLSX.utils.book_new()
+    const wsMeta = XLSX.utils.json_to_sheet(metadata)
+    XLSX.utils.book_append_sheet(wb, wsMeta, 'Fitxa')
+    const wsChecklist = XLSX.utils.json_to_sheet(checklistRows)
+    XLSX.utils.book_append_sheet(wb, wsChecklist, 'Checklist')
+    XLSX.writeFile(wb, `${exportBase}.xlsx`)
+  }
+
+  const escapeHtml = (value: string) =>
+    value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\"/g, '&quot;')
+      .replace(/'/g, '&#39;')
+
+  const buildPdfTableHtml = () => {
+    const rows = checklistRows
+      .map(
+        (row) =>
+          `<tr><td>${escapeHtml(row.Grup)}</td><td>${escapeHtml(row.Camp)}</td><td>${escapeHtml(
+            row.Fet
+          )}</td></tr>`
+      )
+      .join('')
+
+    return `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>${escapeHtml(exportBase)}</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 24px; color: #111; }
+      h1 { font-size: 18px; margin-bottom: 8px; }
+      .meta { font-size: 12px; color: #555; margin-bottom: 16px; }
+      table { width: 100%; border-collapse: collapse; font-size: 11px; }
+      th, td { border: 1px solid #ddd; padding: 6px 8px; vertical-align: top; }
+      th { background: #f3f4f6; text-align: left; }
+      tr:nth-child(even) td { background: #fafafa; }
+      .block { margin-bottom: 12px; }
+    </style>
+  </head>
+  <body>
+    <h1>${escapeHtml(draft.title)}</h1>
+    <div class="meta block">
+      Estat: ${escapeHtml(draft.status)} · Hora: ${escapeHtml(draft.startTime)}-${escapeHtml(
+      draft.endTime
+    )} · Operari: ${escapeHtml(draft.worker || '')}
+    </div>
+    <div class="meta block">Observacions: ${escapeHtml(draft.notes || '')}</div>
+    <table>
+      <thead><tr><th>Grup</th><th>Camp</th><th>Fet</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </body>
+</html>`
+  }
+
+  const handleExportPdfTable = () => {
+    const html = buildPdfTableHtml()
+    const win = window.open('', '_blank', 'width=1200,height=900')
+    if (!win) return
+    win.document.open()
+    win.document.write(html)
+    win.document.close()
+    win.focus()
+    setTimeout(() => win.print(), 300)
+  }
+
+  const handleExportPdfView = () => {
+    window.print()
+  }
+
+  const exportItems = [
+    { label: 'Excel (.xlsx)', onClick: handleExportExcel },
+    { label: 'PDF (vista)', onClick: handleExportPdfView },
+    { label: 'PDF (taula)', onClick: handleExportPdfTable },
+  ]
+
   if (loadingDraft) {
     return (
       <RoleGuard allowedRoles={['admin', 'direccio', 'cap', 'treballador']}>
@@ -293,20 +405,30 @@ export default function PreventiusFullsFitxaPage() {
   return (
     <RoleGuard allowedRoles={['admin', 'direccio', 'cap', 'treballador']}>
       <div className="min-h-screen w-full bg-white flex flex-col">
+        <style>{`
+          @media print {
+            body * { visibility: hidden; }
+            #manteniment-fitxa-print-root, #manteniment-fitxa-print-root * { visibility: visible; }
+            #manteniment-fitxa-print-root { position: absolute; left: 0; top: 0; width: 100%; }
+          }
+        `}</style>
         <div className="w-full max-w-6xl mx-auto px-4 py-6">
           <div className="flex items-center justify-between gap-3">
             <div className="text-lg font-semibold text-gray-900">{draft.title}</div>
-            <button
-              type="button"
-              className="rounded-full border px-4 py-2 text-xs text-gray-700"
-              onClick={() => window.close()}
-            >
-              Tancar pestanya
-            </button>
+            <div className="flex items-center gap-2">
+              <ExportMenu items={exportItems} />
+              <button
+                type="button"
+                className="rounded-full border px-4 py-2 text-xs text-gray-700"
+                onClick={() => window.close()}
+              >
+                Tancar pestanya
+              </button>
+            </div>
           </div>
         </div>
 
-        <div className="border-y">
+        <div id="manteniment-fitxa-print-root" className="border-y">
           <div className="w-full max-w-6xl mx-auto grid grid-cols-1 gap-0 md:grid-cols-2">
             <div className="px-4 py-6 md:px-6 md:py-8 border-r">
               <div className="space-y-4">

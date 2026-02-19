@@ -55,26 +55,26 @@ export const MODULES: ModuleDef[] = [
 
   { label: 'Personal', path: '/menu/personnel',
     roles: ['admin','direccio','cap'],
-    departments: ['logistica','cuina','serveis'],
+    departments: ['logistica','cuina','serveis','manteniment'],
   },
 
   { label: 'Manteniment', path: '/menu/manteniment',
-    roles: ['admin'],
+    roles: ['admin','direccio','cap'],
     departments: ['manteniment','Total'],
     submodules: [
       {
         label: 'Planificador',
         path: '/menu/manteniment/preventius',
-        roles: ['admin'],
+        roles: ['admin','direccio','cap'],
         departments: ['manteniment'],
       },
       {
         label: 'Tickets',
         path: '/menu/manteniment/tickets',
-        roles: ['admin'],
+        roles: ['admin','direccio','cap'],
         departments: ['manteniment'],
       },
-      { label: 'Seguiment', path: '/menu/manteniment/seguiment', roles: ['admin'] },
+      { label: 'Seguiment', path: '/menu/manteniment/seguiment', roles: ['admin','direccio','cap'] },
     ],
   },
 
@@ -192,7 +192,6 @@ export function getVisibleModules(user: AccessUser): ModuleDef[] {
       if (isMaintenanceWorker) {
         return (
           mod.path === '/menu/manteniment' ||
-          mod.path === '/menu/missatgeria' ||
           mod.path === '/menu/spaces'
         )
       }
@@ -203,7 +202,6 @@ export function getVisibleModules(user: AccessUser): ModuleDef[] {
       if (isMaintenanceWorker) {
         return (
           mod.path === '/menu/manteniment' ||
-          mod.path === '/menu/missatgeria' ||
           mod.path === '/menu/spaces'
         )
       }
