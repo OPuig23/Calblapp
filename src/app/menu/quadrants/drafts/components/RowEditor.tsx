@@ -37,10 +37,10 @@ type RowEditorProps = {
   isLocked: boolean
 }
 
-/* ──────────────────────────────
-   Hook: detecta si és desktop
+/* ------------------------------
+   Hook: detecta si Ã©s desktop
    (>= 768px, breakpoint md)
-────────────────────────────── */
+------------------------------ */
 function useIsDesktop() {
   const [isDesktop, setIsDesktop] = useState(false)
 
@@ -71,9 +71,9 @@ const normalizeType = (t?: string) => {
   return val
 }
 
-/* ──────────────────────────────
+/* ------------------------------
    Subcomponents comuns
-────────────────────────────── */
+------------------------------ */
 
 function EditorHeader({
   row,
@@ -95,7 +95,7 @@ function EditorHeader({
       }`}
     >
       <h3 className="text-sm font-semibold text-gray-700">
-        ✏️ Editant {row.role}: {row.name || '—'}
+        Editant {row.role}: {row.name || '-'}
       </h3>
       <div className="flex gap-2">
         {onRevert && (
@@ -105,7 +105,7 @@ function EditorHeader({
             onClick={onRevert}
             disabled={isLocked}
           >
-            Desfés
+            Desfes
           </Button>
         )}
         <Button size="sm" variant="secondary" onClick={onClose}>
@@ -157,11 +157,24 @@ function EditorFields({
     available?.responsables,
     rowPerson ? [rowPerson] : []
   )
+  const isCurrentInResponsables = (available?.responsables || []).some(
+    (p) =>
+      (row.id && p.id === row.id) ||
+      (row.name && normalize(p.name || p.alias || p.id) === normalize(row.name))
+  )
+  const isCurrentInConductors = (available?.conductors || []).some(
+    (p) =>
+      (row.id && p.id === row.id) ||
+      (row.name && normalize(p.name || p.alias || p.id) === normalize(row.name))
+  )
 
   const canSelectResponsible = Boolean(
     row.role === 'responsable' ||
-      rowPerson ||
-      (available?.responsables || []).length > 0
+      isCurrentInResponsables
+  )
+  const canSelectConductor = Boolean(
+    row.role === 'conductor' ||
+      isCurrentInConductors
   )
 
   const list: AvailablePerson[] =
@@ -175,7 +188,7 @@ function EditorFields({
   if (row.role === 'brigada') {
     return (
       <div className="space-y-3">
-        {/* Selecció brigada */}
+        {/* SelecciÃ³ brigada */}
         <div>
           <label className="text-xs font-medium">ETT</label>
           <select
@@ -190,7 +203,7 @@ function EditorFields({
             className="w-full rounded border px-2 py-1 text-sm"
             disabled={isLocked}
           >
-            <option value="">— Selecciona ETT —</option>
+            <option value="">- Selecciona ETT -</option>
             {brigades.map((b) => (
               <option key={b.id} value={b.id}>
                 {b.name}
@@ -199,9 +212,9 @@ function EditorFields({
           </select>
         </div>
 
-        {/* Nº treballadors */}
+        {/* NÂº treballadors */}
         <div>
-          <label className="text-xs font-medium">Nº treballadors</label>
+          <label className="text-xs font-medium">N. treballadors</label>
           <Input
             type="number"
             value={row.workers || 0}
@@ -238,24 +251,23 @@ function EditorFields({
   // --- RESPONSABLE / CONDUCTOR / TREBALLADOR ---
   return (
     <>
-      {(row.role === 'conductor' || row.role === 'treballador' || row.role === 'responsable') && (
-        <div>
-          <label className="text-xs font-medium">Rol</label>
-          <select
-            value={row.role}
-            onChange={(e) => onPatch({ role: e.target.value as Role })}
-            className="w-full rounded border px-2 py-1 text-sm"
-            disabled={isLocked}
-          >
-            {canSelectResponsible && <option value="responsable">Responsable</option>}
-            <option value="conductor">Conductor</option>
-            <option value="treballador">Treballador</option>
-          </select>
-        </div>
-      )}
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        {(row.role === 'conductor' || row.role === 'treballador' || row.role === 'responsable') && (
+          <div>
+            <label className="text-xs font-medium">Rol</label>
+            <select
+              value={row.role}
+              onChange={(e) => onPatch({ role: e.target.value as Role })}
+              className="w-full rounded border px-2 py-1 text-sm"
+              disabled={isLocked}
+            >
+              {canSelectResponsible && <option value="responsable">Responsable</option>}
+              {canSelectConductor && <option value="conductor">Conductor</option>}
+              <option value="treballador">Treballador</option>
+            </select>
+          </div>
+        )}
 
-      {/* NOM + MEETING POINT */}
-      <div className="flex flex-col gap-3 md:grid md:grid-cols-2">
         <div>
           <label className="text-xs font-medium">Nom</label>
           <select
@@ -280,18 +292,18 @@ function EditorFields({
         </div>
 
         <div>
-          <label className="text-xs font-medium">Lloc convocatòria</label>
+          <label className="text-xs font-medium">Lloc convocatoria</label>
           <Input
             value={row.meetingPoint || ''}
             onChange={(e) => onPatch({ meetingPoint: e.target.value })}
-            placeholder="Lloc…"
+            placeholder="Lloc..."
             className="w-full text-sm"
             disabled={isLocked}
           />
         </div>
       </div>
 
-      {/* Vehicle (només conductors) */}
+      {/* Vehicle (nomes conductors) */}
       {row.role === 'conductor' && (
         <div className="mt-3 flex flex-col gap-3 md:grid md:grid-cols-2">
           <div>
@@ -304,22 +316,22 @@ function EditorFields({
               className="w-full rounded border px-2 py-1 text-sm"
               disabled={isLocked}
             >
-              <option value="">— Selecciona tipus —</option>
-              <option value="camioPetit">Camió petit</option>
+              <option value="">- Selecciona tipus -</option>
+              <option value="camioPetit">Camio petit</option>
               <option value="furgoneta">Furgoneta</option>
-              <option value="camioGran">Camió gran</option>
+              <option value="camioGran">Camio gran</option>
             </select>
           </div>
 
           <div>
-            <label className="text-xs font-medium">Matrícula</label>
+            <label className="text-xs font-medium">Matricula</label>
             <select
               value={row.plate || ''}
               onChange={(e) => onPatch({ plate: e.target.value })}
               className="w-full rounded border px-2 py-1 text-sm"
               disabled={isLocked || !row.vehicleType}
             >
-              <option value="">— Selecciona matrícula —</option>
+              <option value="">- Selecciona matricula -</option>
               {(available?.vehicles || [])
                 .filter(
                   (v) =>
@@ -405,9 +417,9 @@ function EditorFields({
   )
 }
 
-/* ──────────────────────────────
+/* ------------------------------
    Component principal
-────────────────────────────── */
+------------------------------ */
 export default function RowEditor(props: RowEditorProps) {
   const { row, available, onPatch, onClose, onRevert, isLocked } = props
   const isDesktop = useIsDesktop()
@@ -433,7 +445,7 @@ export default function RowEditor(props: RowEditorProps) {
   // Desktop / mobile render
   if (isDesktop) {
     return (
-      <div className="col-span-full border-t bg-gray-50 px-4 py-3">
+      <div className="col-span-full bg-gray-50 px-4 py-3">
         {content}
       </div>
     )

@@ -5,7 +5,7 @@ import React, { useState, useMemo, useEffect } from 'react'
 import { startOfWeek, endOfWeek, format, parseISO } from 'date-fns'
 import { useSession } from 'next-auth/react'
 import * as XLSX from 'xlsx'
-import { CalendarDays } from 'lucide-react'
+import { CalendarDays, ChevronDown, ChevronUp } from 'lucide-react'
 import ExportMenu from '@/components/export/ExportMenu'
 
 import useFetch from '@/hooks/useFetch'
@@ -414,28 +414,24 @@ export default function QuadrantsPage() {
           className="overflow-x-auto rounded-xl border bg-white shadow-sm"
         >
           <table className="w-full text-sm">
-            <thead className="bg-indigo-100 text-indigo-900 font-semibold">
-              <tr>
-                <th className="px-3 py-2 text-left">Responsable</th>
-                <th className="px-3 py-2 text-left">Fase</th>
-                <th className="px-3 py-2 text-left">Esdeveniment</th>
-                <th className="px-3 py-2 text-left">LN</th>
-                <th className="px-3 py-2 text-left">PAX</th>
-                <th className="px-3 py-2 text-left">Finca / Ubicacio</th>
-                <th className="px-3 py-2 text-left">Servei</th>
-                <th className="px-3 py-2 text-left">Hora inici</th>
-                <th className="px-3 py-2 text-left">Treballadors</th>
-                <th className="px-3 py-2 text-left">Horari</th>
-                <th className="px-3 py-2 text-center"></th>
-              </tr>
-            </thead>
-
             <tbody>
               {visibleGrouped.map(([day, evs]) => (
                 <React.Fragment key={day}>
-                  <tr className="bg-indigo-50 text-indigo-800">
-                    <td colSpan={11} className="px-3 py-2 font-semibold">
-                      {format(parseISO(day), 'dd-MM-yyyy')}
+                  <tr className="bg-transparent">
+                    <td colSpan={11} className="px-2 py-2">
+                      <div className="flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50/70 px-3 py-2">
+                        <div className="text-xl font-semibold leading-none tracking-tight text-slate-700">
+                          {format(parseISO(day), 'dd/MM/yyyy')}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="rounded-full bg-violet-100/80 px-2.5 py-1 text-[11px] font-medium text-violet-700">
+                            {evs.length} {evs.length === 1 ? 'esdeveniment' : 'esdeveniments'}
+                          </div>
+                          <div className="rounded-full bg-fuchsia-100/80 px-2.5 py-1 text-[11px] font-medium text-fuchsia-700">
+                            {evs.reduce((sum, item) => sum + Number(item.numPax || 0), 0)} pax
+                          </div>
+                        </div>
+                      </div>
                     </td>
                   </tr>
 
@@ -484,10 +480,17 @@ export default function QuadrantsPage() {
                     const fragmentKey = `${eventId || ev.id || ''}__${
                       ev.phaseKey || ev.phaseType || ev.phaseLabel || 'event'
                     }__${ev.phaseDate || ev.start || ''}__${ev.id || 'row'}__${evIdx}`
+                    const isExpanded = Boolean(draft && draft.id && expandedId === draft.id)
                     return (
                       <React.Fragment key={fragmentKey}>
                         <tr
-                          className="cursor-pointer hover:bg-indigo-50 transition"
+                          className={`cursor-pointer transition ${
+                            evIdx < evs.length - 1 ? 'border-b border-slate-200' : ''
+                          } ${
+                            isExpanded
+                              ? 'bg-teal-100/55 hover:bg-teal-100/65'
+                              : 'bg-teal-50/35 hover:bg-teal-50/55'
+                          }`}
                           onClick={() => {
                             if (ev.quadrantStatus === 'pending') {
                               setSelected({
@@ -502,7 +505,7 @@ export default function QuadrantsPage() {
                             }
                           }}
                         >
-                          <td className="px-3 py-2">
+                          <td className="px-3 py-2.5 text-[14px] font-semibold text-slate-900">
                             {ev.responsable || '-'}
                           </td>
                           <td className="px-3 py-2">
@@ -514,35 +517,42 @@ export default function QuadrantsPage() {
                               ''
                             )}
                           </td>
-                          <td className="px-3 py-2">{ev.summary}</td>
-                          <td className="px-3 py-2">{ev.ln || '-'}</td>
-                          <td className="px-3 py-2">{ev.numPax ?? '-'}</td>
-                          <td className="px-3 py-2">
+                          <td className="px-3 py-2.5 text-[16px] font-semibold tracking-tight text-slate-900">{ev.summary}</td>
+                          <td className="px-3 py-2.5 text-[14px] text-slate-700">{ev.ln || '-'}</td>
+                          <td className="px-3 py-2.5 text-[14px] font-semibold text-slate-800">{ev.numPax ?? '-'}</td>
+                          <td className="px-3 py-2.5 text-[14px] text-slate-700">
                             {ev.location || '-'}
                           </td>
-                          <td className="px-3 py-2">
+                          <td className="px-3 py-2.5 text-[14px] text-slate-800">
                             {ev.service || '-'}
                           </td>
-                          <td className="px-3 py-2">
+                          <td className="px-3 py-2.5 text-[14px] font-semibold text-slate-900">
                             {startTime}
                           </td>
-                          <td className="px-3 py-2">
+                          <td className="px-3 py-2.5 text-[14px] text-slate-800">
                             {ev.workersSummary || '-'}
                           </td>
-                          <td className="px-3 py-2">
+                          <td className="px-3 py-2.5 text-[14px] font-semibold text-slate-900">
                             {horariLabel}
                           </td>
                           <td className="px-3 py-2 text-center">
-                            <span
-                              className={`inline-block w-3 h-3 rounded-full ${dotClass}`}
-                            />
+                            <div className="inline-flex items-center gap-2">
+                              {draft && draft.id && (
+                                <span className="text-slate-600">
+                                  {isExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                                </span>
+                              )}
+                              <span
+                                className={`inline-block w-3 h-3 rounded-full ${dotClass}`}
+                              />
+                            </div>
                           </td>
                         </tr>
 
-                        {draft && draft.id && expandedId === draft.id && (
+                        {isExpanded && (
                           <tr>
-                            <td colSpan={11} className="bg-white border-t px-3 py-3">
-                              <div className="rounded-xl border bg-gray-50 p-4">
+                            <td colSpan={11} className="bg-slate-50/40 px-3 pt-1 pb-2">
+                              <div className="p-0">
                                <QuadrantCard
                                  quadrant={draft}
                                  autoExpand

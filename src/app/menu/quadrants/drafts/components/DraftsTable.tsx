@@ -1,4 +1,4 @@
-// file: src/app/menu/quadrants/drafts/components/DraftsTable.tsx
+﻿// file: src/app/menu/quadrants/drafts/components/DraftsTable.tsx
 'use client'
 
 import React, { useMemo, useRef, useState } from 'react'
@@ -336,7 +336,7 @@ export default function DraftsTable({
     return rows
   }
 
-  // --- Construcció inicial de files a partir del draft (incloent brigades)
+  // --- ConstrucciÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³ inicial de files a partir del draft (incloent brigades)
   const initialRows: Row[] = hasCuinaGroups
     ? buildCuinaRows()
     : [
@@ -410,11 +410,11 @@ endTime:   b.endTime   || draft.endTime,
   const dirty = JSON.stringify(rows) !== initialRef.current
   const [expandedMerged, setExpandedMerged] = useState<Set<string>>(new Set())
 
-  // --- Estat de confirmació
+  // --- Estat de confirmaciÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³
   const [confirmed, setConfirmed] = useState<boolean>(
     draft.status === 'confirmed'
   )
-  const [confirming] = useState(false) // 👈 eliminat setConfirming no usat
+  const [confirming] = useState(false) // ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã‹Å“Ãƒâ€¹Ã¢â‚¬Â  eliminat setConfirming no usat
   const isLocked = confirmed || confirming
 
   // --- Personal disponible
@@ -435,7 +435,7 @@ endTime:   b.endTime   || draft.endTime,
       .filter(Boolean),
   })
 
-  // --- Comptadors (ara eliminats del render, però útils si es necessiten més tard)
+  // --- Comptadors (ara eliminats del render, perÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â² ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Âºtils si es necessiten mÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©s tard)
   useMemo(
     () => ({
       responsables: rows.filter((r) => r?.role === 'responsable').length,
@@ -456,7 +456,7 @@ endTime:   b.endTime   || draft.endTime,
     [draft]
   )
 
-  // --- Vehicles disponibles (per logística/cuines)
+  // --- Vehicles disponibles (per logÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­stica/cuines)
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
   React.useEffect(() => {
     const dept = department?.toLowerCase?.() || ''
@@ -507,7 +507,7 @@ const handleSaveAll = async (rowsOverride?: Row[]) => {
       (r) => r.name?.trim() !== '' || r.id?.trim() !== ''
     )
 
-    // 2) Crida a l’API amb les files netes
+    // 2) Crida a lÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢API amb les files netes
     const res = await fetch('/api/quadrantsDraft/save', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -523,16 +523,16 @@ const handleSaveAll = async (rowsOverride?: Row[]) => {
       throw new Error(text || `Error en desar quadrant (status ${res.status})`)
     }
 
-    alert('✅ Quadrant desat correctament')
+    alert('Quadrant desat correctament')
 
     // 3) Marquem estat com a no-dirty
     initialRef.current = JSON.stringify(cleaned)
 
-    // 4) Notifiquem perquè la pantalla es refresqui
+    // 4) Notifiquem perquÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¨ la pantalla es refresqui
     window.dispatchEvent(new Event('quadrant:updated'))
   } catch (err) {
     console.error('Error desa quadrant', err)
-    alert('❌ Error en desar quadrant')
+    alert('Error en desar quadrant')
   }
 }
 
@@ -551,14 +551,14 @@ const handleSaveAll = async (rowsOverride?: Row[]) => {
       const data = await res.json()
       if (data.ok) {
         setConfirmed(true)
-        alert('✅ Quadrant confirmat correctament i notificacions enviades')
+        alert('Quadrant confirmat correctament i notificacions enviades')
         window.dispatchEvent(new Event('quadrant:created'))
       } else {
-        alert('⚠️ No s’ha pogut confirmar')
+        alert("No s'ha pogut confirmar")
       }
     } catch (e) {
       console.error('Error confirmant quadrant', e)
-      alert('❌ Error confirmant quadrant')
+      alert('Error confirmant quadrant')
     }
   }
 
@@ -574,11 +574,11 @@ const handleSaveAll = async (rowsOverride?: Row[]) => {
       })
       if (!res.ok) throw new Error('Error reobrint quadrant')
       setConfirmed(false)
-      alert('🔓 Quadrant reobert')
+      alert('Quadrant reobert')
       window.dispatchEvent(new Event('quadrant:created'))
     } catch (err) {
       console.error('Error reobrint quadrant', err)
-      alert('❌ Error reobrint quadrant')
+      alert('Error reobrint quadrant')
     }
   }
 
@@ -595,12 +595,12 @@ const handleSaveAll = async (rowsOverride?: Row[]) => {
         }),
       })
       if (!res.ok) throw new Error('Error eliminant quadrant')
-      alert('🗑️ Quadrant eliminat correctament')
+      alert('Quadrant eliminat correctament')
     window.dispatchEvent(new Event('quadrant:updated'))
 
     } catch (err) {
       console.error('Error eliminant quadrant', err)
-      alert('❌ Error eliminant quadrant')
+      alert('Error eliminant quadrant')
       window.dispatchEvent(new Event('quadrant:updated'))
     }
   }
@@ -622,7 +622,7 @@ const handleSaveAll = async (rowsOverride?: Row[]) => {
     }
     setRows((rs) => {
       const copy = [...rs]
-      copy[editIdx] = original // torna a l’estat inicial
+      copy[editIdx] = original // torna a lÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢estat inicial
       return copy
     })
     setEditIdx(null)
@@ -719,33 +719,33 @@ const handleSaveAll = async (rowsOverride?: Row[]) => {
 
     return (
       <div
-        className="border-b px-2 py-3 hover:bg-gray-50 grid gap-2 grid-cols-1 sm:grid-cols-[32px_1fr_5.5rem_5.5rem_minmax(10rem,1fr)_minmax(10rem,1fr)_3.5rem] items-center"
+        className="border-b border-slate-200 px-2 py-3 hover:bg-slate-50 grid gap-2 grid-cols-1 sm:grid-cols-[32px_1fr_5.5rem_5.5rem_minmax(10rem,1fr)_minmax(10rem,1fr)_3.5rem] items-center"
       >
         <div className="hidden sm:flex items-center justify-center gap-1">
           {roles.map((role) => (
             <span key={role}>{roleIcon[role]}</span>
           ))}
         </div>
-        <div className="hidden sm:block truncate font-medium">
+        <div className="hidden sm:block truncate text-[14px] font-medium text-slate-800">
           {primary.name || <span className="italic text-gray-400">Sense nom</span>}
         </div>
-        <div className="hidden sm:block w-[5.5rem] tabular-nums">
+        <div className="hidden sm:block w-[5.5rem] tabular-nums text-[14px] text-slate-700">
           {primary.startDate ? primary.startDate.split('-').slice(1).reverse().join('/') : '--/--'}
         </div>
-        <div className="hidden sm:block w-[5.5rem] tabular-nums">
+        <div className="hidden sm:block w-[5.5rem] tabular-nums text-[14px] text-slate-700">
           {primary.startTime ? primary.startTime.substring(0, 5) : '--:--'}
         </div>
-        <div className="hidden sm:block truncate text-xs text-gray-700">
-          {primary.meetingPoint || <span className="text-gray-400">—</span>}
+        <div className="hidden sm:block truncate text-[14px] text-slate-700">
+          {primary.meetingPoint || <span className="text-gray-400">-</span>}
         </div>
-        <div className="hidden sm:flex items-center gap-2 text-xs font-medium text-gray-800">
+        <div className="hidden sm:flex items-center gap-2 text-[14px] font-medium text-slate-700">
           {primary.role === 'conductor' ? (
             <>
-              <span>{primary.plate || '—'}</span>
+              <span>{primary.plate || '-'}</span>
               <Truck className="w-5 h-5 text-gray-500" />
             </>
           ) : (
-            <span className="text-gray-400">—</span>
+            <span className="text-gray-400">-</span>
           )}
         </div>
         <div className="hidden sm:flex justify-center">
@@ -771,7 +771,7 @@ const handleSaveAll = async (rowsOverride?: Row[]) => {
     const isExpanded = expandedMerged.has(item.key)
 
     return (
-      <div className="p-3 text-sm border-b">
+      <div className="p-3 text-sm border-b border-slate-200">
         <div className="flex items-center gap-2">
           <div className="flex gap-1">
             {roles.map((role) => (
@@ -779,10 +779,10 @@ const handleSaveAll = async (rowsOverride?: Row[]) => {
             ))}
           </div>
           <div className="flex-1">
-            <div className="font-semibold text-gray-800">{primary.name || '—'}</div>
+            <div className="font-semibold text-gray-800">{primary.name || '-'}</div>
             <div className="text-xs text-gray-600 mt-0.5">
               {primary.startDate ? primary.startDate.split('-').slice(1).reverse().join('/') : '--/--'}
-              {' · '}
+              {' - '}
               {primary.startTime ? primary.startTime.substring(0, 5) : '--:--'}
             </div>
           </div>
@@ -803,14 +803,14 @@ const handleSaveAll = async (rowsOverride?: Row[]) => {
       item.type === 'single' ? (
         <div key={`${item.row.role}-${item.row.id || 'noid'}-${item.index}`} className="p-3 text-sm">
           <div className="flex justify-between items-center">
-            <span className="font-semibold text-gray-800">{item.row.name || '—'}</span>
+            <span className="font-semibold text-gray-800">{item.row.name || '-'}</span>
             <span className="text-xs text-gray-500">{item.row.role}</span>
           </div>
           <div className="text-xs text-gray-600 mt-1 space-y-0.5">
-            <div>🗓 {item.row.startDate}</div>
-            <div>⏱ {item.row.startTime || '—'}</div>
-            <div>📍 {item.row.meetingPoint || '—'}</div>
-            {item.row.vehicleType && <div>🚐 {item.row.vehicleType}</div>}
+            <div>Data: {item.row.startDate}</div>
+            <div>Hora: {item.row.startTime || '-'}</div>
+            <div>Punt: {item.row.meetingPoint || '-'}</div>
+            {item.row.vehicleType && <div>Vehicle: {item.row.vehicleType}</div>}
           </div>
           <div className="flex justify-end gap-2 mt-2">
             <button
@@ -837,24 +837,14 @@ const handleSaveAll = async (rowsOverride?: Row[]) => {
     )
 
   const renderRow = (r: Row, i: number) => (
-    <React.Fragment key={`${r.role}-${r.id || 'noid'}-${i}`}>
-      <DraftRow
-        row={r}
-        isLocked={isLocked}
-        onEdit={() => startEdit(i)}
-        onDelete={() => deleteRow(i)}
-      />
-      {editIdx === i && (
-        <RowEditor
-          row={r}
-          available={availableForEditor}
-          onPatch={patchRow}
-          onClose={endEdit}
-          onRevert={revertRow}
-          isLocked={isLocked}
-        />
-      )}
-    </React.Fragment>
+    <DraftRow
+      key={`${r.role}-${r.id || 'noid'}-${i}`}
+      row={r}
+      isLocked={isLocked}
+      isActive={editIdx === i}
+      onEdit={() => startEdit(i)}
+      onDelete={() => deleteRow(i)}
+    />
   )
 
   const defaultGroup = hasCuinaGroups ? cuinaGroups[0] : undefined
@@ -864,6 +854,8 @@ const handleSaveAll = async (rowsOverride?: Row[]) => {
   const defaultGroupArrivalTime = defaultGroup?.arrivalTime || draft.arrivalTime
   const defaultGroupMeetingPoint = defaultGroup?.meetingPoint || draft.meetingPoint || ''
   const showConductorButtons = !isServeisDept
+  const currentEditingRow = editIdx !== null ? rows[editIdx] || null : null
+  const hasInlineEditor = Boolean(currentEditingRow && editIdx !== null)
 
   const addRowToGroup = (role: Role, groupId?: string) => {
     const group = hasCuinaGroups
@@ -963,36 +955,15 @@ const handleSaveAll = async (rowsOverride?: Row[]) => {
   }
 
   return (
-  <div className="w-full rounded-2xl border bg-white shadow">
-    {/* 💻 Vista escriptori */}
-    <div className="hidden sm:block overflow-x-auto">
-      {/* Capçalera */}
-      <div
-        className="grid border-b bg-gray-50 text-xs font-semibold text-gray-600 px-1 py-2 items-center min-w-[750px]"
-        style={{
-          gridTemplateColumns:
-            '32px 1fr 5.5rem 5.5rem minmax(10rem,1fr) minmax(10rem,1fr) auto',
-        }}
-      >
-        <div></div>
-        <div>Nom / ETT</div>
-        <div>Data</div>
-        <div>Hora</div>
-        <div>Meeting point</div>
-        <div>Vehicle / Nº persones</div>
-        <div className="flex justify-end gap-1">
-          <DraftActions
-            confirmed={confirmed}
-            confirming={confirming}
-            dirty={dirty}
-            onConfirm={handleConfirm}
-            onUnconfirm={handleUnconfirm}
-            onSave={() => handleSaveAll()}
-            onDelete={handleDeleteQuadrant}
-          />
-        </div>
-      </div>
-
+  <div
+    className={`w-full rounded-xl border border-slate-200 bg-white/95 ${
+      hasInlineEditor ? '' : 'lg:max-w-[64%] lg:mx-auto'
+    }`}
+  >
+    {/* Vista escriptori/tablet */}
+    <div className="hidden sm:block">
+      <div className={`flex gap-3 ${hasInlineEditor ? 'lg:items-start' : ''}`}>
+        <div className={`${hasInlineEditor ? 'lg:w-[64%]' : 'w-full'} min-w-0 overflow-x-auto`}>
       {/* Files */}
       <div className="flex flex-col divide-y">
         {showCuinaGroups
@@ -1000,57 +971,51 @@ const handleSaveAll = async (rowsOverride?: Row[]) => {
               <>
                 {cuinaGroups.map((group, gidx) => {
                   const groupId = `group-${gidx + 1}`
-              const groupStart = group.startTime || draft.startTime || '—'
-              const groupArrival = group.arrivalTime || draft.arrivalTime || '—'
-              const groupEnd = group.endTime || draft.endTime || '—'
-              const groupMeeting = group.meetingPoint || draft.meetingPoint || '—'
-              const groupDate = (group as any).serviceDate || draft.startDate || ''
-              const isOtherDay = Boolean(groupDate && draft.startDate && groupDate !== draft.startDate)
-              const note = (group as any).dateLabel || (isOtherDay ? 'Muntatge' : '')
+              const isLastGroup = gidx === cuinaGroups.length - 1
               return (
                 <React.Fragment key={groupId}>
-                  <div
-                    className="grid border-b bg-slate-50 text-xs text-slate-600 px-2 py-2 items-center min-w-[750px]"
-                    style={{
-                      gridTemplateColumns:
-                        '32px 1fr 5.5rem 5.5rem minmax(10rem,1fr) minmax(10rem,1fr) auto',
-                    }}
-                  >
-                    <div className="col-span-full">
-                      Grup {gidx + 1} · Data servei {groupDate || '—'} · Meeting point {groupMeeting} · Hora inici {groupStart} ·
-                      Hora arribada {groupArrival} · Hora fi {groupEnd}
-                      {note ? ` · ${note}` : ''}
-                    </div>
-                  </div>
                   {renderDisplayItems(buildDisplayItems(groupId))}
                   {!isLocked && (
-                    <div className="flex flex-wrap gap-2 justify-end sm:justify-start px-3 py-3 bg-slate-50 border-b">
-                      <button
-                        onClick={() => addRowToGroup('responsable', groupId)}
-                        className="rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700 hover:bg-blue-200"
-                      >
-                        + Responsable
-                      </button>
-                      {showConductorButtons && (
+                    <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-3 bg-slate-50 border-b">
+                      <div className="flex flex-wrap gap-2">
                         <button
-                          onClick={() => addRowToGroup('conductor', groupId)}
-                          className="rounded-full bg-orange-100 px-3 py-1 text-xs font-medium text-orange-700 hover:bg-orange-200"
+                          onClick={() => addRowToGroup('responsable', groupId)}
+                          className="rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700 hover:bg-blue-200"
                         >
-                          + Conductor
+                          + Responsable
                         </button>
+                        {showConductorButtons && (
+                          <button
+                            onClick={() => addRowToGroup('conductor', groupId)}
+                            className="rounded-full bg-orange-100 px-3 py-1 text-xs font-medium text-orange-700 hover:bg-orange-200"
+                          >
+                            + Conductor
+                          </button>
+                        )}
+                        <button
+                          onClick={() => addRowToGroup('treballador', groupId)}
+                          className="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700 hover:bg-green-200"
+                        >
+                          + Treballador
+                        </button>
+                        <button
+                          onClick={() => addRowToGroup('brigada', groupId)}
+                          className="rounded-full bg-purple-100 px-3 py-1 text-xs font-medium text-purple-700 hover:bg-purple-200"
+                        >
+                          + ETT
+                        </button>
+                      </div>
+                      {isLastGroup && (
+                        <DraftActions
+                          confirmed={confirmed}
+                          confirming={confirming}
+                          dirty={dirty}
+                          onConfirm={handleConfirm}
+                          onUnconfirm={handleUnconfirm}
+                          onSave={() => handleSaveAll()}
+                          onDelete={handleDeleteQuadrant}
+                        />
                       )}
-                      <button
-                        onClick={() => addRowToGroup('treballador', groupId)}
-                        className="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700 hover:bg-green-200"
-                      >
-                        + Treballador
-                      </button>
-                      <button
-                        onClick={() => addRowToGroup('brigada', groupId)}
-                        className="rounded-full bg-purple-100 px-3 py-1 text-xs font-medium text-purple-700 hover:bg-purple-200"
-                      >
-                        + ETT
-                      </button>
                     </div>
                   )}
                 </React.Fragment>
@@ -1061,19 +1026,49 @@ const handleSaveAll = async (rowsOverride?: Row[]) => {
             )
           : rows.map((r, i) => renderRow(r, i))}
       </div>
+        </div>
+
+        {hasInlineEditor && (
+          <div className="hidden lg:block lg:w-[36%] min-w-[360px]">
+            <div className="sticky top-3 rounded-lg bg-blue-50/40 p-3">
+              <RowEditor
+                row={currentEditingRow}
+                available={availableForEditor}
+                onPatch={patchRow}
+                onClose={endEdit}
+                onRevert={revertRow}
+                isLocked={isLocked}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {hasInlineEditor && (
+        <div className="lg:hidden bg-blue-50/40 px-3 pb-3 pt-2 sm:px-4 sm:pb-4 sm:pt-3">
+          <RowEditor
+            row={currentEditingRow}
+            available={availableForEditor}
+            onPatch={patchRow}
+            onClose={endEdit}
+            onRevert={revertRow}
+            isLocked={isLocked}
+          />
+        </div>
+      )}
     </div>
 
-    {/* 📱 Vista mòbil */}
+    {/* Vista mobil */}
     <div className="block sm:hidden divide-y">
       {showCuinaGroups
         ? (
             <>
               {cuinaGroups.map((group, gidx) => {
                 const groupId = `group-${gidx + 1}`
-                const groupStart = group.startTime || draft.startTime || '—'
-            const groupArrival = group.arrivalTime || draft.arrivalTime || '—'
-            const groupEnd = group.endTime || draft.endTime || '—'
-            const groupMeeting = group.meetingPoint || draft.meetingPoint || '—'
+                const groupStart = group.startTime || draft.startTime || '-'
+                const groupArrival = group.arrivalTime || draft.arrivalTime || '-'
+                const groupEnd = group.endTime || draft.endTime || '-'
+                const groupMeeting = group.meetingPoint || draft.meetingPoint || '-'
             return (
               <div key={groupId} className="divide-y">
                 <div className="px-3 py-2 text-xs text-slate-600 bg-slate-50">
@@ -1120,16 +1115,19 @@ const handleSaveAll = async (rowsOverride?: Row[]) => {
             </>
           )
         : rows.map((r, i) => (
-            <div key={`${r.role}-${r.id || 'noid'}-${i}`} className="p-3 text-sm">
+            <div
+              key={`${r.role}-${r.id || 'noid'}-${i}`}
+              className={`p-3 text-sm ${editIdx === i ? 'bg-blue-50 border-l-2 border-blue-600' : ''}`}
+            >
               <div className="flex justify-between items-center">
-                <span className="font-semibold text-gray-800">{r.name || '—'}</span>
+                <span className="font-semibold text-gray-800">{r.name || '-'}</span>
                 <span className="text-xs text-gray-500">{r.role}</span>
               </div>
               <div className="text-xs text-gray-600 mt-1 space-y-0.5">
-                <div>📅 {r.startDate}</div>
-                <div>🕒 {r.startTime || '—'}</div>
-                <div>📍 {r.meetingPoint || '—'}</div>
-                {r.vehicleType && <div>🚐 {r.vehicleType}</div>}
+                <div>Data: {r.startDate}</div>
+                <div>Hora: {r.startTime || '-'}</div>
+                <div>Punt: {r.meetingPoint || '-'}</div>
+                {r.vehicleType && <div>Vehicle: {r.vehicleType}</div>}
               </div>
               <div className="flex justify-end gap-2 mt-2">
                 <button
@@ -1139,7 +1137,7 @@ const handleSaveAll = async (rowsOverride?: Row[]) => {
                   Edita
                 </button>
                 <button
-                  onClick={() => setRows((rs) => rs.filter((_, idx) => idx !== i))}
+                  onClick={() => deleteRow(i)}
                   className="px-2 py-1 rounded-md bg-red-100 text-red-700 text-xs"
                 >
                   Elimina
@@ -1150,38 +1148,63 @@ const handleSaveAll = async (rowsOverride?: Row[]) => {
     </div>
 
     {!showCuinaGroups && (
-      <div className="flex flex-wrap gap-2 justify-end sm:justify-start px-3 py-3 bg-gray-50 border-t">
-        <button
-          onClick={() => addRowToGroup('responsable', defaultGroupId)}
-          className="rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700 hover:bg-blue-200"
-        >
-          + Responsable
-        </button>
-        {showConductorButtons && (
+      <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-3 bg-gray-50 border-t">
+        <div className="flex flex-wrap gap-2">
           <button
-            onClick={() => addRowToGroup('conductor', defaultGroupId)}
-            className="rounded-full bg-orange-100 px-3 py-1 text-xs font-medium text-orange-700 hover:bg-orange-200"
+            onClick={() => addRowToGroup('responsable', defaultGroupId)}
+            className="rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700 hover:bg-blue-200"
           >
-            + Conductor
+            + Responsable
           </button>
-        )}
-        <button
-          onClick={() => addRowToGroup('treballador', defaultGroupId)}
-          className="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700 hover:bg-green-200"
-        >
-          + Treballador
-        </button>
-        <button
-          onClick={() => addRowToGroup('brigada', defaultGroupId)}
-          className="rounded-full bg-purple-100 px-3 py-1 text-xs font-medium text-purple-700 hover:bg-purple-200"
-        >
-          + ETT
-        </button>
+          {showConductorButtons && (
+            <button
+              onClick={() => addRowToGroup('conductor', defaultGroupId)}
+              className="rounded-full bg-orange-100 px-3 py-1 text-xs font-medium text-orange-700 hover:bg-orange-200"
+            >
+              + Conductor
+            </button>
+          )}
+          <button
+            onClick={() => addRowToGroup('treballador', defaultGroupId)}
+            className="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700 hover:bg-green-200"
+          >
+            + Treballador
+          </button>
+          <button
+            onClick={() => addRowToGroup('brigada', defaultGroupId)}
+            className="rounded-full bg-purple-100 px-3 py-1 text-xs font-medium text-purple-700 hover:bg-purple-200"
+          >
+            + ETT
+          </button>
+        </div>
+        <DraftActions
+          confirmed={confirmed}
+          confirming={confirming}
+          dirty={dirty}
+          onConfirm={handleConfirm}
+          onUnconfirm={handleUnconfirm}
+          onSave={() => handleSaveAll()}
+          onDelete={handleDeleteQuadrant}
+        />
+      </div>
+    )}
+
+    {currentEditingRow && editIdx !== null && (
+      <div className="sm:hidden">
+        <RowEditor
+          row={currentEditingRow}
+          available={availableForEditor}
+          onPatch={patchRow}
+          onClose={endEdit}
+          onRevert={revertRow}
+          isLocked={isLocked}
+        />
       </div>
     )}
   </div>
 )
 
 }
+
 
 

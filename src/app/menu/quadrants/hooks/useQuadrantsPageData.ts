@@ -45,17 +45,33 @@ const getEventKey = (item: any) =>
   String(item?.id || item?.eventId || item?.eventCode || item?.code || '').trim()
 
 const buildWorkersSummary = (q: any) => {
+  const normalizeName = (value?: unknown) =>
+    (value || '').toString().trim().toLowerCase()
+
+  const responsibleName = normalizeName(q?.responsableName)
   const names: string[] = []
-  if (q?.responsableName) names.push(q.responsableName)
+  const seen = new Set<string>()
   if (Array.isArray(q?.conductors)) {
-    names.push(...q.conductors.map((c: any) => c?.name).filter(Boolean))
+    q.conductors
+      .map((c: any) => c?.name)
+      .filter(Boolean)
+      .forEach((name: string) => {
+        const key = normalizeName(name)
+        if (!key || key === responsibleName || seen.has(key)) return
+        seen.add(key)
+        names.push(name)
+      })
   }
   if (Array.isArray(q?.treballadors)) {
-    names.push(
-      ...q.treballadors
-        .map((t: any) => t?.name)
-        .filter((n: any) => Boolean(n) && String(n) !== 'Extra')
-    )
+    q.treballadors
+      .map((t: any) => t?.name)
+      .filter((n: any) => Boolean(n) && String(n) !== 'Extra')
+      .forEach((name: string) => {
+        const key = normalizeName(name)
+        if (!key || key === responsibleName || seen.has(key)) return
+        seen.add(key)
+        names.push(name)
+      })
   }
   if (Array.isArray(q?.brigades)) {
     q.brigades.forEach((b: any) => {
