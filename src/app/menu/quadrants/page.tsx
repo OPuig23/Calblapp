@@ -372,7 +372,7 @@ export default function QuadrantsPage() {
                   </tr>
 
                   {/* Files per esdeveniment */}
-                  {evs.map((ev) => {
+                  {evs.map((ev, evIdx) => {
                     const draft = (ev as any).draft
 
                     const dotClass =
@@ -415,7 +415,7 @@ export default function QuadrantsPage() {
 
                     const fragmentKey = `${eventId || ev.id || ''}__${
                       ev.phaseKey || ev.phaseType || ev.phaseLabel || 'event'
-                    }__${ev.phaseDate || ev.start || ''}`
+                    }__${ev.phaseDate || ev.start || ''}__${ev.id || 'row'}__${evIdx}`
                     return (
                       <React.Fragment key={fragmentKey}>
                         <tr

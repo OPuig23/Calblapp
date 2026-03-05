@@ -459,7 +459,7 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
             </div>
           )}
 
-          {!isLogistica && (
+          {!isLogistica && !isCuina && (
             <div>
               <Label>Responsable (manual)</Label>
               <Select value={manualResp} onValueChange={setManualResp}>

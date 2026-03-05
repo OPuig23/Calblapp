@@ -182,8 +182,8 @@ export async function POST(req: NextRequest) {
         .filter((entry): entry is { startTime: string; endTime: string } => Boolean(entry))
 
       const staffRaw = (assignmentForSave.staff || []).filter((s) => s?.name)
-      const extraCount = staffRaw.filter((s) => s.name === 'Extra').length
-      const staffClean = staffRaw.filter((s) => s.name !== 'Extra')
+      let extraCount = staffRaw.filter((s) => s.name === 'Extra').length
+      let staffClean = staffRaw.filter((s) => s.name !== 'Extra')
 
       const toSave: QuadrantSave = {
         code: bodyForSave.code || '',
@@ -306,6 +306,60 @@ export async function POST(req: NextRequest) {
               name: computedGroups[0].responsibleName,
               meetingPoint: computedGroups[0].meetingPoint || bodyForSave.meetingPoint || '',
             }
+          }
+
+          if (deptNorm === 'cuina') {
+            const normalizePerson = (value?: string | null) =>
+              (value || '').toString().trim().toLowerCase()
+
+            const responsibleNames = new Set<string>()
+            const topResponsible = normalizePerson(toSave.responsableName)
+            if (topResponsible) responsibleNames.add(topResponsible)
+            computedGroups.forEach((group) => {
+              const groupResponsible = normalizePerson(group.responsibleName)
+              if (groupResponsible) responsibleNames.add(groupResponsible)
+            })
+
+            const driverNames = new Set<string>()
+            toSave.conductors = toSave.conductors.filter((driver) => {
+              const normalized = normalizePerson(driver?.name)
+              if (!normalized) return false
+              if (driverNames.has(normalized)) return false
+              driverNames.add(normalized)
+              return true
+            })
+
+            const reservedNames = new Set<string>([...responsibleNames, ...driverNames])
+            const uniqueWorkers: Array<{ name: string; meetingPoint: string }> = []
+            const seenWorkers = new Set<string>()
+            staffClean.forEach((worker) => {
+              const normalized = normalizePerson(worker.name)
+              if (!normalized || normalized === 'extra') return
+              if (reservedNames.has(normalized)) return
+              if (seenWorkers.has(normalized)) return
+              seenWorkers.add(normalized)
+              uniqueWorkers.push({
+                name: worker.name,
+                meetingPoint: worker.meetingPoint || bodyForSave.meetingPoint || '',
+              })
+            })
+
+            const targetWorkers = Math.max(
+              Number(bodyForSave.totalWorkers || 0) -
+                Number(bodyForSave.numDrivers || 0) -
+                responsibleNames.size,
+              0
+            )
+
+            while (uniqueWorkers.length < targetWorkers) {
+              uniqueWorkers.push({
+                name: 'Extra',
+                meetingPoint: bodyForSave.meetingPoint || '',
+              })
+            }
+
+            toSave.treballadors = uniqueWorkers
+            extraCount = uniqueWorkers.filter((worker) => worker.name === 'Extra').length
           }
         }
       }
@@ -491,7 +545,14 @@ export async function POST(req: NextRequest) {
 
     const { toSave } = buildToSave(assignBody, res.assignment, res.meta)
     await applyStageData(toSave)
-    await db.collection(collectionName).doc(body.eventId).set(toSave, { merge: true })
+
+    const normalizedEventId =
+      typeof toSave.eventId === 'string' && toSave.eventId.trim()
+        ? toSave.eventId.trim()
+        : String(body.eventId || '').trim()
+    const docIdForSingleFlow = deptNorm === 'cuina' ? normalizedEventId : String(body.eventId || '')
+
+    await db.collection(collectionName).doc(docIdForSingleFlow).set(toSave, { merge: true })
 
     return NextResponse.json({
       success: true,
