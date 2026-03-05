@@ -72,6 +72,8 @@ type CuinaGroup = {
   endTime: string
   workers: number
   drivers: number
+  needsDriver: boolean
+  wantsResponsible: boolean
   responsibleId: string
 }
 
@@ -159,16 +161,23 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
 
-  const createCuinaGroup = (seed: Partial<CuinaGroup> = {}): CuinaGroup => ({
-    id: seed.id || makeGroupId(),
-    meetingPoint: seed.meetingPoint ?? meetingPoint ?? '',
-    startTime: seed.startTime ?? startTime ?? '',
-    arrivalTime: seed.arrivalTime ?? arrivalTime ?? '',
-    endTime: seed.endTime ?? endTime ?? '',
-    workers: (seed.workers ?? Number(totalWorkers)) || 0,
-    drivers: (seed.drivers ?? Number(numDrivers)) || 0,
-    responsibleId: seed.responsibleId ?? '',
-  })
+  const createCuinaGroup = (seed: Partial<CuinaGroup> = {}): CuinaGroup => {
+    const seedDrivers = Math.max(0, (seed.drivers ?? Number(numDrivers)) || 0)
+    const needsDriver = seed.needsDriver ?? seedDrivers > 0
+
+    return {
+      id: seed.id || makeGroupId(),
+      meetingPoint: seed.meetingPoint ?? meetingPoint ?? '',
+      startTime: seed.startTime ?? startTime ?? '',
+      arrivalTime: seed.arrivalTime ?? arrivalTime ?? '',
+      endTime: seed.endTime ?? endTime ?? '',
+      workers: (seed.workers ?? Number(totalWorkers)) || 0,
+      drivers: seedDrivers,
+      needsDriver,
+      wantsResponsible: seed.wantsResponsible ?? true,
+      responsibleId: seed.responsibleId ?? '',
+    }
+  }
 
   const [cuinaGroups, setCuinaGroups] = useState<CuinaGroup[]>(() => [createCuinaGroup()])
   const cuinaTotalsRef = useRef({ workers: Number(totalWorkers) || 0, drivers: Number(numDrivers) || 0 })
@@ -177,10 +186,15 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
     () => ({
       workers: cuinaGroups.reduce((sum, group) => sum + group.workers, 0),
       drivers: cuinaGroups.reduce((sum, group) => sum + group.drivers, 0),
-      responsables: cuinaGroups.length,
+      responsables: cuinaGroups.filter((group) => group.wantsResponsible).length,
     }),
     [cuinaGroups]
   )
+
+  const isManualResponsibleConductor = useMemo(() => {
+    if (!manualResp || manualResp === '__auto__') return false
+    return availableConductors.some((conductor) => conductor.id === manualResp)
+  }, [availableConductors, manualResp])
 
   useEffect(() => {
     if (!isCuina) return
@@ -219,6 +233,19 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
 
   useEffect(() => {
     if (!isCuina) return
+    if (cuinaGroups.length !== 1) return
+    if (!manualResp || manualResp === '__auto__') return
+    const first = cuinaGroups[0]
+    if (!first || !first.wantsResponsible || first.responsibleId) return
+    setCuinaGroups((prev) =>
+      prev.map((group) =>
+        group.id === first.id ? { ...group, responsibleId: manualResp } : group
+      )
+    )
+  }, [isCuina, cuinaGroups, manualResp])
+
+  useEffect(() => {
+    if (!isCuina) return
     const firstGroup = cuinaGroups[0]
     if (!firstGroup) return
     if (firstGroup.startTime !== startTime) setStartTime(firstGroup.startTime)
@@ -240,13 +267,23 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
   }
 
   const addCuinaGroup = () => {
-    setCuinaGroups((prev) => [...prev, createCuinaGroup({ workers: 0, drivers: 0 })])
+    setCuinaGroups((prev) => [
+      ...prev,
+      createCuinaGroup({
+        workers: 0,
+        drivers: 0,
+        needsDriver: false,
+        wantsResponsible: false,
+      }),
+    ])
   }
 
   const removeCuinaGroup = (id: string) => {
     setCuinaGroups((prev) => {
       const next = prev.filter((group) => group.id !== id)
-      return next.length ? next : [createCuinaGroup({ workers: 0, drivers: 0 })]
+      return next.length
+        ? next
+        : [createCuinaGroup({ workers: 0, drivers: 0, needsDriver: false })]
     })
   }
 
@@ -277,6 +314,7 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
         endTime,
         arrivalTime: arrivalTime || null,
         manualResponsibleId: manualResponsibleIdValue,
+        manualResponsibleName: manualResponsibleNameValue,
         service: event.service || null,
         numPax: event.numPax ?? null,
         commercial: event.commercial ?? null,
@@ -289,18 +327,29 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
       }
 
       if (isCuina) {
+        const singleGroup = cuinaGroups.length === 1
         const groupsPayload = cuinaGroups.map((group) => {
-          const selected = availableResponsables.find((r) => r.id === group.responsibleId)
+          const selectedRespId =
+            group.wantsResponsible
+              ? (group.responsibleId || manualResponsibleIdValue || '')
+              : ''
+          const selected = availableResponsables.find((r) => r.id === selectedRespId)
           return {
             meetingPoint: group.meetingPoint || meetingPoint || '',
             startTime: group.startTime,
             arrivalTime: group.arrivalTime || null,
             endTime: group.endTime,
             workers: group.workers,
-            drivers: group.drivers,
+            drivers: Math.max(0, Number(group.drivers || 0)),
+            needsDriver: Number(group.drivers || 0) > 0,
+            wantsResponsible: group.wantsResponsible,
             responsibleId:
-              group.responsibleId && group.responsibleId !== '__auto__' ? group.responsibleId : null,
-            responsibleName: selected?.name || null,
+              selectedRespId && selectedRespId !== '__auto__' ? selectedRespId : null,
+            responsibleName: group.wantsResponsible ? selected?.name || null : null,
+            driverName:
+              singleGroup && Number(group.drivers || 0) > 0 && isManualResponsibleConductor
+                ? manualResponsibleNameValue || null
+                : null,
           }
         })
 
@@ -459,9 +508,9 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
             </div>
           )}
 
-          {!isLogistica && !isCuina && (
+          {!isLogistica && (
             <div>
-              <Label>Responsable (manual)</Label>
+              <Label>{isCuina ? 'Responsable principal (esdeveniment)' : 'Responsable (manual)'}</Label>
               <Select value={manualResp} onValueChange={setManualResp}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Selecciona un responsable…" />
@@ -542,16 +591,39 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
                         <Input value={group.meetingPoint} onChange={(e) => updateCuinaGroup(group.id, { meetingPoint: e.target.value })} />
                       </div>
                       <div>
-                        <Label>Responsable</Label>
+                        <Label className="mb-2 block">Opcions grup</Label>
+                        <label className="flex items-center gap-2 text-sm text-slate-700">
+                          <input
+                            type="checkbox"
+                            checked={group.wantsResponsible}
+                            onChange={(e) =>
+                              updateCuinaGroup(group.id, {
+                                wantsResponsible: e.target.checked,
+                                responsibleId:
+                                  e.target.checked && !group.responsibleId && manualResp && manualResp !== '__auto__'
+                                    ? manualResp
+                                    : group.responsibleId,
+                              })
+                            }
+                          />
+                          Cal responsable en aquest grup
+                        </label>
+                      </div>
+                    </div>
+                    {group.wantsResponsible && (
+                      <div>
+                        <Label>Responsable del grup (opcional)</Label>
                         <Select
-                          value={group.responsibleId}
-                          onValueChange={(value) => updateCuinaGroup(group.id, { responsibleId: value })}
+                          value={group.responsibleId || '__auto__'}
+                          onValueChange={(value) =>
+                            updateCuinaGroup(group.id, { responsibleId: value === '__auto__' ? '' : value })
+                          }
                         >
                           <SelectTrigger className="w-full">
                             <SelectValue placeholder="Selecciona un responsable…" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="__auto__">— Automàtic —</SelectItem>
+                            <SelectItem value="__auto__">— Sense responsable de grup —</SelectItem>
                             {availableResponsables.map((resp) => (
                               <SelectItem key={resp.id} value={resp.id}>
                                 {resp.name}
@@ -560,7 +632,7 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
                           </SelectContent>
                         </Select>
                       </div>
-                    </div>
+                    )}
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div>
                         <Label>Hora Inici</Label>
@@ -597,7 +669,10 @@ export default function QuadrantModal({ open, onOpenChange, event }: QuadrantMod
                           value={group.drivers}
                           onChange={(e) =>
                             updateCuinaGroup(group.id, {
-                              drivers: Number.isNaN(Number(e.target.value)) ? 0 : Number(e.target.value),
+                              drivers: Number.isNaN(Number(e.target.value))
+                                ? 0
+                                : Math.max(0, Number(e.target.value)),
+                              needsDriver: Number(e.target.value) > 0,
                             })
                           }
                         />

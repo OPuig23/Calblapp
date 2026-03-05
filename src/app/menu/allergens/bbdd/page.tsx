@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import ModuleHeader from '@/components/layout/ModuleHeader'
 import { Button } from '@/components/ui/button'
+import ExportMenu from '@/components/export/ExportMenu'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -29,6 +30,8 @@ import {
   updateDoc,
   writeBatch,
 } from 'firebase/firestore'
+import { jsPDF } from 'jspdf'
+import * as XLSX from 'xlsx'
 
 type AllergenValue = 'SI' | 'NO' | 'T' | ''
 
@@ -60,6 +63,32 @@ type FormState = {
   vegan: boolean
   vegetarian: boolean
   allergens: Record<string, AllergenValue>
+}
+
+type PlatExport = {
+  id: string
+  code?: string
+  name?: {
+    ca?: string | null
+    es?: string | null
+    en?: string | null
+  }
+  categoryLabel?: string | null
+  familyLabel?: string | null
+  menus?: string[]
+  allergens?: Record<string, string | null>
+  consumption?: {
+    vegan?: boolean
+    vegetarian?: boolean
+  }
+}
+
+type PlatLookupItem = {
+  id: string
+  code: string
+  nameCa: string
+  nameEs: string
+  nameEn: string
 }
 
 const buildAllergensState = (
@@ -166,6 +195,10 @@ export default function AllergensBbddPage() {
   const [menusCatalog, setMenusCatalog] = useState<OptionItem[]>([])
   const [allergensCatalog, setAllergensCatalog] = useState<AllergenItem[]>(DEFAULT_ALLERGENS)
   const [allergensSource, setAllergensSource] = useState<'default' | 'db'>('default')
+  const [platsIndex, setPlatsIndex] = useState<PlatLookupItem[]>([])
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedLookupCode, setSelectedLookupCode] = useState('')
+  const [selectedLookupName, setSelectedLookupName] = useState('')
   const [originalAllergens, setOriginalAllergens] = useState<Record<string, string | null>>({})
   const [extraAllergens, setExtraAllergens] = useState<AllergenItem[]>([])
   const [newCategory, setNewCategory] = useState('')
@@ -199,13 +232,45 @@ export default function AllergensBbddPage() {
     [allergensCatalog]
   )
 
+  const formatLookupName = (item: Pick<PlatLookupItem, 'nameCa' | 'nameEs' | 'nameEn'>) =>
+    item.nameCa || item.nameEs || item.nameEn || ''
+
+  const searchResults = useMemo(() => {
+    const q = normalize(searchQuery)
+    if (!q || q.length < 2) return []
+
+    const starts: PlatLookupItem[] = []
+    const contains: PlatLookupItem[] = []
+
+    platsIndex.forEach(item => {
+      const codeNorm = normalize(item.code)
+      const nameCaNorm = normalize(item.nameCa)
+      const nameEsNorm = normalize(item.nameEs)
+      const nameEnNorm = normalize(item.nameEn)
+      const haystack = `${codeNorm} ${nameCaNorm} ${nameEsNorm} ${nameEnNorm}`.trim()
+      if (!haystack.includes(q)) return
+
+      const startsWith =
+        codeNorm.startsWith(q) ||
+        nameCaNorm.startsWith(q) ||
+        nameEsNorm.startsWith(q) ||
+        nameEnNorm.startsWith(q)
+
+      if (startsWith) starts.push(item)
+      else contains.push(item)
+    })
+
+    return [...starts, ...contains].slice(0, 8)
+  }, [platsIndex, searchQuery])
+
   useEffect(() => {
     const loadOptions = async () => {
-      const [categorySnap, familySnap, menuSnap, allergenSnap] = await Promise.all([
+      const [categorySnap, familySnap, menuSnap, allergenSnap, platsSnap] = await Promise.all([
         getDocs(query(collection(db, 'categories'), orderBy('label'))),
         getDocs(query(collection(db, 'family'), orderBy('label'))),
         getDocs(query(collection(db, 'menus'), orderBy('label'))),
         getDocs(query(collection(db, 'allergens'), orderBy('label'))),
+        getDocs(collection(db, 'plats')),
       ])
 
       setCategories(
@@ -240,6 +305,19 @@ export default function AllergensBbddPage() {
         setAllergensCatalog(DEFAULT_ALLERGENS)
         setAllergensSource('default')
       }
+
+      setPlatsIndex(
+        platsSnap.docs.map(docSnap => {
+          const data = docSnap.data() as any
+          return {
+            id: docSnap.id,
+            code: String(data.code || docSnap.id),
+            nameCa: String(data.name?.ca || ''),
+            nameEs: String(data.name?.es || ''),
+            nameEn: String(data.name?.en || ''),
+          }
+        })
+      )
     }
 
     loadOptions().catch(err => {
@@ -529,8 +607,9 @@ export default function AllergensBbddPage() {
     })
   }
 
-  const handleLoad = async () => {
-    if (!form.code.trim()) {
+  const loadPlatByCode = async (codeToLoad: string) => {
+    const code = codeToLoad.trim()
+    if (!code) {
       setStatus('Cal indicar el codi per carregar.')
       return
     }
@@ -539,7 +618,7 @@ export default function AllergensBbddPage() {
     setStatus('')
 
     try {
-      const snap = await getDoc(doc(db, 'plats', form.code.trim()))
+      const snap = await getDoc(doc(db, 'plats', code))
       if (!snap.exists()) {
         setStatus('No s’ha trobat cap plat amb aquest codi.')
         return
@@ -559,8 +638,10 @@ export default function AllergensBbddPage() {
         .map(key => ({ key, label: key }))
       setExtraAllergens(extra)
 
+      const loadedCode = String(data.code || code)
+
       setForm({
-        code: data.code || form.code,
+        code: loadedCode,
         nameCa: data.name?.ca || '',
         nameEs: data.name?.es || '',
         nameEn: data.name?.en || '',
@@ -576,6 +657,10 @@ export default function AllergensBbddPage() {
           ...extra,
         ]),
       })
+      setSelectedLookupCode(loadedCode)
+      const lookupName = String(data.name?.ca || data.name?.es || data.name?.en || '')
+      setSelectedLookupName(lookupName)
+      setSearchQuery(lookupName ? `${loadedCode} · ${lookupName}` : loadedCode)
       setStatus('Plat carregat.')
     } catch (err) {
       console.error(err)
@@ -585,8 +670,19 @@ export default function AllergensBbddPage() {
     }
   }
 
+  const handleLoad = async () => {
+    await loadPlatByCode(form.code)
+  }
+
+  const handleSearchSelect = async (item: PlatLookupItem) => {
+    await loadPlatByCode(item.code)
+  }
+
   const handleReset = () => {
     setForm(defaultFormState)
+    setSearchQuery('')
+    setSelectedLookupCode('')
+    setSelectedLookupName('')
     setNewCategory('')
     setNewFamily('')
     setNewMenu('')
@@ -748,6 +844,21 @@ export default function AllergensBbddPage() {
       const savedNameEn = payload.name.en || ''
       const savedNameMeta = payload.nameMeta || {}
 
+      setPlatsIndex(prev => {
+        const nextItem: PlatLookupItem = {
+          id: savedCode,
+          code: savedCode,
+          nameCa: payload.name.ca || '',
+          nameEs: payload.name.es || '',
+          nameEn: payload.name.en || '',
+        }
+        const idx = prev.findIndex(item => item.id === savedCode || item.code === savedCode)
+        if (idx === -1) return [...prev, nextItem]
+        const clone = [...prev]
+        clone[idx] = nextItem
+        return clone
+      })
+
       setOriginalAllergens(allergensPayload)
       handleReset()
       setStatus('Plat guardat correctament.')
@@ -792,6 +903,128 @@ export default function AllergensBbddPage() {
     }
   }
 
+  const loadAllPlatsForExport = async (): Promise<PlatExport[]> => {
+    const snap = await getDocs(collection(db, 'plats'))
+    return snap.docs.map(docSnap => {
+      const data = docSnap.data() as Omit<PlatExport, 'id'>
+      return {
+        id: docSnap.id,
+        ...data,
+        code: data.code || docSnap.id,
+      }
+    })
+  }
+
+  const buildExportRows = (plats: PlatExport[]) =>
+    plats
+      .map(plat => {
+        const row: Record<string, string> = {
+          Codi: plat.code || plat.id,
+          Nom_CAT: plat.name?.ca || '',
+          Nom_ES: plat.name?.es || '',
+          Nom_EN: plat.name?.en || '',
+          Categoria: plat.categoryLabel || '',
+          Familia: plat.familyLabel || '',
+          Menus: (plat.menus || []).join(', '),
+          Vega: plat.consumption?.vegan ? 'SI' : 'NO',
+          Vegetaria: plat.consumption?.vegetarian ? 'SI' : 'NO',
+        }
+
+        allergenItems.forEach(allergen => {
+          const value = plat.allergens?.[allergen.key]
+          row[`ALL_${allergen.label}`] =
+            value === 'SI' || value === 'NO' || value === 'T' ? value : ''
+        })
+
+        return row
+      })
+      .sort((a, b) => (a.Codi || '').localeCompare(b.Codi || ''))
+
+  const handleExportXlsx = async () => {
+    setLoading(true)
+    setStatus('')
+    try {
+      const plats = await loadAllPlatsForExport()
+      const rows = buildExportRows(plats)
+      if (!rows.length) {
+        setStatus('No hi ha plats per exportar.')
+        return
+      }
+
+      const wb = XLSX.utils.book_new()
+      const ws = XLSX.utils.json_to_sheet(rows)
+      XLSX.utils.book_append_sheet(wb, ws, 'Allergens_BBDD')
+      const stamp = new Date().toISOString().slice(0, 10)
+      XLSX.writeFile(wb, `allergens-bbdd-${stamp}.xlsx`)
+      setStatus('Exportacio XLSX completada.')
+    } catch (err) {
+      console.error(err)
+      setStatus('Error exportant XLSX.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleExportPdf = async () => {
+    setLoading(true)
+    setStatus('')
+    try {
+      const plats = await loadAllPlatsForExport()
+      const rows = buildExportRows(plats)
+      if (!rows.length) {
+        setStatus('No hi ha plats per exportar.')
+        return
+      }
+
+      const pdf = new jsPDF({ unit: 'pt', format: 'a4' })
+      const pageWidth = pdf.internal.pageSize.getWidth()
+      const pageHeight = pdf.internal.pageSize.getHeight()
+      const margin = 36
+      const lineHeight = 12
+      let y = margin
+
+      pdf.setFontSize(12)
+      pdf.text('BBDD Allergens', margin, y)
+      y += lineHeight + 6
+      pdf.setFontSize(9)
+      pdf.text(`Plats: ${rows.length}`, margin, y)
+      y += lineHeight + 8
+
+      for (const row of rows) {
+        const positives = allergenItems
+          .map(allergen => {
+            const value = row[`ALL_${allergen.label}`]
+            if (value !== 'SI' && value !== 'T') return null
+            return value === 'T' ? `${allergen.label} (T)` : allergen.label
+          })
+          .filter(Boolean)
+          .join(', ')
+
+        const line = `${row.Codi} | ${row.Nom_CAT || '-'} | Menus: ${
+          row.Menus || '-'
+        } | Allergens: ${positives || 'cap'}`
+        const wrapped = pdf.splitTextToSize(line, pageWidth - margin * 2)
+
+        if (y + wrapped.length * lineHeight > pageHeight - margin) {
+          pdf.addPage()
+          y = margin
+        }
+
+        pdf.text(wrapped, margin, y)
+        y += wrapped.length * lineHeight + 4
+      }
+
+      const stamp = new Date().toISOString().slice(0, 10)
+      pdf.save(`allergens-bbdd-${stamp}.pdf`)
+      setStatus('Exportacio PDF completada.')
+    } catch (err) {
+      console.error(err)
+      setStatus('Error exportant PDF.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   if (!allowed) {
     return (
       <>
@@ -811,18 +1044,82 @@ export default function AllergensBbddPage() {
         <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
             <h2 className="text-lg font-semibold text-slate-800">Dades bàsiques</h2>
-            <Button
-              variant="secondary"
-              onClick={handleAutoTranslate}
-              disabled={loading || translating || !form.nameCa.trim()}
-            >
-              Autotraduir
-            </Button>
+            <div className="flex items-center gap-2">
+              <ExportMenu
+                ariaLabel="Exportar base d'allergens"
+                items={[
+                  {
+                    label: 'Exportar PDF',
+                    onClick: handleExportPdf,
+                    disabled: loading,
+                  },
+                  {
+                    label: 'Exportar XLSX',
+                    onClick: handleExportXlsx,
+                    disabled: loading,
+                  },
+                ]}
+              />
+              <Button
+                variant="secondary"
+                onClick={handleAutoTranslate}
+                disabled={loading || translating || !form.nameCa.trim()}
+              >
+                Autotraduir
+              </Button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="text-sm font-medium text-slate-700">Codi *</label>
+              <label className="text-sm font-medium text-slate-700">Cerca (codi o nom)</label>
+              <Input
+                className="mt-1"
+                value={searchQuery}
+                onChange={e => {
+                  setSearchQuery(e.target.value)
+                  setSelectedLookupCode('')
+                  setSelectedLookupName('')
+                }}
+                onKeyDown={e => {
+                  if (e.key !== 'Enter') return
+                  e.preventDefault()
+                  if (searchResults.length > 0) {
+                    void handleSearchSelect(searchResults[0])
+                  }
+                }}
+                placeholder="Ex: C0530100001 o fricandó"
+              />
+
+              {searchQuery.trim().length >= 2 && searchResults.length > 0 && (
+                <div className="mt-2 rounded-lg border border-slate-200 bg-white max-h-52 overflow-y-auto">
+                  {searchResults.map(item => {
+                    const displayName = formatLookupName(item)
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-amber-50 border-b last:border-b-0"
+                        onClick={() => void handleSearchSelect(item)}
+                      >
+                        <span className="font-medium text-slate-800">{item.code}</span>
+                        {displayName ? (
+                          <span className="text-slate-600"> · {displayName}</span>
+                        ) : null}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+
+              {selectedLookupCode && (
+                <p className="text-xs text-emerald-700 mt-2">
+                  Article carregat: {selectedLookupCode}
+                  {selectedLookupName ? ` · ${selectedLookupName}` : ''}
+                </p>
+              )}
+
+              <label className="text-sm font-medium text-slate-700 mt-3 block">Codi *</label>
               <div className="flex gap-2 mt-1">
                 <Input
                   value={form.code}

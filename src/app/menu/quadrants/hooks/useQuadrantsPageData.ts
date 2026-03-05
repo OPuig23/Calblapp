@@ -182,7 +182,11 @@ export function useQuadrantsPageData({
           .toString()
           .trim()
           .toLowerCase()
-        return p === 'event'
+        if (p === 'event') return true
+        const dept = (q.department || '').toString().trim().toLowerCase()
+        // Cuina treballa amb una sola fase (event) i pot tenir docs antics sense phaseType.
+        if (dept === 'cuina' && !p) return true
+        return false
       })
       if (hasEventDoc) return
 

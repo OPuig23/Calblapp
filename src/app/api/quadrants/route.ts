@@ -71,6 +71,9 @@ interface CuinaGroup {
   endTime: string
   workers: number
   drivers: number
+  needsDriver?: boolean
+  wantsResponsible?: boolean
+  driverName?: string | null
   responsibleId?: string | null
   responsibleName?: string | null
 }
@@ -202,8 +205,8 @@ export async function POST(req: NextRequest) {
         totalWorkers: Number(bodyForSave.totalWorkers || 0),
         numPax: bodyForSave.numPax ?? null,
         service: bodyForSave.service || null,
-        phaseType: bodyForSave.phaseType || null,
-        phaseLabel: bodyForSave.phaseLabel || null,
+        phaseType: bodyForSave.phaseType || (deptNorm === 'cuina' ? 'event' : null),
+        phaseLabel: bodyForSave.phaseLabel || (deptNorm === 'cuina' ? 'Event' : null),
         phaseDate: bodyForSave.phaseDate || null,
 
         responsableName: assignmentForSave.responsible?.name || null,
@@ -230,6 +233,14 @@ export async function POST(req: NextRequest) {
         timetables: normalizedTimetables,
       }
 
+      if (!toSave.responsableName && bodyForSave.manualResponsibleName) {
+        toSave.responsableName = String(bodyForSave.manualResponsibleName)
+        toSave.responsable = {
+          name: String(bodyForSave.manualResponsibleName),
+          meetingPoint: bodyForSave.meetingPoint || '',
+        }
+      }
+
       if (Array.isArray(bodyForSave.groups)) {
         if (deptNorm === 'serveis') {
           toSave.groups = bodyForSave.groups.map((g: any) => ({
@@ -245,24 +256,41 @@ export async function POST(req: NextRequest) {
             driverName: g.driverName || null,
           }))
         } else {
-          let driverIdx = 0
+          const normalizePerson = (value?: string | null) =>
+            (value || '').toString().trim().toLowerCase()
+          const remainingDrivers = [...(assignmentForSave.drivers || [])]
           let workerIdx = 0
           const usedNames = new Set<string>()
           const computedGroups = (bodyForSave.groups as CuinaGroup[]).map((group) => {
-            const driversNeeded = Number(group.drivers || 0)
-            const driversSlice = (assignmentForSave.drivers || []).slice(
-              driverIdx,
-              driverIdx + driversNeeded
-            )
-            driverIdx += driversNeeded
+            const needsDriver = group.needsDriver ?? Number(group.drivers || 0) > 0
+            const driversNeeded = needsDriver ? Math.max(1, Number(group.drivers || 0)) : 0
+            const preferredDriverName = normalizePerson(group.driverName)
+            const driversSlice: Array<{ name: string; meetingPoint?: string; plate?: string; vehicleType?: string }> = []
 
-            let responsibleName = group.responsibleName || null
+            if (driversNeeded > 0 && preferredDriverName) {
+              const preferredIdx = remainingDrivers.findIndex(
+                (driver) => normalizePerson(driver?.name) === preferredDriverName
+              )
+              if (preferredIdx >= 0) {
+                const [preferred] = remainingDrivers.splice(preferredIdx, 1)
+                if (preferred) driversSlice.push(preferred)
+              }
+            }
+
+            while (driversSlice.length < driversNeeded && remainingDrivers.length > 0) {
+              const next = remainingDrivers.shift()
+              if (!next) break
+              driversSlice.push(next)
+            }
+
+            const wantsResponsible = group.wantsResponsible !== false
+            let responsibleName = wantsResponsible ? group.responsibleName || null : null
             if (responsibleName && usedNames.has(responsibleName.toLowerCase().trim())) {
               responsibleName = null
             }
 
             const workersNeeded = Math.max(
-              Number(group.workers || 0) - Number(group.drivers || 0),
+              Number(group.workers || 0) - driversNeeded,
               0
             )
 
@@ -279,11 +307,11 @@ export async function POST(req: NextRequest) {
               workersSlice.push(next)
             }
 
-            if (!responsibleName && deptNorm === 'cuina') {
-              const candidate = [...workersSlice, ...driversSlice].find(
-                (p) => p?.name && p.name !== 'Extra'
-              )
-              responsibleName = candidate?.name || null
+            if (wantsResponsible && !responsibleName && deptNorm === 'cuina') {
+              // A cuina prioritzem conductor com a responsable quan el grup en necessita.
+              const candidateDriver = driversSlice.find((p) => p?.name && p.name !== 'Extra')
+              const candidateWorker = workersSlice.find((p) => p?.name && p.name !== 'Extra')
+              responsibleName = candidateDriver?.name || candidateWorker?.name || null
             }
 
             const groupNames = [
@@ -295,27 +323,41 @@ export async function POST(req: NextRequest) {
               .map((name) => (name as string).toLowerCase().trim())
             groupNames.forEach((name) => usedNames.add(name))
 
-            return { ...group, responsibleName }
+            return { ...group, needsDriver, drivers: driversNeeded, wantsResponsible, responsibleName }
           })
 
           toSave.groups = computedGroups
 
-          if (deptNorm === 'cuina' && !toSave.responsableName && computedGroups[0]?.responsibleName) {
-            toSave.responsableName = computedGroups[0].responsibleName
-            toSave.responsable = {
-              name: computedGroups[0].responsibleName,
-              meetingPoint: computedGroups[0].meetingPoint || bodyForSave.meetingPoint || '',
+          if (deptNorm === 'cuina' && !toSave.responsableName) {
+            const firstGroupResponsible = computedGroups.find(
+              (group) => group.wantsResponsible !== false && group.responsibleName
+            )
+            const fallbackName =
+              firstGroupResponsible?.responsibleName ||
+              [...toSave.conductors, ...toSave.treballadors].find(
+                (person) => person?.name && person.name !== 'Extra'
+              )?.name ||
+              null
+
+            if (fallbackName) {
+              toSave.responsableName = fallbackName
+              toSave.responsable = {
+                name: fallbackName,
+                meetingPoint:
+                  firstGroupResponsible?.meetingPoint ||
+                  computedGroups[0]?.meetingPoint ||
+                  bodyForSave.meetingPoint ||
+                  '',
+              }
             }
           }
 
           if (deptNorm === 'cuina') {
-            const normalizePerson = (value?: string | null) =>
-              (value || '').toString().trim().toLowerCase()
-
             const responsibleNames = new Set<string>()
             const topResponsible = normalizePerson(toSave.responsableName)
             if (topResponsible) responsibleNames.add(topResponsible)
             computedGroups.forEach((group) => {
+              if (group.wantsResponsible === false) return
               const groupResponsible = normalizePerson(group.responsibleName)
               if (groupResponsible) responsibleNames.add(groupResponsible)
             })

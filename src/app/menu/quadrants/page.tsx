@@ -49,6 +49,14 @@ export default function QuadrantsPage() {
     )
       .toString()
       .toLowerCase()
+  const isCuinaDepartment = department === 'cuina'
+  const [hideCuinaMinorServices, setHideCuinaMinorServices] = useState(
+    isCuinaDepartment
+  )
+
+  useEffect(() => {
+    setHideCuinaMinorServices(isCuinaDepartment)
+  }, [isCuinaDepartment])
 
   const { quadrants, reload } = useQuadrants(
     department,
@@ -73,16 +81,62 @@ export default function QuadrantsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const {
-    eventsWithStatus,
-    counts,
     filteredEvents,
-    grouped,
     phasesByEventId,
   } = useQuadrantsPageData({
     events,
     quadrants,
     filters,
   })
+
+  const normalizeForFilter = (value?: unknown) =>
+    String(value ?? '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim()
+
+  const shouldHideCuinaEvent = (ev: UnifiedEvent) => {
+    if (!isCuinaDepartment || !hideCuinaMinorServices) return false
+
+    const service = normalizeForFilter((ev as any).service)
+    const pax = Number(ev.numPax ?? (ev as any).pax ?? NaN)
+
+    const isCoffee = service.includes('coffee')
+    const isMenuEntregues =
+      service.includes('menu') && service.includes('entregues')
+    const isCheersLowPax =
+      service.includes('cheers') && Number.isFinite(pax) && pax < 200
+
+    return isCoffee || isMenuEntregues || isCheersLowPax
+  }
+
+  const visibleFilteredEvents = useMemo(
+    () => filteredEvents.filter((ev) => !shouldHideCuinaEvent(ev)),
+    [filteredEvents, hideCuinaMinorServices, isCuinaDepartment]
+  )
+
+  const visibleGrouped = useMemo<[string, UnifiedEvent[]][]>(() => {
+    const map: Record<string, UnifiedEvent[]> = {}
+    for (const ev of visibleFilteredEvents) {
+      const day = ev.start.slice(0, 10)
+      if (!map[day]) map[day] = []
+      map[day].push(ev)
+    }
+    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b))
+  }, [visibleFilteredEvents])
+
+  const visibleCounts = useMemo(() => {
+    let pending = 0
+    let draft = 0
+    let confirmed = 0
+    visibleFilteredEvents.forEach((ev) => {
+      if (ev.quadrantStatus === 'draft') draft += 1
+      else if (ev.quadrantStatus === 'confirmed') confirmed += 1
+      else pending += 1
+    })
+    return { pending, draft, confirmed }
+  }, [visibleFilteredEvents])
 
   
   const lnOptions = useMemo(() => {
@@ -126,9 +180,13 @@ export default function QuadrantsPage() {
     { key: 'muntatge', label: 'Muntatge' },
     { key: 'event', label: 'Event' },
   ]
+  const CUINA_PHASE_OPTIONS = [{ key: 'event', label: 'Event' }]
 
   const phaseOptions = useMemo(
     () => {
+      if (department === 'cuina') {
+        return CUINA_PHASE_OPTIONS
+      }
       if (department === 'serveis') {
         return SERVICE_PHASE_OPTIONS
       }
@@ -151,7 +209,7 @@ export default function QuadrantsPage() {
 
   const exportRows = useMemo(
     () =>
-      filteredEvents.map((ev) => {
+      visibleFilteredEvents.map((ev) => {
         const startDate = String(ev.start || '').slice(0, 10)
         const startTime = ev.displayStartTime || ''
         const endTime = ev.displayEndTime || ''
@@ -187,7 +245,7 @@ export default function QuadrantsPage() {
           Estat: statusLabel(ev.quadrantStatus),
         }
       }),
-    [filteredEvents]
+    [visibleFilteredEvents]
   )
 
   const handleExportExcel = () => {
@@ -309,17 +367,27 @@ export default function QuadrantsPage() {
         <div className="flex gap-6 sm:gap-10">
           <span className="flex items-center gap-2 text-yellow-700">
             <span className="w-2.5 h-2.5 bg-yellow-400 rounded-full" />
-            Pendents: {counts.pending}
+            Pendents: {visibleCounts.pending}
           </span>
           <span className="flex items-center gap-2 text-blue-700">
             <span className="w-2.5 h-2.5 bg-blue-500 rounded-full" />
-            Esborranys: {counts.draft}
+            Esborranys: {visibleCounts.draft}
           </span>
           <span className="flex items-center gap-2 text-green-700">
             <span className="w-2.5 h-2.5 bg-green-500 rounded-full" />
-            Confirmats: {counts.confirmed}
+            Confirmats: {visibleCounts.confirmed}
           </span>
         </div>
+        {isCuinaDepartment && (
+          <label className="flex items-center gap-2 text-xs text-slate-700">
+            <input
+              type="checkbox"
+              checked={hideCuinaMinorServices}
+              onChange={(e) => setHideCuinaMinorServices(e.target.checked)}
+            />
+            Amaga Coffee, Menu entregues i Cheers &lt; 200 PAX
+          </label>
+        )}
       </div>
 
       {loading && (
@@ -334,13 +402,13 @@ export default function QuadrantsPage() {
         </p>
       )}
 
-      {!loading && !error && grouped.length === 0 && (
+      {!loading && !error && visibleGrouped.length === 0 && (
         <p className="text-center text-gray-400 py-10">
           Cap esdeveniment trobat per aquest rang de dates.
         </p>
       )}
 
-      {!loading && !error && grouped.length > 0 && (
+      {!loading && !error && visibleGrouped.length > 0 && (
         <div
           id="quadrants-print-root"
           className="overflow-x-auto rounded-xl border bg-white shadow-sm"
@@ -363,7 +431,7 @@ export default function QuadrantsPage() {
             </thead>
 
             <tbody>
-              {grouped.map(([day, evs]) => (
+              {visibleGrouped.map(([day, evs]) => (
                 <React.Fragment key={day}>
                   <tr className="bg-indigo-50 text-indigo-800">
                     <td colSpan={11} className="px-3 py-2 font-semibold">

@@ -163,6 +163,27 @@ export default function AllergensSearchPage() {
     return Array.from(set).sort()
   }, [plats])
 
+  const allAllergenItems = useMemo(() => {
+    const known = new Set(allergensCatalog.map(item => item.key))
+    const combined = [...allergensCatalog]
+
+    const legacyKeys = new Set<string>()
+    plats.forEach(plat => {
+      Object.keys(plat.allergens || {}).forEach(key => {
+        if (!key || !key.trim()) return
+        if (!known.has(key)) legacyKeys.add(key)
+      })
+    })
+
+    Array.from(legacyKeys)
+      .sort((a, b) => a.localeCompare(b))
+      .forEach(key => {
+        combined.push({ key, label: key })
+      })
+
+    return combined
+  }, [allergensCatalog, plats])
+
   const activeAdvancedCount = useMemo(
     () =>
       Object.values(allergenFilters).filter(value => value !== 'ANY')
@@ -175,12 +196,12 @@ export default function AllergensSearchPage() {
   useEffect(() => {
     setAllergenFilters(prev => {
       const next: Record<string, AllergenFilter> = {}
-      allergensCatalog.forEach(item => {
+      allAllergenItems.forEach(item => {
         next[item.key] = prev[item.key] || 'ANY'
       })
       return next
     })
-  }, [allergensCatalog])
+  }, [allAllergenItems])
 
   const filteredPlats = useMemo(() => {
     const search = normalize(searchText)
@@ -220,7 +241,7 @@ export default function AllergensSearchPage() {
         }
       }
 
-      for (const allergen of allergensCatalog) {
+      for (const allergen of allAllergenItems) {
         const filterValue = allergenFilters[allergen.key] || 'ANY'
         if (filterValue === 'ANY') continue
         const value = plat.allergens?.[allergen.key]
@@ -236,6 +257,7 @@ export default function AllergensSearchPage() {
     familyFilter,
     menuFilters,
     allergenFilters,
+    allAllergenItems,
     inverseMode,
     avoidedAllergens,
     consumptionFilters,
@@ -252,7 +274,7 @@ export default function AllergensSearchPage() {
     setCategoryFilter('all')
     setFamilyFilter('all')
     setMenuFilters([])
-    setAllergenFilters(buildAllergenFilters(allergensCatalog))
+    setAllergenFilters(buildAllergenFilters(allAllergenItems))
     setInverseMode(false)
     setAvoidedAllergens([])
     setShowAdvanced(false)
@@ -378,7 +400,7 @@ export default function AllergensSearchPage() {
                   {avoidedCount > 0 && ` · ${avoidedCount}`}
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  {allergensCatalog.map(allergen => (
+                  {allAllergenItems.map(allergen => (
                     <button
                       key={allergen.key}
                       type="button"
@@ -434,7 +456,7 @@ export default function AllergensSearchPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-80 overflow-y-auto pr-2">
-              {allergensCatalog.map(allergen => (
+              {allAllergenItems.map(allergen => (
                 <div key={allergen.key}>
                   <label className="text-sm font-medium text-slate-700">
                     {allergen.label}
@@ -474,7 +496,7 @@ export default function AllergensSearchPage() {
         <div className="grid grid-cols-1 gap-4">
           {filteredPlats.map(plat => {
             const name = plat.name?.ca || plat.name?.es || plat.name?.en || plat.code || ''
-            const allergenBadges = allergensCatalog.map(allergen => {
+            const allergenBadges = allAllergenItems.map(allergen => {
               const value = plat.allergens?.[allergen.key]
               if (value !== 'SI' && value !== 'T') return null
               const label = value === 'T' ? `${allergen.label} (Traces)` : allergen.label

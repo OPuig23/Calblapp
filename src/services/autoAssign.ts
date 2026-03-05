@@ -172,6 +172,7 @@ export async function autoAssign(payload: {
 
   // 5) Responsable (a cuina el gestionem per grups)
   let forcedByPremise = false
+  let usedGeneralResponsibleFallback = false
   let chosenResp: Personnel | null = null
 
   if (!isCuina && !skipResponsible) {
@@ -218,10 +219,34 @@ export async function autoAssign(payload: {
       )
       chosenResp = eligible?.p || null
     }
+    if (!chosenResp && dept === 'serveis') {
+      const fallbackPool = all
+        .filter((p) => p.available !== false && !isDeptHead(p))
+        .map((p) => ({
+          p,
+          weekAssigns: ledger.assignmentsCountByUser.get(p.name) || 0,
+          weekHrs: ledger.weeklyHoursByUser.get(p.name) || 0,
+          monthHrs: ledger.monthlyHoursByUser.get(p.name) || 0,
+          lastAssignedAt: ledger.lastAssignedAtByUser.get(p.name) || null,
+        }))
+        .sort(tieBreakOrder)
+      const fallback = fallbackPool.find((entry) =>
+        isEligibleByName(entry.p.name, startISO, endISO, {
+          busyAssignments: ledger.busyAssignments,
+          restHours: premises.restHours,
+          allowMultipleEventsSameDay: false,
+        }).eligible
+      )
+      chosenResp = fallback?.p || null
+      if (chosenResp) usedGeneralResponsibleFallback = true
+    }
   }
 
   const notes: string[] = [...(warnings || [])]
   const violations: string[] = []
+  if (usedGeneralResponsibleFallback) {
+    notes.push('Responsable autoassignat amb fallback general (sense rol de responsable disponible)')
+  }
   if (!isCuina && !skipResponsible && !chosenResp) {
     if (premises.requireResponsible) violations.push('responsible_missing')
     notes.push('No hi ha responsable elegible (ocupat o descans insuficient)')

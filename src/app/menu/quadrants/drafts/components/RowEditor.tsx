@@ -4,7 +4,7 @@
 import React, { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import type { Row } from './types'
+import type { Row, Role } from './types'
 import brigades from '@/data/brigades.json'
 
 type AvailablePerson = {
@@ -127,9 +127,46 @@ function EditorFields({
   onPatch: (patch: Partial<Row>) => void
   isLocked: boolean
 }) {
+  const normalize = (value?: string) =>
+    (value || '').toString().trim().toLowerCase()
+
+  const mergeUniquePeople = (...groups: Array<AvailablePerson[] | undefined>) => {
+    const map = new Map<string, AvailablePerson>()
+    groups.forEach((group) => {
+      ;(group || []).forEach((p) => {
+        const key = (p.id || '').trim() || normalize(p.name || p.alias || '')
+        if (!key) return
+        if (!map.has(key)) map.set(key, p)
+      })
+    })
+    return Array.from(map.values())
+  }
+
+  const allPeople = mergeUniquePeople(
+    available?.responsables,
+    available?.conductors,
+    available?.treballadors
+  )
+
+  const rowPerson =
+    allPeople.find((p) => row.id && p.id === row.id) ||
+    allPeople.find((p) => row.name && normalize(p.name || p.alias || p.id) === normalize(row.name)) ||
+    null
+
+  const responsibleCandidates = mergeUniquePeople(
+    available?.responsables,
+    rowPerson ? [rowPerson] : []
+  )
+
+  const canSelectResponsible = Boolean(
+    row.role === 'responsable' ||
+      rowPerson ||
+      (available?.responsables || []).length > 0
+  )
+
   const list: AvailablePerson[] =
     row.role === 'responsable'
-      ? available?.responsables || []
+      ? responsibleCandidates
       : row.role === 'conductor'
       ? available?.conductors || []
       : available?.treballadors || []
@@ -201,6 +238,22 @@ function EditorFields({
   // --- RESPONSABLE / CONDUCTOR / TREBALLADOR ---
   return (
     <>
+      {(row.role === 'conductor' || row.role === 'treballador' || row.role === 'responsable') && (
+        <div>
+          <label className="text-xs font-medium">Rol</label>
+          <select
+            value={row.role}
+            onChange={(e) => onPatch({ role: e.target.value as Role })}
+            className="w-full rounded border px-2 py-1 text-sm"
+            disabled={isLocked}
+          >
+            {canSelectResponsible && <option value="responsable">Responsable</option>}
+            <option value="conductor">Conductor</option>
+            <option value="treballador">Treballador</option>
+          </select>
+        </div>
+      )}
+
       {/* NOM + MEETING POINT */}
       <div className="flex flex-col gap-3 md:grid md:grid-cols-2">
         <div>
