@@ -20,6 +20,7 @@ type PlannedPayload = {
   date: string // yyyy-MM-dd
   startTime: string // HH:mm
   endTime: string // HH:mm
+  priority?: 'urgent' | 'alta' | 'normal' | 'baixa'
   location?: string
   workerIds?: string[]
   workerNames?: string[]
@@ -37,6 +38,14 @@ const canRead = (role: string) =>
   role === 'admin' || role === 'direccio' || role === 'cap' || role === 'treballador'
 
 const canWrite = (role: string) => role === 'admin' || role === 'direccio' || role === 'cap'
+
+const normalizePriority = (value?: string) => {
+  const v = (value || '').trim().toLowerCase()
+  if (v === 'urgent') return 'urgent'
+  if (v === 'alta') return 'alta'
+  if (v === 'baixa') return 'baixa'
+  return 'normal'
+}
 
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions)
@@ -119,6 +128,7 @@ export async function POST(req: Request) {
       date,
       startTime,
       endTime,
+      priority: normalizePriority(body.priority),
       location: (body.location || '').trim(),
       workerIds: Array.isArray(body.workerIds) ? body.workerIds : [],
       workerNames: Array.isArray(body.workerNames) ? body.workerNames : [],

@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react'
 import { addDays, endOfWeek, format, parseISO, startOfWeek } from 'date-fns'
-import { Trash2 } from 'lucide-react'
+import { AlertTriangle, ChevronDown, ChevronUp, Trash2 } from 'lucide-react'
 import ModuleHeader from '@/components/layout/ModuleHeader'
 import { RoleGuard } from '@/lib/withRoleGuard'
 import FiltersBar, { type FiltersState } from '@/components/layout/FiltersBar'
@@ -55,6 +55,24 @@ const HEADER_HEIGHT = 32
 const TIME_COL_WIDTH = 80
 const DAY_COUNT = 6
 
+const WORKER_BADGE_CLASSES = [
+  'bg-blue-100 text-blue-800',
+  'bg-emerald-100 text-emerald-800',
+  'bg-amber-100 text-amber-800',
+  'bg-violet-100 text-violet-800',
+  'bg-rose-100 text-rose-800',
+  'bg-cyan-100 text-cyan-800',
+  'bg-lime-100 text-lime-800',
+  'bg-fuchsia-100 text-fuchsia-800',
+]
+
+const PRIORITY_LABEL: Record<'urgent' | 'alta' | 'normal' | 'baixa', string> = {
+  urgent: 'Urgent',
+  alta: 'Alta',
+  normal: 'Normal',
+  baixa: 'Baixa',
+}
+
 const normalizeName = (value: string) =>
   value
     .toString()
@@ -62,6 +80,55 @@ const normalizeName = (value: string) =>
     .replace(/\p{Diacritic}/gu, '')
     .toLowerCase()
     .trim()
+
+const getInitials = (name: string) => {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return '?'
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return `${parts[0][0] || ''}${parts[1][0] || ''}`.toUpperCase()
+}
+
+const getWorkerBadgeClass = (name: string) => {
+  const key = normalizeName(name)
+  let hash = 0
+  for (let i = 0; i < key.length; i += 1) hash = (hash * 31 + key.charCodeAt(i)) >>> 0
+  return WORKER_BADGE_CLASSES[hash % WORKER_BADGE_CLASSES.length]
+}
+
+const getPriorityTone = (
+  kind: 'preventiu' | 'ticket',
+  priority?: 'urgent' | 'alta' | 'normal' | 'baixa'
+) => {
+  const safe = priority || 'normal'
+  const base = kind === 'preventiu' ? 'bg-emerald-50' : 'bg-sky-50'
+
+  if (safe === 'urgent') {
+    return {
+      card: `${base} border-red-300 ring-1 ring-red-200`,
+      marker: 'bg-red-500',
+      pill: 'bg-red-100 text-red-800',
+    }
+  }
+  if (safe === 'alta') {
+    return {
+      card: `${base} border-amber-300 ring-1 ring-amber-200`,
+      marker: 'bg-amber-500',
+      pill: 'bg-amber-100 text-amber-800',
+    }
+  }
+  if (safe === 'baixa') {
+    return {
+      card: `${base} border-slate-300`,
+      marker: 'bg-slate-400',
+      pill: 'bg-slate-100 text-slate-700',
+    }
+  }
+  return {
+    card: kind === 'preventiu' ? `${base} border-emerald-200` : `${base} border-sky-200`,
+    marker: kind === 'preventiu' ? 'bg-emerald-500' : 'bg-sky-500',
+    pill: kind === 'preventiu' ? 'bg-emerald-100 text-emerald-800' : 'bg-sky-100 text-sky-800',
+  }
+}
 
 const parseStoredDate = (value?: string | null) => {
   const raw = (value || '').trim()
@@ -116,6 +183,7 @@ export default function PreventiusPlanificadorPage() {
   const [machines, setMachines] = useState<Array<{ code: string; name: string; label: string }>>([])
   const [users, setUsers] = useState<Array<{ id: string; name: string; department?: string }>>([])
   const [scheduledItems, setScheduledItems] = useState<ScheduledItem[]>([])
+  const [showLegend, setShowLegend] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [draft, setDraft] = useState<{
     id?: string
@@ -326,6 +394,7 @@ export default function PreventiusPlanificadorPage() {
             start: startTime,
             end: endTime,
             minutes,
+            priority: (p.priority || 'normal') as ScheduledItem['priority'],
             location: String(p.location || ''),
             templateId: p.templateId || null,
             ticketId: null,
@@ -487,6 +556,12 @@ export default function PreventiusPlanificadorPage() {
     setIsModalOpen(true)
   }
 
+  const legendWorkers = useMemo(() => {
+    const unique = new Set<string>()
+    scheduledItems.forEach((i) => i.workers.forEach((w) => unique.add(w)))
+    return Array.from(unique).sort((a, b) => a.localeCompare(b)).slice(0, 10)
+  }, [scheduledItems])
+
   const handleDrop = (dayIndex: number, startTime: string, data: string) => {
     try {
       const payload = JSON.parse(data) as
@@ -505,6 +580,7 @@ export default function PreventiusPlanificadorPage() {
             ticketId: string
             title: string
             minutes: number
+            priority?: 'urgent' | 'alta' | 'normal' | 'baixa'
             location?: string
             machine?: string
           }
@@ -557,7 +633,7 @@ export default function PreventiusPlanificadorPage() {
         end: timeFromMinutes(minutesFromTime(startTime) + payload.minutes),
         workersCount: 1,
         workers: [],
-        priority: payload.kind === 'preventiu' ? payload.priority || 'normal' : 'normal',
+        priority: payload.priority || 'normal',
         location: payload.location || '',
         machine: payload.kind === 'ticket' ? payload.machine || '' : '',
       })
@@ -684,6 +760,73 @@ export default function PreventiusPlanificadorPage() {
             )}
           </div>
 
+          <button
+            type="button"
+            onClick={() => setShowLegend((v) => !v)}
+            className="text-xs text-gray-600 flex items-center gap-1 w-fit"
+          >
+            {showLegend ? (
+              <>
+                Amagar llegenda <ChevronUp size={14} />
+              </>
+            ) : (
+              <>
+                Mostrar llegenda <ChevronDown size={14} />
+              </>
+            )}
+          </button>
+
+          {showLegend && (
+            <div className="rounded-xl border bg-white p-3 text-xs text-gray-700">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="font-semibold text-gray-900">Tipus</div>
+                <span className="inline-flex items-center gap-1">
+                  <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                  Preventiu
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="h-2.5 w-2.5 rounded-full bg-sky-500" />
+                  Ticket
+                </span>
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-3">
+                <div className="font-semibold text-gray-900">Urgencia</div>
+                <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-red-800">
+                  <AlertTriangle className="h-3 w-3" />
+                  Urgent
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-amber-800">
+                  Alta
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-800">
+                  Normal
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-slate-700">
+                  Baixa
+                </span>
+              </div>
+              {legendWorkers.length > 0 && (
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <div className="font-semibold text-gray-900">Treballadors</div>
+                  {legendWorkers.map((worker) => (
+                    <span key={worker} className="inline-flex items-center gap-1">
+                      <span
+                        className={[
+                          'inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-semibold',
+                          getWorkerBadgeClass(worker),
+                        ].join(' ')}
+                        title={worker}
+                      >
+                        {getInitials(worker)}
+                      </span>
+                      <span className="text-[11px] text-gray-600">{worker}</span>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="grid grid-cols-[200px_1fr] gap-3">
             <div className="rounded-2xl border bg-white p-3">
               <div className="text-xs font-semibold text-gray-900">
@@ -761,6 +904,7 @@ export default function PreventiusPlanificadorPage() {
                               ticketId: t.id,
                               title: `${t.code} - ${t.title}`.trim(),
                               minutes: t.minutes,
+                              priority: t.priority,
                               location: t.location || '',
                               machine: t.machine || '',
                             })
@@ -876,14 +1020,15 @@ export default function PreventiusPlanificadorPage() {
                         const columns = Math.max(1, groupMax[group])
                         const widthPercent = 100 / columns
                         const leftPercent = col * widthPercent
-                        const bg =
-                          item.kind === 'preventiu'
-                            ? 'bg-emerald-50 border-emerald-200'
-                            : 'bg-sky-50 border-sky-200'
+                        const priority: NonNullable<ScheduledItem['priority']> =
+                          item.priority || 'normal'
+                        const tone = getPriorityTone(item.kind, priority)
+                        const firstWorker = item.workers[0] || ''
+                        const extraWorkers = Math.max(0, item.workers.length - 1)
                         return (
                           <div
                             key={item.id}
-                            className={`absolute border ${bg} rounded-lg px-2 py-1 text-[11px] text-gray-800 cursor-pointer pointer-events-auto`}
+                            className={`absolute border ${tone.card} rounded-lg pl-3 pr-2 py-1 text-[11px] text-gray-800 cursor-pointer pointer-events-auto overflow-hidden`}
                             style={{
                               top,
                               height,
@@ -906,8 +1051,36 @@ export default function PreventiusPlanificadorPage() {
                             }}
                             onClick={() => handleEdit(item)}
                           >
-                            <div className="font-semibold leading-snug line-clamp-3">
+                            <span className={`absolute left-0 top-0 h-full w-1 ${tone.marker}`} />
+                            <div className="font-semibold leading-snug line-clamp-2">
                               {item.title}
+                            </div>
+                            <div className="mt-1 flex items-center justify-between gap-1">
+                              <span
+                                className={[
+                                  'inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium',
+                                  tone.pill,
+                                ].join(' ')}
+                              >
+                                {priority === 'urgent' && <AlertTriangle className="h-3 w-3" />}
+                                {PRIORITY_LABEL[priority]}
+                              </span>
+                              {firstWorker && (
+                                <span
+                                  className={[
+                                    'inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold',
+                                    getWorkerBadgeClass(firstWorker),
+                                  ].join(' ')}
+                                  title={
+                                    extraWorkers > 0
+                                      ? `${firstWorker} + ${extraWorkers} mes`
+                                      : firstWorker
+                                  }
+                                >
+                                  {getInitials(firstWorker)}
+                                  {extraWorkers > 0 ? ` +${extraWorkers}` : ''}
+                                </span>
+                              )}
                             </div>
                           </div>
                         )
@@ -1207,6 +1380,7 @@ export default function PreventiusPlanificadorPage() {
                         date: dateStr,
                         startTime: draft.start,
                         endTime: draft.end,
+                        priority: draft.priority,
                         location: draft.location || '',
                         workerNames,
                         workerIds,
@@ -1243,6 +1417,7 @@ export default function PreventiusPlanificadorPage() {
                                 start: payload.startTime,
                                 end: payload.endTime,
                                 minutes: draft.duration,
+                                priority: draft.priority,
                                 location: payload.location,
                               } as ScheduledItem,
                             ])

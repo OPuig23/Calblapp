@@ -2,7 +2,8 @@
 
 import React, { useEffect, useMemo, useState } from 'react'
 import * as XLSX from 'xlsx'
-import { Trash2 } from 'lucide-react'
+import { jsPDF } from 'jspdf'
+import { FileSpreadsheet, Printer, Trash2 } from 'lucide-react'
 import ModuleHeader from '@/components/layout/ModuleHeader'
 import { RoleGuard } from '@/lib/withRoleGuard'
 import FloatingAddButton from '@/components/ui/floating-add-button'
@@ -66,6 +67,35 @@ const cleanText = (value: unknown) =>
   String(value || '')
     .replace(/\s+/g, ' ')
     .trim()
+
+const slugify = (value: string) =>
+  (value || '')
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+
+const buildTemplateRows = (t: Template) => {
+  const rows: Array<{ section: string; task: string }> = []
+  ;(t.sections || []).forEach((s) => {
+    const section = cleanText(s.location) || 'GENERAL'
+    ;(s.items || []).forEach((it) => {
+      const task = cleanText(it.label)
+      if (!task) return
+      rows.push({ section, task })
+    })
+  })
+  return rows
+}
+
+const formatExportDate = () => {
+  const d = new Date()
+  const dd = String(d.getDate()).padStart(2, '0')
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const yyyy = d.getFullYear()
+  return `${dd}/${mm}/${yyyy}`
+}
 
 const compactRows = (rows: unknown[][]) =>
   rows.map((r) => (Array.isArray(r) ? r.map(cleanText) : [])).filter((r) => r.some(Boolean))
@@ -521,6 +551,163 @@ export default function PreventiusPlantillesPage() {
     }
   }
 
+  const exportTemplateExcel = (t: Template) => {
+    try {
+      const rows = buildTemplateRows(t)
+      const exportDate = formatExportDate()
+      const wsRows: Array<Array<string>> = [
+        ['DOCUMENT DE PLANTILLA PREVENTIU'],
+        [],
+        ['Nom plantilla', t.name || '-'],
+        ['Data exportacio', exportDate],
+        ['Temporalitat', t.periodicity || '-'],
+        ['Ubicacio', t.location || '-'],
+        ['Operari principal', t.primaryOperator || '-'],
+        ['Operari backup', t.backupOperator || '-'],
+        ['Ultima revisio', t.lastDone || '-'],
+        [],
+        ['Seccio', 'Tasca', 'Fet', 'Observacions'],
+      ]
+      rows.forEach((r) => {
+        wsRows.push([r.section, r.task, '', ''])
+      })
+      if (rows.length === 0) wsRows.push(['GENERAL', '-', '', ''])
+
+      const ws = XLSX.utils.aoa_to_sheet(wsRows)
+      ws['!cols'] = [{ wch: 28 }, { wch: 90 }, { wch: 10 }, { wch: 38 }]
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, 'Plantilla')
+      const stamp = new Date().toISOString().slice(0, 10)
+      const file = `plantilla-${slugify(t.name) || 'preventiu'}-${stamp}.xlsx`
+      XLSX.writeFile(wb, file)
+    } catch {
+      alert("No s'ha pogut exportar la plantilla a Excel.")
+    }
+  }
+
+  const exportTemplatePdf = (t: Template) => {
+    try {
+      const rows = buildTemplateRows(t)
+      const exportDate = formatExportDate()
+      const pdf = new jsPDF({ unit: 'pt', format: 'a4' })
+      const margin = 40
+      const pageWidth = pdf.internal.pageSize.getWidth()
+      const pageHeight = pdf.internal.pageSize.getHeight()
+      const tableWidth = pageWidth - margin * 2
+      const periodicityLabel: Record<string, string> = {
+        daily: 'Diari',
+        weekly: 'Setmanal',
+        monthly: 'Mensual',
+        quarterly: 'Trimestral',
+        yearly: 'Anual',
+      }
+
+      let y = margin
+      pdf.setFontSize(15)
+      pdf.setFont('helvetica', 'bold')
+      pdf.text('Document de plantilla preventiu', margin, y)
+      y += 16
+      pdf.setDrawColor(180)
+      pdf.line(margin, y, pageWidth - margin, y)
+      y += 14
+
+      const meta: Array<[string, string]> = [
+        ['Nom plantilla', t.name || '-'],
+        ['Data exportacio', exportDate],
+        ['Temporalitat', periodicityLabel[String(t.periodicity || '')] || (t.periodicity || '-')],
+        ['Ubicacio', t.location || '-'],
+        ['Operari principal', t.primaryOperator || '-'],
+        ['Operari backup', t.backupOperator || '-'],
+        ['Ultima revisio', t.lastDone || '-'],
+      ]
+
+      const metaLabelW = 120
+      const metaMinRowH = 18
+      const metaLineH = 11
+      pdf.setFontSize(10)
+      meta.forEach(([label, value]) => {
+        const wrapped = pdf.splitTextToSize(String(value || '-'), tableWidth - metaLabelW - 16) as string[]
+        const rowH = Math.max(metaMinRowH, wrapped.length * metaLineH + 8)
+        const top = y - 12
+        pdf.setDrawColor(220)
+        pdf.rect(margin, top, tableWidth, rowH)
+        pdf.setFont('helvetica', 'bold')
+        pdf.text(`${label}:`, margin + 6, y)
+        pdf.setFont('helvetica', 'normal')
+        pdf.text(wrapped, margin + metaLabelW, y)
+        y += rowH
+      })
+
+      y += 10
+      const colSection = 120
+      const colDone = 55
+      const colObs = 160
+      const colTask = tableWidth - colSection - colDone - colObs
+      const xSection = margin
+      const xTask = xSection + colSection
+      const xDone = xTask + colTask
+      const xObs = xDone + colDone
+
+      const drawTasksHeader = () => {
+        pdf.setFillColor(245, 245, 245)
+        pdf.rect(margin, y - 11, tableWidth, 20, 'F')
+        pdf.setDrawColor(200)
+        pdf.rect(margin, y - 11, tableWidth, 20)
+        pdf.line(xTask, y - 11, xTask, y + 9)
+        pdf.line(xDone, y - 11, xDone, y + 9)
+        pdf.line(xObs, y - 11, xObs, y + 9)
+        pdf.setFont('helvetica', 'bold')
+        pdf.setFontSize(10)
+        pdf.text('Seccio', xSection + 6, y + 2)
+        pdf.text('Tasca', xTask + 6, y + 2)
+        pdf.text('Fet', xDone + 6, y + 2)
+        pdf.text('Observacions', xObs + 6, y + 2)
+        pdf.setFont('helvetica', 'normal')
+        y += 20
+      }
+
+      drawTasksHeader()
+      const safeRows = rows.length > 0 ? rows : [{ section: 'GENERAL', task: '-' }]
+
+      for (const row of safeRows) {
+        const taskLines = pdf.splitTextToSize(row.task, colTask - 10) as string[]
+        const rowH = Math.max(22, taskLines.length * 11 + 8)
+        if (y + rowH > pageHeight - margin) {
+          pdf.addPage()
+          y = margin
+          drawTasksHeader()
+        }
+
+        const top = y - 11
+        pdf.setDrawColor(220)
+        pdf.rect(margin, top, tableWidth, rowH)
+        pdf.line(xTask, top, xTask, top + rowH)
+        pdf.line(xDone, top, xDone, top + rowH)
+        pdf.line(xObs, top, xObs, top + rowH)
+
+        pdf.setFontSize(9)
+        pdf.text((row.section || 'GENERAL').slice(0, 26), xSection + 6, y + 2)
+        pdf.text(taskLines, xTask + 6, y + 2)
+
+        const checkSize = 9
+        const checkX = xDone + 8
+        const checkY = top + Math.max(6, (rowH - checkSize) / 2)
+        pdf.rect(checkX, checkY, checkSize, checkSize)
+
+        const obsY = top + rowH / 2 + 6
+        pdf.setDrawColor(170)
+        pdf.line(xObs + 6, obsY, xObs + colObs - 6, obsY)
+        y += rowH
+      }
+
+      const stamp = new Date().toISOString().slice(0, 10)
+      const file = `plantilla-${slugify(t.name) || 'preventiu'}-${stamp}.pdf`
+      pdf.save(file)
+    } catch {
+      alert("No s'ha pogut exportar la plantilla a PDF.")
+    }
+  }
+
   return (
     <RoleGuard allowedRoles={['admin', 'direccio', 'cap']}>
       <div className="w-full max-w-5xl mx-auto p-4 space-y-4">
@@ -677,27 +864,47 @@ export default function PreventiusPlantillesPage() {
                       <span>Seccions: {t.sections.length}</span>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    title="Eliminar plantilla"
-                    aria-label="Eliminar plantilla"
-                    className="rounded-full border border-red-300 p-2 text-red-700 hover:bg-red-50"
-                    onClick={async () => {
-                      const ok = window.confirm(`Vols eliminar la plantilla \"${t.name}\"?`)
-                      if (!ok) return
-                      try {
-                        const res = await fetch(`/api/maintenance/templates/${encodeURIComponent(t.id)}`, {
-                          method: 'DELETE',
-                        })
-                        if (!res.ok) throw new Error('delete_failed')
-                        await loadTemplates()
-                      } catch {
-                        alert("No s'ha pogut eliminar la plantilla.")
-                      }
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      title="Exportar a PDF"
+                      aria-label="Exportar a PDF"
+                      className="rounded-full border border-gray-300 p-2 text-gray-700 hover:bg-gray-50"
+                      onClick={() => exportTemplatePdf(t)}
+                    >
+                      <Printer className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      title="Exportar a Excel"
+                      aria-label="Exportar a Excel"
+                      className="rounded-full border border-gray-300 p-2 text-gray-700 hover:bg-gray-50"
+                      onClick={() => exportTemplateExcel(t)}
+                    >
+                      <FileSpreadsheet className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      title="Eliminar plantilla"
+                      aria-label="Eliminar plantilla"
+                      className="rounded-full border border-red-300 p-2 text-red-700 hover:bg-red-50"
+                      onClick={async () => {
+                        const ok = window.confirm(`Vols eliminar la plantilla \"${t.name}\"?`)
+                        if (!ok) return
+                        try {
+                          const res = await fetch(`/api/maintenance/templates/${encodeURIComponent(t.id)}`, {
+                            method: 'DELETE',
+                          })
+                          if (!res.ok) throw new Error('delete_failed')
+                          await loadTemplates()
+                        } catch {
+                          alert("No s'ha pogut eliminar la plantilla.")
+                        }
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}

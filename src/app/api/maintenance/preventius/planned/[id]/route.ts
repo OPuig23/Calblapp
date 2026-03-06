@@ -20,6 +20,7 @@ type PlannedPatch = {
   date?: string
   startTime?: string
   endTime?: string
+  priority?: 'urgent' | 'alta' | 'normal' | 'baixa'
   location?: string
   workerIds?: string[]
   workerNames?: string[]
@@ -29,6 +30,14 @@ const canRead = (role: string) =>
   role === 'admin' || role === 'direccio' || role === 'cap' || role === 'treballador'
 
 const canWrite = (role: string) => role === 'admin' || role === 'direccio' || role === 'cap'
+
+const normalizePriority = (value?: string) => {
+  const v = (value || '').trim().toLowerCase()
+  if (v === 'urgent') return 'urgent'
+  if (v === 'alta') return 'alta'
+  if (v === 'baixa') return 'baixa'
+  return 'normal'
+}
 
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions)
@@ -81,6 +90,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     if (body.date !== undefined) patch.date = String(body.date || '').trim()
     if (body.startTime !== undefined) patch.startTime = String(body.startTime || '').trim()
     if (body.endTime !== undefined) patch.endTime = String(body.endTime || '').trim()
+    if (body.priority !== undefined) patch.priority = normalizePriority(body.priority)
     if (body.location !== undefined) patch.location = String(body.location || '').trim()
     if (body.workerIds !== undefined) patch.workerIds = Array.isArray(body.workerIds) ? body.workerIds : []
     if (body.workerNames !== undefined)
@@ -115,4 +125,3 @@ export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string 
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }
-
