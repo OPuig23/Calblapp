@@ -171,10 +171,10 @@ const defaultFormState: FormState = {
 const EMPTY_SELECT = '__none__'
 
 const ALLERGEN_OPTIONS: Array<{ value: AllergenValue | typeof EMPTY_SELECT; label: string }> = [
-  { value: EMPTY_SELECT, label: '—' },
+  { value: EMPTY_SELECT, label: '-' },
   { value: 'NO', label: 'No' },
   { value: 'T', label: 'Traces' },
-  { value: 'SI', label: 'Sí' },
+  { value: 'SI', label: 'Si' },
 ]
 
 export default function AllergensBbddPage() {
@@ -197,8 +197,9 @@ export default function AllergensBbddPage() {
   const [allergensSource, setAllergensSource] = useState<'default' | 'db'>('default')
   const [platsIndex, setPlatsIndex] = useState<PlatLookupItem[]>([])
   const [searchQuery, setSearchQuery] = useState('')
-  const [selectedLookupCode, setSelectedLookupCode] = useState('')
-  const [selectedLookupName, setSelectedLookupName] = useState('')
+  const [activeSearchField, setActiveSearchField] = useState<'code' | 'nameCa' | null>(null)
+  const [, setSelectedLookupCode] = useState('')
+  const [, setSelectedLookupName] = useState('')
   const [originalAllergens, setOriginalAllergens] = useState<Record<string, string | null>>({})
   const [extraAllergens, setExtraAllergens] = useState<AllergenItem[]>([])
   const [newCategory, setNewCategory] = useState('')
@@ -395,7 +396,7 @@ export default function AllergensBbddPage() {
   const handleAutoTranslate = async () => {
     const source = form.nameCa.trim()
     if (!source) {
-      setStatus('Cal indicar el nom en català.')
+      setStatus('Cal indicar el nom en catala.')
       return
     }
 
@@ -436,7 +437,7 @@ export default function AllergensBbddPage() {
       }
     } catch (err) {
       console.error(err)
-      setStatus('Error en la traducció automàtica.')
+      setStatus('Error en la traduccio automatica.')
     } finally {
       setTranslating(false)
     }
@@ -457,10 +458,10 @@ export default function AllergensBbddPage() {
       )
       setAllergensCatalog(DEFAULT_ALLERGENS)
       setAllergensSource('db')
-      setStatus('Al·lèrgens base guardats.')
+      setStatus('Allergens base guardats.')
     } catch (err) {
       console.error(err)
-      setStatus('Error guardant els al·lèrgens base.')
+      setStatus('Error guardant els allergens base.')
     } finally {
       setLoading(false)
     }
@@ -469,18 +470,18 @@ export default function AllergensBbddPage() {
   const handleAddAllergen = async () => {
     const label = newAllergen.trim()
     if (!label) {
-      setStatus('Cal indicar el nom de l’al·lèrgen.')
+      setStatus("Cal indicar el nom de l'allergen.")
       return
     }
 
     const key = toAllergenKey(label)
     if (!key) {
-      setStatus('No s’ha pogut generar la clau de l’al·lèrgen.')
+      setStatus("No s'ha pogut generar la clau de l'allergen.")
       return
     }
 
     if (allergensCatalog.some(item => item.key === key)) {
-      setStatus('Aquest al·lèrgen ja existeix.')
+      setStatus('Aquest allergen ja existeix.')
       return
     }
 
@@ -509,10 +510,10 @@ export default function AllergensBbddPage() {
       }))
       setNewAllergen('')
       setAllergensSource('db')
-      setStatus('Al·lèrgen afegit.')
+      setStatus('Allergen afegit.')
     } catch (err) {
       console.error(err)
-      setStatus('Error afegint l’al·lèrgen.')
+      setStatus("Error afegint l'allergen.")
     } finally {
       setLoading(false)
     }
@@ -545,17 +546,17 @@ export default function AllergensBbddPage() {
 
   const handleDeleteAllergen = async (item: AllergenItem) => {
     if (DEFAULT_ALLERGEN_KEYS.has(item.key)) {
-      setStatus('Aquest al·lèrgen forma part dels 14 base.')
+      setStatus('Aquest allergen forma part dels 14 base.')
       return
     }
 
     const confirmed = window.confirm(
-      `Eliminar l’al·lèrgen "${item.label}" del catàleg?`
+      `Eliminar l'allergen "${item.label}" del cataleg?`
     )
     if (!confirmed) return
 
     const alsoRemove = window.confirm(
-      'Vols eliminar-lo també de tots els plats?'
+      'Vols eliminar-lo tambe de tots els plats?'
     )
 
     setLoading(true)
@@ -583,12 +584,12 @@ export default function AllergensBbddPage() {
 
       setStatus(
         alsoRemove
-          ? 'Al·lèrgen eliminat del catàleg i dels plats.'
-          : 'Al·lèrgen eliminat del catàleg.'
+          ? 'Allergen eliminat del cataleg i dels plats.'
+          : 'Allergen eliminat del cataleg.'
       )
     } catch (err) {
       console.error(err)
-      setStatus('Error eliminant l’al·lèrgen.')
+      setStatus("Error eliminant l'allergen.")
     } finally {
       setLoading(false)
     }
@@ -620,7 +621,7 @@ export default function AllergensBbddPage() {
     try {
       const snap = await getDoc(doc(db, 'plats', code))
       if (!snap.exists()) {
-        setStatus('No s’ha trobat cap plat amb aquest codi.')
+        setStatus("No s'ha trobat cap plat amb aquest codi.")
         return
       }
 
@@ -660,7 +661,7 @@ export default function AllergensBbddPage() {
       setSelectedLookupCode(loadedCode)
       const lookupName = String(data.name?.ca || data.name?.es || data.name?.en || '')
       setSelectedLookupName(lookupName)
-      setSearchQuery(lookupName ? `${loadedCode} · ${lookupName}` : loadedCode)
+      setSearchQuery('')
       setStatus('Plat carregat.')
     } catch (err) {
       console.error(err)
@@ -681,6 +682,7 @@ export default function AllergensBbddPage() {
   const handleReset = () => {
     setForm(defaultFormState)
     setSearchQuery('')
+    setActiveSearchField(null)
     setSelectedLookupCode('')
     setSelectedLookupName('')
     setNewCategory('')
@@ -734,7 +736,7 @@ export default function AllergensBbddPage() {
 
   const handleSave = async () => {
     if (!form.code.trim() || !form.nameCa.trim()) {
-      setStatus('El codi i el nom en català són obligatoris.')
+      setStatus('El codi i el nom en catala son obligatoris.')
       return
     }
 
@@ -1038,12 +1040,12 @@ export default function AllergensBbddPage() {
 
   return (
     <>
-      <ModuleHeader subtitle="Alta i edició de plats per al·lèrgens i menús." />
+      <ModuleHeader subtitle="Alta i edicio de plats per allergens i menus." />
 
       <section className="w-full max-w-5xl mx-auto p-6 flex flex-col gap-6">
         <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-            <h2 className="text-lg font-semibold text-slate-800">Dades bàsiques</h2>
+            <h2 className="text-lg font-semibold text-slate-800">Dades basiques</h2>
             <div className="flex items-center gap-2">
               <ExportMenu
                 ariaLabel="Exportar base d'allergens"
@@ -1072,12 +1074,16 @@ export default function AllergensBbddPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="text-sm font-medium text-slate-700">Cerca (codi o nom)</label>
+              <label className="text-sm font-medium text-slate-700">Codi *</label>
               <Input
                 className="mt-1"
-                value={searchQuery}
+                value={form.code}
+                onFocus={() => setActiveSearchField('code')}
                 onChange={e => {
-                  setSearchQuery(e.target.value)
+                  const value = e.target.value
+                  handleChange('code', value)
+                  setSearchQuery(value)
+                  setActiveSearchField('code')
                   setSelectedLookupCode('')
                   setSelectedLookupName('')
                 }}
@@ -1086,12 +1092,16 @@ export default function AllergensBbddPage() {
                   e.preventDefault()
                   if (searchResults.length > 0) {
                     void handleSearchSelect(searchResults[0])
+                    return
                   }
+                  void handleLoad()
                 }}
-                placeholder="Ex: C0530100001 o fricandó"
+                placeholder="Ex: C0530100001"
               />
 
-              {searchQuery.trim().length >= 2 && searchResults.length > 0 && (
+              {activeSearchField === 'code' &&
+                searchQuery.trim().length >= 2 &&
+                searchResults.length > 0 && (
                 <div className="mt-2 rounded-lg border border-slate-200 bg-white max-h-52 overflow-y-auto">
                   {searchResults.map(item => {
                     const displayName = formatLookupName(item)
@@ -1104,32 +1114,13 @@ export default function AllergensBbddPage() {
                       >
                         <span className="font-medium text-slate-800">{item.code}</span>
                         {displayName ? (
-                          <span className="text-slate-600"> · {displayName}</span>
+                          <span className="text-slate-600"> - {displayName}</span>
                         ) : null}
                       </button>
                     )
                   })}
                 </div>
               )}
-
-              {selectedLookupCode && (
-                <p className="text-xs text-emerald-700 mt-2">
-                  Article carregat: {selectedLookupCode}
-                  {selectedLookupName ? ` · ${selectedLookupName}` : ''}
-                </p>
-              )}
-
-              <label className="text-sm font-medium text-slate-700 mt-3 block">Codi *</label>
-              <div className="flex gap-2 mt-1">
-                <Input
-                  value={form.code}
-                  onChange={e => handleChange('code', e.target.value)}
-                  placeholder="C0530100001"
-                />
-                <Button variant="secondary" onClick={handleLoad} disabled={loading}>
-                  Carrega
-                </Button>
-              </div>
             </div>
 
             <div>
@@ -1137,9 +1128,47 @@ export default function AllergensBbddPage() {
               <Input
                 className="mt-1"
                 value={form.nameCa}
-                onChange={e => handleChange('nameCa', e.target.value)}
-                placeholder="Nom del plat en català"
+                onFocus={() => setActiveSearchField('nameCa')}
+                onChange={e => {
+                  const value = e.target.value
+                  handleChange('nameCa', value)
+                  setSearchQuery(value)
+                  setActiveSearchField('nameCa')
+                  setSelectedLookupCode('')
+                  setSelectedLookupName('')
+                }}
+                onKeyDown={e => {
+                  if (e.key !== 'Enter') return
+                  e.preventDefault()
+                  if (searchResults.length > 0) {
+                    void handleSearchSelect(searchResults[0])
+                  }
+                }}
+                placeholder="Nom del plat en catala"
               />
+
+              {activeSearchField === 'nameCa' &&
+                searchQuery.trim().length >= 2 &&
+                searchResults.length > 0 && (
+                <div className="mt-2 rounded-lg border border-slate-200 bg-white max-h-52 overflow-y-auto">
+                  {searchResults.map(item => {
+                    const displayName = formatLookupName(item)
+                    return (
+                      <button
+                        key={`${item.id}-name`}
+                        type="button"
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-amber-50 border-b last:border-b-0"
+                        onClick={() => void handleSearchSelect(item)}
+                      >
+                        <span className="font-medium text-slate-800">{item.code}</span>
+                        {displayName ? (
+                          <span className="text-slate-600"> - {displayName}</span>
+                        ) : null}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
             </div>
 
             <div>
@@ -1148,7 +1177,7 @@ export default function AllergensBbddPage() {
                 className="mt-1"
                 value={form.nameEs}
                 onChange={e => handleNameChange('nameEs', e.target.value)}
-                placeholder="Nom del plat en castellà"
+                placeholder="Nom del plat en castella"
               />
               {form.nameMeta.es?.reviewed && (
                 <p className="text-xs text-emerald-600 mt-1">Revisat</p>
@@ -1164,7 +1193,7 @@ export default function AllergensBbddPage() {
                 className="mt-1"
                 value={form.nameEn}
                 onChange={e => handleNameChange('nameEn', e.target.value)}
-                placeholder="Nom del plat en anglès"
+                placeholder="Nom del plat en angles"
               />
               {form.nameMeta.en?.reviewed && (
                 <p className="text-xs text-emerald-600 mt-1">Revisat</p>
@@ -1177,7 +1206,7 @@ export default function AllergensBbddPage() {
         </div>
 
         <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-800 mb-4">Classificació</h2>
+          <h2 className="text-lg font-semibold text-slate-800 mb-4">Classificacio</h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -1211,7 +1240,7 @@ export default function AllergensBbddPage() {
             </div>
 
             <div>
-              <label className="text-sm font-medium text-slate-700">Família</label>
+              <label className="text-sm font-medium text-slate-700">Familia</label>
               <Select
                 value={form.familyId || ''}
                 onValueChange={value =>
@@ -1219,10 +1248,10 @@ export default function AllergensBbddPage() {
                 }
               >
                 <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Selecciona família" />
+                  <SelectValue placeholder="Selecciona familia" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={EMPTY_SELECT}>Sense família</SelectItem>
+                  <SelectItem value={EMPTY_SELECT}>Sense familia</SelectItem>
                   {families.map(fam => (
                     <SelectItem key={fam.id} value={fam.id}>
                       {fam.label}
@@ -1235,13 +1264,13 @@ export default function AllergensBbddPage() {
                 <Input
                   value={newFamily}
                   onChange={e => setNewFamily(e.target.value)}
-                  placeholder="Nova família"
+                  placeholder="Nova familia"
                 />
               </div>
             </div>
 
             <div>
-              <label className="text-sm font-medium text-slate-700">Menús</label>
+              <label className="text-sm font-medium text-slate-700">Menus</label>
 
               {menuItems.length > 0 ? (
                 <div className="flex flex-wrap gap-2 mt-2">
@@ -1262,7 +1291,7 @@ export default function AllergensBbddPage() {
                 </div>
               ) : (
                 <p className="text-xs text-slate-500 mt-2">
-                  Encara no hi ha menús registrats.
+                  Encara no hi ha menus registrats.
                 </p>
               )}
 
@@ -1274,7 +1303,7 @@ export default function AllergensBbddPage() {
                 />
               </div>
               <p className="text-xs text-slate-500 mt-1">
-                Selecciona els menús on apareix el plat.
+                Selecciona els menus on apareix el plat.
               </p>
             </div>
           </div>
@@ -1289,7 +1318,7 @@ export default function AllergensBbddPage() {
                 checked={form.vegan}
                 onChange={e => handleVeganToggle(e.target.checked)}
               />
-              Vegà (activa vegetarià)
+              Vega (activa vegetaria)
             </label>
             <label className="flex items-center gap-2 text-sm text-slate-700">
               <input
@@ -1298,13 +1327,13 @@ export default function AllergensBbddPage() {
                 disabled={form.vegan}
                 onChange={e => handleChange('vegetarian', e.target.checked)}
               />
-              Vegetarià
+              Vegetaria
             </label>
           </div>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-800 mb-4">Al·lèrgens</h2>
+          <h2 className="text-lg font-semibold text-slate-800 mb-4">Allergens</h2>
 
           {allergensSource === 'default' && (
             <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
@@ -1315,7 +1344,7 @@ export default function AllergensBbddPage() {
                 onClick={seedDefaultAllergens}
                 disabled={loading}
               >
-                Guardar al·lèrgens base
+                Guardar allergens base
               </button>
             </div>
           )}
@@ -1352,17 +1381,17 @@ export default function AllergensBbddPage() {
             <Input
               value={newAllergen}
               onChange={e => setNewAllergen(e.target.value)}
-              placeholder="Nou al·lèrgen"
+              placeholder="Nou allergen"
             />
             <Button variant="secondary" onClick={handleAddAllergen} disabled={loading}>
-              Afegir al·lèrgen
+              Afegir allergen
             </Button>
           </div>
 
           {customAllergens.length > 0 && (
             <div className="mt-4">
               <p className="text-xs font-semibold text-slate-500 mb-2">
-                Al·lèrgens personalitzats
+                Allergens personalitzats
               </p>
               <div className="flex flex-wrap gap-2">
                 {customAllergens.map(item => (

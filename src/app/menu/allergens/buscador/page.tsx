@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { DEFAULT_ALLERGENS } from '@/data/allergens'
+import { DEFAULT_ALLERGENS, sortAllergensByStandardOrder } from '@/data/allergens'
 import { getVisibleModules } from '@/lib/accessControl'
 import { db } from '@/lib/firebaseClient'
 import { collection, getDocs, orderBy, query } from 'firebase/firestore'
@@ -143,8 +143,7 @@ export default function AllergensSearchPage() {
       }))
 
       if (dbAllergens.length) {
-        dbAllergens.sort((a, b) => a.label.localeCompare(b.label))
-        setAllergensCatalog(dbAllergens)
+        setAllergensCatalog(sortAllergensByStandardOrder(dbAllergens))
       } else {
         setAllergensCatalog(DEFAULT_ALLERGENS)
       }

@@ -47,6 +47,9 @@ const getEventKey = (item: any) =>
 const buildWorkersSummary = (q: any) => {
   const normalizeName = (value?: unknown) =>
     (value || '').toString().trim().toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
 
   const responsibleName = normalizeName(q?.responsableName)
   const names: string[] = []
