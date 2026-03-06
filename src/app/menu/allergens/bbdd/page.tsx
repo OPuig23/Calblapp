@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { DEFAULT_ALLERGENS } from '@/data/allergens'
+import { DEFAULT_ALLERGENS, sortAllergensByStandardOrder } from '@/data/allergens'
 import { getVisibleModules } from '@/lib/accessControl'
 import { db } from '@/lib/firebaseClient'
 import {
@@ -98,7 +98,7 @@ const buildAllergensState = (
   const state: Record<string, AllergenValue> = {}
   list.forEach(({ key }) => {
     const value = source?.[key]
-    state[key] = value === 'SI' || value === 'NO' || value === 'T' ? value : ''
+    state[key] = value === 'SI' || value === 'T' ? value : ''
   })
   return state
 }
@@ -172,7 +172,6 @@ const EMPTY_SELECT = '__none__'
 
 const ALLERGEN_OPTIONS: Array<{ value: AllergenValue | typeof EMPTY_SELECT; label: string }> = [
   { value: EMPTY_SELECT, label: '-' },
-  { value: 'NO', label: 'No' },
   { value: 'T', label: 'Traces' },
   { value: 'SI', label: 'Si' },
 ]
@@ -299,8 +298,7 @@ export default function AllergensBbddPage() {
       }))
 
       if (dbAllergens.length) {
-        dbAllergens.sort((a, b) => a.label.localeCompare(b.label))
-        setAllergensCatalog(dbAllergens)
+        setAllergensCatalog(sortAllergensByStandardOrder(dbAllergens))
         setAllergensSource('db')
       } else {
         setAllergensCatalog(DEFAULT_ALLERGENS)
@@ -1208,30 +1206,66 @@ export default function AllergensBbddPage() {
         <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
           <h2 className="text-lg font-semibold text-slate-800 mb-4">Classificacio</h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="text-sm font-medium text-slate-700">Categoria</label>
-              <Select
-                value={form.categoryId || ''}
-                onValueChange={value =>
-                  handleChange('categoryId', value === EMPTY_SELECT ? '' : value)
-                }
-              >
-                <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Selecciona categoria" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={EMPTY_SELECT}>Sense categoria</SelectItem>
-                  {categories.map(cat => (
-                    <SelectItem key={cat.id} value={cat.id}>
-                      {cat.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          <div className="flex flex-col gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+              <div>
+                <label className="text-sm font-medium text-slate-700">Categoria</label>
+                <Select
+                  value={form.categoryId || ''}
+                  onValueChange={value =>
+                    handleChange('categoryId', value === EMPTY_SELECT ? '' : value)
+                  }
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Selecciona categoria" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={EMPTY_SELECT}>Sense categoria</SelectItem>
+                    {categories.map(cat => (
+                      <SelectItem key={cat.id} value={cat.id}>
+                        {cat.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-              <div className="flex gap-2 mt-2">
+              <div>
+                <label className="text-sm font-medium text-slate-700">Familia</label>
+                <Select
+                  value={form.familyId || ''}
+                  onValueChange={value =>
+                    handleChange('familyId', value === EMPTY_SELECT ? '' : value)
+                  }
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Selecciona familia" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={EMPTY_SELECT}>Sense familia</SelectItem>
+                    {families.map(fam => (
+                      <SelectItem key={fam.id} value={fam.id}>
+                        {fam.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-slate-700">Nova familia</label>
                 <Input
+                  className="mt-1"
+                  value={newFamily}
+                  onChange={e => setNewFamily(e.target.value)}
+                  placeholder="Nova familia"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-slate-700">Nova categoria</label>
+                <Input
+                  className="mt-1"
                   value={newCategory}
                   onChange={e => setNewCategory(e.target.value)}
                   placeholder="Nova categoria"
@@ -1240,41 +1274,11 @@ export default function AllergensBbddPage() {
             </div>
 
             <div>
-              <label className="text-sm font-medium text-slate-700">Familia</label>
-              <Select
-                value={form.familyId || ''}
-                onValueChange={value =>
-                  handleChange('familyId', value === EMPTY_SELECT ? '' : value)
-                }
-              >
-                <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Selecciona familia" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={EMPTY_SELECT}>Sense familia</SelectItem>
-                  {families.map(fam => (
-                    <SelectItem key={fam.id} value={fam.id}>
-                      {fam.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <div className="flex gap-2 mt-2">
-                <Input
-                  value={newFamily}
-                  onChange={e => setNewFamily(e.target.value)}
-                  placeholder="Nova familia"
-                />
-              </div>
-            </div>
-
-            <div>
               <label className="text-sm font-medium text-slate-700">Menus</label>
 
-              {menuItems.length > 0 ? (
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {menuItems.map(menu => (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {menuItems.length > 0 ? (
+                  menuItems.map(menu => (
                     <button
                       key={menu.id}
                       type="button"
@@ -1287,21 +1291,19 @@ export default function AllergensBbddPage() {
                     >
                       {menu.label}
                     </button>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-slate-500 mt-2">
-                  Encara no hi ha menus registrats.
-                </p>
-              )}
+                  ))
+                ) : (
+                  <p className="text-xs text-slate-500">Encara no hi ha menus registrats.</p>
+                )}
 
-              <div className="flex gap-2 mt-3">
                 <Input
+                  className="min-w-[240px] flex-1 max-w-md"
                   value={newMenu}
                   onChange={e => setNewMenu(e.target.value)}
                   placeholder="Nou menu (C1, CH2, CELIAC)"
                 />
               </div>
+
               <p className="text-xs text-slate-500 mt-1">
                 Selecciona els menus on apareix el plat.
               </p>
@@ -1310,30 +1312,30 @@ export default function AllergensBbddPage() {
         </div>
 
         <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-800 mb-4">Model de consum</h2>
-          <div className="flex flex-wrap gap-4">
-            <label className="flex items-center gap-2 text-sm text-slate-700">
-              <input
-                type="checkbox"
-                checked={form.vegan}
-                onChange={e => handleVeganToggle(e.target.checked)}
-              />
-              Vega (activa vegetaria)
-            </label>
-            <label className="flex items-center gap-2 text-sm text-slate-700">
-              <input
-                type="checkbox"
-                checked={form.vegetarian}
-                disabled={form.vegan}
-                onChange={e => handleChange('vegetarian', e.target.checked)}
-              />
-              Vegetaria
-            </label>
-          </div>
-        </div>
+          <h2 className="text-lg font-semibold text-slate-800 mb-4">Al.lergens</h2>
 
-        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-800 mb-4">Allergens</h2>
+          <div className="mb-4">
+            <div className="flex flex-wrap items-center gap-4">
+              <p className="text-sm font-medium text-slate-700">Model de consum</p>
+              <label className="flex items-center gap-2 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={form.vegan}
+                  onChange={e => handleVeganToggle(e.target.checked)}
+                />
+                Vega (activa vegetaria)
+              </label>
+              <label className="flex items-center gap-2 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={form.vegetarian}
+                  disabled={form.vegan}
+                  onChange={e => handleChange('vegetarian', e.target.checked)}
+                />
+                Vegetaria
+              </label>
+            </div>
+          </div>
 
           {allergensSource === 'default' && (
             <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
@@ -1349,7 +1351,7 @@ export default function AllergensBbddPage() {
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5 gap-4">
             {allergenItems.map(allergen => (
               <div key={allergen.key}>
                 <label className="text-sm font-medium text-slate-700">{allergen.label}</label>
