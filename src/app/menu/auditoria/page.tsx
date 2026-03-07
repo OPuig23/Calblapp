@@ -33,7 +33,7 @@ export default function AuditoriaHubPage() {
                 Icon: FileText,
               },
               valoracio: {
-                label: 'Valoracio',
+                label: 'Avaluacio',
                 className: 'from-amber-50 to-yellow-100 text-amber-800',
                 Icon: BarChart3,
               },
@@ -59,7 +59,6 @@ export default function AuditoriaHubPage() {
                   </div>
                   <div>
                     <div className="text-base font-semibold">{item.label}</div>
-                    <div className="text-xs opacity-80">Submodul Auditoria</div>
                   </div>
                 </div>
               </Link>

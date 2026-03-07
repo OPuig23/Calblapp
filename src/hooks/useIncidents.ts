@@ -45,6 +45,7 @@ export function useIncidents(_filters: {
   department?: string
   importance?: string
   categoryLabel?: string
+  refreshKey?: number
 }) {
   const [incidents, setIncidents] = useState<Incident[]>([])
   const [loading, setLoading] = useState(true)
@@ -59,6 +60,7 @@ export function useIncidents(_filters: {
       department: _filters.department,
       importance: _filters.importance,
       categoryLabel: _filters.categoryLabel,
+      refreshKey: _filters.refreshKey ?? 0,
     }),
     [
       _filters.eventId,
@@ -67,6 +69,7 @@ export function useIncidents(_filters: {
       _filters.department,
       _filters.importance,
       _filters.categoryLabel,
+      _filters.refreshKey,
     ]
   )
 
@@ -130,6 +133,7 @@ export function useIncidents(_filters: {
     filters.department,
     filters.importance,
     filters.categoryLabel,
+    filters.refreshKey,
   ])
 
   const updateIncident = async (id: string, data: Partial<Incident>) => {

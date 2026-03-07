@@ -67,7 +67,7 @@ export default function ModuleHeader({ title, subtitle, icon, actions, mainHref 
     preventius: 'Preventius',
     planificador: 'Planificador',
     plantilles: 'Plantilles',
-    valoracio: 'Valoracio',
+    valoracio: 'Avaluacio',
     consulta: 'Consulta',
     fulls: 'Full de Treball',
     seguiment: 'Seguiment',

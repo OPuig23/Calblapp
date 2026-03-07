@@ -33,6 +33,7 @@ type EventMenuData = {
   id: string
   summary: string
   start: string
+  location?: string
   eventCode?: string | null
   responsableName?: string
   lnKey?: string
@@ -176,6 +177,7 @@ export default function EventsPage() {
       id: String(ev.id),
       summary: ev.summary,
       start: ev.start,
+      location: ev.location || '',
       responsableName: ev.responsableName,
       lnKey: ev.lnKey,
       isResponsible: ev.isResponsible,

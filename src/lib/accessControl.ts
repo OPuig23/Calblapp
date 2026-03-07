@@ -55,7 +55,7 @@ export const MODULES: ModuleDef[] = [
         departments: ['comercial', 'serveis', 'cuina', 'logistica', 'decoracio', 'decoracions'],
       },
       {
-        label: 'Valoracio',
+        label: 'Avaluacio',
         path: '/menu/auditoria/valoracio',
         roles: ['admin', 'direccio', 'cap'],
         departments: ['comercial', 'serveis', 'cuina', 'logistica', 'decoracio', 'decoracions'],

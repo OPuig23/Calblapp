@@ -25,7 +25,6 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 
-import CreateIncidentModal from '../incidents/CreateIncidentModal'
 import EventDocumentsSheet from '@/components/events/EventDocumentsSheet'
 import EventKitchenDocumentsModal from '@/components/events/EventKitchenDocumentsModal'
 import EventPersonnelModal from './EventPersonnelModal'
@@ -36,6 +35,7 @@ import CreateModificationModal from './CreateModificationModal'
 import EventSpacesModal from './EventSpacesModal'
 import EventAvisosModal from './EventAvisosModal'
 import EventClosingModal from './EventClosingModal'
+import EventAuditExecutionModal from './EventAuditExecutionModal'
 
 
 /** ───────────────────────── Helpers ───────────────────────── */
@@ -60,6 +60,7 @@ interface EventMenuModalProps {
     id?: string | number
     summary: string
     start: string
+    location?: string
     eventCode?: string | null
     code?: string | null
     lnKey?: LnKey
@@ -184,7 +185,7 @@ export default function EventMenuModal({
   const router = useRouter()
 
   // Internals
-  const [showCreateIncident, setShowCreateIncident] = useState(false)
+  const [showAuditExecution, setShowAuditExecution] = useState(false)
   const [pendingDocsOpen, setPendingDocsOpen] = useState(false)
 
   const [showPersonnel, setShowPersonnel] = useState(false)
@@ -305,11 +306,12 @@ const treballadorsPersons =
     }).format(value)
   const formatNumber = (value: number) =>
     new Intl.NumberFormat('ca-ES', { maximumFractionDigits: 0 }).format(value)
-  const incidentEvent = {
+const incidentEvent = {
   id: String(event.id),
   summary: event.summary,
   start: event.start,
-  location: event.fincaCode ?? undefined,
+  eventCode: String(event.eventCode || event.code || '').trim() || undefined,
+  location: event.location ?? event.fincaCode ?? undefined,
 }
 
  
@@ -319,12 +321,12 @@ const operativa = useMemo(
     [
       canCreateIncident
         ? {
-            key: 'create-incident',
-            label: 'Crear incidència',
-            badge: 'Incidències',
+            key: 'audit-execution',
+            label: 'Tancament operatiu',
+            badge: 'Auditoria',
             icon: AlertTriangle,
             tone: 'warning' as const,
-            onClick: () => setShowCreateIncident(true),
+            onClick: () => setShowAuditExecution(true),
           }
         : null,
 
@@ -617,12 +619,12 @@ const recursos = useMemo(
 
 
       {/* ─────────── MODALS INTERNES EXISTENTS ─────────── */}
-      <CreateIncidentModal
-  open={showCreateIncident}
-  event={incidentEvent}
-  onClose={() => setShowCreateIncident(false)}
-  onCreated={() => setShowCreateIncident(false)}
-/>
+      <EventAuditExecutionModal
+        open={showAuditExecution}
+        onClose={() => setShowAuditExecution(false)}
+        event={incidentEvent}
+        user={{ department: user.department, name: user.name }}
+      />
 
 
      <EventPersonnelModal
@@ -665,8 +667,6 @@ treballadors={treballadorsPersons}
       {/* ✅ Espais: placeholder (decidim ruta/sheet/modal quan ens diguis) */}
       {/* ✅ Espais: modal de consulta (mobile-first, només lectura) */}
 
-     console.log('🧩 EVENT OBJECT AL MENU:', event)
- 
 <EventAvisosModal
   open={showAvisos}
   onClose={() => setShowAvisos(false)}
