@@ -18,6 +18,7 @@ import {
   User,
   Leaf,
   ClipboardList,
+  ClipboardCheck,
   Wrench,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
@@ -111,6 +112,11 @@ const UI_MAP: Record<
     icon: Calendar,
     color: 'from-orange-100 to-rose-50',
     iconColor: 'text-orange-600',
+  },
+  '/menu/auditoria': {
+    icon: ClipboardCheck,
+    color: 'from-cyan-100 to-teal-100',
+    iconColor: 'text-cyan-700',
   },
   '/menu/pissarra': {
     icon: FileEdit,

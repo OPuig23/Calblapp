@@ -42,6 +42,33 @@ export const MODULES: ModuleDef[] = [
   { label: 'Esdeveniments', path: '/menu/events',
     roles: ['admin','direccio','cap','comercial','usuari'] },
 
+  {
+    label: 'Auditoria',
+    path: '/menu/auditoria',
+    roles: ['admin', 'direccio', 'cap'],
+    departments: ['comercial', 'serveis', 'cuina', 'logistica', 'decoracio', 'decoracions'],
+    submodules: [
+      {
+        label: 'Plantilles',
+        path: '/menu/auditoria/plantilles',
+        roles: ['admin', 'direccio', 'cap'],
+        departments: ['comercial', 'serveis', 'cuina', 'logistica', 'decoracio', 'decoracions'],
+      },
+      {
+        label: 'Valoracio',
+        path: '/menu/auditoria/valoracio',
+        roles: ['admin', 'direccio', 'cap'],
+        departments: ['comercial', 'serveis', 'cuina', 'logistica', 'decoracio', 'decoracions'],
+      },
+      {
+        label: 'Consulta',
+        path: '/menu/auditoria/consulta',
+        roles: ['admin', 'direccio', 'cap'],
+        departments: ['comercial', 'serveis', 'cuina', 'logistica', 'decoracio', 'decoracions'],
+      },
+    ],
+  },
+
   { label: 'Ops', path: '/menu/missatgeria',
     roles: ['admin'],
     departments: ['manteniment'],
