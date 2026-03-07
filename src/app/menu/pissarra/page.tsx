@@ -424,28 +424,43 @@ export default function PissarraPage() {
             />
             <FilterButton onClick={openFiltersPanel} />
             <ExportMenu items={exportItems} />
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant={mode === 'produccio' ? 'default' : 'outline'}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
                 onClick={() => setMode('produccio')}
+                className={[
+                  'h-9 rounded-md px-3 text-sm border',
+                  mode === 'produccio'
+                    ? 'border-cyan-400 bg-cyan-50 text-cyan-800'
+                    : 'border-gray-300 bg-white text-gray-700',
+                ].join(' ')}
               >
-                Pissarra Produccio
-              </Button>
-              <Button
-                size="sm"
-                variant={mode === 'logistica' ? 'default' : 'outline'}
+                Produccio
+              </button>
+              <button
+                type="button"
                 onClick={() => setMode('logistica')}
+                className={[
+                  'h-9 rounded-md px-3 text-sm border',
+                  mode === 'logistica'
+                    ? 'border-cyan-400 bg-cyan-50 text-cyan-800'
+                    : 'border-gray-300 bg-white text-gray-700',
+                ].join(' ')}
               >
-                Pissarra Logistica
-              </Button>
-              <Button
-                size="sm"
-                variant={mode === 'cuina' ? 'default' : 'outline'}
+                Logistica
+              </button>
+              <button
+                type="button"
                 onClick={() => setMode('cuina')}
+                className={[
+                  'h-9 rounded-md px-3 text-sm border',
+                  mode === 'cuina'
+                    ? 'border-cyan-400 bg-cyan-50 text-cyan-800'
+                    : 'border-gray-300 bg-white text-gray-700',
+                ].join(' ')}
               >
-                Pissarra Cuina
-              </Button>
+                Cuina
+              </button>
             </div>
           </div>
         </div>

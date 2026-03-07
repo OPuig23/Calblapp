@@ -1,8 +1,11 @@
-// filename: src/app/api/pissarra/logistica/route.ts
-import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest, NextResponse } from 'next/server'
+import { getToken } from 'next-auth/jwt'
 import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
+import { normalizeRole } from '@/lib/roles'
 
 export const runtime = 'nodejs'
+
+const ALLOWED_ROLES = new Set(['admin', 'direccio', 'cap', 'treballador', 'comercial', 'observer', 'usuari'])
 
 type QuadrantDoc = {
   code?: string
@@ -30,8 +33,31 @@ const norm = (v?: string | null) =>
     .toLowerCase()
     .trim()
 
+async function authContext(req: NextRequest) {
+  const token = await getToken({ req })
+  if (!token) return { error: NextResponse.json({ error: 'No autenticat' }, { status: 401 }) }
+  const role = normalizeRole(String((token as any)?.role || 'treballador'))
+  if (!ALLOWED_ROLES.has(role)) {
+    return { error: NextResponse.json({ error: 'Sense permisos' }, { status: 403 }) }
+  }
+  return { token, role }
+}
+
+async function loadRange(colName: string, start: string, end: string) {
+  const col = db.collection(colName)
+  try {
+    return await col.where('startDate', '>=', start).where('startDate', '<=', end).get()
+  } catch (e) {
+    console.warn(`[pissarra/logistica] fallback full scan ${colName}`, e)
+    return await col.get()
+  }
+}
+
 export async function GET(req: NextRequest) {
   try {
+    const auth = await authContext(req)
+    if ('error' in auth) return auth.error
+
     const url = new URL(req.url)
     const start = url.searchParams.get('start')
     const end = url.searchParams.get('end')
@@ -42,20 +68,13 @@ export async function GET(req: NextRequest) {
     const collections = ['quadrantsLogistica', 'quadrantsCuina']
     const map = new Map<string, any>()
 
-    for (const colName of collections) {
-      const col = db.collection(colName)
-      let snap
-      try {
-        snap = await col
-          .where('startDate', '>=', start)
-          .where('startDate', '<=', end)
-          .get()
-      } catch (e) {
-        console.warn(`[pissarra/logistica] fallback full scan ${colName}`, e)
-        snap = await col.get()
-      }
+    const snaps = await Promise.all(collections.map((name) => loadRange(name, start, end)))
 
-      snap.forEach((doc) => {
+    for (let idx = 0; idx < collections.length; idx += 1) {
+      const colName = collections[idx]
+      const snap = snaps[idx]
+
+      snap.forEach((doc: any) => {
         const d = doc.data() as QuadrantDoc
         const st = norm(d.status)
         if (st && st !== 'confirmed' && st !== 'draft') return
@@ -68,23 +87,20 @@ export async function GET(req: NextRequest) {
               plate: c?.plate || '',
               type: c?.vehicleType || '',
               conductor: c?.name || '',
-              source: colName, // logistica | cuina
+              source: colName,
             }))
           : []
 
-        const workers = Array.isArray(d.treballadors)
-          ? d.treballadors.map((t) => t?.name || '').filter(Boolean)
-          : []
+        // A la pissarra de logística només mostrem personal de logística.
+        // De cuina només volem els conductors (ja entren a "vehicles").
+        const isLogisticaSource = norm(colName) === 'quadrantslogistica'
+        const workers =
+          isLogisticaSource && Array.isArray(d.treballadors)
+            ? d.treballadors.map((t) => t?.name || '').filter(Boolean)
+            : []
 
         const phaseLabelRaw =
-          d.phaseLabel ||
-          d.phaseType ||
-          d.phaseKey ||
-          d.phase ||
-          d.fase ||
-          d.phaseName ||
-          d.label ||
-          ''
+          d.phaseLabel || d.phaseType || d.phaseKey || d.phase || d.fase || d.phaseName || d.label || ''
         const phaseLabel = phaseLabelRaw ? String(phaseLabelRaw).trim() : ''
 
         const existing = map.get(doc.id) || {
@@ -108,7 +124,6 @@ export async function GET(req: NextRequest) {
         if (norm(existing.status) !== 'confirmed' && norm(d.status) === 'confirmed') {
           existing.status = d.status || ''
         }
-        // Prioritza arrivalTime si ve ple d'alguna col·lecció
         if (!existing.arrivalTime && d.arrivalTime) existing.arrivalTime = d.arrivalTime
 
         map.set(doc.id, existing)
