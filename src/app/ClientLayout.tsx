@@ -154,9 +154,10 @@ function InnerLayout({ children }: { children: React.ReactNode }) {
         className={
           pathname.startsWith('/menu/quadrants') ||
           pathname.startsWith('/menu/modifications') ||
-          pathname.startsWith('/menu/incidents')
-            ? 'px-2 sm:px-4 pb-6 max-w-none w-full'
-            : 'px-2 sm:px-4 pb-6 max-w-7xl mx-auto'
+          pathname.startsWith('/menu/incidents') ||
+          pathname.startsWith('/menu/projects')
+            ? 'h-auto w-full max-w-none overflow-visible px-2 pb-6 sm:px-4'
+            : 'mx-auto h-auto max-w-7xl overflow-visible px-2 pb-6 sm:px-4'
         }
       >
         {children}

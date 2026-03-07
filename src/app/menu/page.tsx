@@ -9,6 +9,7 @@ import {
   Grid,
   Calendar,
   CalendarDays,
+  FolderKanban,
   Users,
   AlertTriangle,
   BarChart2,
@@ -23,7 +24,12 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { getVisibleModules } from '@/lib/accessControl'
-import { useAdminUserRequestCount, useUserRequestResultCount, useTornNotificationCount } from '@/hooks/useAdminNotifications'
+import {
+  useAdminUserRequestCount,
+  useProjectAssignmentCount,
+  useUserRequestResultCount,
+  useTornNotificationCount,
+} from '@/hooks/useAdminNotifications'
 import { useMessagingUnreadCount } from '@/hooks/useMessagingUnread'
 import { useMaintenanceNewCount } from '@/hooks/useMaintenanceNewCount'
 import { useMaintenanceAssignedCount } from '@/hooks/useMaintenanceAssignedCount'
@@ -133,6 +139,11 @@ const UI_MAP: Record<
     color: 'from-indigo-100 to-blue-50',
     iconColor: 'text-indigo-500',
   },
+  '/menu/projects': {
+    icon: FolderKanban,
+    color: 'from-violet-100 to-fuchsia-50',
+    iconColor: 'text-violet-600',
+  },
   '/menu/personnel': {
     icon: Users,
     color: 'from-green-100 to-lime-100',
@@ -231,6 +242,7 @@ export default function MenuPage() {
 function MenuContent({ user }: { user: SessionUser }) {
   const pathname = usePathname()
   const { count: userRequestsCount, isAdmin } = useAdminUserRequestCount()
+  const { count: projectAssignmentCount } = useProjectAssignmentCount()
   const { count: userRequestResultsCount } = useUserRequestResultCount()
   const { count: tornCount } = useTornNotificationCount()
   const { count: messagingCount } = useMessagingUnreadCount()
@@ -323,6 +335,11 @@ function MenuContent({ user }: { user: SessionUser }) {
                 {mod.path === '/menu/deco' && decoBadge > 0 && (
                   <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
                     {decoBadge}
+                  </span>
+                )}
+                {mod.path === '/menu/projects' && projectAssignmentCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                    {projectAssignmentCount}
                   </span>
                 )}
                 {!isAdmin && mod.path === '/menu/personnel' && userRequestResultsCount > 0 && (

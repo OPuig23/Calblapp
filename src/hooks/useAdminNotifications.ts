@@ -129,3 +129,39 @@ export function useTornNotificationCount() {
     error,
   }
 }
+
+export function useProjectAssignmentCount() {
+  const { data: session, status } = useSession()
+  const isAuth = status === 'authenticated'
+  const userId = (session?.user as any)?.id
+
+  const url = isAuth
+    ? '/api/notifications?mode=count&type=project_assignment'
+    : null
+
+  const { data, error, mutate } = useSWR(url, fetcher, {
+    refreshInterval: isAuth ? 15000 : 0,
+  })
+
+  useEffect(() => {
+    if (!isAuth || !userId) return
+
+    const client = getAblyClient()
+    const channel = client.channels.get(`user:${userId}:notifications`)
+    const handler = () => {
+      mutate().catch(() => {})
+    }
+
+    channel.subscribe('created', handler)
+
+    return () => {
+      channel.unsubscribe('created', handler)
+    }
+  }, [isAuth, userId, mutate])
+
+  return {
+    count: data?.count ?? 0,
+    loading: status === 'loading' || (isAuth && !data && !error),
+    error,
+  }
+}

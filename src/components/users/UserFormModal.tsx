@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
+import { normalizeRole } from '@/lib/roles'
 import { Trash2 } from 'lucide-react'
 import { DEPARTMENTS } from '@/data/departments'
 import useSWR from 'swr'
@@ -99,6 +100,7 @@ export function UserFormModal({ user, onSubmit, onClose, onAfterAction }: Props)
   const isWorker =
     role?.toLowerCase().trim() === 'treballador' ||
     role?.toLowerCase().trim() === 'cap departament'
+  const requiresCorporateEmail = ['admin', 'direccio', 'cap'].includes(normalizeRole(role))
 
   React.useEffect(() => {
     let active = true
@@ -292,14 +294,20 @@ export function UserFormModal({ user, onSubmit, onClose, onAfterAction }: Props)
             </div>
 
             <div>
-              <Label>Email</Label>
+              <Label>Email corporatiu</Label>
               <input
                 type="email"
                 className="mt-1 w-full rounded-md border p-2 text-sm"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
-                placeholder="usuari@exemple.com"
+                placeholder="nom@calblay.com"
+                required={requiresCorporateEmail}
               />
+              {requiresCorporateEmail && (
+                <p className="mt-1 text-xs text-gray-500">
+                  Obligatori per admin, direccio i caps de departament.
+                </p>
+              )}
             </div>
 
             <div

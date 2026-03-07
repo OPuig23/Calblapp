@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
 import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
+import { normalizeRole } from '@/lib/roles'
 
 // ──────────────────────────────────────────────────────────────
 // Helpers
@@ -15,6 +16,8 @@ const normLower = (s?: string) =>
   unaccent((s || '').toString().trim()).toLowerCase()
 
 const isTreballador = (role?: string) => normLower(role) === 'treballador'
+const requiresCorporateEmail = (role?: string) =>
+  ['admin', 'direccio', 'cap'].includes(normalizeRole(role))
 
 // ──────────────────────────────────────────────────────────────
 // Tipus
@@ -70,6 +73,22 @@ export async function PUT(
   try {
     const { id } = await context.params
     const data = (await req.json()) as Partial<UserUpdate>
+    const currentSnap = await db.collection('users').doc(id).get()
+    const currentData = currentSnap.data() || {}
+    const nextRole = typeof data.role === 'string' ? data.role : currentData.role
+    const nextEmail =
+      typeof data.email === 'string'
+        ? data.email.trim()
+        : typeof currentData.email === 'string'
+        ? currentData.email.trim()
+        : ''
+
+    if (requiresCorporateEmail(nextRole) && !nextEmail) {
+      return NextResponse.json(
+        { error: 'Email corporatiu obligatori per admin, direccio i caps de departament' },
+        { status: 400 }
+      )
+    }
 
     // 🔹 Construir objecte base d'actualització
     const rawUpdate: UserUpdate = {

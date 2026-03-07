@@ -185,6 +185,12 @@ export const MODULES: ModuleDef[] = [
     departments: ['produccio','empresa','casaments','foodlovers','food lover', 'logistica', 'cuina','serveis'],
   },
 
+  {
+    label: 'Projects',
+    path: '/menu/projects',
+    roles: ['admin'],
+  },
+
   { label: 'Espais', path: '/menu/spaces',
     roles: ['admin','direccio','cap','comercial','usuari'] },
 

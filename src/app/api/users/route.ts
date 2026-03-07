@@ -3,6 +3,7 @@ export const runtime = 'nodejs'
 
 import { NextResponse } from 'next/server'
 import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
+import { normalizeRole } from '@/lib/roles'
 
 // ──────────────────────────────────────────────────────────────
 // Helpers
@@ -14,6 +15,8 @@ const normLower = (s?: string) =>
   unaccent((s || '').toString().trim()).toLowerCase()
 
 const isTreballador = (role?: string) => normLower(role) === 'treballador'
+const requiresCorporateEmail = (role?: string) =>
+  ['admin', 'direccio', 'cap'].includes(normalizeRole(role))
 
 // ──────────────────────────────────────────────────────────────
 // Tipus
@@ -88,6 +91,13 @@ export async function POST(req: Request) {
       isDriver,
       workerRank,
     } = body
+
+    if (requiresCorporateEmail(role) && !email.trim()) {
+      return NextResponse.json(
+        { error: 'Email corporatiu obligatori per admin, direccio i caps de departament' },
+        { status: 400 }
+      )
+    }
 
     // 🔹 Construir payload base
     let userPayload: UserPayload = {
