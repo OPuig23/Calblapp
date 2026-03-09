@@ -229,6 +229,10 @@ function UsersPage() {
             workerRank: modalUser.workerRank ?? 'equip',
             opsChannelsConfigurable: (modalUser as any).opsChannelsConfigurable ?? [],
             opsEventsConfigurable: (modalUser as any).opsEventsConfigurable ?? false,
+            opsProjectsConfigurable:
+              typeof (modalUser as any).opsProjectsConfigurable === 'boolean'
+                ? (modalUser as any).opsProjectsConfigurable
+                : true,
           }}
           onSubmit={(data) => {
             if (modalUser.personId) {

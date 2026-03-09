@@ -7,8 +7,8 @@ import { eventDateLabel, initials, timeLabel } from '../utils'
 
 type Props = {
   eventMode: boolean
-  categoryFilter: 'finques' | 'restaurants' | 'events'
-  setCategoryFilter: (value: 'finques' | 'restaurants' | 'events') => void
+  categoryFilter: 'finques' | 'restaurants' | 'events' | 'projects'
+  setCategoryFilter: (value: 'finques' | 'restaurants' | 'events' | 'projects') => void
   channelQuery: string
   setChannelQuery: (value: string) => void
   filteredChannels: Channel[]
@@ -41,7 +41,7 @@ function ChannelsSidebar({
           <Search className="w-4 h-4 text-gray-400 dark:text-slate-400" />
           <input
             className="w-full text-sm outline-none bg-transparent text-gray-800 dark:text-slate-100"
-            placeholder="Cerca canal, finca, restaurant o event..."
+            placeholder="Cerca canal, projecte, finca, restaurant o event..."
             value={channelQuery}
             onChange={(e) => setChannelQuery(e.target.value)}
           />
@@ -51,6 +51,7 @@ function ChannelsSidebar({
             {[
               { key: 'finques', label: 'Finques' },
               { key: 'restaurants', label: 'Restaurants' },
+              { key: 'projects', label: 'Projectes' },
               { key: 'events', label: 'Events' },
             ].map((chip) => {
               const active = categoryFilter === chip.key
@@ -58,7 +59,7 @@ function ChannelsSidebar({
                 <button
                   key={chip.key}
                   type="button"
-                  onClick={() => setCategoryFilter(chip.key as any)}
+                  onClick={() => setCategoryFilter(chip.key as Props['categoryFilter'])}
                   className={`px-3 py-1 rounded-full text-xs border ${
                     active
                       ? 'bg-emerald-600 text-white border-emerald-600'
@@ -102,45 +103,52 @@ function ChannelsSidebar({
       </div>
 
       <ul className="max-h-[70vh] overflow-y-auto">
-        {filteredChannels.map((c) => (
-          <li key={c.id}>
+        {filteredChannels.map((channel) => (
+          <li key={channel.id}>
             <button
               type="button"
-              onClick={() => onOpenChannel(c.id)}
+              onClick={() => onOpenChannel(channel.id)}
               className={`w-full text-left px-3 py-3 hover:bg-gray-50 dark:hover:bg-slate-800 ${
-                selectedChannelId === c.id ? 'bg-emerald-50 dark:bg-emerald-900/30' : ''
+                selectedChannelId === channel.id ? 'bg-emerald-50 dark:bg-emerald-900/30' : ''
               }`}
             >
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-full bg-gray-200 text-gray-700 dark:bg-slate-700 dark:text-slate-100 flex items-center justify-center text-xs font-semibold shrink-0">
-                  {initials(c.location || c.name)}
+                  {initials(channel.roomName || channel.eventTitle || channel.location || channel.name)}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between">
                     <div className="text-sm font-semibold text-gray-800 dark:text-slate-100 truncate">
-                      {c.source === 'events'
-                        ? c.eventTitle || c.location || c.name
-                        : c.location}
+                      {channel.source === 'events'
+                        ? channel.eventTitle || channel.location || channel.name
+                        : channel.source === 'projects'
+                          ? channel.roomName || channel.location || channel.name
+                          : channel.location}
                     </div>
-                    {c.unreadCount ? (
+                    {channel.unreadCount ? (
                       <span className="text-xs bg-red-500 text-white rounded-full px-2 py-0.5">
-                        {c.unreadCount}
+                        {channel.unreadCount}
                       </span>
                     ) : null}
                   </div>
-                  {c.source === 'events' && (
+                  {channel.source === 'events' && (
                     <div className="text-[11px] text-gray-500 dark:text-slate-400 truncate">
-                      {[c.eventCode, eventDateLabel(c.eventStart || c.eventEnd), c.location]
+                      {[channel.eventCode, eventDateLabel(channel.eventStart || channel.eventEnd), channel.location]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </div>
+                  )}
+                  {channel.source === 'projects' && (
+                    <div className="text-[11px] text-gray-500 dark:text-slate-400 truncate">
+                      {[channel.projectName, channel.roomKind === 'block' ? 'Sala automatica' : 'Sala manual']
                         .filter(Boolean)
                         .join(' · ')}
                     </div>
                   )}
                   <div className="text-xs text-gray-500 dark:text-slate-400 flex items-center justify-between gap-2">
-                    <span className="truncate">
-                      {c.lastMessagePreview || 'Sense missatges'}
-                    </span>
+                    <span className="truncate">{channel.lastMessagePreview || 'Sense missatges'}</span>
                     <span className="text-[11px] text-gray-400 dark:text-slate-500 shrink-0">
-                      {timeLabel(c.lastMessageAt)}
+                      {timeLabel(channel.lastMessageAt)}
                     </span>
                   </div>
                 </div>

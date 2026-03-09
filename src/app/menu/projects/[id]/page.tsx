@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 import ModuleHeader from '@/components/layout/ModuleHeader'
 import { RoleGuard } from '@/lib/withRoleGuard'
 import ProjectWorkspace from '../components/ProjectWorkspace'
-import { EMPTY_KICKOFF, type ProjectData } from '../components/project-shared'
+import { EMPTY_KICKOFF, deriveProjectPhase, type ProjectData } from '../components/project-shared'
+import type { WorkspaceTab } from '../components/project-workspace-helpers'
 
 type ProjectResponse = {
   id: string
@@ -22,14 +23,27 @@ type ProjectResponse = {
   status?: string
   departments?: string[]
   blocks?: ProjectData['blocks']
+  rooms?: ProjectData['rooms']
   document?: ProjectData['document']
+  documents?: ProjectData['documents']
   kickoff?: Partial<ProjectData['kickoff']> | null
 }
 
 export default function ProjectDetailPage() {
   const params = useParams<{ id: string }>()
+  const searchParams = useSearchParams()
   const [project, setProject] = useState<ProjectData | null>(null)
   const [error, setError] = useState('')
+  const requestedTab = searchParams.get('tab')
+  const initialTab: WorkspaceTab =
+    requestedTab === 'kickoff' ||
+    requestedTab === 'blocks' ||
+    requestedTab === 'tasks' ||
+    requestedTab === 'documents' ||
+    requestedTab === 'rooms' ||
+    requestedTab === 'tracking'
+      ? requestedTab
+      : 'overview'
 
   useEffect(() => {
     let cancelled = false
@@ -59,8 +73,14 @@ export default function ProjectDetailPage() {
           startDate: data.startDate || '',
           launchDate: data.launchDate || '',
           budget: data.budget || '',
-          phase: data.phase || 'initial',
-          status: data.status || 'draft',
+          phase:
+            data.phase ||
+            deriveProjectPhase({
+              launchDate: data.launchDate || '',
+              kickoff: data.kickoff || null,
+              blocks: Array.isArray(data.blocks) ? data.blocks : [],
+            }),
+          status: data.status || '',
           departments: Array.isArray(data.departments) ? data.departments : [],
           blocks: Array.isArray(data.blocks)
             ? data.blocks.map((block) => ({
@@ -68,36 +88,124 @@ export default function ProjectDetailPage() {
                 name: block.name || '',
                 summary: block.summary || '',
                 department: block.department || '',
+                departments: Array.isArray((block as { departments?: string[] }).departments)
+                  ? ((block as { departments?: string[] }).departments || []).map(String)
+                  : block.department
+                    ? [String(block.department)]
+                    : [],
                 owner: block.owner || '',
                 deadline: block.deadline || '',
+                budget: String(block.budget || ''),
                 dependsOn: block.dependsOn || '',
                 status: block.status || 'pending',
                 tasks: Array.isArray((block as { tasks?: ProjectData['blocks'][number]['tasks'] }).tasks)
                     ? ((block as { tasks?: ProjectData['blocks'][number]['tasks'] }).tasks || []).map((task) => ({
                       id: task.id || `task-${Date.now()}`,
                       title: task.title || '',
+                      description: task.description || '',
+                      department: task.department || '',
                       owner: task.owner || '',
                       deadline: task.deadline || '',
                       dependsOn: task.dependsOn || '',
                       priority: task.priority || 'normal',
                       status: task.status || 'pending',
+                      documents: Array.isArray(task.documents)
+                        ? task.documents.map((item, index) => ({
+                            id: item?.id || `task-doc-${index}-${Date.now()}`,
+                            category: item?.category || 'other',
+                            label: item?.label || item?.name || '',
+                            name: item?.name || '',
+                            path: item?.path || '',
+                            url: item?.url || '',
+                            size: item?.size || 0,
+                            type: item?.type || '',
+                          }))
+                        : [],
+                    }))
+                  : [],
+              }))
+            : [],
+          rooms: Array.isArray(data.rooms)
+            ? data.rooms.map((room) => ({
+                id: room.id || `room-${Date.now()}`,
+                name: room.name || '',
+                kind: room.kind === 'manual' ? 'manual' : 'block',
+                blockId: room.blockId || '',
+                opsChannelId: room.opsChannelId ? String(room.opsChannelId) : '',
+                opsChannelName: room.opsChannelName ? String(room.opsChannelName) : '',
+                opsChannelSource: room.opsChannelSource === 'projects' ? 'projects' : undefined,
+                opsSyncedAt: Number(room.opsSyncedAt || 0) || undefined,
+                departments: Array.isArray(room.departments) ? room.departments.map(String) : [],
+                participants: Array.isArray(room.participants) ? room.participants.map(String) : [],
+                participantDetails: Array.isArray(room.participantDetails)
+                  ? room.participantDetails.map((detail) => ({
+                      name: String(detail.name || ''),
+                      department: String(detail.department || ''),
+                      role: String(detail.role || ''),
+                    }))
+                  : [],
+                notes: String(room.notes || ''),
+                documents: Array.isArray(room.documents)
+                  ? room.documents.map((item, index) => ({
+                      id: item?.id || `room-doc-${index}-${Date.now()}`,
+                      category: item?.category || 'other',
+                      label: item?.label || item?.name || '',
+                      name: item?.name || '',
+                      path: item?.path || '',
+                      url: item?.url || '',
+                      size: item?.size || 0,
+                      type: item?.type || '',
+                    }))
+                  : [],
+                messages: Array.isArray(room.messages)
+                  ? room.messages.map((message) => ({
+                      id: String(message.id || `msg-${Date.now()}`),
+                      author: String(message.author || ''),
+                      text: String(message.text || ''),
+                      createdAt: Number(message.createdAt || 0),
                     }))
                   : [],
               }))
             : [],
           document: data.document || null,
+          documents: Array.isArray(data.documents)
+            ? data.documents.map((item, index) => ({
+                id: item?.id || `doc-${index}-${Date.now()}`,
+                category: item?.category || 'general',
+                label: item?.label || item?.name || '',
+                name: item?.name || '',
+                path: item?.path || '',
+                url: item?.url || '',
+                size: item?.size || 0,
+                type: item?.type || '',
+              }))
+            : data.document
+              ? [
+                  {
+                    id: `doc-initial-${Date.now()}`,
+                    category: 'initial',
+                    label: data.document.name || 'Document inicial',
+                    name: data.document.name || '',
+                    path: data.document.path || '',
+                    url: data.document.url || '',
+                    size: data.document.size || 0,
+                    type: data.document.type || '',
+                  },
+                ]
+              : [],
           kickoff: {
             ...EMPTY_KICKOFF,
             ...(data.kickoff || {}),
-            attendees: Array.isArray(data.kickoff?.attendees)
-              ? data.kickoff!.attendees!.map((item) => ({
-                  key: item.key || '',
-                  department: item.department || '',
-                  userId: item.userId || '',
-                  name: item.name || '',
-                  email: item.email || '',
-                }))
-              : [],
+                attendees: Array.isArray(data.kickoff?.attendees)
+                  ? data.kickoff!.attendees!.map((item) => ({
+                      key: item.key || '',
+                      department: item.department || '',
+                      userId: item.userId || '',
+                      name: item.name || '',
+                      email: item.email || '',
+                      attended: item.attended !== false,
+                    }))
+                  : [],
             excludedKeys: Array.isArray(data.kickoff?.excludedKeys)
               ? data.kickoff!.excludedKeys!.map(String)
               : [],
@@ -136,7 +244,9 @@ export default function ProjectDetailPage() {
           </div>
         ) : null}
 
-        {project ? <ProjectWorkspace projectId={params.id} initialProject={project} /> : null}
+        {project ? (
+          <ProjectWorkspace projectId={params.id} initialProject={project} initialTab={initialTab} />
+        ) : null}
       </div>
     </RoleGuard>
   )

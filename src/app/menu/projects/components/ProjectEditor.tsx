@@ -30,6 +30,8 @@ type CreateProjectData = {
   file: File | null
 }
 
+const todayKey = () => new Date().toISOString().slice(0, 10)
+
 const emptyData: CreateProjectData = {
   name: '',
   sponsor: '',
@@ -37,7 +39,7 @@ const emptyData: CreateProjectData = {
   context: '',
   strategy: '',
   risks: '',
-  startDate: '',
+  startDate: todayKey(),
   launchDate: '',
   budget: '',
   file: null,
@@ -95,7 +97,6 @@ export default function ProjectEditor() {
       data.owner.trim() &&
       data.context.trim() &&
       data.strategy.trim() &&
-      data.startDate &&
       data.launchDate
   )
 

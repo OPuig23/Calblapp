@@ -48,6 +48,32 @@ export const COLORS_LN: Record<string, string> = {
 }
 
 // ───────────────────────────────────────────────
+// 🏷️ COLORS PER DEPARTAMENT
+// ───────────────────────────────────────────────
+export const COLORS_DEPARTMENT: Record<string, string> = {
+  empresa: 'bg-sky-50 border border-sky-200 text-sky-800',
+  compres: 'bg-orange-50 border border-orange-200 text-orange-800',
+  comptabilitat: 'bg-violet-50 border border-violet-200 text-violet-800',
+  administracio: 'bg-slate-50 border border-slate-200 text-slate-700',
+  restauracio: 'bg-amber-50 border border-amber-200 text-amber-800',
+  marqueting: 'bg-pink-50 border border-pink-200 text-pink-800',
+  manteniment: 'bg-emerald-50 border border-emerald-200 text-emerald-800',
+  decoracio: 'bg-rose-50 border border-rose-200 text-rose-800',
+  'recursos humans': 'bg-fuchsia-50 border border-fuchsia-200 text-fuchsia-800',
+  serveis: 'bg-cyan-50 border border-cyan-200 text-cyan-800',
+  logistica: 'bg-blue-50 border border-blue-200 text-blue-800',
+  cuina: 'bg-red-50 border border-red-200 text-red-800',
+  'cuina del felix': 'bg-red-50 border border-red-200 text-red-800',
+  'food lover': 'bg-lime-50 border border-lime-200 text-lime-800',
+  fdlc: 'bg-green-50 border border-green-200 text-green-800',
+  qualitat: 'bg-teal-50 border border-teal-200 text-teal-800',
+  produccio: 'bg-indigo-50 border border-indigo-200 text-indigo-800',
+  casaments: 'bg-pink-50 border border-pink-200 text-pink-800',
+  transports: 'bg-yellow-50 border border-yellow-200 text-yellow-800',
+  altres: 'bg-gray-50 border border-gray-200 text-gray-700',
+}
+
+// ───────────────────────────────────────────────
 // 🟢🟠🟡 COLORS_STAGE
 // (punts del calendari, indicadors simples)
 // ───────────────────────────────────────────────
@@ -72,6 +98,11 @@ export const COLORS_STAGE: Record<string, string> = {
 export const colorByLN = (lnRaw?: string): string => {
   const ln = (lnRaw || '').trim().toLowerCase()
   return COLORS_LN[ln] || COLORS_LN['altres']
+}
+
+export const colorByDepartment = (departmentRaw?: string): string => {
+  const department = (departmentRaw || '').trim().toLowerCase()
+  return COLORS_DEPARTMENT[department] || COLORS_DEPARTMENT['altres']
 }
 
 export const colorByStage = (stage?: string): string => {

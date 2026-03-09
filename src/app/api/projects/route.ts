@@ -6,6 +6,7 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
 import { firestoreAdmin as db, storageAdmin } from '@/lib/firebaseAdmin'
 import { normalizeRole } from '@/lib/roles'
+import { deriveProjectPhase } from '@/app/menu/projects/components/project-shared'
 import Ably from 'ably'
 
 type SessionUser = {
@@ -15,6 +16,7 @@ type SessionUser = {
 }
 
 const clean = (value: FormDataEntryValue | null) => String(value || '').trim()
+const todayKey = () => new Date().toISOString().slice(0, 10)
 const normLower = (value?: string) =>
   (value || '')
     .normalize('NFD')
@@ -59,6 +61,21 @@ async function uploadDocument(file: File, projectId: string) {
     url,
     size: file.size,
     type: file.type || 'application/octet-stream',
+  }
+}
+
+const buildStoredDocument = async (params: {
+  file: File
+  projectId: string
+  category?: string
+  label?: string
+}) => {
+  const uploaded = await uploadDocument(params.file, params.projectId)
+  return {
+    id: `doc-${Date.now()}`,
+    category: params.category || 'general',
+    label: params.label || uploaded.name || 'Document',
+    ...uploaded,
   }
 }
 
@@ -154,7 +171,15 @@ export async function POST(req: Request) {
     const now = Date.now()
     const docRef = db.collection('projects').doc()
     const file = form.get('file')
-    const document = file instanceof File && file.size > 0 ? await uploadDocument(file, docRef.id) : null
+    const document =
+      file instanceof File && file.size > 0
+        ? await buildStoredDocument({
+            file,
+            projectId: docRef.id,
+            category: 'initial',
+            label: clean(form.get('fileLabel')) || 'Document inicial',
+          })
+        : null
     const owner = clean(form.get('owner'))
     const ownerUser = await findUserByName(owner)
 
@@ -166,15 +191,17 @@ export async function POST(req: Request) {
       context: clean(form.get('context')),
       strategy: clean(form.get('strategy')),
       risks: clean(form.get('risks')),
-      startDate: clean(form.get('startDate')),
+      startDate: clean(form.get('startDate')) || todayKey(),
       launchDate: clean(form.get('launchDate')),
       budget: clean(form.get('budget')),
-      status: clean(form.get('status')) || 'draft',
-      phase: clean(form.get('phase')) || 'initial',
+      status: '',
+      phase: clean(form.get('phase')) || 'definition',
       departments: [],
       blocks: [],
+      rooms: [],
       kickoff: null,
       document,
+      documents: document ? [document] : [],
       createdAt: now,
       updatedAt: now,
       createdById: auth.user.id,
@@ -182,6 +209,12 @@ export async function POST(req: Request) {
       updatedById: auth.user.id,
       updatedByName: auth.user.name || '',
     }
+
+    payload.phase = deriveProjectPhase({
+      launchDate: payload.launchDate,
+      kickoff: payload.kickoff,
+      blocks: payload.blocks,
+    })
 
     await docRef.set(payload)
 

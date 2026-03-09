@@ -32,6 +32,7 @@ interface UserPayload {
   phone: string | null
   opsEventsConfigurable?: boolean
   opsEventsEnabled?: boolean
+  opsProjectsConfigurable?: boolean
   opsChannelsConfigurable?: string[]
   available?: boolean
   isDriver?: boolean
@@ -43,10 +44,24 @@ interface UserPayload {
 // ──────────────────────────────────────────────────────────────
 // GET: retorna tots els usuaris
 // ──────────────────────────────────────────────────────────────
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    const { searchParams } = new URL(req.url)
+    const view = searchParams.get('view')
     const snap = await db.collection('users').get()
-    const users = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    const users = snap.docs.map((d) => {
+      const data = d.data() as Record<string, unknown>
+      if (view === 'project-options') {
+        return {
+          id: d.id,
+          name: String(data.name || ''),
+          role: String(data.role || ''),
+          email: String(data.email || ''),
+          department: String(data.department || ''),
+        }
+      }
+      return { id: d.id, ...data }
+    })
     return NextResponse.json(users)
   } catch (error: unknown) {
     console.error('🛑 GET /api/users failed:', error)
@@ -70,6 +85,7 @@ export async function POST(req: Request) {
       phone?: string
       opsEventsConfigurable?: boolean
       opsEventsEnabled?: boolean
+      opsProjectsConfigurable?: boolean
       opsChannelsConfigurable?: string[]
       available?: boolean
       isDriver?: boolean
@@ -86,6 +102,7 @@ export async function POST(req: Request) {
       phone = '',
       opsEventsConfigurable = false,
       opsEventsEnabled = false,
+      opsProjectsConfigurable = true,
       opsChannelsConfigurable = [],
       available,
       isDriver,
@@ -111,6 +128,7 @@ export async function POST(req: Request) {
       phone: phone.trim() || null,
       opsEventsConfigurable: Boolean(opsEventsConfigurable),
       opsEventsEnabled: Boolean(opsEventsEnabled),
+      opsProjectsConfigurable: Boolean(opsProjectsConfigurable),
       opsChannelsConfigurable: Array.isArray(opsChannelsConfigurable)
         ? opsChannelsConfigurable.map(String).filter(Boolean)
         : [],

@@ -4,6 +4,7 @@ import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
 export const runtime = 'nodejs'
 
 export async function GET(req: NextRequest) {
+  const startedAt = Date.now()
   try {
     const url = new URL(req.url)
     const start = url.searchParams.get('start')
@@ -13,9 +14,10 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Falten start i end' }, { status: 400 })
     }
 
-    // Llegim totes les colleccions del Firestore
     const collections = ['stage_verd', 'stage_taronja']
     const base: Record<string, unknown>[] = []
+    const startMs = new Date(`${start}T00:00:00.000Z`).getTime()
+    const endMs = new Date(`${end}T23:59:59.999Z`).getTime()
 
     for (const coll of collections) {
       console.log(`[events/calendar] Llegint Firestore: ${coll}`)
@@ -33,6 +35,12 @@ export async function GET(req: NextRequest) {
           typeof d.DataFi === 'string'
             ? `${d.DataFi}T12:00:00`
             : startISO
+
+        if (!startISO) return
+        const eventStartMs = new Date(startISO).getTime()
+        const eventEndMs = new Date(endISO || startISO).getTime()
+        if (Number.isNaN(eventStartMs) || Number.isNaN(eventEndMs)) return
+        if (eventEndMs < startMs || eventStartMs > endMs) return
 
         const rawSummary =
           typeof d.NomEvent === 'string' ? d.NomEvent : '(Sense titol)'
@@ -105,6 +113,13 @@ export async function GET(req: NextRequest) {
     }
 
     console.log(`[events/calendar] Total esdeveniments trobats: ${base.length}`)
+    console.info('[events/calendar] completed', {
+      durationMs: Date.now() - startedAt,
+      start,
+      end,
+      returned: base.length,
+      collections: collections.length,
+    })
 
     return NextResponse.json({ events: base }, { status: 200 })
   } catch (err) {

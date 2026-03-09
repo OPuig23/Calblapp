@@ -94,17 +94,14 @@ export default function AuditoriaConsultaEventPage() {
     setLoading(true)
     setError('')
     try {
-      const qs = new URLSearchParams({ limit: '2000', status: 'validated' })
+      const qs = new URLSearchParams({ limit: '100', status: 'validated', eventId })
       if (fromTs) qs.set('fromTs', fromTs)
       if (toTs) qs.set('toTs', toTs)
-      qs.set('q', eventId)
 
       const res = await fetch(`/api/auditoria/executions/list?${qs.toString()}`, { cache: 'no-store' })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(String(json?.error || 'No s ha pogut carregar l esdeveniment'))
-      const list = Array.isArray(json?.executions) ? (json.executions as ExecutionRow[]) : []
-      const filtered = list.filter((r) => String(r.eventId || '') === eventId)
-      setRows(filtered)
+      setRows(Array.isArray(json?.executions) ? (json.executions as ExecutionRow[]) : [])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error carregant esdeveniment')
       setRows([])
@@ -167,6 +164,16 @@ export default function AuditoriaConsultaEventPage() {
     loadDetail(activeAudit.id)
   }, [activeAudit?.id])
 
+  const answersByItemId = useMemo(() => {
+    const map = new Map<string, DetailAnswer>()
+    ;(detail?.auditAnswers || []).forEach((answer) => {
+      const itemId = String(answer.itemId || '').trim()
+      if (!itemId) return
+      map.set(itemId, answer)
+    })
+    return map
+  }, [detail?.auditAnswers])
+
   const eventSummary = String(rows[0]?.eventSummary || `Event ${eventId}`)
 
   return (
@@ -218,7 +225,7 @@ export default function AuditoriaConsultaEventPage() {
                 <div key={String(block.id || bIdx)} className="rounded-xl border p-3 space-y-2">
                   <div className="text-sm font-semibold text-gray-900">{block.title || `Bloc ${bIdx + 1}`}</div>
                   {(block.items || []).map((item, iIdx) => {
-                    const answer = (detail.auditAnswers || []).find((a) => String(a.itemId || '') === String(item.id || ''))
+                    const answer = answersByItemId.get(String(item.id || ''))
                     const type = String(item.type || 'checklist')
 
                     return (

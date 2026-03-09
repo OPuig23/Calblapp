@@ -1,23 +1,32 @@
 'use client'
 
+import dynamic from 'next/dynamic'
 import { useEffect, useMemo, useState } from 'react'
+import { useSession } from 'next-auth/react'
 import FloatingAddButton from '@/components/ui/floating-add-button'
 import { toast } from '@/components/ui/use-toast'
 import { normalizeRole } from '@/lib/roles'
 import {
-  type KickoffAttendee,
-  type ProjectBlock,
+  deriveProjectPhase,
+  getBlockDepartments,
+  getPreLaunchDeadline,
   type ProjectData,
-  type ProjectTask,
 } from './project-shared'
-import ProjectBlocksTab from './ProjectBlocksTab'
-import ProjectDocumentsTab from './ProjectDocumentsTab'
-import ProjectKickoffTab from './ProjectKickoffTab'
 import ProjectOverviewTab from './ProjectOverviewTab'
-import ProjectRoomsTab from './ProjectRoomsTab'
-import ProjectTasksTab from './ProjectTasksTab'
-import ProjectTrackingTab from './ProjectTrackingTab'
 import ProjectWorkspaceShell from './ProjectWorkspaceShell'
+import {
+  deriveKickoffAttendees,
+  ensureProjectRooms,
+  sameStringSet,
+  serializeBlocksState,
+  serializeOverviewState,
+  serializeRoomsState,
+  syncBlockBudgets,
+} from './project-workspace-state'
+import { useProjectBlocksTasksActions } from './useProjectBlocksTasksActions'
+import { useProjectKickoffActions } from './useProjectKickoffActions'
+import { useProjectPersistence } from './useProjectPersistence'
+import { useProjectRoomsActions } from './useProjectRoomsActions'
 import {
   createBlockDraft,
   createTaskDraft,
@@ -29,12 +38,50 @@ import {
 type Props = {
   projectId: string
   initialProject: ProjectData
+  initialTab?: WorkspaceTab
 }
 
-export default function ProjectWorkspace({ projectId, initialProject }: Props) {
-  const [activeTab, setActiveTab] = useState<WorkspaceTab>('overview')
+const tabLoadingFallback = () => (
+  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-6 text-sm text-slate-500">
+    Carregant pestanya...
+  </div>
+)
+
+const ProjectKickoffTab = dynamic(() => import('./ProjectKickoffTab'), {
+  loading: tabLoadingFallback,
+})
+
+const ProjectBlocksTab = dynamic(() => import('./ProjectBlocksTab'), {
+  loading: tabLoadingFallback,
+})
+
+const ProjectTasksTab = dynamic(() => import('./ProjectTasksTab'), {
+  loading: tabLoadingFallback,
+})
+
+const ProjectPlanningTab = dynamic(() => import('./ProjectPlanningTab'), {
+  loading: tabLoadingFallback,
+})
+
+const ProjectDocumentsTab = dynamic(() => import('./ProjectDocumentsTab'), {
+  loading: tabLoadingFallback,
+})
+
+const ProjectRoomsTab = dynamic(() => import('./ProjectRoomsTab'), {
+  loading: tabLoadingFallback,
+})
+
+const ProjectTrackingTab = dynamic(() => import('./ProjectTrackingTab'), {
+  loading: tabLoadingFallback,
+})
+
+export default function ProjectWorkspace({ projectId, initialProject, initialTab = 'overview' }: Props) {
+  const { data: session } = useSession()
+  const [activeTab, setActiveTab] = useState<WorkspaceTab>(initialTab)
   const [project, setProject] = useState<ProjectData>(initialProject)
   const [pendingFile, setPendingFile] = useState<File | null>(null)
+  const [pendingDocumentFile, setPendingDocumentFile] = useState<File | null>(null)
+  const [documentDraft, setDocumentDraft] = useState({ category: 'general', label: '' })
   const [usersCatalog, setUsersCatalog] = useState<ResponsibleOption[]>([])
   const [responsibles, setResponsibles] = useState<ResponsibleOption[]>([])
   const [savingOverview, setSavingOverview] = useState(false)
@@ -45,17 +92,25 @@ export default function ProjectWorkspace({ projectId, initialProject }: Props) {
   const [taskDraft, setTaskDraft] = useState(createTaskDraft())
   const [showBlockComposer, setShowBlockComposer] = useState(false)
   const [showTaskComposer, setShowTaskComposer] = useState(false)
+  const [showRoomComposer, setShowRoomComposer] = useState(false)
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null)
   const [editingTaskKey, setEditingTaskKey] = useState<string | null>(null)
-  const [expandedBlocks, setExpandedBlocks] = useState<string[]>([])
   const [quickTaskBlockId, setQuickTaskBlockId] = useState<string | null>(null)
+  const [roomDraft, setRoomDraft] = useState({ name: '', departments: [] as string[] })
+  const [overviewSavedState, setOverviewSavedState] = useState('')
+  const [blocksSavedState, setBlocksSavedState] = useState('')
+
+  useEffect(() => {
+    setOverviewSavedState(serializeOverviewState(initialProject))
+    setBlocksSavedState(serializeBlocksState(initialProject))
+  }, [initialProject])
 
   useEffect(() => {
     let cancelled = false
 
     ;(async () => {
       try {
-        const res = await fetch('/api/users', { cache: 'no-store' })
+        const res = await fetch('/api/users?view=project-options', { cache: 'no-store' })
         if (!res.ok) throw new Error('No s han pogut carregar els usuaris')
         const users = (await res.json()) as Array<{
           id: string
@@ -106,49 +161,126 @@ export default function ProjectWorkspace({ projectId, initialProject }: Props) {
     }
     return responsibles
   }, [project.owner, responsibles])
+  const maxDeadline = useMemo(() => getPreLaunchDeadline(project.launchDate), [project.launchDate])
+  const projectOverviewState = useMemo(() => serializeOverviewState(project), [project])
+  const projectBlocksState = useMemo(() => serializeBlocksState(project), [project])
+  const userByName = useMemo(
+    () => new Map(usersCatalog.map((user) => [user.name, user])),
+    [usersCatalog]
+  )
+  const kickoffAttendeeOptions = useMemo(
+    () =>
+      usersCatalog.filter(
+        (user) =>
+          Boolean(user.email) &&
+          !project.kickoff.attendees.some((item) => item.key === `user:${user.id}`)
+      ),
+    [usersCatalog, project.kickoff.attendees]
+  )
+  const allTasks = useMemo(
+    () =>
+      project.blocks.flatMap((block) =>
+        block.tasks.map((task) => ({
+          block,
+          task,
+          taskKey: `${block.id}:${task.id}`,
+        }))
+      ),
+    [project.blocks]
+  )
+  const dirtyOverview = overviewSavedState !== projectOverviewState || Boolean(pendingFile)
+  const dirtyBlocks = blocksSavedState !== projectBlocksState
+  const { saveProject, syncRoomsWithOps } = useProjectPersistence({
+    projectId,
+    pendingFile,
+    setPendingFile,
+    setProject,
+  })
+  const {
+    resetRoomDraft,
+    toggleRoomDraftDepartment,
+    createManualRoom,
+    removeRoom,
+  } = useProjectRoomsActions({
+    project,
+    roomDraft,
+    setRoomDraft,
+    setShowRoomComposer,
+    setProject,
+    setSavingBlocks,
+    saveProject,
+    syncRoomsWithOps,
+    userByName,
+  })
+  const {
+    setKickoffField,
+    removeKickoffAttendee,
+    setKickoffAttendeeAttendance,
+    addManualKickoffEmail,
+    kickoffReady,
+    sendKickoff,
+    finalizeKickoffMinutes,
+    reopenKickoffMinutes,
+  } = useProjectKickoffActions({
+    projectId,
+    project,
+    setProject,
+    manualKickoffEmail,
+    setManualKickoffEmail,
+    setSendingKickoff,
+    setSavingBlocks,
+    saveProject,
+    ensureProjectRooms: (currentProject) => ensureProjectRooms(currentProject, userByName),
+    sessionUserName: String(session?.user?.name || ''),
+    onKickoffMinutesSaved: (nextProject) => setBlocksSavedState(serializeBlocksState(nextProject)),
+  })
+  const {
+    createBlock,
+    setBlockField,
+    removeBlock,
+    setTaskDraftField,
+    addTaskToBlock,
+    setTaskField,
+    removeTask,
+    attachTaskDocument,
+    removeTaskDocument,
+    resetTaskDraft,
+    openQuickTaskComposer,
+    resetBlockDraft,
+    addDepartmentToBlock,
+    removeDepartmentFromBlock,
+  } = useProjectBlocksTasksActions({
+    project,
+    blockDraft,
+    taskDraft,
+    setProject,
+    setBlockDraft,
+    setTaskDraft,
+    setShowBlockComposer,
+    setShowTaskComposer,
+    setQuickTaskBlockId,
+    setEditingBlockId,
+    setSavingBlocks,
+    saveProject,
+    ensureProjectRooms: (currentProject) => ensureProjectRooms(currentProject, userByName),
+    onBlocksStateSaved: (nextProject) => setBlocksSavedState(serializeBlocksState(nextProject)),
+  })
 
-  const departmentResponsibleOptions = (department?: string) => {
-    const normalized = normalizeDepartment(department || '')
-    if (!normalized) return ownerOptions
+  const departmentResponsibleOptions = (department?: string | string[]) => {
+    const departments = Array.isArray(department) ? department : [department || '']
+    const normalizedDepartments = departments
+      .map((item) => normalizeDepartment(item || ''))
+      .filter(Boolean)
+
+    if (normalizedDepartments.length === 0) return ownerOptions
 
     const filtered = responsibles.filter(
       (user) =>
-        user.role === 'cap' && normalizeDepartment(user.department || '') === normalized
+        user.role === 'cap' &&
+        normalizedDepartments.includes(normalizeDepartment(user.department || ''))
     )
 
     return filtered.length > 0 ? filtered : ownerOptions
-  }
-
-  const ensureDepartmentBlocks = (currentProject: ProjectData) => {
-    const existingDepartmentKeys = new Set(
-      currentProject.blocks
-        .map((block) => normalizeDepartment(block.department || block.name || ''))
-        .filter(Boolean)
-    )
-
-    const missingBlocks = currentProject.departments
-      .filter((department) => !existingDepartmentKeys.has(normalizeDepartment(department)))
-      .map((department) => {
-        const defaultOwner = departmentResponsibleOptions(department)[0]?.name || ''
-        return {
-          id: `block-${Date.now()}-${department}`,
-          name: department,
-          summary: '',
-          department,
-          owner: defaultOwner,
-          deadline: '',
-          dependsOn: '',
-          status: 'pending',
-          tasks: [],
-        }
-      })
-
-    if (missingBlocks.length === 0) return currentProject
-
-    return {
-      ...currentProject,
-      blocks: [...currentProject.blocks, ...missingBlocks],
-    }
   }
 
   const taskResponsibleOptions = (department?: string) => {
@@ -162,65 +294,23 @@ export default function ProjectWorkspace({ projectId, initialProject }: Props) {
     return filtered.length > 0 ? filtered : departmentResponsibleOptions(department)
   }
 
-  const departmentHeadOptions = useMemo(
-    () =>
-      project.departments.map((department) => ({
-        department,
-        options: responsibles.filter(
-          (user) =>
-            user.role === 'cap' &&
-            user.email &&
-            normalizeDepartment(user.department) === normalizeDepartment(department)
-        ),
-      })),
-    [project.departments, responsibles]
-  )
+  useEffect(() => {
+    setProject((current) => {
+      const next = ensureProjectRooms(current, userByName)
+      const currentRoomsState = serializeRoomsState(current.rooms)
+      const nextRoomsState = serializeRoomsState(next.rooms)
+      if (nextRoomsState === currentRoomsState) return current
+      return next
+    })
+  }, [project.owner, project.blocks, userByName])
 
   useEffect(() => {
     setProject((current) => {
-      const byKey = new Map(current.kickoff.attendees.map((item) => [item.key, item]))
-      const nextAttendees: KickoffAttendee[] = []
-      const ownerUser = responsibles.find((item) => item.name === current.owner && item.email)
-
-      if (ownerUser && !current.kickoff.excludedKeys.includes('owner')) {
-        nextAttendees.push({
-          key: 'owner',
-          department: 'Responsable projecte',
-          userId: ownerUser.id,
-          name: ownerUser.name,
-          email: ownerUser.email,
-        })
-      }
-
-      for (const entry of departmentHeadOptions) {
-        const key = `department:${entry.department}`
-        if (current.kickoff.excludedKeys.includes(key)) continue
-
-        const existing = byKey.get(key)
-        if (existing && entry.options.some((option) => option.id === existing.userId)) {
-          nextAttendees.push(existing)
-          continue
-        }
-
-        if (entry.options.length === 1) {
-          const option = entry.options[0]
-          nextAttendees.push({
-            key,
-            department: entry.department,
-            userId: option.id,
-            name: option.name,
-            email: option.email,
-          })
-        }
-      }
-
-      for (const item of current.kickoff.attendees) {
-        if (item.key.startsWith('manual:')) nextAttendees.push(item)
-      }
+      const dedupedAttendees = deriveKickoffAttendees(current, usersCatalog, userByName)
 
       const same =
-        nextAttendees.length === current.kickoff.attendees.length &&
-        nextAttendees.every((item, index) => {
+        dedupedAttendees.length === current.kickoff.attendees.length &&
+        dedupedAttendees.every((item, index) => {
           const currentItem = current.kickoff.attendees[index]
           return (
             currentItem?.key === item.key &&
@@ -236,60 +326,68 @@ export default function ProjectWorkspace({ projectId, initialProject }: Props) {
         ...current,
         kickoff: {
           ...current.kickoff,
-          attendees: nextAttendees,
+          attendees: dedupedAttendees,
         },
       }
     })
-  }, [departmentHeadOptions, responsibles])
+  }, [usersCatalog, project.departments, project.owner, project.sponsor, userByName])
 
-  const buildProjectForm = (sourceProject: ProjectData = project) => {
-    const form = new FormData()
-    form.set('name', sourceProject.name)
-    form.set('sponsor', sourceProject.sponsor)
-    form.set('owner', sourceProject.owner)
-    form.set('context', sourceProject.context)
-    form.set('strategy', sourceProject.strategy)
-    form.set('risks', sourceProject.risks)
-    form.set('startDate', sourceProject.startDate)
-    form.set('launchDate', sourceProject.launchDate)
-    form.set('budget', sourceProject.budget)
-    form.set('phase', sourceProject.phase)
-    form.set('status', sourceProject.status)
-    form.set('departments', JSON.stringify(sourceProject.departments))
-    form.set('blocks', JSON.stringify(sourceProject.blocks))
-    form.set('kickoff', JSON.stringify(sourceProject.kickoff))
-    if (pendingFile) form.set('file', pendingFile)
-    return form
-  }
-
-  const saveProject = async (title: string, sourceProject: ProjectData = project) => {
-    const res = await fetch(`/api/projects/${projectId}`, {
-      method: 'PATCH',
-      body: buildProjectForm(sourceProject),
+  useEffect(() => {
+    setProject((current) => {
+      const next = syncBlockBudgets(current)
+      const same = next.blocks.every((block, index) => block.budget === current.blocks[index]?.budget)
+      return same ? current : next
     })
-    const payload = (await res.json().catch(() => ({}))) as { error?: string }
-    if (!res.ok) throw new Error(payload.error || 'No s ha pogut guardar el projecte')
+  }, [project.blocks])
 
-    if (pendingFile) {
-      setProject((current) => ({
+  useEffect(() => {
+    setProject((current) => {
+      const nextPhase = deriveProjectPhase(current)
+      if (current.phase === nextPhase && !current.status) return current
+      return {
         ...current,
-        document: {
-          ...(current.document || {}),
-          name: pendingFile.name,
-        },
-      }))
-      setPendingFile(null)
-    }
+        phase: nextPhase,
+        status: '',
+      }
+    })
+  }, [project.blocks, project.kickoff.attendees.length, project.kickoff.date, project.kickoff.startTime, project.kickoff.status])
 
-    toast({ title })
-  }
+  useEffect(() => {
+    setProject((current) => {
+      const nextDepartments = [
+        ...new Set(
+          current.blocks.flatMap((block) => getBlockDepartments(block)).filter(Boolean)
+        ),
+      ]
+
+      if (sameStringSet(current.departments, nextDepartments)) {
+        return current
+      }
+
+      return {
+        ...current,
+        departments: nextDepartments,
+      }
+    })
+  }, [project.blocks])
 
   const saveOverview = async () => {
     try {
       setSavingOverview(true)
-      const nextProject = ensureDepartmentBlocks(project)
+      const nextProject = ensureProjectRooms(project, userByName)
       setProject(nextProject)
-      await saveProject('Projecte guardat', nextProject)
+      const storedDocument = await saveProject('Projecte guardat', nextProject)
+      const finalProject =
+        storedDocument && pendingFile
+          ? {
+              ...nextProject,
+              document: storedDocument,
+              documents: [...nextProject.documents, storedDocument],
+            }
+          : nextProject
+      await syncRoomsWithOps(finalProject)
+      setOverviewSavedState(serializeOverviewState(finalProject))
+      setBlocksSavedState(serializeBlocksState(finalProject))
     } catch (err: unknown) {
       toast({
         title: 'Error guardant el projecte',
@@ -304,7 +402,23 @@ export default function ProjectWorkspace({ projectId, initialProject }: Props) {
   const saveBlocks = async () => {
     try {
       setSavingBlocks(true)
-      await saveProject('Blocs guardats')
+      const timestamp = new Date().toISOString()
+      const nextProject = ensureProjectRooms({
+        ...project,
+        kickoff: {
+          ...project.kickoff,
+          minutesAuthor: String(project.kickoff.minutes || '').trim()
+            ? String(session?.user?.name || '').trim()
+            : project.kickoff.minutesAuthor,
+          minutesUpdatedAt: String(project.kickoff.minutes || '').trim()
+            ? timestamp
+            : project.kickoff.minutesUpdatedAt,
+        },
+      }, userByName)
+      setProject(nextProject)
+      await saveProject('Blocs guardats', nextProject)
+      await syncRoomsWithOps(nextProject)
+      setBlocksSavedState(serializeBlocksState(nextProject))
     } catch (err: unknown) {
       toast({
         title: 'Error guardant els blocs',
@@ -316,281 +430,129 @@ export default function ProjectWorkspace({ projectId, initialProject }: Props) {
     }
   }
 
-  const toggleDepartment = (department: string) => {
-    setProject((current) => ({
-      ...current,
-      departments: current.departments.includes(department)
-        ? current.departments.filter((item) => item !== department)
-        : [...current.departments, department],
-    }))
-  }
+  const saveDocuments = async () => {
+    const hasFile = Boolean(pendingDocumentFile)
+    if (!hasFile) return
 
-  const setKickoffField = <K extends keyof ProjectData['kickoff']>(field: K, value: ProjectData['kickoff'][K]) => {
-    setProject((current) => ({
-      ...current,
-      kickoff: {
-        ...current.kickoff,
-        [field]: value,
-      },
-    }))
-  }
-
-  const setDepartmentAttendee = (department: string, userId: string) => {
-    const option = responsibles.find((item) => item.id === userId)
-    if (!option) return
-    const key = `department:${department}`
-
-    setProject((current) => ({
-      ...current,
-      kickoff: {
-        ...current.kickoff,
-        excludedKeys: current.kickoff.excludedKeys.filter((item) => item !== key),
-        attendees: [
-          ...current.kickoff.attendees.filter((item) => item.key !== key),
-          {
-            key,
-            department,
-            userId: option.id,
-            name: option.name,
-            email: option.email,
-          },
-        ],
-      },
-    }))
-  }
-
-  const removeKickoffAttendee = (key: string) => {
-    setProject((current) => ({
-      ...current,
-      kickoff: {
-        ...current.kickoff,
-        attendees: current.kickoff.attendees.filter((item) => item.key !== key),
-        excludedKeys: key.startsWith('manual:')
-          ? current.kickoff.excludedKeys
-          : [...new Set([...current.kickoff.excludedKeys, key])],
-      },
-    }))
-  }
-
-  const addManualKickoffEmail = () => {
-    const email = manualKickoffEmail.trim().toLowerCase()
-    if (!email || !email.includes('@')) return
-    const key = `manual:${email}`
-
-    setProject((current) => {
-      if (current.kickoff.attendees.some((item) => item.key === key)) return current
-      return {
-        ...current,
-        kickoff: {
-          ...current.kickoff,
-          attendees: [
-            ...current.kickoff.attendees,
-            {
-              key,
-              department: 'Manual',
-              userId: '',
-              name: email,
-              email,
-            },
-          ],
-        },
-      }
-    })
-    setManualKickoffEmail('')
-  }
-
-  const kickoffReady =
-    Boolean(project.kickoff.date) &&
-    Boolean(project.kickoff.startTime) &&
-    Number(project.kickoff.durationMinutes) > 0 &&
-    project.kickoff.attendees.some((item) => item.email.includes('@'))
-
-  const sendKickoff = async () => {
     try {
-      setSendingKickoff(true)
-      const res = await fetch(`/api/projects/${projectId}/kickoff`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          date: project.kickoff.date,
-          startTime: project.kickoff.startTime,
-          durationMinutes: project.kickoff.durationMinutes,
-          notes: project.kickoff.notes,
-          attendees: project.kickoff.attendees,
-        }),
+      setSavingOverview(true)
+      await saveProject('Document guardat', project, {
+        file: pendingDocumentFile,
+        fileCategory: documentDraft.category,
+        fileLabel: documentDraft.label.trim() || pendingDocumentFile.name,
+        onUploaded: (stored) => {
+          setProject((current) => ({
+            ...current,
+            documents: [...current.documents, stored],
+          }))
+        },
       })
 
-      const payload = (await res.json().catch(() => ({}))) as {
-        error?: string
-        kickoff?: ProjectData['kickoff']
-      }
-      if (!res.ok || !payload.kickoff) {
-        throw new Error(payload.error || 'No s ha pogut crear la convocatoria')
-      }
-
-      setProject((current) => ({
-        ...current,
-        phase: 'kickoff',
-        status: 'kickoff',
-        kickoff: {
-          ...current.kickoff,
-          ...payload.kickoff,
-        },
-      }))
-
-      toast({ title: 'Convocatoria enviada' })
+      setPendingDocumentFile(null)
+      setDocumentDraft({ category: 'general', label: '' })
     } catch (err: unknown) {
       toast({
-        title: 'Error enviant la convocatoria',
+        title: 'Error guardant el document',
         description: err instanceof Error ? err.message : 'Error inesperat',
         variant: 'destructive',
       })
     } finally {
-      setSendingKickoff(false)
+      setSavingOverview(false)
     }
   }
 
-  const createBlock = () => {
-    if (!blockDraft.name.trim()) return
-
-    const nextBlock: ProjectBlock = {
-      id: `block-${Date.now()}`,
-      name: blockDraft.name.trim(),
-      summary: blockDraft.summary.trim(),
-      department: blockDraft.department,
-      owner: blockDraft.owner,
-      deadline: blockDraft.deadline,
-      dependsOn: blockDraft.dependsOn === 'none' ? '' : blockDraft.dependsOn,
-      status: blockDraft.status,
-      tasks: [],
-    }
-
-    setProject((current) => ({
-      ...current,
-      blocks: [...current.blocks, nextBlock],
-      phase: current.phase === 'kickoff' || current.phase === 'definition' ? 'planning' : current.phase,
-      status: current.status === 'kickoff' || current.status === 'definition' ? 'planning' : current.status,
-    }))
-    setExpandedBlocks((current) => [...new Set([...current, nextBlock.id])])
-    setBlockDraft(createBlockDraft())
-    setShowBlockComposer(false)
-  }
-
-  const setBlockField = <K extends keyof ProjectBlock>(blockId: string, field: K, value: ProjectBlock[K]) => {
-    setProject((current) => ({
-      ...current,
-      blocks: current.blocks.map((block) => (block.id === blockId ? { ...block, [field]: value } : block)),
-    }))
-  }
-
-  const removeBlock = (blockId: string) => {
-    setProject((current) => ({
-      ...current,
-      blocks: current.blocks.filter((block) => block.id !== blockId),
-    }))
-    setExpandedBlocks((current) => current.filter((id) => id !== blockId))
-    setEditingBlockId((current) => (current === blockId ? null : current))
-  }
-
-  const toggleBlockExpanded = (blockId: string) => {
-    setExpandedBlocks((current) =>
-      current.includes(blockId) ? current.filter((id) => id !== blockId) : [...current, blockId]
-    )
-  }
-
-  const setTaskDraftField = <K extends keyof ReturnType<typeof createTaskDraft>>(
-    field: K,
-    value: ReturnType<typeof createTaskDraft>[K]
+  const removeDocument = async (
+    documentId: string,
+    source?: { type: 'project' | 'room' | 'task'; roomId?: string; blockId?: string; taskId?: string }
   ) => {
-    setTaskDraft((current) => ({
-      ...current,
-      [field]: value,
-    }))
-  }
+    let nextProject = project
 
-  const addTaskToBlock = (blockId: string) => {
-    const draft = taskDraft
-    if (!draft.title.trim()) return
+    if (!source || source.type === 'project') {
+      const remainingDocuments = project.documents.filter((item) => item?.id !== documentId)
+      const nextPrimaryDocument =
+        project.document?.id === documentId
+          ? remainingDocuments.find((item) => item?.category === 'initial') || null
+          : project.document
 
-    const nextTask: ProjectTask = {
-      id: `task-${Date.now()}`,
-      title: draft.title.trim(),
-      owner: draft.owner,
-      deadline: draft.deadline,
-      dependsOn: draft.dependsOn === 'none' ? '' : draft.dependsOn,
-      priority: draft.priority,
-      status: draft.status,
+      nextProject = {
+        ...project,
+        documents: remainingDocuments,
+        document: nextPrimaryDocument,
+      }
+    } else if (source.type === 'room' && source.roomId) {
+      nextProject = {
+        ...project,
+        rooms: project.rooms.map((room) =>
+          room.id === source.roomId
+            ? {
+                ...room,
+                documents: (room.documents || []).filter((item) => item?.id !== documentId),
+              }
+            : room
+        ),
+      }
+    } else if (source.type === 'task' && source.blockId && source.taskId) {
+      nextProject = {
+        ...project,
+        blocks: project.blocks.map((block) =>
+          block.id === source.blockId
+            ? {
+                ...block,
+                tasks: block.tasks.map((task) =>
+                  task.id === source.taskId
+                    ? {
+                        ...task,
+                        documents: (task.documents || []).filter((item) => item?.id !== documentId),
+                      }
+                    : task
+                ),
+              }
+            : block
+        ),
+      }
     }
 
-    setProject((current) => ({
-      ...current,
-      blocks: current.blocks.map((block) =>
-        block.id === blockId ? { ...block, tasks: [...block.tasks, nextTask] } : block
-      ),
-    }))
-    setTaskDraft(createTaskDraft())
-    setShowTaskComposer(false)
-    setQuickTaskBlockId(null)
+    setProject(nextProject)
+
+    try {
+      setSavingOverview(true)
+      await saveProject('Document eliminat', nextProject)
+      setOverviewSavedState(serializeOverviewState(nextProject))
+    } catch (err: unknown) {
+      toast({
+        title: 'Error eliminant el document',
+        description: err instanceof Error ? err.message : 'Error inesperat',
+        variant: 'destructive',
+      })
+    } finally {
+      setSavingOverview(false)
+    }
   }
 
-  const setTaskField = <K extends keyof ProjectTask>(
-    blockId: string,
-    taskId: string,
-    field: K,
-    value: ProjectTask[K]
-  ) => {
-    setProject((current) => ({
-      ...current,
-      blocks: current.blocks.map((block) =>
-        block.id === blockId
-          ? {
-              ...block,
-              tasks: block.tasks.map((task) => (task.id === taskId ? { ...task, [field]: value } : task)),
-            }
-          : block
-      ),
-    }))
-  }
+  const removeKickoffMinutes = async () => {
+    const nextProject = {
+      ...project,
+      kickoff: {
+        ...project.kickoff,
+        minutes: '',
+      },
+    }
 
-  const removeTask = (blockId: string, taskId: string) => {
-    setProject((current) => ({
-      ...current,
-      blocks: current.blocks.map((block) =>
-        block.id === blockId
-          ? { ...block, tasks: block.tasks.filter((task) => task.id !== taskId) }
-          : block
-      ),
-    }))
-  }
+    setProject(nextProject)
 
-  const resetTaskDraft = () => {
-    setTaskDraft(createTaskDraft())
-    setShowTaskComposer(false)
-    setQuickTaskBlockId(null)
+    try {
+      setSavingOverview(true)
+      await saveProject('Acta eliminada', nextProject)
+    } catch (err: unknown) {
+      toast({
+        title: 'Error eliminant l acta',
+        description: err instanceof Error ? err.message : 'Error inesperat',
+        variant: 'destructive',
+      })
+    } finally {
+      setSavingOverview(false)
+    }
   }
-
-  const openQuickTaskComposer = (blockId: string) => {
-    setTaskDraft((current) => ({
-      ...createTaskDraft(),
-      blockId,
-      owner: current.blockId === blockId ? current.owner : '',
-    }))
-    setQuickTaskBlockId(blockId)
-    setExpandedBlocks((current) => [...new Set([...current, blockId])])
-  }
-
-  const resetBlockDraft = () => {
-    setBlockDraft(createBlockDraft())
-    setShowBlockComposer(false)
-  }
-
-  const allTasks = project.blocks.flatMap((block) =>
-    block.tasks.map((task) => ({
-      block,
-      task,
-      taskKey: `${block.id}:${task.id}`,
-    }))
-  )
 
   return (
     <div className="space-y-6">
@@ -603,11 +565,28 @@ export default function ProjectWorkspace({ projectId, initialProject }: Props) {
               project={project}
               ownerOptions={ownerOptions}
               pendingFile={pendingFile}
+              blockDraft={blockDraft}
+              dirtyOverview={dirtyOverview}
               savingOverview={savingOverview}
+              showBlockComposer={showBlockComposer}
               onSave={saveOverview}
-              onToggleDepartment={toggleDepartment}
               onProjectChange={setProject}
               onPendingFileChange={setPendingFile}
+              onSetBlockDraftName={(value) =>
+                setBlockDraft((current) => ({ ...current, name: value }))
+              }
+              onToggleBlockComposer={() =>
+                setShowBlockComposer((current) => {
+                  if (current) setBlockDraft(createBlockDraft())
+                  return !current
+                })
+              }
+              onCreateBlock={createBlock}
+              onSetBlockName={(blockId, value) => setBlockField(blockId, 'name', value)}
+              onAddDepartmentToBlock={addDepartmentToBlock}
+              onRemoveDepartmentFromBlock={removeDepartmentFromBlock}
+              onRemoveBlock={removeBlock}
+              onRemoveDocument={removeDocument}
             />
           ) : null}
 
@@ -615,14 +594,12 @@ export default function ProjectWorkspace({ projectId, initialProject }: Props) {
             <ProjectKickoffTab
               project={project}
               manualKickoffEmail={manualKickoffEmail}
-              departmentHeadOptions={departmentHeadOptions}
               kickoffReady={kickoffReady}
               sendingKickoff={sendingKickoff}
               onKickoffFieldChange={setKickoffField}
               onManualKickoffEmailChange={setManualKickoffEmail}
               onAddManualKickoffEmail={addManualKickoffEmail}
               onSendKickoff={sendKickoff}
-              onDepartmentAttendeeChange={setDepartmentAttendee}
               onRemoveKickoffAttendee={removeKickoffAttendee}
             />
           ) : null}
@@ -634,30 +611,75 @@ export default function ProjectWorkspace({ projectId, initialProject }: Props) {
               taskDraft={taskDraft}
               showBlockComposer={showBlockComposer}
               editingBlockId={editingBlockId}
-              expandedBlocks={expandedBlocks}
               quickTaskBlockId={quickTaskBlockId}
               savingBlocks={savingBlocks}
+              dirtyBlocks={dirtyBlocks}
               onSave={saveBlocks}
               onResetBlockDraft={resetBlockDraft}
               onSetBlockDraft={setBlockDraft}
               onCreateBlock={createBlock}
               onSetBlockField={setBlockField}
-              onToggleBlockExpanded={toggleBlockExpanded}
               onRemoveBlock={removeBlock}
               onSetEditingBlockId={setEditingBlockId}
               onOpenQuickTaskComposer={openQuickTaskComposer}
               onResetTaskDraft={resetTaskDraft}
               onSetTaskDraftField={setTaskDraftField}
               onAddTaskToBlock={addTaskToBlock}
+              onSetTaskField={setTaskField}
               onRemoveTask={removeTask}
+              onKickoffMinutesChange={(value) =>
+                setProject((current) => ({
+                  ...current,
+                  kickoff: {
+                    ...current.kickoff,
+                    minutes: value,
+                  },
+                }))
+              }
+              onFinalizeKickoffMinutes={finalizeKickoffMinutes}
+              onReopenKickoffMinutes={reopenKickoffMinutes}
+              onKickoffAttendeeAttendanceChange={setKickoffAttendeeAttendance}
+              onAddKickoffAttendee={(userId) => {
+                const user = usersCatalog.find((item) => item.id === userId && item.email)
+                if (!user) return
+                setProject((current) => {
+                  if (current.kickoff.attendees.some((item) => item.key === `user:${user.id}`)) {
+                    return current
+                  }
+                  return {
+                    ...current,
+                    kickoff: {
+                      ...current.kickoff,
+                      excludedKeys: current.kickoff.excludedKeys.filter(
+                        (item) => item !== `user:${user.id}`
+                      ),
+                      attendees: [
+                        ...current.kickoff.attendees,
+                        {
+                          key: `user:${user.id}`,
+                          userId: user.id,
+                          name: user.name,
+                          email: user.email,
+                          department: user.department || 'Manual',
+                          attended: true,
+                        },
+                      ],
+                    },
+                  }
+                })
+              }}
+              onRemoveKickoffAttendee={removeKickoffAttendee}
+              kickoffAttendeeOptions={kickoffAttendeeOptions}
               departmentResponsibleOptions={departmentResponsibleOptions}
-              taskResponsibleOptions={taskResponsibleOptions}
+              maxDeadline={maxDeadline}
             />
           ) : null}
 
           {activeTab === 'tasks' ? (
             <ProjectTasksTab
+              projectId={projectId}
               projectBlocks={project.blocks}
+              projectRooms={project.rooms}
               allTasks={allTasks}
               taskDraft={taskDraft}
               showTaskComposer={showTaskComposer}
@@ -670,20 +692,46 @@ export default function ProjectWorkspace({ projectId, initialProject }: Props) {
               onSetEditingTaskKey={setEditingTaskKey}
               onRemoveTask={removeTask}
               onSetTaskField={setTaskField}
+              onAttachTaskDocument={attachTaskDocument}
+              onRemoveTaskDocument={removeTaskDocument}
               taskResponsibleOptions={taskResponsibleOptions}
+              maxDeadline={maxDeadline}
             />
+          ) : null}
+
+          {activeTab === 'planning' ? (
+            <ProjectPlanningTab projectId={projectId} project={project} />
           ) : null}
 
           {activeTab === 'documents' ? (
             <ProjectDocumentsTab
               project={project}
               savingOverview={savingOverview}
-              onSave={saveOverview}
-              onPendingFileChange={setPendingFile}
+              pendingDocumentFile={pendingDocumentFile}
+              documentDraft={documentDraft}
+              onSave={saveDocuments}
+              onPendingFileChange={setPendingDocumentFile}
+              onDocumentDraftChange={setDocumentDraft}
+              onRemoveDocument={removeDocument}
+              onRemoveKickoffMinutes={removeKickoffMinutes}
             />
           ) : null}
 
-          {activeTab === 'rooms' ? <ProjectRoomsTab /> : null}
+          {activeTab === 'rooms' ? (
+            <ProjectRoomsTab
+              projectId={projectId}
+              rooms={project.rooms}
+              roomDraft={roomDraft}
+              showRoomComposer={showRoomComposer}
+              saving={savingBlocks}
+              availableDepartments={project.departments}
+              onSetRoomDraft={setRoomDraft}
+              onToggleRoomDraftDepartment={toggleRoomDraftDepartment}
+              onCreateRoom={createManualRoom}
+              onResetRoomDraft={resetRoomDraft}
+              onRemoveRoom={removeRoom}
+            />
+          ) : null}
 
           {activeTab === 'tracking' ? <ProjectTrackingTab project={project} /> : null}
         </div>
@@ -693,8 +741,22 @@ export default function ProjectWorkspace({ projectId, initialProject }: Props) {
         <FloatingAddButton onClick={() => setShowBlockComposer(true)} />
       ) : null}
 
-      {activeTab === 'tasks' && !showTaskComposer ? (
-        <FloatingAddButton onClick={() => setShowTaskComposer(true)} />
+      {activeTab === 'tasks' ? (
+        <FloatingAddButton
+          onClick={() => {
+            if (showTaskComposer) {
+              setTaskDraft(createTaskDraft())
+              setShowTaskComposer(false)
+            } else {
+              setTaskDraft(createTaskDraft())
+              setShowTaskComposer(true)
+            }
+          }}
+        />
+      ) : null}
+
+      {activeTab === 'rooms' && !showRoomComposer ? (
+        <FloatingAddButton onClick={() => setShowRoomComposer(true)} />
       ) : null}
     </div>
   )

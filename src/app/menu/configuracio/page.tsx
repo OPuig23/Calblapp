@@ -18,6 +18,7 @@ import {
 
 import { Button } from '@/components/ui/button'
 import { usePushNotifications } from '@/hooks/usePushNotifications'
+import { normalizeRole } from '@/lib/roles'
 
 type SessionUser = {
   id: string
@@ -30,6 +31,7 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json())
 export default function ConfiguracioPage() {
   const { data: session, status } = useSession()
   const user = session?.user as SessionUser | undefined
+  const userRole = normalizeRole(user?.role || '')
   const [profileLoading, setProfileLoading] = useState(false)
   const [profileSaving, setProfileSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -52,6 +54,7 @@ export default function ConfiguracioPage() {
   const channels = Array.isArray(subsData?.channels) ? subsData.channels : []
   const eventsConfigurable = Boolean(subsData?.eventsConfigurable)
   const eventsEnabled = Boolean(subsData?.eventsEnabled)
+  const projectsConfigurable = Boolean(subsData?.projectsConfigurable)
   const [selectedChannels, setSelectedChannels] = useState<string[]>([])
   const [savingSubs, setSavingSubs] = useState(false)
 
@@ -59,6 +62,7 @@ export default function ConfiguracioPage() {
     const defs = [
       { key: 'finques', label: 'Finques' },
       { key: 'restaurants', label: 'Restaurants' },
+      { key: 'projects', label: 'Projectes' },
       { key: 'events', label: 'Events' },
     ]
 
@@ -112,7 +116,7 @@ export default function ConfiguracioPage() {
         setName(data.name || '')
         setEmail(data.email || '')
         setPhone(data.phone || '')
-        if (Array.isArray(data.opsChannelsConfigurable)) {
+        if (userRole !== 'admin' && Array.isArray(data.opsChannelsConfigurable)) {
           const allowed = data.opsChannelsConfigurable.map(String).filter(Boolean)
           setSelectedChannels((prev) => prev.filter((id) => allowed.includes(id)))
         }
@@ -123,9 +127,9 @@ export default function ConfiguracioPage() {
       }
     }
     loadProfile()
-  }, [user?.id])
+  }, [user?.id, userRole])
 
-  if (status === 'loading') return <p className="p-4">Carregantâ€¦</p>
+  if (status === 'loading') return <p className="p-4">Carregant...</p>
   if (!user) return <p className="p-4">No autoritzat.</p>
 
   const enablePush = async () => {
@@ -190,7 +194,7 @@ export default function ConfiguracioPage() {
 
   return (
     <section className="w-full max-w-md mx-auto p-4 space-y-6">
-      <h1 className="text-2xl font-bold text-center mb-4">Configuracio</h1>
+      <h1 className="text-2xl font-bold text-center mb-4">Configuració</h1>
 
       {/* Push */}
       <motion.div
@@ -204,7 +208,7 @@ export default function ConfiguracioPage() {
         </div>
 
         <div className="flex items-center justify-between">
-          <Label>Rebre notificacions al mÃ²bil</Label>
+          <Label>Rebre notificacions al mòbil</Label>
           <Button
             onClick={enablePush}
             disabled={pushLoading || pushEnabled}
@@ -214,11 +218,11 @@ export default function ConfiguracioPage() {
           </Button>
         </div>
 
-        {pushLoading && <p className="text-sm text-blue-600">Activantâ€¦</p>}
+        {pushLoading && <p className="text-sm text-blue-600">Activant...</p>}
         {pushError && <p className="text-xs text-red-600">Error: {pushError}</p>}
         {permission === 'denied' && (
           <p className="text-xs text-amber-600">
-            Has bloquejat les notificacions. CaldrÃ  activar-les als ajustos del navegador.
+            Has bloquejat les notificacions. Caldrà activar-les als ajustos del navegador.
           </p>
         )}
       </motion.div>
@@ -235,7 +239,7 @@ export default function ConfiguracioPage() {
         </div>
 
         {profileLoading ? (
-          <p className="text-sm text-gray-500">Carregant perfilâ€¦</p>
+          <p className="text-sm text-gray-500">Carregant perfil...</p>
         ) : (
           <div className="space-y-3">
             <div>
@@ -252,7 +256,7 @@ export default function ConfiguracioPage() {
               />
             </div>
             <div>
-              <Label>TelÃ¨fon</Label>
+              <Label>Telèfon</Label>
               <Input
                 type="tel"
                 value={phone}
@@ -279,7 +283,7 @@ export default function ConfiguracioPage() {
                 disabled={profileSaving}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white"
               >
-                {profileSaving ? 'Desantâ€¦' : 'Desar canvis'}
+                {profileSaving ? 'Desant...' : 'Desar canvis'}
               </Button>
             </div>
           </div>
@@ -297,14 +301,19 @@ export default function ConfiguracioPage() {
           <h2 className="font-semibold text-lg">Ops · Subscripcions</h2>
         </div>
 
-        {channelGroups.every((group) => group.ids.length === 0) ? (
+        {channelGroups.every((group) => group.ids.length === 0) && !projectsConfigurable ? (
           <p className="text-sm text-gray-500">
             No tens canals configurables.
           </p>
         ) : (
           <div className="space-y-3">
               {channelGroups
-                .filter((group) => group.ids.length > 0 || (group.key === 'events' && eventsConfigurable))
+                .filter(
+                  (group) =>
+                    group.ids.length > 0 ||
+                    (group.key === 'events' && eventsConfigurable) ||
+                    (group.key === 'projects' && projectsConfigurable)
+                )
                 .map((group) => {
                   const selectedCount = group.ids.filter((id) => selectedChannels.includes(id)).length
                   const allSelected = selectedCount === group.ids.length
@@ -333,6 +342,13 @@ export default function ConfiguracioPage() {
                                 await refreshSubs()
                               }}
                             />
+                          ) : group.key === 'projects' ? (
+                            <input
+                              type="checkbox"
+                              checked={projectsConfigurable}
+                              readOnly
+                              onClick={(e) => e.stopPropagation()}
+                            />
                           ) : (
                             <input
                               type="checkbox"
@@ -354,6 +370,10 @@ export default function ConfiguracioPage() {
                             ? eventsEnabled
                               ? 'Actiu'
                               : 'Inactiu'
+                            : group.key === 'projects'
+                            ? projectsConfigurable
+                              ? 'Actiu'
+                              : 'Inactiu'
                             : someSelected
                             ? 'Parcial'
                             : allSelected
@@ -362,12 +382,19 @@ export default function ConfiguracioPage() {
                         </span>
                       </summary>
 
-                      {group.key !== 'events' && (
+                      {group.key === 'projects' ? (
+                        <div className="mt-2 text-sm text-gray-500">
+                          Els xats de projectes es gestionen automàticament segons les sales i els participants.
+                        </div>
+                      ) : group.key !== 'events' ? (
                         <div className="mt-2 space-y-2">
                           {group.ids.map((id) => {
                             const ch = channels.find((c: any) => c.id === id)
                             if (!ch) return null
-                            const label = ch.location || ch.name
+                            const label =
+                              ch.source === 'projects'
+                                ? [ch.projectName, ch.roomName || ch.location || ch.name].filter(Boolean).join(' · ')
+                                : ch.location || ch.name
                             return (
                               <label key={id} className="flex items-center gap-2 text-sm">
                                 <input
@@ -384,7 +411,7 @@ export default function ConfiguracioPage() {
                             )
                           })}
                         </div>
-                      )}
+                      ) : null}
                     </details>
                   )
                 })}
@@ -397,7 +424,7 @@ export default function ConfiguracioPage() {
             disabled={savingSubs}
             className="bg-emerald-600 hover:bg-emerald-700 text-white"
           >
-            {savingSubs ? 'Desant…' : 'Desar subscripcions'}
+            {savingSubs ? 'Desant...' : 'Desar subscripcions'}
           </Button>
         </div>
       </motion.div>
@@ -412,7 +439,7 @@ export default function ConfiguracioPage() {
           <h2 className="font-semibold text-lg">Integracions</h2>
         </div>
         <p className="text-sm text-gray-600">
-          Properament: connexiÃ³ amb Google Calendar i Outlook per sincronitzar esdeveniments i torns.
+          Properament: connexió amb Google Calendar i Outlook per sincronitzar esdeveniments i torns.
         </p>
       </motion.div>
 
@@ -432,14 +459,14 @@ export default function ConfiguracioPage() {
             className="w-full justify-start"
             onClick={() => setShowPrivacy((v) => !v)}
           >
-            {showPrivacy ? 'Amagar text' : 'Llegir avÃ­s de privadesa'}
+            {showPrivacy ? 'Amagar text' : 'Llegir avís de privadesa'}
           </Button>
           {showPrivacy && (
             <p className="text-sm text-gray-600">
-              Catering Cal Blay S.L. tracta les dades per a la gestiÃ³ de serveis, personal i comunicacions internes.
-              Pots solÂ·licitar rectificaciÃ³ o eliminaciÃ³ escrivint a{' '}
+              Catering Cal Blay S.L. tracta les dades per a la gestió de serveis, personal i comunicacions internes.
+              Pots sol·licitar rectificació o eliminació escrivint a{' '}
               <a href="mailto:rrhh@calblay.com" className="text-blue-600 underline">rrhh@calblay.com</a>.
-              Les dades sâ€™emmagatzemen de forma segura i nomÃ©s es comparteixen amb proveÃ¯dors necessaris per al servei.
+              Les dades s'emmagatzemen de forma segura i només es comparteixen amb proveïdors necessaris per al servei.
             </p>
           )}
         </div>
@@ -453,7 +480,7 @@ export default function ConfiguracioPage() {
           className="flex items-center gap-2 text-red-600 font-semibold"
         >
           <LogOut className="w-5 h-5" />
-          Tancar sessiÃ³
+          Tancar sessió
         </button>
       </motion.div>
     </section>

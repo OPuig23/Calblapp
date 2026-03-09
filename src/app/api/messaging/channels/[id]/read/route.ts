@@ -2,11 +2,13 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
 import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
+import { normalizeRole } from '@/lib/roles'
 
 export const runtime = 'nodejs'
 
 type SessionUser = {
   id: string
+  role?: string
 }
 
 export async function PATCH(_req: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -17,9 +19,14 @@ export async function PATCH(_req: Request, ctx: { params: Promise<{ id: string }
 
   const user = session.user as SessionUser
   const userId = user.id
+  const role = normalizeRole(user.role || '')
   const { id } = await ctx.params
 
   try {
+    if (role === 'admin' || role === 'direccio') {
+      return NextResponse.json({ success: true })
+    }
+
     const snap = await db
       .collection('channelMembers')
       .where('channelId', '==', id)

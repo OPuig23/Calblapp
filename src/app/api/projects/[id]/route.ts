@@ -6,6 +6,8 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
 import { firestoreAdmin as db, storageAdmin } from '@/lib/firebaseAdmin'
 import { normalizeRole } from '@/lib/roles'
+import { deriveProjectPhase } from '@/app/menu/projects/components/project-shared'
+import { archiveProjectRoomOpsChannel } from '@/lib/projectRoomOps'
 import Ably from 'ably'
 
 type SessionUser = {
@@ -21,6 +23,13 @@ const normLower = (value?: string) =>
     .replace(/\p{Diacritic}/gu, '')
     .toLowerCase()
     .trim()
+const hasLaunchWindowExpired = (value?: string) => {
+  const raw = String(value || '').trim()
+  if (!raw) return false
+  const date = new Date(raw.length === 10 ? `${raw}T00:00:00` : raw)
+  if (Number.isNaN(date.getTime())) return false
+  return Date.now() >= date.getTime() + 24 * 60 * 60 * 1000
+}
 
 async function requireAdmin() {
   const session = await getServerSession(authOptions)
@@ -59,6 +68,21 @@ async function uploadDocument(file: File, projectId: string) {
     url,
     size: file.size,
     type: file.type || 'application/octet-stream',
+  }
+}
+
+const buildStoredDocument = async (params: {
+  file: File
+  projectId: string
+  category?: string
+  label?: string
+}) => {
+  const uploaded = await uploadDocument(params.file, params.projectId)
+  return {
+    id: `doc-${Date.now()}`,
+    category: params.category || 'general',
+    label: params.label || uploaded.name || 'Document',
+    ...uploaded,
   }
 }
 
@@ -152,28 +176,49 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const { id } = await params
     const baseUrl = new URL(req.url).origin
     const form = await req.formData()
-    const file = form.get('file')
-    const document = file instanceof File && file.size > 0 ? await uploadDocument(file, id) : undefined
-    const owner = clean(form.get('owner'))
-    const ownerUser = owner ? await findUserByName(owner) : null
     const currentSnap = await db.collection('projects').doc(id).get()
     const currentData = currentSnap.exists ? (currentSnap.data() as Record<string, unknown>) : {}
+    const file = form.get('file')
+    const currentDocuments = Array.isArray(currentData.documents)
+      ? (currentData.documents as Record<string, unknown>[])
+      : []
+    const currentRooms = Array.isArray(currentData.rooms)
+      ? (currentData.rooms as Record<string, unknown>[])
+      : []
+    const fileCategory = clean(form.get('fileCategory')) || 'general'
+    const fileLabel = clean(form.get('fileLabel'))
+    const document =
+      file instanceof File && file.size > 0
+        ? await buildStoredDocument({
+            file,
+            projectId: id,
+            category: fileCategory,
+            label: fileLabel || (fileCategory === 'initial' ? 'Document inicial' : ''),
+          })
+        : undefined
+    const owner = clean(form.get('owner'))
     const previousOwnerUserId = String(currentData.ownerUserId || '')
     const previousOwner = String(currentData.owner || '')
+    const hasOwnerInputChanged = owner !== previousOwner
+    const ownerUser = hasOwnerInputChanged && owner ? await findUserByName(owner) : null
 
     const payload: Record<string, unknown> = {
       name: clean(form.get('name')),
       sponsor: clean(form.get('sponsor')),
       owner,
-      ownerUserId: owner ? ownerUser?.id || '' : previousOwnerUserId,
+      ownerUserId: owner
+        ? hasOwnerInputChanged
+          ? ownerUser?.id || ''
+          : previousOwnerUserId
+        : previousOwnerUserId,
       context: clean(form.get('context')),
       strategy: clean(form.get('strategy')),
       risks: clean(form.get('risks')),
       startDate: clean(form.get('startDate')),
       launchDate: clean(form.get('launchDate')),
       budget: clean(form.get('budget')),
-      phase: clean(form.get('phase')) || String(currentData.phase || 'initial'),
-      status: clean(form.get('status')) || 'draft',
+      phase: clean(form.get('phase')) || String(currentData.phase || 'definition'),
+      status: '',
       updatedAt: Date.now(),
       updatedById: auth.user.id,
       updatedByName: auth.user.name || '',
@@ -197,8 +242,35 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       }
     }
 
+    const roomsRaw = form.get('rooms')
+    if (roomsRaw !== null) {
+      try {
+        payload.rooms = JSON.parse(String(roomsRaw))
+      } catch {
+        payload.rooms = Array.isArray(currentData.rooms) ? currentData.rooms : []
+      }
+    }
+
+    const documentsRaw = form.get('documents')
+    if (documentsRaw !== null) {
+      try {
+        payload.documents = JSON.parse(String(documentsRaw))
+      } catch {
+        payload.documents = currentDocuments
+      }
+    }
+
+    const baseDocuments = Array.isArray(payload.documents)
+      ? (payload.documents as Record<string, unknown>[])
+      : currentDocuments
+
     if (document) {
-      payload.document = document
+      payload.documents = [...baseDocuments, document]
+      if (document.category === 'initial') {
+        payload.document = document
+      }
+    } else if (!Array.isArray(payload.documents)) {
+      payload.documents = baseDocuments
     }
 
     const kickoffRaw = form.get('kickoff')
@@ -210,22 +282,80 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       }
     }
 
+    payload.phase = deriveProjectPhase({
+      launchDate: String(payload.launchDate ?? currentData.launchDate ?? ''),
+      kickoff: (payload.kickoff ?? currentData.kickoff ?? null) as Record<string, unknown> | null,
+      blocks: (Array.isArray(payload.blocks) ? payload.blocks : currentData.blocks || []) as Array<Record<string, unknown>>,
+    })
+
+    const nextRooms = Array.isArray(payload.rooms)
+      ? (payload.rooms as Record<string, unknown>[])
+      : currentRooms
+    const nextRoomIds = new Set(nextRooms.map((room) => String(room.id || '')).filter(Boolean))
+    const currentRoomIds = new Set(currentRooms.map((room) => String(room.id || '')).filter(Boolean))
+    const removedManualRooms = currentRooms.filter((room) => {
+      const roomId = String(room.id || '')
+      if (!roomId || nextRoomIds.has(roomId)) return false
+      return String(room.kind || '') === 'manual'
+    })
+    const addedRooms = nextRooms.filter((room) => {
+      const roomId = String(room.id || '')
+      return Boolean(roomId) && !currentRoomIds.has(roomId)
+    })
+    const previousLaunchExpired = hasLaunchWindowExpired(String(currentData.launchDate || ''))
+    const nextLaunchExpired = hasLaunchWindowExpired(String(payload.launchDate ?? currentData.launchDate ?? ''))
+
     await db.collection('projects').doc(id).set(payload, { merge: true })
+
+    const archiveTargets =
+      nextLaunchExpired && !previousLaunchExpired
+        ? nextRooms
+        : nextLaunchExpired
+          ? addedRooms
+          : []
 
     const hasOwnerChanged =
       Boolean(ownerUser?.id) &&
       (ownerUser.id !== previousOwnerUserId || owner !== previousOwner)
 
-    if (hasOwnerChanged) {
-      await notifyProjectOwner({
-        userId: ownerUser!.id,
-        projectId: id,
-        projectName: String(payload.name || currentData.name || ''),
-        baseUrl,
-      })
-    }
+    await Promise.allSettled([
+      ...(removedManualRooms.length > 0
+        ? removedManualRooms.map((room) =>
+            archiveProjectRoomOpsChannel({
+              projectId: id,
+              roomId: String(room.id || ''),
+              room: {
+                opsChannelId: String(room.opsChannelId || ''),
+                name: String(room.name || ''),
+              },
+            })
+          )
+        : []),
+      ...(archiveTargets.length > 0
+        ? archiveTargets.map((room) =>
+            archiveProjectRoomOpsChannel({
+              projectId: id,
+              roomId: String(room.id || ''),
+              room: {
+                opsChannelId: String(room.opsChannelId || ''),
+                name: String(room.name || ''),
+              },
+            })
+          )
+        : []),
+      ...(hasOwnerChanged
+        ? [
+            notifyProjectOwner({
+              userId: ownerUser!.id,
+              projectId: id,
+              projectName: String(payload.name || currentData.name || ''),
+              baseUrl,
+            }),
+          ]
+        : []),
+    ])
 
-    return NextResponse.json({ id })
+    return NextResponse.json({ id, document })
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Internal error'
     return NextResponse.json({ error: message }, { status: 500 })

@@ -104,6 +104,8 @@ export default function MaintenanceTicketsDecoPage() {
     userId,
     loading,
     error,
+    hasMoreTickets,
+    loadingMoreTickets,
     filters,
     setFilters,
     locations,
@@ -162,6 +164,7 @@ export default function MaintenanceTicketsDecoPage() {
     handleAssignVehicle,
     handleUpdateDetails,
     handleDelete,
+    fetchMoreTickets,
     groupedTickets,
   } = useMaintenanceTickets({ ticketType: 'deco' })
 
@@ -231,6 +234,19 @@ export default function MaintenanceTicketsDecoPage() {
           statusLabels={STATUS_LABELS}
           priorityLabels={PRIORITY_LABELS}
         />
+
+        {hasMoreTickets && (
+          <div className="flex justify-center">
+            <button
+              type="button"
+              onClick={() => void fetchMoreTickets()}
+              disabled={loadingMoreTickets}
+              className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {loadingMoreTickets ? 'Carregant...' : 'Carregar mes'}
+            </button>
+          </div>
+        )}
 
         {showCreate && (
           <CreateTicketModal

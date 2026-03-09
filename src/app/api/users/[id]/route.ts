@@ -30,6 +30,7 @@ interface UserUpdate {
   departmentLower?: string
   opsEventsConfigurable?: boolean
   opsEventsEnabled?: boolean
+  opsProjectsConfigurable?: boolean
   opsChannelsConfigurable?: string[]
   available?: boolean
   isDriver?: boolean

@@ -10,11 +10,15 @@ import { Calendar } from '../ui/calendar' // 🔹 Ruta relativa (no '@/') segons
 import {
   startOfWeek,
   endOfWeek,
+  startOfMonth,
+  endOfMonth,
   parseISO,
   isValid,
   format,
   addWeeks,
   subWeeks,
+  addMonths,
+  subMonths,
   addDays,
   subDays
 } from 'date-fns'
@@ -28,7 +32,7 @@ import {
 } from '@/components/ui/select'
 
 /* ==================== Tipus ==================== */
-type Mode = 'week' | 'day' | 'range'
+type Mode = 'week' | 'month' | 'day' | 'range'
 type Role = 'Admin' | 'Direcció' | 'Cap Departament' | 'Treballador'
 type RoleType = 'treballador' | 'conductor' | 'responsable' | 'all'
 
@@ -53,6 +57,7 @@ type WeekOpt = { label: string; start: string; end: string }
 
 export interface SmartFiltersProps {
   modeDefault?: Mode
+  modeOptions?: Mode[]
   weekOptions?: WeekOpt[]
   departmentOptions?: string[]
   workerOptions?: WorkerOpt[]
@@ -107,6 +112,7 @@ const labelDept = (v: string) =>
 /* ==================== Component ==================== */
 export default function SmartFilters({
   modeDefault = 'week',
+  modeOptions = ['week', 'day', 'range'],
   departmentOptions = [],
   workerOptions = [],
   locationOptions = [],
@@ -158,6 +164,16 @@ useEffect(() => {
 
     if (modeDefault === 'week') {
       setMode('week')
+      setAnchor(parsedStart)
+      setDayStr(initialStart)
+      setRangeStartStr(initialStart)
+      setRangeEndStr(initialEnd)
+      didInitRef.current = true
+      return
+    }
+
+    if (modeDefault === 'month') {
+      setMode('month')
       setAnchor(parsedStart)
       setDayStr(initialStart)
       setRangeStartStr(initialStart)
@@ -257,12 +273,19 @@ useEffect(() => {
   /* ---------- Dates ---------- */
   const weekStart = useMemo(() => startOfWeek(anchor, { weekStartsOn: 1 }), [anchor])
   const weekEnd = useMemo(() => endOfWeek(anchor, { weekStartsOn: 1 }), [anchor])
+  const monthStart = useMemo(() => startOfMonth(anchor), [anchor])
+  const monthEnd = useMemo(() => endOfMonth(anchor), [anchor])
   const weekLabel = useMemo(
   () => `${format(weekStart, 'd MMM', { locale: es })} – ${format(weekEnd, 'd MMM', { locale: es })}`,
   [weekStart, weekEnd]
 )
+  const monthLabel = useMemo(
+    () => format(monthStart, 'MMMM yyyy', { locale: es }).replace(/^./, (char) => char.toUpperCase()),
+    [monthStart]
+  )
   const headerLabel = useMemo(() => {
     if (mode === 'week') return weekLabel
+    if (mode === 'month') return monthLabel
     if (mode === 'day') {
       const d = parseISO(dayStr)
       return isValid(d) ? human(d) : 'Selecciona una data'
@@ -274,14 +297,16 @@ useEffect(() => {
       return `${human(a)} – ${human(b)}`
     }
     return 'Selecciona un rang de dates'
-  }, [mode, weekLabel, dayStr, rangeStartStr, rangeEndStr])
+  }, [mode, weekLabel, monthLabel, dayStr, rangeStartStr, rangeEndStr])
 
   const prev = () => {
     if (mode === 'week') setAnchor((p) => subWeeks(p, 1))
+    if (mode === 'month') setAnchor((p) => subMonths(p, 1))
     if (mode === 'day') setDayStr(toIso(subDays(parseISO(dayStr), 1)))
   }
   const next = () => {
     if (mode === 'week') setAnchor((p) => addWeeks(p, 1))
+    if (mode === 'month') setAnchor((p) => addMonths(p, 1))
     if (mode === 'day') setDayStr(toIso(addDays(parseISO(dayStr), 1)))
   }
 
@@ -295,6 +320,9 @@ useEffect(() => {
     if (mode === 'week') {
       start = toIso(weekStart)
       end = toIso(weekEnd)
+    } else if (mode === 'month') {
+      start = toIso(monthStart)
+      end = toIso(monthEnd)
     } else if (mode === 'day') {
       const d = parseISO(dayStr)
       if (isValid(d)) {
@@ -350,6 +378,8 @@ if (key !== lastPayloadRef.current) {
     mode,
     weekStart,
     weekEnd,
+    monthStart,
+    monthEnd,
     dayStr,
     rangeStartStr,
     rangeEndStr,
@@ -372,13 +402,13 @@ if (key !== lastPayloadRef.current) {
 
   useEffect(() => {
     if (resetSignal === undefined || resetSignal <= 0) return
-    setMode('week')
+    setMode(modeDefault)
     setAnchor(new Date())
     setDayStr(toIso(new Date()))
     setRangeStartStr('')
     setRangeEndStr('')
     setRoleType('all')
-  }, [resetSignal])
+  }, [resetSignal, modeDefault])
 
   const containerClass = compact
     ? 'inline-flex flex-row flex-wrap items-center gap-2'
@@ -414,7 +444,11 @@ if (key !== lastPayloadRef.current) {
       </span>
     )}
 
-    {mode === 'day' ? null : null}
+    {mode === 'month' && (
+      <span className="text-[13px] font-medium whitespace-nowrap px-0.5">
+        {monthLabel}
+      </span>
+    )}
 
     <Button
       size="icon"
@@ -546,6 +580,7 @@ if (key !== lastPayloadRef.current) {
   </div>
 
   {/* 🔘 Botó únic amb Popover horitzontal per seleccionar Setmana / Dia / Rang */}
+{modeOptions.length > 1 ? (
 <Popover>
   <PopoverTrigger asChild>
     <Button
@@ -553,7 +588,7 @@ if (key !== lastPayloadRef.current) {
       size="sm"
       className="h-9 px-4 rounded-lg border bg-white text-gray-900 flex items-center gap-1"
     >
-      {mode === 'week' ? 'Setmana' : mode === 'day' ? 'Dia' : 'Rang'}
+      {mode === 'week' ? 'Setmana' : mode === 'month' ? 'Mes' : mode === 'day' ? 'Dia' : 'Rang'}
       <span className="text-gray-500 text-xs">▼</span>
     </Button>
   </PopoverTrigger>
@@ -563,7 +598,7 @@ if (key !== lastPayloadRef.current) {
     align="center"
     className="p-1 w-auto rounded-xl border bg-white shadow-md flex gap-1"
   >
-    {(['week', 'day', 'range'] as Mode[]).map((opt) => (
+    {modeOptions.map((opt) => (
       <Button
         key={opt}
         size="sm"
@@ -572,7 +607,7 @@ if (key !== lastPayloadRef.current) {
         onClick={() => {
           setMode(opt)
           // 🔹 Reiniciem estats segons el mode
-          if (opt === 'week') {
+          if (opt === 'week' || opt === 'month') {
             setAnchor(new Date())
             setDayStr(toIso(new Date()))
             setRangeStartStr('')
@@ -587,11 +622,12 @@ if (key !== lastPayloadRef.current) {
           }
         }}
       >
-        {opt === 'week' ? 'Setmana' : opt === 'day' ? 'Dia' : 'Rang'}
+        {opt === 'week' ? 'Setmana' : opt === 'month' ? 'Mes' : opt === 'day' ? 'Dia' : 'Rang'}
       </Button>
     ))}
   </PopoverContent>
 </Popover>
+) : null}
 
 </div> {/* ✅ Tanca la barra superior de filtres */}
 

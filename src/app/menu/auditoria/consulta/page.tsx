@@ -11,17 +11,6 @@ import { useFilters } from '@/context/FiltersContext'
 import FilterButton from '@/components/ui/filter-button'
 import { Button } from '@/components/ui/button'
 
-type ExecutionRow = {
-  id: string
-  eventId: string
-  eventSummary?: string
-  eventCode?: string
-  eventLocation?: string
-  eventDay?: string
-  status: string
-  completedAt: number
-}
-
 type EventRow = {
   eventId: string
   eventSummary: string
@@ -31,13 +20,6 @@ type EventRow = {
   eventLn: string
   audits: number
   lastAt: number
-}
-
-type EventMeta = {
-  eventCode?: string
-  eventDay?: string
-  eventLocation?: string
-  eventLn?: string
 }
 
 const normalizeText = (value: string) =>
@@ -81,8 +63,6 @@ const formatIsoDay = (iso?: string) => {
   return `${dd}/${mm}/${yyyy}`
 }
 
-const isIsoDay = (value?: string) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || '').trim())
-
 const lnFromCode = (code?: string) => {
   const s = String(code || '').trim().toUpperCase()
   if (!s) return ''
@@ -104,8 +84,7 @@ export default function AuditoriaConsultaPage() {
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [rows, setRows] = useState<ExecutionRow[]>([])
-  const [eventMeta, setEventMeta] = useState<Record<string, EventMeta>>({})
+  const [events, setEvents] = useState<EventRow[]>([])
 
   const load = async (opts?: { fromTs?: number; toTs?: number }) => {
     setLoading(true)
@@ -114,17 +93,17 @@ export default function AuditoriaConsultaPage() {
       const fromTs = typeof opts?.fromTs === 'number' ? opts.fromTs : toStartTs(fromDate)
       const toTs = typeof opts?.toTs === 'number' ? opts.toTs : toEndTs(toDate)
 
-      const qs = new URLSearchParams({ limit: '2000', status: 'validated' })
+      const qs = new URLSearchParams({ limit: '300' })
       if (fromTs > 0) qs.set('fromTs', String(fromTs))
       if (toTs > 0) qs.set('toTs', String(toTs))
 
-      const res = await fetch(`/api/auditoria/executions/list?${qs.toString()}`, { cache: 'no-store' })
+      const res = await fetch(`/api/auditoria/consulta/summary?${qs.toString()}`, { cache: 'no-store' })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(String(json?.error || 'No s ha pogut carregar la consulta'))
-      setRows(Array.isArray(json?.executions) ? (json.executions as ExecutionRow[]) : [])
+      setEvents(Array.isArray(json?.events) ? (json.events as EventRow[]) : [])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error carregant consulta')
-      setRows([])
+      setEvents([])
     } finally {
       setLoading(false)
     }
@@ -133,85 +112,6 @@ export default function AuditoriaConsultaPage() {
   useEffect(() => {
     load()
   }, [])
-
-  useEffect(() => {
-    let cancelled = false
-    const run = async () => {
-      try {
-        const qs = new URLSearchParams({
-          start: fromDate,
-          end: toDate,
-          scope: 'all',
-        })
-        const res = await fetch(`/api/events/list?${qs.toString()}`, { cache: 'no-store' })
-        const json = await res.json().catch(() => ({}))
-        if (!res.ok) return
-        const events = Array.isArray(json?.events) ? (json.events as Array<Record<string, unknown>>) : []
-        const next: Record<string, EventMeta> = {}
-        events.forEach((ev) => {
-          const eventId = String(ev?.id || '').trim()
-          if (!eventId) return
-          const eventCode = String(ev?.eventCode || '').trim()
-          const eventLocation = String(ev?.location || '').trim()
-          const eventLn = String(ev?.lnLabel || ev?.lnKey || '').trim()
-          const eventDayRaw = String(ev?.day || '').trim() || String(ev?.start || '').trim().slice(0, 10)
-          next[eventId] = {
-            eventCode: eventCode || '',
-            eventLocation: eventLocation || '',
-            eventLn: eventLn || '',
-            eventDay: isIsoDay(eventDayRaw) ? eventDayRaw : '',
-          }
-        })
-        if (cancelled) return
-        setEventMeta(next)
-      } catch {
-        // silent fallback to audit data
-      }
-    }
-    run()
-    return () => {
-      cancelled = true
-    }
-  }, [fromDate, toDate])
-
-  const events = useMemo<EventRow[]>(() => {
-    const map = new Map<string, EventRow>()
-    rows.forEach((r) => {
-      const eventId = String(r.eventId || '').trim()
-      if (!eventId) return
-      const current = map.get(eventId)
-      if (!current) {
-        map.set(eventId, {
-          eventId,
-          eventSummary: String(r.eventSummary || `Event ${eventId}`),
-          eventCode: String(eventMeta[eventId]?.eventCode || r.eventCode || ''),
-          eventLocation: String(eventMeta[eventId]?.eventLocation || r.eventLocation || '-'),
-          eventDay: /^\d{4}-\d{2}-\d{2}$/.test(String(r.eventDay || ''))
-            ? String(eventMeta[eventId]?.eventDay || r.eventDay)
-            : String(eventMeta[eventId]?.eventDay || ''),
-          eventLn: String(eventMeta[eventId]?.eventLn || ''),
-          audits: 1,
-          lastAt: Number(r.completedAt || 0),
-        })
-        return
-      }
-      current.audits += 1
-      if (!current.eventCode && (eventMeta[eventId]?.eventCode || r.eventCode)) {
-        current.eventCode = String(eventMeta[eventId]?.eventCode || r.eventCode)
-      }
-      if ((current.eventLocation === '-' || !current.eventLocation) && (eventMeta[eventId]?.eventLocation || r.eventLocation)) {
-        current.eventLocation = String(eventMeta[eventId]?.eventLocation || r.eventLocation)
-      }
-      if (!current.eventLn && eventMeta[eventId]?.eventLn) {
-        current.eventLn = String(eventMeta[eventId]?.eventLn)
-      }
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(current.eventDay || '') && isIsoDay(eventMeta[eventId]?.eventDay || r.eventDay)) {
-        current.eventDay = String(eventMeta[eventId]?.eventDay)
-      }
-      if (Number(r.completedAt || 0) > current.lastAt) current.lastAt = Number(r.completedAt || 0)
-    })
-    return Array.from(map.values()).sort((a, b) => b.lastAt - a.lastAt)
-  }, [rows, eventMeta])
 
   const lnOptions = useMemo(() => {
     return Array.from(new Set(events.map((e) => e.eventLn || lnFromCode(e.eventCode)).filter(Boolean))).sort((a, b) => a.localeCompare(b))

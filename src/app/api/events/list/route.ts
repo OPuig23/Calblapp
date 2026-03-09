@@ -2,7 +2,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
-import { firestoreAdmin } from '@/lib/firebaseAdmin'
 
 
 export const runtime = 'nodejs'
@@ -66,6 +65,12 @@ interface QuadrantDoc {
   responsable?: { name?: string }
   conductors?: Array<{ name?: string }>
   treballadors?: Array<{ name?: string }>
+}
+
+type AvisoSummary = {
+  content: string
+  department: string
+  createdAt: string
 }
 
 /* ================== Collections map ================== */
@@ -133,6 +138,54 @@ async function fetchQuadrantsRange(
   return out
 }
 
+async function fetchLatestAvisosByCodes(codes: string[]): Promise<Map<string, AvisoSummary>> {
+  const normalizedCodes = Array.from(
+    new Set(codes.map((code) => String(code || '').trim()).filter(Boolean))
+  )
+  const out = new Map<string, AvisoSummary>()
+  if (normalizedCodes.length === 0) return out
+
+  for (let i = 0; i < normalizedCodes.length; i += 10) {
+    const chunk = normalizedCodes.slice(i, i + 10)
+    const snap = await db.collection('avisos').where('code', 'in', chunk).get()
+
+    snap.forEach((doc) => {
+      const data = doc.data() as {
+        code?: string
+        content?: string
+        department?: string
+        createdAt?: { toDate?: () => Date } | string
+        editedAt?: { toDate?: () => Date } | string
+        createdBy?: { department?: string }
+      }
+      const code = String(data.code || '').trim()
+      if (!code) return
+
+      const createdAtValue =
+        typeof data.editedAt === 'object' && data.editedAt?.toDate
+          ? data.editedAt.toDate().toISOString()
+          : typeof data.editedAt === 'string'
+          ? data.editedAt
+          : typeof data.createdAt === 'object' && data.createdAt?.toDate
+          ? data.createdAt.toDate().toISOString()
+          : typeof data.createdAt === 'string'
+          ? data.createdAt
+          : ''
+
+      const current = out.get(code)
+      if (current && current.createdAt >= createdAtValue) return
+
+      out.set(code, {
+        content: String(data.content || ''),
+        department: String(data.createdBy?.department || data.department || ''),
+        createdAt: createdAtValue,
+      })
+    })
+  }
+
+  return out
+}
+
 /* ================== Roles ================== */
 type Role = 'admin' | 'direccio' | 'cap' | 'treballador' | 'comercial' | 'usuari'
 
@@ -151,6 +204,7 @@ function roleFrom(token: TokenLike | null): Role {
 
 /* ================== Handler ================== */
 export async function GET(req: NextRequest) {
+  const startedAt = Date.now()
   try {
     const url = new URL(req.url)
     const start = url.searchParams.get('start')
@@ -354,12 +408,17 @@ export async function GET(req: NextRequest) {
     }
 
     /* ==== Enriquiment ==== */
+    const avisoMap = await fetchLatestAvisosByCodes(
+      filteredByRange.map((ev) => String(ev.eventCode || '').trim()).filter(Boolean)
+    )
+
     const enriched = filteredByRange.map((ev) => {
       const keyByCode = normCode(ev.eventCode || '')
       const responsablesForCode = Array.from(responsablesMap.get(keyByCode) || [])
       const responsableName = responsablesForCode.join(', ')
       const state = stateMap.get(keyByCode) || 'pending'
-      return { ...ev, responsableName, state }
+      const aviso = ev.eventCode ? avisoMap.get(String(ev.eventCode).trim()) ?? null : null
+      return { ...ev, responsableName, state, lastAviso: aviso }
     })
 
     /* ==== Filtrat final ==== */
@@ -377,15 +436,25 @@ export async function GET(req: NextRequest) {
       finalEvents = enriched.map((ev) => ({ ...ev, isResponsible: false }))
     }
 
-    return NextResponse.json(
-      {
-        events: finalEvents,
-        responsables: Array.from(responsablesSet),
-        responsablesDetailed: Array.from(responsablesDetailedSet).map((r) => JSON.parse(r)),
-        locations: Array.from(new Set(finalEvents.map((e) => e.location).filter(Boolean))),
-      },
-      { status: 200 }
-    )
+    console.info('[events/list] completed', {
+      durationMs: Date.now() - startedAt,
+      role,
+      scope,
+      department: qsDept || sessDept || '',
+      start,
+      end,
+      returned: finalEvents.length,
+      baseRows: base.length,
+      filteredRows: filteredByRange.length,
+      quadrantCollections: collNames.length,
+    })
+
+    return NextResponse.json({
+      events: finalEvents,
+      responsables: Array.from(responsablesSet),
+      responsablesDetailed: Array.from(responsablesDetailedSet).map((r) => JSON.parse(r)),
+      locations: Array.from(new Set(finalEvents.map((e) => e.location).filter(Boolean))),
+    }, { status: 200 })
   } catch (err: unknown) {
     console.error('[api/events/list] â error', err)
     if (err instanceof Error) {

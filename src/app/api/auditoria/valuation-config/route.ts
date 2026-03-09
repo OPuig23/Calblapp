@@ -75,6 +75,7 @@ async function authContext() {
 }
 
 export async function GET() {
+  const startedAt = Date.now()
   try {
     const auth = await authContext()
     if ('error' in auth) return auth.error
@@ -91,14 +92,25 @@ export async function GET() {
           : []
         : DEPARTMENTS
 
+    console.info('[auditoria/valuation-config] get completed', {
+      durationMs: Date.now() - startedAt,
+      role: auth.role,
+      allowedDepartments,
+    })
+
     return NextResponse.json({ config, allowedDepartments }, { status: 200 })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Error intern'
+    console.error('[auditoria/valuation-config] get failed', {
+      durationMs: Date.now() - startedAt,
+      error: message,
+    })
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }
 
 export async function PATCH(req: Request) {
+  const startedAt = Date.now()
   try {
     const auth = await authContext()
     if ('error' in auth) return auth.error
@@ -143,9 +155,19 @@ export async function PATCH(req: Request) {
       { merge: true }
     )
 
+    console.info('[auditoria/valuation-config] patch completed', {
+      durationMs: Date.now() - startedAt,
+      role: auth.role,
+      department,
+    })
+
     return NextResponse.json({ ok: true }, { status: 200 })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Error intern'
+    console.error('[auditoria/valuation-config] patch failed', {
+      durationMs: Date.now() - startedAt,
+      error: message,
+    })
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }

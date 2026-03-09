@@ -7,12 +7,14 @@ import { Member, PendingImage } from '../types'
 type Props = {
   typingUsers: Record<string, number>
   pendingImage: PendingImage | null
+  pendingFileName?: string | null
   imageError: string | null
   imageUploading: boolean
   isSending: boolean
   messageText: string
   onTextChange: (value: string) => void
   onRemoveImage: () => void
+  onRemovePendingFile?: () => void
   onPickFile: () => void
   onSend: () => void
   onQuick: (value: string) => void
@@ -24,17 +26,20 @@ type Props = {
   isReadOnly: boolean
   fileInputRef: React.RefObject<HTMLInputElement>
   onFileChange: (file: File | null) => void
+  fileAccept?: string
 }
 
 export default function Composer({
   typingUsers,
   pendingImage,
+  pendingFileName,
   imageError,
   imageUploading,
   isSending,
   messageText,
   onTextChange,
   onRemoveImage,
+  onRemovePendingFile,
   onPickFile,
   onSend,
   onQuick,
@@ -46,6 +51,7 @@ export default function Composer({
   isReadOnly,
   fileInputRef,
   onFileChange,
+  fileAccept,
 }: Props) {
   return (
     <div className="border-t p-3 space-y-2 bg-white dark:bg-slate-900 fixed bottom-0 left-0 right-0 lg:sticky lg:bottom-0 pb-[env(safe-area-inset-bottom)] dark:border-slate-800">
@@ -67,6 +73,20 @@ export default function Composer({
             onClick={onRemoveImage}
           >
             Eliminar imatge
+          </button>
+        </div>
+      )}
+      {!pendingImage && pendingFileName && (
+        <div className="flex items-center gap-3 text-sm">
+          <div className="rounded border px-3 py-2 dark:border-slate-700">
+            {pendingFileName}
+          </div>
+          <button
+            type="button"
+            className="text-red-600 text-xs"
+            onClick={onRemovePendingFile}
+          >
+            Eliminar fitxer
           </button>
         </div>
       )}
@@ -94,7 +114,7 @@ export default function Composer({
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*"
+          accept={fileAccept || 'image/*'}
           className="hidden"
           onChange={(e) => onFileChange(e.target.files?.[0] || null)}
         />
@@ -102,7 +122,7 @@ export default function Composer({
           type="button"
           className="border rounded px-2 py-1 text-gray-600 hover:text-gray-800 hover:border-gray-400 dark:text-slate-300 dark:border-slate-700 dark:hover:text-white dark:hover:border-slate-500"
           onClick={onPickFile}
-          title="Adjuntar imatge"
+          title="Adjuntar fitxer"
           disabled={imageUploading || isReadOnly}
         >
           <Paperclip className="w-4 h-4" />

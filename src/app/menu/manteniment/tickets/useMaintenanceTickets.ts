@@ -33,6 +33,9 @@ export function useMaintenanceTickets(options?: { ticketType?: TicketType }) {
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [hasMoreTickets, setHasMoreTickets] = useState(false)
+  const [nextTicketsCursor, setNextTicketsCursor] = useState<number | null>(null)
+  const [loadingMoreTickets, setLoadingMoreTickets] = useState(false)
 
   const initial: FiltersState = useMemo(() => {
     const s = startOfWeek(new Date(), { weekStartsOn: 1 })
@@ -110,28 +113,54 @@ export function useMaintenanceTickets(options?: { ticketType?: TicketType }) {
     [transports]
   )
 
-  const fetchTickets = async () => {
+  const fetchTickets = async (opts?: { append?: boolean; cursorCreatedAt?: number }) => {
+    const append = Boolean(opts?.append)
+    const cursorCreatedAt = opts?.cursorCreatedAt
     try {
-      setLoading(true)
-      setError(null)
+      if (append) {
+        setLoadingMoreTickets(true)
+      } else {
+        setLoading(true)
+        setError(null)
+      }
       const params = new URLSearchParams()
+      params.set('limit', '100')
       if (statusFilter !== '__all__') params.set('status', statusFilter)
       if (priorityFilter !== '__all__') params.set('priority', priorityFilter)
       if (ticketTypeFilter) params.set('ticketType', ticketTypeFilter)
       if (locationFilter && locationFilter !== '__all__') {
         params.set('location', locationFilter)
       }
+      if (cursorCreatedAt && cursorCreatedAt > 0) {
+        params.set('cursorCreatedAt', String(cursorCreatedAt))
+      }
       const res = await fetch(`/api/maintenance/tickets?${params.toString()}`, {
         cache: 'no-store',
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const json = await res.json()
-      setTickets(Array.isArray(json?.tickets) ? json.tickets : [])
+      const nextTickets = Array.isArray(json?.tickets) ? json.tickets : []
+      setTickets((prev) => (append ? [...prev, ...nextTickets] : nextTickets))
+      setHasMoreTickets(Boolean(json?.hasMore))
+      setNextTicketsCursor(
+        typeof json?.nextCursorCreatedAt === 'number' && json.nextCursorCreatedAt > 0
+          ? json.nextCursorCreatedAt
+          : null
+      )
     } catch (err: any) {
+      void err
       setError('No s’han pogut carregar els tickets.')
-      setTickets([])
+      if (!append) {
+        setTickets([])
+      }
+      setHasMoreTickets(false)
+      setNextTicketsCursor(null)
     } finally {
-      setLoading(false)
+      if (append) {
+        setLoadingMoreTickets(false)
+      } else {
+        setLoading(false)
+      }
     }
   }
 
@@ -517,6 +546,9 @@ export function useMaintenanceTickets(options?: { ticketType?: TicketType }) {
     tickets,
     loading,
     error,
+    hasMoreTickets,
+    nextTicketsCursor,
+    loadingMoreTickets,
     filters,
     setFilters,
     locations,
@@ -576,6 +608,10 @@ export function useMaintenanceTickets(options?: { ticketType?: TicketType }) {
     handleAssignVehicle,
     handleUpdateDetails,
     handleDelete,
+    fetchMoreTickets: () =>
+      nextTicketsCursor
+        ? fetchTickets({ append: true, cursorCreatedAt: nextTicketsCursor })
+        : Promise.resolve(),
     groupedTickets,
   }
 }

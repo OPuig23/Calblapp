@@ -34,11 +34,12 @@ export default function MissatgeriaPage() {
   const [loadingSend, setLoadingSend] = useState(false)
   const [messagesState, setMessagesState] = useState<Message[]>([])
   const [loadingMore, setLoadingMore] = useState(false)
-  const [categoryFilter, setCategoryFilter] = useState<'finques' | 'restaurants' | 'events'>('finques')
+  const [categoryFilter, setCategoryFilter] = useState<'finques' | 'restaurants' | 'events' | 'projects'>('finques')
   const [channelQuery, setChannelQuery] = useState('')
   const [imageUploading, setImageUploading] = useState(false)
   const [imageError, setImageError] = useState<string | null>(null)
   const [pendingImage, setPendingImage] = useState<PendingImage | null>(null)
+  const [pendingFile, setPendingFile] = useState<File | null>(null)
   const [mentionQuery, setMentionQuery] = useState('')
   const [mentionOpen, setMentionOpen] = useState(false)
   const [mentionTarget, setMentionTarget] = useState<Member | null>(null)
@@ -55,6 +56,21 @@ export default function MissatgeriaPage() {
   const [creatingTicketId, setCreatingTicketId] = useState<string | null>(null)
   const [ticketTypePickerId, setTicketTypePickerId] = useState<string | null>(null)
   const [eventChannel, setEventChannel] = useState<Channel | null>(null)
+
+  const syncMessagesLocal = useCallback(
+    (updater: (current: Message[]) => Message[]) => {
+      setMessagesState((current) => {
+        const next = updater(current)
+          .filter(Boolean)
+          .sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0))
+        if (selectedChannelId) {
+          messagesCache.current.set(selectedChannelId, next)
+        }
+        return next
+      })
+    },
+    [selectedChannelId]
+  )
 
   const { data: channelsData, mutate: refreshChannels } = useSWR(
     '/api/messaging/channels?scope=mine',
@@ -168,6 +184,8 @@ export default function MissatgeriaPage() {
           c.name,
           c.source,
           c.location,
+          c.projectName,
+          c.roomName,
           c.eventCode,
           c.eventTitle,
           c.eventStart,
@@ -233,9 +251,13 @@ export default function MissatgeriaPage() {
     [allChannels, selectedChannelId]
   )
 
-  const isReadOnlyEvent = useMemo(() => {
-    if (!selectedChannel || selectedChannel.source !== 'events') return false
+  const isReadOnlyChannel = useMemo(() => {
+    if (!selectedChannel) return false
     const status = String(selectedChannel.status || '').toLowerCase()
+    if (selectedChannel.source === 'projects') {
+      return status === 'archived'
+    }
+    if (selectedChannel.source !== 'events') return false
     const until =
       typeof selectedChannel.visibleUntil === 'number'
         ? selectedChannel.visibleUntil
@@ -331,8 +353,7 @@ export default function MissatgeriaPage() {
       const data = msg?.data as Message | undefined
       if (!data) return
       if (data.channelId !== selectedChannelId) return
-      refreshMessages()
-      refreshChannels()
+      syncMessagesLocal((current) => [data, ...current.filter((item) => item.id !== data.id)])
     }
 
     channel.subscribe('message', handleMessage)
@@ -348,7 +369,7 @@ export default function MissatgeriaPage() {
       channel.unsubscribe('typing')
       direct?.unsubscribe('message', handleMessage)
     }
-  }, [selectedChannelId, userId, refreshMessages, refreshChannels])
+  }, [selectedChannelId, userId, syncMessagesLocal])
 
   const loadMore = async () => {
     if (!selectedChannelId || messagesState.length === 0) return
@@ -373,13 +394,47 @@ export default function MissatgeriaPage() {
   const sendMessage = async () => {
     const hasText = !!messageText.trim()
     const hasImage = !!pendingImage?.url
-    if (!selectedChannelId || (!hasText && !hasImage)) return
+    const hasFile = !!pendingFile
+    if (!selectedChannelId || (!hasText && !hasImage && !hasFile)) return
     const directTarget = mentionTarget?.userId || ''
     const finalVisibility = directTarget ? 'direct' : 'channel'
 
     try {
       setLoadingSend(true)
-      await fetch(`/api/messaging/channels/${selectedChannelId}/messages`, {
+      let filePayload:
+        | {
+            fileUrl?: string
+            filePath?: string
+            fileName?: string
+            fileMeta?: { size?: number; type?: string }
+          }
+        | undefined
+
+      if (pendingFile && selectedChannel?.source === 'projects') {
+        const form = new FormData()
+        form.append('file', pendingFile)
+        form.append('channelId', selectedChannelId)
+        const uploadRes = await fetch('/api/messaging/upload-file', {
+          method: 'POST',
+          body: form,
+        })
+        const uploadData = await uploadRes.json().catch(() => ({}))
+        if (!uploadRes.ok || !uploadData?.document) {
+          throw new Error(uploadData?.error || 'Error pujant el fitxer')
+        }
+        filePayload = {
+          fileUrl: uploadData.document.url,
+          filePath: uploadData.document.path,
+          fileName: uploadData.document.name || uploadData.document.label,
+          fileMeta: {
+            size: uploadData.document.size,
+            type: uploadData.document.type,
+          },
+        }
+      }
+
+      const createdAt = Date.now()
+      const sendRes = await fetch(`/api/messaging/channels/${selectedChannelId}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -389,14 +444,40 @@ export default function MissatgeriaPage() {
           imageUrl: pendingImage?.url || undefined,
           imagePath: pendingImage?.path || undefined,
           imageMeta: pendingImage?.meta || undefined,
+          fileUrl: filePayload?.fileUrl,
+          filePath: filePayload?.filePath,
+          fileName: filePayload?.fileName,
+          fileMeta: filePayload?.fileMeta,
         }),
       })
+      const sendData = await sendRes.json().catch(() => ({}))
+      if (!sendRes.ok || !sendData?.messageId) {
+        throw new Error(sendData?.error || 'No s ha pogut enviar el missatge')
+      }
+      const optimisticMessage: Message = {
+        id: String(sendData.messageId),
+        channelId: selectedChannelId,
+        senderId: userId || '',
+        senderName: String((session?.user as any)?.name || ''),
+        body: hasText ? messageText.trim() : '',
+        createdAt,
+        visibility: finalVisibility,
+        targetUserIds: finalVisibility === 'direct' && directTarget ? [directTarget] : [],
+        imageUrl: pendingImage?.url || null,
+        imagePath: pendingImage?.path || null,
+        imageMeta: pendingImage?.meta || null,
+        fileUrl: filePayload?.fileUrl || null,
+        filePath: filePayload?.filePath || null,
+        fileName: filePayload?.fileName || null,
+        fileMeta: filePayload?.fileMeta || null,
+      }
+      syncMessagesLocal((current) => [optimisticMessage, ...current.filter((item) => item.id !== optimisticMessage.id)])
       setMessageText('')
       setPendingImage(null)
+      setPendingFile(null)
       setMentionTarget(null)
       setMentionQuery('')
       setMentionOpen(false)
-      refreshMessages()
       refreshChannels()
     } finally {
       setLoadingSend(false)
@@ -405,8 +486,12 @@ export default function MissatgeriaPage() {
 
   const deleteMessage = async (msgId: string) => {
     if (!confirm('Vols esborrar aquest missatge?')) return
-    await fetch(`/api/messaging/messages/${msgId}`, { method: 'DELETE' })
-    refreshMessages()
+    const res = await fetch(`/api/messaging/messages/${msgId}`, { method: 'DELETE' })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data?.error || 'No s ha pogut esborrar el missatge')
+    }
+    syncMessagesLocal((current) => current.filter((message) => message.id !== msgId))
     refreshChannels()
   }
 
@@ -479,11 +564,21 @@ export default function MissatgeriaPage() {
     return { blob, width, height, type: blob.type, size: blob.size }
   }
 
-  const handleImagePick = async (file: File | null) => {
+  const handleAttachmentPick = async (file: File | null) => {
     if (!file || !selectedChannelId || !userId) return
     setImageError(null)
+    if (!file.type.startsWith('image/')) {
+      if (selectedChannel?.source !== 'projects') {
+        setImageError('Aquest canal només permet adjuntar imatges')
+        return
+      }
+      setPendingImage(null)
+      setPendingFile(file)
+      return
+    }
     try {
       setImageUploading(true)
+      setPendingFile(null)
       const { blob, width, height, type, size } = await compressImage(file)
       if (size > 1024 * 1024) {
         throw new Error('La imatge encara pesa massa')
@@ -627,6 +722,7 @@ export default function MissatgeriaPage() {
                       title="Tornar a l'esdeveniment"
                     >
                       {selectedChannel?.eventTitle ||
+                        selectedChannel?.roomName ||
                         selectedChannel?.location ||
                         selectedChannel?.name ||
                         'Selecciona un canal'}
@@ -634,6 +730,7 @@ export default function MissatgeriaPage() {
                   ) : (
                     <div className="text-sm font-semibold text-gray-800 dark:text-slate-100 truncate">
                       {selectedChannel?.eventTitle ||
+                        selectedChannel?.roomName ||
                         selectedChannel?.location ||
                         selectedChannel?.name ||
                         'Selecciona un canal'}
@@ -644,6 +741,11 @@ export default function MissatgeriaPage() {
                       {[selectedChannel.eventCode, eventDateLabel(selectedChannel.eventStart)]
                         .filter(Boolean)
                         .join(' · ')}
+                    </div>
+                  )}
+                  {selectedChannel?.source === 'projects' && (
+                    <div className="text-[11px] text-gray-500 dark:text-slate-400 truncate">
+                      {[selectedChannel.projectName, selectedChannel.location].filter(Boolean).join(' · ')}
                     </div>
                   )}
                 </div>
@@ -729,6 +831,7 @@ export default function MissatgeriaPage() {
             <Composer
               typingUsers={typingUsers}
               pendingImage={pendingImage}
+              pendingFileName={pendingFile?.name || null}
               imageError={imageError}
               imageUploading={imageUploading}
               isSending={loadingSend}
@@ -739,6 +842,7 @@ export default function MissatgeriaPage() {
                 handleTyping(value)
               }}
               onRemoveImage={() => setPendingImage(null)}
+              onRemovePendingFile={() => setPendingFile(null)}
               onPickFile={() => fileInputRef.current?.click()}
               onSend={sendMessage}
               onQuick={(quick) => setMessageText((prev) => `${prev} ${quick}`.trim())}
@@ -747,9 +851,10 @@ export default function MissatgeriaPage() {
               mentionQuery={mentionQuery}
               members={members}
               onSelectMention={selectMention}
-              isReadOnly={isReadOnlyEvent}
+              isReadOnly={isReadOnlyChannel}
               fileInputRef={fileInputRef}
-              onFileChange={(file) => handleImagePick(file)}
+              onFileChange={(file) => handleAttachmentPick(file)}
+              fileAccept={selectedChannel?.source === 'projects' ? '*/*' : 'image/*'}
             />
           </section>
         </div>

@@ -1,7 +1,7 @@
 'use client'
 
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { phaseLabel, statusLabel, type ProjectData } from './project-shared'
+import { formatProjectDate, phaseLabel, type ProjectData } from './project-shared'
 import { type WorkspaceTab, workspaceTabs } from './project-workspace-helpers'
 
 type Props = {
@@ -15,50 +15,50 @@ export default function ProjectWorkspaceShell({
   activeTab,
   onTabChange,
 }: Props) {
-  const stats = [
-    { label: 'Departaments', value: String(project.departments.length) },
-    { label: 'Blocs', value: String(project.blocks.length) },
-    { label: 'Kickoff', value: project.kickoff.status ? 'Programat' : 'Pendent' },
-  ]
+  const launchDateRaw = String(project.launchDate || '').trim()
+  const launchDate = launchDateRaw
+    ? new Date(launchDateRaw.length === 10 ? `${launchDateRaw}T00:00:00` : launchDateRaw)
+    : null
+  const today = new Date()
+  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  const launchStart =
+    launchDate && !Number.isNaN(launchDate.getTime())
+      ? new Date(launchDate.getFullYear(), launchDate.getMonth(), launchDate.getDate())
+      : null
+  const daysToLaunch = launchStart
+    ? Math.round((launchStart.getTime() - todayStart.getTime()) / 86400000)
+    : null
 
   return (
-    <section className="overflow-hidden rounded-[28px] border border-violet-200 bg-white shadow-sm">
-      <div className="border-b border-violet-200 bg-gradient-to-r from-violet-50 via-white to-fuchsia-50 px-6 py-6">
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-          <div className="space-y-3">
-            <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-2xl font-semibold text-slate-900">
-                {project.name || 'Projecte sense nom'}
-              </h1>
-              <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">
-                {statusLabel(project.status)}
-              </span>
-              <span className="rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-700">
-                {phaseLabel(project.phase)}
-              </span>
-            </div>
-
-            <div className="flex flex-wrap gap-4 text-sm text-slate-600">
-              <span>Responsable: {project.owner || 'Sense assignar'}</span>
-              <span>Impulsor: {project.sponsor || 'Sense assignar'}</span>
-              <span>Arrencada: {project.launchDate || 'Sense data'}</span>
-            </div>
+    <section className="overflow-hidden rounded-[28px] bg-gradient-to-b from-white to-slate-50/60">
+      <div className="bg-gradient-to-r from-violet-50 via-white to-fuchsia-50 px-6 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-semibold text-slate-900">
+              {project.name || 'Projecte sense nom'}
+            </h1>
+            <span className="rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-700">
+              {phaseLabel(project.phase)}
+            </span>
           </div>
-
-          <div className="grid min-w-[260px] grid-cols-3 gap-3">
-            {stats.map((item) => (
-              <div key={item.label} className="rounded-2xl bg-white/90 px-4 py-3 ring-1 ring-slate-200">
-                <div className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                  {item.label}
-                </div>
-                <div className="mt-1 text-lg font-semibold text-slate-900">{item.value}</div>
-              </div>
-            ))}
+          <div className="flex flex-wrap items-center gap-3 text-sm">
+            <span className="rounded-full bg-white/80 px-3 py-1.5 font-medium text-slate-700">
+              Arrencada: {formatProjectDate(project.launchDate)}
+            </span>
+            {daysToLaunch !== null ? (
+              <span className="rounded-full bg-slate-100 px-3 py-1.5 font-medium text-slate-700">
+                {daysToLaunch > 0
+                  ? `Falten ${daysToLaunch} dies`
+                  : daysToLaunch === 0
+                    ? 'Arrencada avui'
+                    : `Retard de ${Math.abs(daysToLaunch)} dies`}
+              </span>
+            ) : null}
           </div>
         </div>
       </div>
 
-      <div className="border-b border-slate-200 px-4 py-3">
+      <div className="px-4 py-3">
         <Tabs value={activeTab}>
           <TabsList className="h-auto flex-wrap gap-2 bg-transparent p-0">
             {workspaceTabs.map((tab) => {

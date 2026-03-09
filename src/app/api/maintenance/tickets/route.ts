@@ -67,6 +67,7 @@ async function generateTicketCode(): Promise<string> {
 }
 
 export async function GET(req: Request) {
+  const startedAt = Date.now()
   const session = await getServerSession(authOptions)
   if (!session?.user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -93,37 +94,58 @@ export async function GET(req: Request) {
   const code = (searchParams.get('code') || '').trim().toUpperCase()
   const start = (searchParams.get('start') || '').trim()
   const end = (searchParams.get('end') || '').trim()
+  const cursorCreatedAt = Number(searchParams.get('cursorCreatedAt') || 0)
+  const limit = Math.max(1, Math.min(200, Number(searchParams.get('limit') || 100)))
 
   try {
-    const snap = await db.collection('maintenanceTickets').orderBy('createdAt', 'desc').get()
-    let tickets = snap.docs.map((doc) => {
-      const data = doc.data() as any
-      const createdAt =
-        data.createdAt && typeof data.createdAt.toDate === 'function'
-          ? data.createdAt.toDate().toISOString()
-          : data.createdAt || ''
-      return {
-        id: doc.id,
-        ...data,
-        status: normalizeStatus(data.status),
-        priority: normalizePriority(data.priority),
-        ticketType: (data.ticketType || 'maquinaria').toString().toLowerCase(),
-        createdAt,
-      }
-    })
+    let ref: FirebaseFirestore.Query = db.collection('maintenanceTickets')
+    if (status && status !== 'all') ref = ref.where('status', '==', status)
+    if (priority && priority !== 'all') ref = ref.where('priority', '==', priority)
+    if (location) ref = ref.where('location', '==', location)
+    if (ticketType && ticketType !== 'all') ref = ref.where('ticketType', '==', ticketType)
 
-    if (status && status !== 'all') {
-      tickets = tickets.filter((t: any) => normalizeStatus(t.status) === status)
+    if (role === 'treballador' && dept === 'manteniment' && user.id) {
+      ref = ref.where('assignedToIds', 'array-contains', user.id)
+    } else if (assignedToId) {
+      ref = ref.where('assignedToIds', 'array-contains', assignedToId)
     }
-    if (priority && priority !== 'all') {
-      tickets = tickets.filter((t: any) => normalizePriority(t.priority) === priority)
+
+    const fallbackRef = ref
+    const mapTickets = (snap: FirebaseFirestore.QuerySnapshot) =>
+      snap.docs.map((doc) => {
+        const data = doc.data() as any
+        const createdAt =
+          data.createdAt && typeof data.createdAt.toDate === 'function'
+            ? data.createdAt.toDate().toISOString()
+            : data.createdAt || ''
+        return {
+          id: doc.id,
+          ...data,
+          status: normalizeStatus(data.status),
+          priority: normalizePriority(data.priority),
+          ticketType: (data.ticketType || 'maquinaria').toString().toLowerCase(),
+          createdAt,
+        }
+      })
+
+    let rawTickets: any[] = []
+    try {
+      let orderedRef = ref.orderBy('createdAt', 'desc')
+      if (cursorCreatedAt > 0) orderedRef = orderedRef.startAfter(cursorCreatedAt)
+      const snap = await orderedRef.limit(Math.max(limit + 1, 100)).get()
+      rawTickets = mapTickets(snap)
+    } catch (queryErr: unknown) {
+      const message = queryErr instanceof Error ? queryErr.message : ''
+      const needsIndex = message.toLowerCase().includes('index')
+      if (!needsIndex) throw queryErr
+      let orderedFallbackRef = fallbackRef.orderBy('createdAt', 'desc')
+      if (cursorCreatedAt > 0) orderedFallbackRef = orderedFallbackRef.startAfter(cursorCreatedAt)
+      const fallbackSnap = await orderedFallbackRef.limit(Math.max(limit + 1, 500)).get()
+      rawTickets = mapTickets(fallbackSnap)
     }
-    if (location) {
-      tickets = tickets.filter((t: any) => String(t.location || '') === location)
-    }
-    if (ticketType && ticketType !== 'all') {
-      tickets = tickets.filter((t: any) => String(t.ticketType || 'maquinaria') === ticketType)
-    }
+
+    let tickets = rawTickets
+
     if (code) {
       tickets = tickets.filter((t: any) => {
         const ticketCode = String(t.ticketCode || '').toUpperCase()
@@ -142,19 +164,49 @@ export async function GET(req: Request) {
         return true
       })
     }
-    if (role === 'treballador' && dept === 'manteniment') {
-      tickets = tickets.filter((t: any) =>
-        Array.isArray(t.assignedToIds) ? t.assignedToIds.includes(user.id) : false
-      )
-    } else if (assignedToId) {
-      tickets = tickets.filter((t: any) =>
-        Array.isArray(t.assignedToIds) ? t.assignedToIds.includes(assignedToId) : false
-      )
+    if (cursorCreatedAt > 0) {
+      tickets = tickets.filter((t: any) => {
+        const createdAtMs =
+          typeof t.createdAt === 'string' ? new Date(t.createdAt).getTime() : Number(t.createdAt || 0)
+        return createdAtMs > 0 && createdAtMs < cursorCreatedAt
+      })
     }
 
-    return NextResponse.json({ tickets })
+    const slicedTickets = tickets.slice(0, limit)
+    const hasMore = tickets.length > limit
+    const nextCursorCreatedAt = hasMore
+      ? (() => {
+          const last = slicedTickets[slicedTickets.length - 1]
+          if (!last) return null
+          return typeof last.createdAt === 'string'
+            ? new Date(last.createdAt).getTime()
+            : Number(last.createdAt || 0) || null
+        })()
+      : null
+
+    console.info('[maintenance/tickets] completed', {
+      durationMs: Date.now() - startedAt,
+      role,
+      status,
+      priority,
+      location,
+      ticketType,
+      hasCode: Boolean(code),
+      hasDateRange: Boolean(start || end),
+      assignedToId: assignedToId || (role === 'treballador' ? user.id : ''),
+      requestedLimit: limit,
+      returned: slicedTickets.length,
+      rawRows: rawTickets.length,
+      hasMore,
+    })
+
+    return NextResponse.json({ tickets: slicedTickets, hasMore, nextCursorCreatedAt })
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Internal error'
+    console.error('[maintenance/tickets] failed', {
+      durationMs: Date.now() - startedAt,
+      error: message,
+    })
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }

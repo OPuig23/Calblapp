@@ -16,6 +16,7 @@ export type User = {
   workerRank?: 'equip' | 'responsable'
   opsChannelsConfigurable?: string[]
   opsEventsConfigurable?: boolean
+  opsProjectsConfigurable?: boolean
 }
 
 export function useUsers() {
@@ -59,6 +60,7 @@ export function useUsers() {
       workerRank: data.workerRank,
       opsChannelsConfigurable: data.opsChannelsConfigurable,
       opsEventsConfigurable: data.opsEventsConfigurable,
+      opsProjectsConfigurable: data.opsProjectsConfigurable,
     }
 
     let res: Response

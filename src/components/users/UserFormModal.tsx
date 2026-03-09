@@ -1,4 +1,3 @@
-// file: src/components/users/UserFormModal.tsx
 'use client'
 
 import * as React from 'react'
@@ -13,7 +12,6 @@ import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import { normalizeRole } from '@/lib/roles'
-import { Trash2 } from 'lucide-react'
 import { DEPARTMENTS } from '@/data/departments'
 import useSWR from 'swr'
 
@@ -31,6 +29,7 @@ export interface User {
   password?: string
   opsChannelsConfigurable?: string[]
   opsEventsConfigurable?: boolean
+  opsProjectsConfigurable?: boolean
 }
 
 export interface NewUserPayload {
@@ -40,6 +39,7 @@ export interface NewUserPayload {
   department: string
   opsChannelsConfigurable?: string[]
   opsEventsConfigurable?: boolean
+  opsProjectsConfigurable?: boolean
   available?: boolean
   isDriver?: boolean
   workerRank?: string
@@ -56,14 +56,13 @@ type Props = {
 
 const ROLES = [
   'Admin',
-  'Direcció',
+  'Direccio',
   'Cap Departament',
   'Treballador',
   'Usuari',
   'Comercial',
   'Observer',
 ] as const
-const DEPARTS = DEPARTMENTS
 
 const RANKS = [
   { value: 'equip', label: 'Equip' },
@@ -84,10 +83,12 @@ export function UserFormModal({ user, onSubmit, onClose, onAfterAction }: Props)
   const [workerRank, setWorkerRank] = React.useState<string>('equip')
   const [opsChannelsConfigurable, setOpsChannelsConfigurable] = React.useState<string[]>([])
   const [opsEventsConfigurable, setOpsEventsConfigurable] = React.useState(false)
+  const [opsProjectsConfigurable, setOpsProjectsConfigurable] = React.useState(true)
 
   const { data: channelsData } = useSWR('/api/messaging/channels?scope=all', (url: string) =>
     fetch(url).then((r) => r.json())
   )
+
   const allChannels = Array.isArray(channelsData?.channels) ? channelsData.channels : []
   const opsChannels = allChannels.filter(
     (ch: any) => ch?.source === 'finques' || ch?.source === 'restaurants' || ch?.source === 'events'
@@ -110,7 +111,7 @@ export function UserFormModal({ user, onSubmit, onClose, onAfterAction }: Props)
       try {
         const res = await fetch(`/api/user-requests/${personId}`)
         const data = await res.json()
-        if (!res.ok) throw new Error(data?.error || 'Error carregant sol·licitud')
+        if (!res.ok) throw new Error(data?.error || 'Error carregant sollicitud')
 
         if (!active) return
         setName(data.name ?? '')
@@ -123,7 +124,7 @@ export function UserFormModal({ user, onSubmit, onClose, onAfterAction }: Props)
         setWorkerRank(data.workerRank ?? 'equip')
         setPassword(Math.random().toString(36).slice(-8))
       } catch (err) {
-        console.error('Error carregant sol·licitud:', err)
+        console.error('Error carregant sollicitud:', err)
       } finally {
         if (active) setLoading(false)
       }
@@ -143,11 +144,13 @@ export function UserFormModal({ user, onSubmit, onClose, onAfterAction }: Props)
     setDepartment(user.department ?? 'Total')
     setPhone(user.phone ?? '')
     setEmail(user.email ?? '')
-    const baseOps = Array.isArray(user.opsChannelsConfigurable)
-      ? user.opsChannelsConfigurable.map(String)
-      : []
-    setOpsChannelsConfigurable(baseOps)
+    setOpsChannelsConfigurable(
+      Array.isArray(user.opsChannelsConfigurable) ? user.opsChannelsConfigurable.map(String) : []
+    )
     setOpsEventsConfigurable(Boolean(user.opsEventsConfigurable))
+    setOpsProjectsConfigurable(
+      typeof user.opsProjectsConfigurable === 'boolean' ? user.opsProjectsConfigurable : true
+    )
     if (user.role?.toLowerCase() === 'treballador') {
       setAvailable(user.available ?? true)
       setIsDriver(user.driver?.isDriver ?? false)
@@ -158,7 +161,6 @@ export function UserFormModal({ user, onSubmit, onClose, onAfterAction }: Props)
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
 
-    // Aprovar sol·licitud
     if (user?.personId) {
       try {
         const res = await fetch(`/api/user-requests/${user.personId}/approve`, {
@@ -168,19 +170,18 @@ export function UserFormModal({ user, onSubmit, onClose, onAfterAction }: Props)
         })
         const data = await res.json()
         if (!res.ok) {
-          const msg = (data && (data as any).error) || "No s'ha pogut aprovar la sol·licitud"
+          const msg = (data && (data as any).error) || "No s'ha pogut aprovar la sollicitud"
           alert(msg)
           return
         }
         onSubmit((data as any).user || { id: user.personId })
         onAfterAction?.()
-        } catch (err) {
+      } catch (err) {
         console.error('Error cridant approve:', err)
       }
       return
     }
 
-    // Edició
     if (user?.id) {
       const payload: User = {
         ...user,
@@ -194,13 +195,13 @@ export function UserFormModal({ user, onSubmit, onClose, onAfterAction }: Props)
         workerRank,
         opsChannelsConfigurable,
         opsEventsConfigurable,
+        opsProjectsConfigurable,
       }
       if (password.trim()) payload.password = password.trim()
       onSubmit(payload)
       return
     }
 
-    // Creació
     const payload: NewUserPayload = {
       name,
       password,
@@ -210,6 +211,7 @@ export function UserFormModal({ user, onSubmit, onClose, onAfterAction }: Props)
       email,
       opsChannelsConfigurable,
       opsEventsConfigurable,
+      opsProjectsConfigurable,
     }
     if (isWorker) {
       payload.available = available
@@ -227,7 +229,7 @@ export function UserFormModal({ user, onSubmit, onClose, onAfterAction }: Props)
         </DialogHeader>
 
         {loading ? (
-          <p className="text-center text-gray-500">Carregant dades…</p>
+          <p className="text-center text-gray-500">Carregant dades...</p>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -235,7 +237,7 @@ export function UserFormModal({ user, onSubmit, onClose, onAfterAction }: Props)
               <input
                 className="mt-1 w-full rounded-md border p-2 text-sm"
                 value={name}
-                onChange={e => setName(e.target.value)}
+                onChange={(e) => setName(e.target.value)}
                 required
               />
             </div>
@@ -246,7 +248,7 @@ export function UserFormModal({ user, onSubmit, onClose, onAfterAction }: Props)
                 type="password"
                 className="mt-1 w-full rounded-md border p-2 text-sm"
                 value={password}
-                onChange={e => setPassword(e.target.value)}
+                onChange={(e) => setPassword(e.target.value)}
                 required={!user?.id}
                 placeholder={user?.id ? 'Deixa buit per no canviar-la' : ''}
               />
@@ -257,11 +259,11 @@ export function UserFormModal({ user, onSubmit, onClose, onAfterAction }: Props)
               <select
                 className="mt-1 w-full rounded-md border p-2 text-sm"
                 value={role}
-                onChange={e => setRole(e.target.value)}
+                onChange={(e) => setRole(e.target.value)}
               >
-                {ROLES.map(r => (
-                  <option key={r} value={r}>
-                    {r}
+                {ROLES.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
                   </option>
                 ))}
               </select>
@@ -272,23 +274,23 @@ export function UserFormModal({ user, onSubmit, onClose, onAfterAction }: Props)
               <select
                 className="mt-1 w-full rounded-md border p-2 text-sm"
                 value={department}
-                onChange={e => setDepartment(e.target.value)}
+                onChange={(e) => setDepartment(e.target.value)}
               >
-                {DEPARTS.map(d => (
-                  <option key={d} value={d}>
-                    {d}
+                {DEPARTMENTS.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
                   </option>
                 ))}
               </select>
             </div>
 
             <div>
-              <Label>Telèfon</Label>
+              <Label>Telefon</Label>
               <input
                 type="tel"
                 className="mt-1 w-full rounded-md border p-2 text-sm"
                 value={phone}
-                onChange={e => setPhone(e.target.value)}
+                onChange={(e) => setPhone(e.target.value)}
                 placeholder="600123123"
               />
             </div>
@@ -299,25 +301,25 @@ export function UserFormModal({ user, onSubmit, onClose, onAfterAction }: Props)
                 type="email"
                 className="mt-1 w-full rounded-md border p-2 text-sm"
                 value={email}
-                onChange={e => setEmail(e.target.value)}
+                onChange={(e) => setEmail(e.target.value)}
                 placeholder="nom@calblay.com"
                 required={requiresCorporateEmail}
               />
-              {requiresCorporateEmail && (
+              {requiresCorporateEmail ? (
                 <p className="mt-1 text-xs text-gray-500">
                   Obligatori per admin, direccio i caps de departament.
                 </p>
-              )}
+              ) : null}
             </div>
 
             <div
               className={cn(
                 'rounded-xl border p-3 transition',
-                isWorker ? 'opacity-100' : 'opacity-40 pointer-events-none'
+                isWorker ? 'opacity-100' : 'pointer-events-none opacity-40'
               )}
             >
               <div className="mb-2 text-xs font-semibold text-gray-500">
-                Paràmetres de Treballador
+                Parametres de Treballador
               </div>
 
               <div className="flex items-center justify-between py-2">
@@ -341,11 +343,11 @@ export function UserFormModal({ user, onSubmit, onClose, onAfterAction }: Props)
                 <select
                   className="mt-1 w-full rounded-md border p-2 text-sm"
                   value={workerRank}
-                  onChange={e => setWorkerRank(e.target.value)}
+                  onChange={(e) => setWorkerRank(e.target.value)}
                 >
-                  {RANKS.map(r => (
-                    <option key={r.value} value={r.value}>
-                      {r.label}
+                  {RANKS.map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
                     </option>
                   ))}
                 </select>
@@ -357,56 +359,85 @@ export function UserFormModal({ user, onSubmit, onClose, onAfterAction }: Props)
                 Canals configurables (Ops)
               </div>
               <div className="space-y-3">
-                {(['finques', 'restaurants', 'events'] as const).map((group) => {
-                  const list = group === 'events' ? [] : opsByGroup[group]
-                  if (group !== 'events' && (!list || list.length === 0)) return null
-                  const label =
-                    group === 'finques' ? 'Finques' : group === 'restaurants' ? 'Restaurants' : 'Events'
-                  const isEvents = group === 'events'
-                  return (
-                    <details key={group} className="border rounded-lg px-3 py-2">
-                      <summary className="cursor-pointer text-sm font-medium">
-                        {label}
-                      </summary>
-                      <div className="mt-2 space-y-2">
-                        {isEvents ? (
-                          <label className="flex items-center gap-2 text-sm">
-                            <input
-                              type="checkbox"
-                              checked={opsEventsConfigurable}
-                              onChange={(e) => setOpsEventsConfigurable(e.target.checked)}
-                            />
-                            <span>Permetre xats d'events</span>
-                          </label>
-                        ) : (
-                          list.map((ch: any) => {
-                            const id = String(ch.id)
-                            const text = ch.location || ch.name || id
-                            return (
-                              <label key={id} className="flex items-center gap-2 text-sm">
-                                <input
-                                  type="checkbox"
-                                  checked={opsChannelsConfigurable.includes(id)}
-                                  onChange={() =>
-                                    setOpsChannelsConfigurable((prev) =>
-                                      prev.includes(id)
-                                        ? prev.filter((v) => v !== id)
-                                        : [...prev, id]
-                                    )
-                                  }
-                                />
-                                <span>{text}</span>
-                              </label>
-                            )
-                          })
-                        )}
-                      </div>
-                    </details>
-                  )
-                })}
-                {opsChannels.length === 0 && (
+                <details className="border rounded-lg px-3 py-2">
+                  <summary className="cursor-pointer text-sm font-medium">Finques</summary>
+                  <div className="mt-2 space-y-2">
+                    {opsByGroup.finques.map((ch: any) => {
+                      const id = String(ch.id)
+                      const text = ch.location || ch.name || id
+                      return (
+                        <label key={id} className="flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={opsChannelsConfigurable.includes(id)}
+                            onChange={() =>
+                              setOpsChannelsConfigurable((prev) =>
+                                prev.includes(id) ? prev.filter((value) => value !== id) : [...prev, id]
+                              )
+                            }
+                          />
+                          <span>{text}</span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                </details>
+
+                <details className="border rounded-lg px-3 py-2">
+                  <summary className="cursor-pointer text-sm font-medium">Restaurants</summary>
+                  <div className="mt-2 space-y-2">
+                    {opsByGroup.restaurants.map((ch: any) => {
+                      const id = String(ch.id)
+                      const text = ch.location || ch.name || id
+                      return (
+                        <label key={id} className="flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={opsChannelsConfigurable.includes(id)}
+                            onChange={() =>
+                              setOpsChannelsConfigurable((prev) =>
+                                prev.includes(id) ? prev.filter((value) => value !== id) : [...prev, id]
+                              )
+                            }
+                          />
+                          <span>{text}</span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                </details>
+
+                <details className="border rounded-lg px-3 py-2">
+                  <summary className="cursor-pointer text-sm font-medium">Projectes</summary>
+                  <div className="mt-2 space-y-2">
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={opsProjectsConfigurable}
+                        onChange={(e) => setOpsProjectsConfigurable(e.target.checked)}
+                      />
+                      <span>Permetre xats de projectes</span>
+                    </label>
+                  </div>
+                </details>
+
+                <details className="border rounded-lg px-3 py-2">
+                  <summary className="cursor-pointer text-sm font-medium">Events</summary>
+                  <div className="mt-2 space-y-2">
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={opsEventsConfigurable}
+                        onChange={(e) => setOpsEventsConfigurable(e.target.checked)}
+                      />
+                      <span>Permetre xats d'events</span>
+                    </label>
+                  </div>
+                </details>
+
+                {opsChannels.length === 0 ? (
                   <div className="text-xs text-gray-500">No hi ha canals disponibles.</div>
-                )}
+                ) : null}
               </div>
             </div>
 
@@ -417,16 +448,14 @@ export function UserFormModal({ user, onSubmit, onClose, onAfterAction }: Props)
                 className="rounded-xl border-2 border-gray-300 bg-white text-gray-600 hover:bg-gray-100"
                 onClick={onClose}
               >
-                Cancel·la
+                Cancella
               </Button>
 
               <Button
                 type="submit"
                 className={cn(
                   'rounded-xl px-6 py-2 font-semibold text-white shadow-md',
-                  user?.id
-                    ? 'bg-emerald-400 hover:bg-emerald-500'
-                    : 'bg-indigo-400 hover:bg-indigo-500'
+                  user?.id ? 'bg-emerald-400 hover:bg-emerald-500' : 'bg-indigo-400 hover:bg-indigo-500'
                 )}
               >
                 {user?.id ? 'Desar Canvis' : 'Crear Usuari'}
@@ -440,4 +469,3 @@ export function UserFormModal({ user, onSubmit, onClose, onAfterAction }: Props)
 }
 
 export default UserFormModal
-

@@ -4,6 +4,11 @@ export type Channel = {
   type: string
   source: string
   location: string
+  projectId?: string | null
+  projectName?: string | null
+  roomId?: string | null
+  roomName?: string | null
+  roomKind?: 'block' | 'manual' | null
   eventCode?: string | null
   eventTitle?: string | null
   eventStart?: string | null
@@ -30,6 +35,10 @@ export type Message = {
   imageUrl?: string | null
   imagePath?: string | null
   imageMeta?: { width?: number; height?: number; size?: number; type?: string } | null
+  fileUrl?: string | null
+  filePath?: string | null
+  fileName?: string | null
+  fileMeta?: { size?: number; type?: string } | null
   ticketId?: string | null
   ticketCode?: string | null
   ticketStatus?: string | null

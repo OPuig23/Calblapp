@@ -1,19 +1,23 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { CalendarDays, FolderKanban, UserRound } from 'lucide-react'
+import { CalendarDays, FolderKanban, Search, UserRound } from 'lucide-react'
+import SmartFilters, { type SmartFiltersChange } from '@/components/filters/SmartFilters'
 import ModuleHeader from '@/components/layout/ModuleHeader'
 import FloatingAddButton from '@/components/ui/floating-add-button'
+import { Input } from '@/components/ui/input'
 import { RoleGuard } from '@/lib/withRoleGuard'
-import { statusLabel } from './components/project-shared'
+import { formatProjectDate, phaseLabel } from './components/project-shared'
 
 type ProjectListItem = {
   id: string
   name?: string
   owner?: string
+  phase?: string
   status?: string
+  createdAt?: string | number
   launchDate?: string
   departments?: string[]
   blocks?: Array<{ id?: string }>
@@ -24,6 +28,8 @@ export default function ProjectsPage() {
   const [projects, setProjects] = useState<ProjectListItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [dateFilter, setDateFilter] = useState<SmartFiltersChange>({})
 
   useEffect(() => {
     let cancelled = false
@@ -57,47 +63,86 @@ export default function ProjectsPage() {
     }
   }, [])
 
+  const normalizeText = (value: string) =>
+    String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .trim()
+
+  const projectDurationDays = (createdAt?: string | number, launchDate?: string) => {
+    const createdValue =
+      typeof createdAt === 'number'
+        ? new Date(createdAt)
+        : String(createdAt || '').trim()
+          ? new Date(String(createdAt))
+          : null
+    const launchValue = String(launchDate || '').trim()
+      ? new Date(`${String(launchDate).trim()}T00:00:00`)
+      : null
+
+    if (
+      !createdValue ||
+      Number.isNaN(createdValue.getTime()) ||
+      !launchValue ||
+      Number.isNaN(launchValue.getTime())
+    ) {
+      return null
+    }
+
+    const start = new Date(createdValue.getFullYear(), createdValue.getMonth(), createdValue.getDate())
+    const end = new Date(launchValue.getFullYear(), launchValue.getMonth(), launchValue.getDate())
+    const diff = Math.round((end.getTime() - start.getTime()) / 86400000)
+    return diff >= 0 ? diff : null
+  }
+
+  const filteredProjects = useMemo(() => {
+    const queryTokens = normalizeText(searchQuery)
+      .split(/\s+/)
+      .filter(Boolean)
+
+    return projects.filter((project) => {
+      const launchDate = String(project.launchDate || '').trim()
+
+      const haystack = normalizeText(
+        [
+          project.name,
+          project.owner,
+          ...(project.departments || []),
+          formatProjectDate(launchDate),
+        ]
+          .filter(Boolean)
+          .join(' ')
+      )
+
+      const matchesQuery =
+        queryTokens.length === 0 || queryTokens.every((token) => haystack.includes(token))
+      const matchesMonth =
+        !dateFilter.start ||
+        !dateFilter.end ||
+        !launchDate ||
+        (launchDate >= dateFilter.start && launchDate <= dateFilter.end)
+
+      return matchesQuery && matchesMonth
+    })
+  }, [projects, searchQuery, dateFilter.start, dateFilter.end])
+
   return (
     <RoleGuard allowedRoles={['admin']}>
       <div className="flex w-full max-w-none flex-col gap-6 p-4">
         <ModuleHeader title="Projects" subtitle="Projectes corporatius" />
 
         <section className="rounded-[28px] border border-violet-200 bg-gradient-to-r from-violet-50 via-white to-fuchsia-50 p-6 shadow-sm">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div className="space-y-3">
-              <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-semibold text-violet-700 ring-1 ring-violet-200">
-                <FolderKanban className="h-4 w-4" />
-                Coordinacio de nous projectes
-              </div>
-              <div>
-                <h1 className="text-2xl font-semibold text-slate-900">Projects</h1>
-                <p className="max-w-2xl text-sm text-slate-600">
-                  Hub de governanca per definir, activar i coordinar projectes corporatius.
-                </p>
-              </div>
+          <div className="space-y-3">
+            <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-semibold text-violet-700 ring-1 ring-violet-200">
+              <FolderKanban className="h-4 w-4" />
+              Coordinacio de nous projectes
             </div>
-
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-              <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200">
-                <div className="text-xs uppercase tracking-wide text-slate-400">Projectes</div>
-                <div className="mt-1 text-lg font-semibold text-slate-900">{projects.length}</div>
-              </div>
-              <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200">
-                <div className="text-xs uppercase tracking-wide text-slate-400">Kickoff</div>
-                <div className="mt-1 text-lg font-semibold text-slate-900">
-                  {projects.filter((project) => project.status === 'kickoff').length}
-                </div>
-              </div>
-              <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200">
-                <div className="text-xs uppercase tracking-wide text-slate-400">En marxa</div>
-                <div className="mt-1 text-lg font-semibold text-slate-900">
-                  {
-                    projects.filter((project) =>
-                      ['planning', 'execution', 'control'].includes(project.status || '')
-                    ).length
-                  }
-                </div>
-              </div>
+            <div>
+              <h1 className="text-2xl font-semibold text-slate-900">Projects</h1>
+              <p className="max-w-2xl text-sm text-slate-600">
+                Hub de governanca per definir, activar i coordinar projectes corporatius.
+              </p>
             </div>
           </div>
         </section>
@@ -116,43 +161,81 @@ export default function ProjectsPage() {
 
         {!loading && !error ? (
           <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="mb-5">
-              <h2 className="text-lg font-semibold text-slate-900">Projectes</h2>
+            <div className="mb-5 grid grid-cols-1 gap-2 md:grid-cols-[minmax(320px,520px)_auto]">
+              <div className="relative w-full">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+                <Input
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Buscar projecte..."
+                  className="h-10 rounded-xl border border-gray-300 bg-white pl-9 pr-3 text-sm outline-none focus:border-violet-400"
+                />
+              </div>
+
+              <div className="flex items-center justify-start md:justify-end">
+                <SmartFilters
+                  modeDefault="month"
+                  modeOptions={['month']}
+                  role="Admin"
+                  showDepartment={false}
+                  showWorker={false}
+                  showLocation={false}
+                  showStatus={false}
+                  showAdvanced={false}
+                  compact
+                  onChange={setDateFilter}
+                />
+              </div>
             </div>
 
-            {projects.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-sm text-slate-500">
-                Encara no hi ha projectes.
+            {filteredProjects.length === 0 ? (
+              <div className="rounded-2xl bg-slate-50 px-4 py-8 text-sm text-slate-500">
+                {projects.length === 0 ? 'Encara no hi ha projectes.' : 'Cap projecte coincideix amb els filtres.'}
               </div>
             ) : (
               <div className="space-y-3">
-                {projects.map((project) => (
+                {filteredProjects.map((project) => (
                   <Link
                     key={project.id}
                     href={`/menu/projects/${project.id}`}
-                    className="block rounded-[24px] border border-slate-200 px-5 py-4 transition hover:border-violet-300 hover:bg-violet-50/30"
+                    className="block rounded-[24px] bg-slate-50/70 px-5 py-4 transition hover:bg-violet-50/40"
                   >
                     <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                       <div className="space-y-2">
                         <div className="text-base font-semibold text-slate-900">
                           {project.name || 'Projecte sense nom'}
                         </div>
-                        <div className="flex flex-wrap gap-4 text-sm text-slate-500">
+                        <div className="flex flex-wrap items-center gap-3 text-sm text-slate-500">
                           <span className="inline-flex items-center gap-2">
                             <UserRound className="h-4 w-4" />
                             {project.owner || 'Sense responsable'}
                           </span>
                           <span className="inline-flex items-center gap-2">
                             <CalendarDays className="h-4 w-4" />
-                            {project.launchDate || 'Sense data d arrencada'}
+                            Creat: {project.createdAt ? formatProjectDate(project.createdAt) : 'Sense data'}
                           </span>
-                          <span>{project.departments?.length || 0} departaments</span>
-                          <span>{project.blocks?.length || 0} blocs</span>
+                          <span className="inline-flex items-center gap-2">
+                            <CalendarDays className="h-4 w-4" />
+                            {project.launchDate
+                              ? formatProjectDate(project.launchDate)
+                              : 'Sense data d arrencada'}
+                          </span>
+                          <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-slate-600">
+                            {projectDurationDays(project.createdAt, project.launchDate) !== null
+                              ? `${projectDurationDays(project.createdAt, project.launchDate)} dies`
+                              : 'Sense durada'}
+                          </span>
+                          <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-slate-600">
+                            {project.departments?.length || 0} departaments
+                          </span>
+                          <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-slate-600">
+                            {project.blocks?.length || 0} blocs
+                          </span>
                         </div>
                       </div>
 
-                      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
-                        {statusLabel(project.status)}
+                      <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700">
+                        {phaseLabel(project.phase)}
                       </span>
                     </div>
                   </Link>

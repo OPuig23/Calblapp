@@ -133,6 +133,7 @@ export default function MaintenanceWorkPage() {
       setLoading(true)
       setError(null)
       const params = new URLSearchParams()
+      params.set('limit', '200')
       params.set('ticketType', 'deco')
       if (statusFilter && statusFilter !== '__all__') {
         params.set('status', statusFilter)

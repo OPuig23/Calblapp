@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
 import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
+import { normalizeRole } from '@/lib/roles'
 import {
   buildTicketBody,
   notifyMaintenanceManagers,
@@ -13,6 +14,7 @@ export const dynamic = 'force-dynamic'
 type SessionUser = {
   id: string
   name?: string
+  role?: string
 }
 
 async function sendPushToUids(baseUrl: string, uids: string[], title: string, body: string, url: string) {
@@ -215,6 +217,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
 
   const user = session.user as SessionUser
   const userId = user.id
+  const role = normalizeRole(user.role || '')
   const { id } = await ctx.params
 
   const { searchParams } = new URL(req.url)
@@ -222,7 +225,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   const before = searchParams.get('before')
 
   try {
-    const isMember = await ensureMember(id, userId)
+    const isMember = role === 'admin' || role === 'direccio' ? true : await ensureMember(id, userId)
     if (!isMember) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
@@ -286,10 +289,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const user = session.user as SessionUser
   const userId = user.id
   const senderName = user.name || ''
+  const role = normalizeRole(user.role || '')
   const { id } = await ctx.params
 
   try {
-    const isMember = await ensureMember(id, userId)
+    const isMember = role === 'admin' || role === 'direccio' ? true : await ensureMember(id, userId)
     if (!isMember) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
@@ -301,15 +305,23 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       imageUrl?: string
       imagePath?: string
       imageMeta?: { width?: number; height?: number; size?: number; type?: string }
+      fileUrl?: string
+      filePath?: string
+      fileName?: string
+      fileMeta?: { size?: number; type?: string }
     }
     const text = (body.text || '').toString().trim()
     const imageUrl = (body.imageUrl || '').toString().trim()
     const imagePath = (body.imagePath || '').toString().trim()
     const imageMeta = body.imageMeta || null
+    const fileUrl = (body.fileUrl || '').toString().trim()
+    const filePath = (body.filePath || '').toString().trim()
+    const fileName = (body.fileName || '').toString().trim()
+    const fileMeta = body.fileMeta || null
     const visibility = body.visibility === 'direct' ? 'direct' : 'channel'
     const targetUserId = (body.targetUserId || '').toString().trim()
 
-    if (!text && !imageUrl) {
+    if (!text && !imageUrl && !fileUrl) {
       return NextResponse.json({ error: 'Missing message' }, { status: 400 })
     }
 
@@ -319,6 +331,13 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
     const now = Date.now()
     const msgRef = db.collection('messages').doc()
+
+    const channelSnap = await db.collection('channels').doc(id).get()
+    const channelData = channelSnap.exists ? (channelSnap.data() as any) : null
+    if (String(channelData?.status || '').toLowerCase() === 'archived') {
+      return NextResponse.json({ error: 'Canal tancat' }, { status: 400 })
+    }
+    const channelName = channelSnap.exists ? (channelSnap.data() as any)?.name : ''
     const data = {
       channelId: id,
       senderId: userId,
@@ -327,14 +346,15 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       imageUrl: imageUrl || null,
       imagePath: imagePath || null,
       imageMeta: imageMeta || null,
+      fileUrl: fileUrl || null,
+      filePath: filePath || null,
+      fileName: fileName || null,
+      fileMeta: fileMeta || null,
       createdAt: now,
       visibility,
       targetUserIds: visibility === 'direct' ? [targetUserId] : [],
       readCount: 0,
     }
-
-    const channelSnap = await db.collection('channels').doc(id).get()
-    const channelName = channelSnap.exists ? (channelSnap.data() as any)?.name : ''
 
     // Get members to update counts
     const membersSnap = await db

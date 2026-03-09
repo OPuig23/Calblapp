@@ -40,6 +40,13 @@ type ValuationConfigResponse = {
   allowedDepartments: Department[]
 }
 
+type ValuationSummaryRow = {
+  department: Department
+  responsible: string
+  fetes: number
+  validades: number
+}
+
 type ValuationRow = {
   department: Department
   responsible: string
@@ -111,6 +118,9 @@ const toIsoDay = (d: Date) => format(d, 'yyyy-MM-dd')
 const monthLabel = (d: Date) =>
   d.toLocaleDateString('ca-ES', { month: 'long', year: 'numeric' }).replace(/^./, (c) => c.toUpperCase())
 
+const VALUATION_NAV_STORAGE_KEY = 'auditoria-valoracio-nav-ids'
+const VALIDATION_PAGE_SIZE = 100
+
 export default function AuditoriaValoracioPage() {
   const { data: session } = useSession()
   const { setContent, setOpen } = useFilters()
@@ -128,6 +138,9 @@ export default function AuditoriaValoracioPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [rows, setRows] = useState<ExecutionRow[]>([])
+  const [hasMoreRows, setHasMoreRows] = useState(false)
+  const [nextRowsCursorTs, setNextRowsCursorTs] = useState<number | null>(null)
+  const [loadingMoreRows, setLoadingMoreRows] = useState(false)
   const [deletingId, setDeletingId] = useState('')
 
   const userDepartment = String((session?.user as any)?.department || '')
@@ -143,7 +156,7 @@ export default function AuditoriaValoracioPage() {
   const [valuationMonthAnchor, setValuationMonthAnchor] = useState(() => startOfMonth(new Date()))
   const [valuationDepartment, setValuationDepartment] = useState<Department | 'all'>('serveis')
   const [valuationResponsible, setValuationResponsible] = useState('all')
-  const [valuationRuns, setValuationRuns] = useState<ExecutionRow[]>([])
+  const [valuationSummaryRows, setValuationSummaryRows] = useState<ValuationSummaryRow[]>([])
   const [valuationLoading, setValuationLoading] = useState(false)
   const [valuationError, setValuationError] = useState('')
 
@@ -156,6 +169,7 @@ export default function AuditoriaValoracioPage() {
   })
   const [allowedDepartments, setAllowedDepartments] = useState<Department[]>(['serveis'])
   const [savingConfig, setSavingConfig] = useState(false)
+  const [configDirty, setConfigDirty] = useState(false)
   const valuationStartDate = useMemo(() => toIsoDay(startOfMonth(valuationMonthAnchor)), [valuationMonthAnchor])
   const valuationEndDate = useMemo(() => toIsoDay(endOfMonth(valuationMonthAnchor)), [valuationMonthAnchor])
   const valuationMonthTitle = useMemo(() => monthLabel(valuationMonthAnchor), [valuationMonthAnchor])
@@ -175,8 +189,10 @@ export default function AuditoriaValoracioPage() {
   const fromTs = useMemo(() => toStartTs(fromDate), [fromDate])
   const toTs = useMemo(() => toEndTs(toDate), [toDate])
 
-  const load = async (opts?: { fromTs?: number; toTs?: number }) => {
-    setLoading(true)
+  const load = async (opts?: { fromTs?: number; toTs?: number; append?: boolean; cursorTs?: number }) => {
+    const append = Boolean(opts?.append)
+    if (append) setLoadingMoreRows(true)
+    else setLoading(true)
     setError('')
     try {
       let start = typeof opts?.fromTs === 'number' ? opts.fromTs : fromTs
@@ -187,22 +203,29 @@ export default function AuditoriaValoracioPage() {
         end = tmp
       }
 
-      const qs = new URLSearchParams({ limit: '500' })
+      const qs = new URLSearchParams({ limit: String(VALIDATION_PAGE_SIZE) })
       if (statusFilter !== 'all') qs.set('status', statusFilter)
       if (departmentFilter !== 'all') qs.set('department', departmentFilter)
       if (query.trim()) qs.set('q', query.trim())
       if (start > 0) qs.set('fromTs', String(start))
       if (end > 0) qs.set('toTs', String(end))
+      if (typeof opts?.cursorTs === 'number' && opts.cursorTs > 0) qs.set('cursorTs', String(opts.cursorTs))
 
       const res = await fetch(`/api/auditoria/executions/list?${qs.toString()}`, { cache: 'no-store' })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(String(json?.error || 'No s ha pogut carregar validacio'))
-      setRows(Array.isArray(json?.executions) ? (json.executions as ExecutionRow[]) : [])
+      const nextRows = Array.isArray(json?.executions) ? (json.executions as ExecutionRow[]) : []
+      setRows((prev) => (append ? [...prev, ...nextRows] : nextRows))
+      setHasMoreRows(Boolean(json?.hasMore))
+      setNextRowsCursorTs(typeof json?.nextCursorTs === 'number' && json.nextCursorTs > 0 ? json.nextCursorTs : null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error carregant validacio')
-      setRows([])
+      if (!append) setRows([])
+      setHasMoreRows(false)
+      setNextRowsCursorTs(null)
     } finally {
-      setLoading(false)
+      if (append) setLoadingMoreRows(false)
+      else setLoading(false)
     }
   }
 
@@ -233,25 +256,25 @@ export default function AuditoriaValoracioPage() {
     }
   }, [userDepartment, valuationDepartment])
 
-  const loadValuationRuns = useCallback(async () => {
+  const loadValuationSummary = useCallback(async () => {
     setValuationLoading(true)
     setValuationError('')
     try {
       const monthFrom = toStartTs(valuationStartDate)
       const monthTo = toEndTs(valuationEndDate)
       const qs = new URLSearchParams({
-        limit: '2000',
+        limit: '3000',
         fromTs: String(monthFrom),
         toTs: String(monthTo),
       })
       if (valuationDepartment !== 'all') qs.set('department', valuationDepartment)
-      const res = await fetch(`/api/auditoria/executions/list?${qs.toString()}`, { cache: 'no-store' })
+      const res = await fetch(`/api/auditoria/valuation-summary?${qs.toString()}`, { cache: 'no-store' })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(String(json?.error || 'No s ha pogut carregar auditories del mes'))
-      setValuationRuns(Array.isArray(json?.executions) ? (json.executions as ExecutionRow[]) : [])
+      setValuationSummaryRows(Array.isArray(json?.rows) ? (json.rows as ValuationSummaryRow[]) : [])
     } catch (err) {
       setValuationError(err instanceof Error ? err.message : 'Error carregant valoracio')
-      setValuationRuns([])
+      setValuationSummaryRows([])
     } finally {
       setValuationLoading(false)
     }
@@ -267,8 +290,8 @@ export default function AuditoriaValoracioPage() {
 
   useEffect(() => {
     if (activeTab !== 'valoracio') return
-    loadValuationRuns()
-  }, [activeTab, loadValuationRuns])
+    loadValuationSummary()
+  }, [activeTab, loadValuationSummary])
 
   useEffect(() => {
     if (!canSeeValoracio && activeTab === 'valoracio') {
@@ -293,31 +316,16 @@ export default function AuditoriaValoracioPage() {
         })
         const json = await res.json().catch(() => ({}))
         if (!res.ok) throw new Error(String((json as any)?.error || 'No s ha pogut desar configuracio'))
+        return true
       } catch (err) {
         setValuationError(err instanceof Error ? err.message : 'Error desant configuracio')
+        return false
       } finally {
         setSavingConfig(false)
       }
     },
     []
   )
-
-  useEffect(() => {
-    if (activeTab !== 'valoracio') return
-    if (valuationDepartment === 'all') return
-    const cfg = currentConfig
-    const timer = setTimeout(() => {
-      void saveDepartmentConfig(valuationDepartment as Department, { ...cfg, enabled: true })
-    }, 450)
-    return () => clearTimeout(timer)
-  }, [
-    activeTab,
-    valuationDepartment,
-    currentConfig.minAuditoriesMes,
-    currentConfig.maxBonusMensualEur,
-    currentConfig.bonusMode,
-    saveDepartmentConfig,
-  ])
 
   const openAdvancedFilters = useCallback(() => {
     setContent(
@@ -393,6 +401,10 @@ export default function AuditoriaValoracioPage() {
     load({ fromTs: toStartTs(f.start), toTs: toEndTs(f.end) })
   }
 
+  useEffect(() => {
+    setConfigDirty(false)
+  }, [valuationDepartment, activeTab])
+
   const deleteExecution = async (id: string) => {
     if (!isAdmin || !id || deletingId) return
     const ok = window.confirm('Vols eliminar aquesta auditoria? Aquesta accio no es pot desfer.')
@@ -413,14 +425,14 @@ export default function AuditoriaValoracioPage() {
 
   const valuationRows = useMemo<ValuationRow[]>(() => {
     const grouped = new Map<string, { department: Department; responsible: string; fetes: number; validades: number }>()
-    valuationRuns.forEach((run) => {
-      const department = String(run.department || '').trim() as Department
+    valuationSummaryRows.forEach((row) => {
+      const department = String(row.department || '').trim() as Department
       if (!DEPARTMENTS.some((d) => d.id === department)) return
-      const responsible = String(run.completedByName || '').trim() || 'Sense nom'
+      const responsible = String(row.responsible || '').trim() || 'Sense nom'
       const key = valuationDepartment === 'all' ? `${department}__${responsible}` : responsible
       const base = grouped.get(key) || { department, responsible, fetes: 0, validades: 0 }
-      base.fetes += 1
-      if (String(run.status || '').toLowerCase() === 'validated') base.validades += 1
+      base.fetes += Number(row.fetes || 0)
+      base.validades += Number(row.validades || 0)
       grouped.set(key, base)
     })
 
@@ -453,11 +465,11 @@ export default function AuditoriaValoracioPage() {
         : allRows.filter((r) => r.responsible === valuationResponsible)
 
     return filtered.sort((a, b) => b.bonusEur - a.bonusEur)
-  }, [valuationRuns, configMap, valuationDepartment, valuationResponsible])
+  }, [valuationSummaryRows, configMap, valuationDepartment, valuationResponsible])
 
   const responsibleOptions = useMemo(
-    () => Array.from(new Set(valuationRuns.map((r) => String(r.completedByName || '').trim()).filter(Boolean))).sort(),
-    [valuationRuns]
+    () => Array.from(new Set(valuationSummaryRows.map((r) => String(r.responsible || '').trim()).filter(Boolean))).sort(),
+    [valuationSummaryRows]
   )
 
   const valuationTotals = useMemo(() => {
@@ -523,7 +535,9 @@ export default function AuditoriaValoracioPage() {
               <div className="rounded-xl border border-gray-200 bg-white px-3 py-2 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3 whitespace-nowrap">
                   <div className="text-base font-semibold text-gray-900">Validacio d'auditories</div>
-                  <div className="text-sm text-gray-700">Total: {rows.length}</div>
+                  <div className="text-sm text-gray-700">
+                    Mostrant: {rows.length}{hasMoreRows ? '+' : ''}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2 min-w-0 overflow-x-auto">
                   <SmartFilters
@@ -564,6 +578,11 @@ export default function AuditoriaValoracioPage() {
                           ...(query.trim() ? { q: query.trim() } : {}),
                         }).toString()}`}
                         className="min-w-0 flex-1"
+                        onClick={() => {
+                          if (typeof window === 'undefined') return
+                          const orderedIds = rows.map((row) => row.id).filter(Boolean)
+                          window.sessionStorage.setItem(VALUATION_NAV_STORAGE_KEY, JSON.stringify(orderedIds))
+                        }}
                       >
                         <div className="text-sm font-semibold text-gray-900 truncate">{r.eventSummary || `Event ${r.eventId}`} - {r.department}</div>
                         <div className="text-xs text-gray-600 truncate">{r.templateName || 'Sense plantilla'} - {formatDate(r.completedAt)} - {r.completedByName}</div>
@@ -587,6 +606,21 @@ export default function AuditoriaValoracioPage() {
                       </div>
                     </div>
                   ))}
+                  {hasMoreRows ? (
+                    <div className="flex justify-center pt-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={loadingMoreRows || !nextRowsCursorTs}
+                        onClick={() => {
+                          if (!nextRowsCursorTs) return
+                          load({ append: true, cursorTs: nextRowsCursorTs })
+                        }}
+                      >
+                        {loadingMoreRows ? 'Carregant...' : 'Carregar mes'}
+                      </Button>
+                    </div>
+                  ) : null}
                 </div>
               )}
             </>
@@ -659,6 +693,7 @@ export default function AuditoriaValoracioPage() {
                               minAuditoriesMes: Math.max(0, Number(e.target.value || 0)),
                             },
                           }))
+                          setConfigDirty(true)
                         }}
                         className="h-7 w-[64px] rounded-md border border-gray-300 bg-white px-2 text-sm"
                       />
@@ -683,6 +718,7 @@ export default function AuditoriaValoracioPage() {
                               maxBonusMensualEur: Math.max(0, Number(e.target.value || 0)),
                             },
                           }))
+                          setConfigDirty(true)
                         }}
                         className="h-7 w-[72px] rounded-md border border-gray-300 bg-white px-2 text-sm"
                       />
@@ -704,6 +740,7 @@ export default function AuditoriaValoracioPage() {
                               bonusMode: checked ? 'per_event' : 'total_month',
                             },
                           }))
+                          setConfigDirty(true)
                         }}
                       />
                     </div>
@@ -711,7 +748,24 @@ export default function AuditoriaValoracioPage() {
                     {valuationDepartment === 'all' ? (
                       <span className="text-[11px] text-gray-500">Selecciona departament per editar regles.</span>
                     ) : null}
-                    <span className="text-[11px] text-gray-500">{savingConfig ? 'Desant...' : ''}</span>
+                    {valuationDepartment !== 'all' ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={savingConfig || !configDirty}
+                        onClick={async () => {
+                          if (valuationDepartment === 'all') return
+                          const ok = await saveDepartmentConfig(valuationDepartment as Department, {
+                            ...currentConfig,
+                            enabled: true,
+                          })
+                          if (ok) setConfigDirty(false)
+                        }}
+                      >
+                        {savingConfig ? 'Desant...' : 'Desar'}
+                      </Button>
+                    ) : null}
                   </div>
                 </div>
               </div>

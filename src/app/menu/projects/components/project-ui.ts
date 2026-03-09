@@ -1,0 +1,5 @@
+export const projectSectionTitleClass = 'text-lg font-semibold leading-none tracking-tight text-slate-900'
+export const projectSectionSubtitleClass = 'text-sm font-medium text-slate-500'
+export const projectCardTitleClass = 'text-[15px] font-semibold leading-tight text-slate-900'
+export const projectCardMetaClass = 'text-[13px] font-medium text-slate-500'
+export const projectEmptyStateClass = 'text-sm font-medium text-slate-500'

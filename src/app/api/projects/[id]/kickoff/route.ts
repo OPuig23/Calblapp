@@ -7,6 +7,7 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route'
 import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
 import { normalizeRole } from '@/lib/roles'
 import { createKickoffCalendarEvent } from '@/services/graph/calendar'
+import { deriveProjectPhase } from '@/app/menu/projects/components/project-shared'
 
 type SessionUser = {
   id: string
@@ -134,8 +135,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     await db.collection('projects').doc(id).set(
       {
         kickoff,
-        status: 'kickoff',
-        phase: 'kickoff',
+        status: '',
+        phase: deriveProjectPhase({
+          launchDate: String(project.launchDate || ''),
+          kickoff,
+          blocks: Array.isArray(project.blocks) ? project.blocks : [],
+        }),
         updatedAt: Date.now(),
         updatedById: auth.user.id,
         updatedByName: auth.user.name || '',

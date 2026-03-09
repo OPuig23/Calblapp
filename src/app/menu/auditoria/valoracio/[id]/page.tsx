@@ -8,6 +8,8 @@ import { RoleGuard } from '@/lib/withRoleGuard'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 
+const VALUATION_NAV_STORAGE_KEY = 'auditoria-valoracio-nav-ids'
+
 type DetailAnswer = {
   itemId?: string
   type?: 'checklist' | 'rating' | 'photo' | string
@@ -68,8 +70,6 @@ export default function AuditoriaValoracioDetailPage() {
   const [reviewNote, setReviewNote] = useState('')
   const [saving, setSaving] = useState(false)
   const [blockChecks, setBlockChecks] = useState<Record<string, boolean | null>>({})
-  const [prevId, setPrevId] = useState<string | null>(null)
-  const [nextId, setNextId] = useState<string | null>(null)
 
   const navQuery = useMemo(() => {
     const q = new URLSearchParams()
@@ -80,6 +80,8 @@ export default function AuditoriaValoracioDetailPage() {
     })
     return q
   }, [searchParams])
+
+  const [navIds, setNavIds] = useState<string[]>([])
 
   const load = async () => {
     setLoading(true)
@@ -113,32 +115,34 @@ export default function AuditoriaValoracioDetailPage() {
     load()
   }, [executionId])
 
-  const loadNavigation = async () => {
+  useEffect(() => {
+    if (typeof window === 'undefined') return
     try {
-      const qs = new URLSearchParams(navQuery.toString())
-      qs.set('limit', '2000')
-      const res = await fetch(`/api/auditoria/executions/list?${qs.toString()}`, { cache: 'no-store' })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok) return
-      const list = Array.isArray(json?.executions) ? (json.executions as Array<{ id?: string }>) : []
-      const idx = list.findIndex((row) => String(row?.id || '') === executionId)
-      if (idx < 0) {
-        setPrevId(null)
-        setNextId(null)
+      const raw = window.sessionStorage.getItem(VALUATION_NAV_STORAGE_KEY)
+      if (!raw) {
+        setNavIds([])
         return
       }
-      setPrevId(idx > 0 ? String(list[idx - 1]?.id || '') || null : null)
-      setNextId(idx < list.length - 1 ? String(list[idx + 1]?.id || '') || null : null)
+      const parsed = JSON.parse(raw)
+      setNavIds(Array.isArray(parsed) ? parsed.map((value) => String(value || '')).filter(Boolean) : [])
     } catch {
-      setPrevId(null)
-      setNextId(null)
+      setNavIds([])
     }
-  }
+  }, [executionId])
 
-  useEffect(() => {
-    if (!executionId) return
-    loadNavigation()
-  }, [executionId, navQuery])
+  const answersByItemId = useMemo(() => {
+    const map = new Map<string, DetailAnswer>()
+    ;(detail?.auditAnswers || []).forEach((answer) => {
+      const itemId = String(answer.itemId || '').trim()
+      if (!itemId) return
+      map.set(itemId, answer)
+    })
+    return map
+  }, [detail?.auditAnswers])
+
+  const currentNavIndex = navIds.findIndex((id) => id === executionId)
+  const prevId = currentNavIndex > 0 ? navIds[currentNavIndex - 1] : null
+  const nextId = currentNavIndex >= 0 && currentNavIndex < navIds.length - 1 ? navIds[currentNavIndex + 1] : null
 
   const allBlocksChecked = useMemo(() => {
     const blocks = Array.isArray(detail?.templateBlocks) ? detail.templateBlocks : []
@@ -288,7 +292,7 @@ export default function AuditoriaValoracioDetailPage() {
 
                     <div className="space-y-2 pl-1">
                       {(block.items || []).map((item, iIdx) => {
-                        const answer = (detail.auditAnswers || []).find((a) => String(a.itemId || '') === String(item.id || ''))
+                        const answer = answersByItemId.get(String(item.id || ''))
                         const type = String(item.type || 'checklist')
                         const photos = Array.isArray(answer?.photos)
                           ? answer.photos.filter((p) => String(p?.url || '').trim())

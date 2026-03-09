@@ -43,7 +43,7 @@ declare module 'next-auth' {
 }
 
 export const authOptions = {
-  debug: true,
+  debug: false,
   // Habilita host dinàmic (preview/custom domains a Vercel)
   trustHost: true,
   providers: [

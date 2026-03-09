@@ -18,7 +18,7 @@ export default function FilterSlideOver() {
       />
 
       {/* Panell dret */}
-      <div className="w-80 max-w-[80vw] h-full bg-white shadow-xl border-l flex flex-col">
+      <div className="w-96 max-w-[88vw] h-full bg-white shadow-xl border-l flex flex-col">
         <div className="flex items-center justify-between px-4 py-3 border-b">
           <h2 className="text-sm font-semibold text-gray-800">Filtres</h2>
           <button

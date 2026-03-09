@@ -76,6 +76,18 @@ export default function MessageList({
                     />
                   </a>
                 )}
+                {m.fileUrl && (
+                  <a
+                    href={m.fileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`inline-block underline ${
+                      isMine ? 'text-white' : 'text-emerald-700 dark:text-emerald-300'
+                    }`}
+                  >
+                    {m.fileName || 'Descarregar fitxer'}
+                  </a>
+                )}
               </div>
               {((canCreateTicket && m.visibility === 'channel') || m.ticketId) && (
                 <div className="text-xs text-gray-600 dark:text-slate-300">
