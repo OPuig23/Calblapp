@@ -13,6 +13,8 @@ type ProjectResponse = {
   name?: string
   sponsor?: string
   owner?: string
+  ownerUserId?: string
+  createdById?: string
   context?: string
   strategy?: string
   risks?: string
@@ -67,6 +69,8 @@ export default function ProjectDetailPage() {
           name: data.name || '',
           sponsor: data.sponsor || '',
           owner: data.owner || '',
+          ownerUserId: data.ownerUserId || '',
+          createdById: data.createdById || '',
           context: data.context || '',
           strategy: data.strategy || '',
           risks: data.risks || '',

@@ -45,15 +45,19 @@ export function useProjectKickoffActions({
   )
 
   const removeKickoffAttendee = useCallback((key: string) => {
-    setProject((current) => ({
-      ...current,
-      kickoff: {
-        ...current.kickoff,
-        attendees: current.kickoff.attendees.map((item) =>
-          item.key === key ? { ...item, attended: false } : item
-        ),
-      },
-    }))
+    setProject((current) => {
+      const isManualAttendee = key.startsWith('manual:')
+      return {
+        ...current,
+        kickoff: {
+          ...current.kickoff,
+          excludedKeys: isManualAttendee
+            ? current.kickoff.excludedKeys.filter((item) => item !== key)
+            : Array.from(new Set([...current.kickoff.excludedKeys, key])),
+          attendees: current.kickoff.attendees.filter((item) => item.key !== key),
+        },
+      }
+    })
   }, [setProject])
 
   const setKickoffAttendeeAttendance = useCallback((key: string, attended: boolean) => {
@@ -122,6 +126,7 @@ export function useProjectKickoffActions({
       const payload = (await res.json().catch(() => ({}))) as {
         error?: string
         kickoff?: ProjectData['kickoff']
+        warning?: string
       }
       if (!res.ok || !payload.kickoff) {
         throw new Error(payload.error || 'No s ha pogut crear la convocatoria')
@@ -143,7 +148,11 @@ export function useProjectKickoffActions({
         },
       }))
 
-      toast({ title: 'Convocatoria enviada' })
+      toast({
+        title: payload.warning ? 'Convocatoria creada amb avis' : 'Convocatoria enviada',
+        description: payload.warning || undefined,
+        variant: payload.warning ? 'destructive' : 'default',
+      })
     } catch (err: unknown) {
       toast({
         title: 'Error enviant la convocatoria',

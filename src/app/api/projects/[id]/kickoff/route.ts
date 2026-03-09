@@ -6,7 +6,10 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
 import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
 import { canAccessProjects } from '@/lib/projectAccess'
-import { createKickoffCalendarEvent } from '@/services/graph/calendar'
+import {
+  createKickoffCalendarEvent,
+  sendKickoffNotificationEmail,
+} from '@/services/graph/calendar'
 import { deriveProjectPhase } from '@/app/menu/projects/components/project-shared'
 
 type SessionUser = {
@@ -94,8 +97,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const project = projectSnap.data() as Record<string, unknown>
     const organizerSnap = await db.collection('users').doc(auth.user.id).get()
     const organizerData = organizerSnap.exists ? (organizerSnap.data() as Record<string, unknown>) : {}
-    const organizerEmail =
-      String(organizerData.email || auth.user.email || '').trim()
+    const organizerEmail = String(organizerData.email || auth.user.email || '').trim()
 
     if (!organizerEmail) {
       return NextResponse.json(
@@ -105,10 +107,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
 
     const { startDateTime, endDateTime } = combineDateTime(date, startTime, durationMinutes)
+    const projectName = String(project.name || 'Projecte')
 
     const event = await createKickoffCalendarEvent({
       organizerEmail,
-      subject: `Kickoff · ${String(project.name || 'Projecte')}`,
+      subject: `Kickoff · ${projectName}`,
       startDateTime,
       endDateTime,
       notes,
@@ -116,8 +119,27 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         email: item.email,
         name: item.name,
       })),
-      projectName: String(project.name || 'Projecte'),
+      projectName,
     })
+
+    let emailWarning = ''
+    try {
+      await sendKickoffNotificationEmail({
+        organizerEmail,
+        recipients: attendees.map((item) => ({
+          email: item.email,
+          name: item.name,
+        })),
+        subject: `Convocatoria Kickoff · ${projectName}`,
+        projectName,
+        startDateTime,
+        endDateTime,
+        notes,
+      })
+    } catch (err: unknown) {
+      emailWarning =
+        err instanceof Error ? err.message : 'No s ha pogut enviar el correu de convocatoria'
+    }
 
     const kickoff = {
       date,
@@ -131,6 +153,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       graphWebLink: event.webLink,
       graphJoinUrl: event.joinUrl,
       status: 'scheduled',
+      emailNotificationStatus: emailWarning ? 'failed' : 'sent',
+      emailNotificationError: emailWarning,
     }
 
     await db.collection('projects').doc(id).set(
@@ -149,7 +173,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       { merge: true }
     )
 
-    return NextResponse.json({ success: true, kickoff })
+    return NextResponse.json({ success: true, kickoff, warning: emailWarning })
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Internal error'
     return NextResponse.json({ error: message }, { status: 500 })

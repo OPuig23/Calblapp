@@ -33,6 +33,7 @@ import {
   normalizeDepartment,
   type ResponsibleOption,
   type WorkspaceTab,
+  workspaceTabs,
 } from './project-workspace-helpers'
 
 type Props = {
@@ -76,7 +77,10 @@ const ProjectTrackingTab = dynamic(() => import('./ProjectTrackingTab'), {
 })
 
 export default function ProjectWorkspace({ projectId, initialProject, initialTab = 'overview' }: Props) {
-  const { data: session } = useSession()
+  const { data: session, status: sessionStatus } = useSession()
+  const sessionUserId = String(session?.user?.id || '').trim()
+  const sessionUserName = String(session?.user?.name || '').trim()
+  const sessionRole = normalizeRole(String(session?.user?.role || '').trim())
   const [activeTab, setActiveTab] = useState<WorkspaceTab>(initialTab)
   const [project, setProject] = useState<ProjectData>(initialProject)
   const [pendingFile, setPendingFile] = useState<File | null>(null)
@@ -99,11 +103,22 @@ export default function ProjectWorkspace({ projectId, initialProject, initialTab
   const [roomDraft, setRoomDraft] = useState({ name: '', departments: [] as string[] })
   const [overviewSavedState, setOverviewSavedState] = useState('')
   const [blocksSavedState, setBlocksSavedState] = useState('')
+  const canViewKickoff =
+    sessionRole === 'admin' ||
+    (sessionUserId && sessionUserId === String(project.createdById || '').trim()) ||
+    (sessionUserId && sessionUserId === String(project.ownerUserId || '').trim()) ||
+    (sessionUserName && sessionUserName === String(project.owner || '').trim())
 
   useEffect(() => {
     setOverviewSavedState(serializeOverviewState(initialProject))
     setBlocksSavedState(serializeBlocksState(initialProject))
   }, [initialProject])
+
+  useEffect(() => {
+    if (sessionStatus !== 'loading' && activeTab === 'kickoff' && !canViewKickoff) {
+      setActiveTab('overview')
+    }
+  }, [activeTab, canViewKickoff, sessionStatus])
 
   useEffect(() => {
     let cancelled = false
@@ -187,6 +202,16 @@ export default function ProjectWorkspace({ projectId, initialProject, initialTab
         }))
       ),
     [project.blocks]
+  )
+  const visibleTabs = useMemo<WorkspaceTab[]>(
+    () =>
+      sessionStatus === 'loading'
+        ? workspaceTabs.map((tab) => tab.id)
+        :
+      canViewKickoff
+        ? ['overview', 'kickoff', 'blocks', 'tasks', 'rooms', 'planning', 'tracking', 'documents']
+        : ['overview', 'blocks', 'tasks', 'rooms', 'planning', 'tracking', 'documents'],
+    [canViewKickoff, sessionStatus]
   )
   const dirtyOverview = overviewSavedState !== projectOverviewState || Boolean(pendingFile)
   const dirtyBlocks = blocksSavedState !== projectBlocksState
@@ -556,7 +581,12 @@ export default function ProjectWorkspace({ projectId, initialProject, initialTab
 
   return (
     <div className="space-y-6">
-      <ProjectWorkspaceShell project={project} activeTab={activeTab} onTabChange={setActiveTab} />
+      <ProjectWorkspaceShell
+        project={project}
+        activeTab={activeTab}
+        visibleTabs={visibleTabs}
+        onTabChange={setActiveTab}
+      />
 
       <section className="rounded-[28px] border border-violet-200 bg-white shadow-sm">
         <div className="p-6">
@@ -590,7 +620,7 @@ export default function ProjectWorkspace({ projectId, initialProject, initialTab
             />
           ) : null}
 
-          {activeTab === 'kickoff' ? (
+          {activeTab === 'kickoff' && canViewKickoff ? (
             <ProjectKickoffTab
               project={project}
               manualKickoffEmail={manualKickoffEmail}

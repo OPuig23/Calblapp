@@ -7,12 +7,14 @@ import { type WorkspaceTab, workspaceTabs } from './project-workspace-helpers'
 type Props = {
   project: ProjectData
   activeTab: WorkspaceTab
+  visibleTabs?: WorkspaceTab[]
   onTabChange: (tab: WorkspaceTab) => void
 }
 
 export default function ProjectWorkspaceShell({
   project,
   activeTab,
+  visibleTabs,
   onTabChange,
 }: Props) {
   const launchDateRaw = String(project.launchDate || '').trim()
@@ -28,6 +30,10 @@ export default function ProjectWorkspaceShell({
   const daysToLaunch = launchStart
     ? Math.round((launchStart.getTime() - todayStart.getTime()) / 86400000)
     : null
+
+  const tabs = visibleTabs?.length
+    ? workspaceTabs.filter((tab) => visibleTabs.includes(tab.id))
+    : workspaceTabs
 
   return (
     <section className="overflow-hidden rounded-[28px] bg-gradient-to-b from-white to-slate-50/60">
@@ -61,7 +67,7 @@ export default function ProjectWorkspaceShell({
       <div className="px-4 py-3">
         <Tabs value={activeTab}>
           <TabsList className="h-auto flex-wrap gap-2 bg-transparent p-0">
-            {workspaceTabs.map((tab) => {
+            {tabs.map((tab) => {
               const Icon = tab.icon
               const isActive = activeTab === tab.id
 

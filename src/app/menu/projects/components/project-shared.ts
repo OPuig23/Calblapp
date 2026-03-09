@@ -160,6 +160,8 @@ export type KickoffData = {
   attendees: KickoffAttendee[]
   status?: string
   graphWebLink?: string
+  emailNotificationStatus?: 'sent' | 'failed'
+  emailNotificationError?: string
 }
 
 export type ProjectData = {
@@ -167,6 +169,8 @@ export type ProjectData = {
   name: string
   sponsor: string
   owner: string
+  ownerUserId?: string
+  createdById?: string
   context: string
   strategy: string
   risks: string
