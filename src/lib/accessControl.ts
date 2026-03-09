@@ -188,7 +188,8 @@ export const MODULES: ModuleDef[] = [
   {
     label: 'Projects',
     path: '/menu/projects',
-    roles: ['admin'],
+    roles: ['admin', 'cap'],
+    departments: ['marqueting'],
   },
 
   { label: 'Espais', path: '/menu/spaces',

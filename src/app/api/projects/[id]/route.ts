@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
 import { firestoreAdmin as db, storageAdmin } from '@/lib/firebaseAdmin'
-import { normalizeRole } from '@/lib/roles'
+import { canAccessProjects } from '@/lib/projectAccess'
 import { deriveProjectPhase } from '@/app/menu/projects/components/project-shared'
 import { archiveProjectRoomOpsChannel } from '@/lib/projectRoomOps'
 import Ably from 'ably'
@@ -14,6 +14,7 @@ type SessionUser = {
   id: string
   name?: string
   role?: string
+  department?: string | null
 }
 
 const clean = (value: FormDataEntryValue | null) => String(value || '').trim()
@@ -38,7 +39,7 @@ async function requireAdmin() {
   }
 
   const user = session.user as SessionUser
-  if (normalizeRole(user.role || '') !== 'admin') {
+  if (!canAccessProjects(user)) {
     return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
   }
 

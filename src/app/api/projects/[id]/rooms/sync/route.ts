@@ -5,13 +5,14 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
 import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
-import { normalizeRole } from '@/lib/roles'
+import { canAccessProjects } from '@/lib/projectAccess'
 import { syncProjectRoomOpsChannel } from '@/lib/projectRoomOps'
 
 type SessionUser = {
   id: string
   name?: string
   role?: string
+  department?: string | null
 }
 
 const buildAutoRoomFromBlock = (data: Record<string, unknown>, roomId: string) => {
@@ -57,7 +58,7 @@ async function requireAdmin() {
   }
 
   const user = session.user as SessionUser
-  if (normalizeRole(user.role || '') !== 'admin') {
+  if (!canAccessProjects(user)) {
     return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
   }
 
