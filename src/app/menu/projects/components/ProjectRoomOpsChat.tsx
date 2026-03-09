@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import useSWR from 'swr'
 import { getAblyClient } from '@/lib/ablyClient'
+import { toast } from '@/components/ui/use-toast'
 import MessageList from '@/app/menu/missatgeria/components/MessageList'
 import Composer from '@/app/menu/missatgeria/components/Composer'
 import type { Member, Message, PendingImage } from '@/app/menu/missatgeria/types'
@@ -12,6 +13,8 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json())
 type Props = {
   channelId: string
   userId?: string
+  canCreateTaskFromHash?: boolean
+  onCreateTaskFromHash?: (text: string) => Promise<{ title: string }>
   onOperationalDocumentCreated?: (document: {
     id?: string
     name?: string
@@ -24,7 +27,13 @@ type Props = {
   }) => void
 }
 
-export default function ProjectRoomOpsChat({ channelId, userId, onOperationalDocumentCreated }: Props) {
+export default function ProjectRoomOpsChat({
+  channelId,
+  userId,
+  canCreateTaskFromHash = false,
+  onCreateTaskFromHash,
+  onOperationalDocumentCreated,
+}: Props) {
   const [messageText, setMessageText] = useState('')
   const [loadingSend, setLoadingSend] = useState(false)
   const [messagesState, setMessagesState] = useState<Message[]>([])
@@ -185,13 +194,52 @@ export default function ProjectRoomOpsChat({ channelId, userId, onOperationalDoc
   }
 
   const sendMessage = async () => {
-    const hasText = !!messageText.trim()
+    const trimmedMessage = messageText.trim()
+    const hasText = !!trimmedMessage
     const hasImage = !!pendingImage?.url
     const hasFile = !!pendingFile
     if (!channelId || isReadOnly || (!hasText && !hasImage && !hasFile)) return
+    const directTarget = mentionTarget?.userId || ''
+    const finalVisibility = directTarget ? 'direct' : 'channel'
 
     try {
       setLoadingSend(true)
+      if (hasText && !hasImage && !hasFile && trimmedMessage.startsWith('#')) {
+        if (!canCreateTaskFromHash || !onCreateTaskFromHash) {
+          toast({
+            title: 'No pots crear tasques des del xat',
+            description: 'Aquesta accio nomes la pot fer el responsable del bloc o del projecte.',
+            variant: 'destructive',
+          })
+          return
+        }
+
+        const taskText = trimmedMessage.replace(/^#\s*/, '').trim()
+        if (!taskText) {
+          toast({
+            title: 'Tasca buida',
+            description: 'Escriu text despres del signe # per crear la tasca.',
+            variant: 'destructive',
+          })
+          return
+        }
+
+        const createdTask = await onCreateTaskFromHash(taskText)
+        await fetch(`/api/messaging/channels/${channelId}/messages`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: `Tasca creada: ${createdTask.title}`,
+            visibility: 'channel',
+          }),
+        })
+        setMessageText('')
+        setMentionTarget(null)
+        setMentionOpen(false)
+        setMentionQuery('')
+        return
+      }
+
       let filePayload:
         | {
             fileUrl?: string
@@ -229,8 +277,9 @@ export default function ProjectRoomOpsChat({ channelId, userId, onOperationalDoc
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          text: hasText ? messageText.trim() : '',
-          visibility: 'channel',
+          text: hasText ? trimmedMessage : '',
+          visibility: finalVisibility,
+          targetUserId: finalVisibility === 'direct' ? directTarget : undefined,
           imageUrl: pendingImage?.url || undefined,
           imagePath: pendingImage?.path || undefined,
           imageMeta: pendingImage?.meta || undefined,
@@ -247,6 +296,13 @@ export default function ProjectRoomOpsChat({ channelId, userId, onOperationalDoc
       setMentionOpen(false)
       setMentionQuery('')
       refreshMessages()
+    } catch (err) {
+      if (err instanceof Error && err.message === 'cancelled') return
+      toast({
+        title: 'No s ha pogut enviar',
+        description: err instanceof Error ? err.message : 'Error inesperat',
+        variant: 'destructive',
+      })
     } finally {
       setLoadingSend(false)
     }

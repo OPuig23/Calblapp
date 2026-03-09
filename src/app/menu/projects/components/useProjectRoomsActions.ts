@@ -18,7 +18,13 @@ type Params = {
   setShowRoomComposer: Dispatch<SetStateAction<boolean>>
   setProject: Dispatch<SetStateAction<ProjectData>>
   setSavingBlocks: Dispatch<SetStateAction<boolean>>
-  saveProject: (title: string, sourceProject: ProjectData) => Promise<unknown>
+  saveProject: (
+    title: string,
+    sourceProject: ProjectData,
+    options?: {
+      sections?: Array<'overview' | 'departments' | 'blocks' | 'rooms' | 'documents' | 'kickoff'>
+    }
+  ) => Promise<unknown>
   syncRoomsWithOps: (sourceProject: ProjectData, roomIds?: string[]) => Promise<void>
   userByName: Map<string, ResponsibleOption>
 }
@@ -81,7 +87,9 @@ export function useProjectRoomsActions({
 
     try {
       setSavingBlocks(true)
-      await saveProject('Sala guardada', nextProject)
+      await saveProject('Sala guardada', nextProject, {
+        sections: ['rooms'],
+      })
       await syncRoomsWithOps(nextProject, [nextProject.rooms[nextProject.rooms.length - 1].id])
     } catch (err: unknown) {
       toast({
@@ -117,7 +125,9 @@ export function useProjectRoomsActions({
 
     try {
       setSavingBlocks(true)
-      await saveProject('Sala eliminada', nextProject)
+      await saveProject('Sala eliminada', nextProject, {
+        sections: ['rooms'],
+      })
     } catch (err: unknown) {
       toast({
         title: 'Error eliminant la sala',

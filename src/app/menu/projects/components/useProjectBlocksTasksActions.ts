@@ -34,10 +34,12 @@ type Params = {
       fileCategory?: string
       fileLabel?: string
       onUploaded?: (stored: ProjectDocument) => void
+      sections?: Array<'overview' | 'departments' | 'blocks' | 'rooms' | 'documents' | 'kickoff'>
     }
   ) => Promise<ProjectDocument | null>
   ensureProjectRooms: (currentProject: ProjectData) => ProjectData
   onBlocksStateSaved: (project: ProjectData) => void
+  onBlocksDirty: () => void
 }
 
 export function useProjectBlocksTasksActions({
@@ -55,6 +57,7 @@ export function useProjectBlocksTasksActions({
   saveProject,
   ensureProjectRooms,
   onBlocksStateSaved,
+  onBlocksDirty,
 }: Params) {
   const createBlock = useCallback(() => {
     if (!blockDraft.name.trim()) return
@@ -62,6 +65,7 @@ export function useProjectBlocksTasksActions({
     const primaryDepartment = blockDraft.departments[0] || ''
     const nextBlock: ProjectBlock = {
       id: `block-${Date.now()}`,
+      createdAt: Date.now(),
       name: blockDraft.name.trim(),
       summary: blockDraft.summary.trim(),
       department: primaryDepartment,
@@ -78,9 +82,10 @@ export function useProjectBlocksTasksActions({
       ...current,
       blocks: [...current.blocks, nextBlock],
     }))
+    onBlocksDirty()
     setBlockDraft(createBlockDraft())
     setShowBlockComposer(false)
-  }, [blockDraft, project.launchDate, setBlockDraft, setProject, setShowBlockComposer])
+  }, [blockDraft, onBlocksDirty, project.launchDate, setBlockDraft, setProject, setShowBlockComposer])
 
   const setBlockField = useCallback(
     <K extends keyof ProjectBlock>(blockId: string, field: K, value: ProjectBlock[K]) => {
@@ -110,8 +115,9 @@ export function useProjectBlocksTasksActions({
             : block
         ),
       }))
+      onBlocksDirty()
     },
-    [setProject]
+    [onBlocksDirty, setProject]
   )
 
   const removeBlock = useCallback((blockId: string) => {
@@ -119,8 +125,9 @@ export function useProjectBlocksTasksActions({
       ...current,
       blocks: current.blocks.filter((block) => block.id !== blockId),
     }))
+    onBlocksDirty()
     setEditingBlockId((current) => (current === blockId ? null : current))
-  }, [setEditingBlockId, setProject])
+  }, [onBlocksDirty, setEditingBlockId, setProject])
 
   const setTaskDraftField = useCallback(
     <K extends keyof ReturnType<typeof createTaskDraft>>(field: K, value: ReturnType<typeof createTaskDraft>[K]) => {
@@ -140,12 +147,21 @@ export function useProjectBlocksTasksActions({
     const taskTitle = title || description.split(/\s+/).filter(Boolean).slice(0, 3).join(' ')
     const block = project.blocks.find((item) => item.id === blockId)
     const maxTaskDeadline = block?.deadline || project.launchDate
+    const blockDepartments =
+      block?.departments && block.departments.length > 0
+        ? block.departments
+        : block?.department
+          ? [block.department]
+          : []
+    const fallbackDepartment =
+      String(draft.department || '').trim() || (blockDepartments.length === 1 ? blockDepartments[0] : '')
 
     const nextTask: ProjectTask = {
       id: `task-${Date.now()}`,
+      createdAt: Date.now(),
       title: taskTitle || 'Tasca',
       description,
-      department: draft.department,
+      department: fallbackDepartment,
       owner: draft.owner,
       deadline: clampProjectDeadline(draft.deadline, maxTaskDeadline),
       dependsOn: '',
@@ -171,10 +187,11 @@ export function useProjectBlocksTasksActions({
           : blockItem
       ),
     }))
+    onBlocksDirty()
     setTaskDraft(createTaskDraft())
     setShowTaskComposer(false)
     setQuickTaskBlockId(null)
-  }, [project.blocks, project.launchDate, setProject, setQuickTaskBlockId, setShowTaskComposer, setTaskDraft, taskDraft])
+  }, [onBlocksDirty, project.blocks, project.launchDate, setProject, setQuickTaskBlockId, setShowTaskComposer, setTaskDraft, taskDraft])
 
   const setTaskField = useCallback(
     <K extends keyof ProjectTask>(blockId: string, taskId: string, field: K, value: ProjectTask[K]) => {
@@ -204,8 +221,9 @@ export function useProjectBlocksTasksActions({
             : block
         ),
       }))
+      onBlocksDirty()
     },
-    [setProject]
+    [onBlocksDirty, setProject]
   )
 
   const removeTask = useCallback((blockId: string, taskId: string) => {
@@ -225,7 +243,8 @@ export function useProjectBlocksTasksActions({
           : block
       ),
     }))
-  }, [setProject])
+    onBlocksDirty()
+  }, [onBlocksDirty, setProject])
 
   const attachTaskDocument = useCallback(async (blockId: string, taskId: string, file: File) => {
     try {
@@ -236,6 +255,7 @@ export function useProjectBlocksTasksActions({
         file,
         fileCategory: 'other',
         fileLabel: file.name,
+        sections: ['documents'],
         onUploaded: (stored) => {
           storedDocument = stored
         },
@@ -263,7 +283,9 @@ export function useProjectBlocksTasksActions({
       })
 
       setProject(nextProject)
-      await saveProject('Document adjuntat a la tasca', nextProject)
+      await saveProject('Document adjuntat a la tasca', nextProject, {
+        sections: ['blocks'],
+      })
       onBlocksStateSaved(nextProject)
     } catch (err: unknown) {
       toast({
@@ -299,7 +321,9 @@ export function useProjectBlocksTasksActions({
       })
 
       setProject(nextProject)
-      await saveProject('Document eliminat de la tasca', nextProject)
+      await saveProject('Document eliminat de la tasca', nextProject, {
+        sections: ['blocks'],
+      })
       onBlocksStateSaved(nextProject)
     } catch (err: unknown) {
       toast({
@@ -363,7 +387,8 @@ export function useProjectBlocksTasksActions({
         }
       }),
     }))
-  }, [setProject])
+    onBlocksDirty()
+  }, [onBlocksDirty, setProject])
 
   const removeDepartmentFromBlock = useCallback((blockId: string, department: string) => {
     setProject((current) => ({
@@ -383,7 +408,8 @@ export function useProjectBlocksTasksActions({
         }
       }),
     }))
-  }, [setProject])
+    onBlocksDirty()
+  }, [onBlocksDirty, setProject])
 
   return {
     createBlock,

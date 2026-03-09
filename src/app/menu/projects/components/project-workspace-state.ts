@@ -133,7 +133,6 @@ export const ensureProjectRooms = (
   currentProject: ProjectData,
   userByName: Map<string, ResponsibleOption>
 ) => {
-  const manualRooms = currentProject.rooms.filter((room) => room.kind === 'manual')
   const autoRooms = currentProject.blocks.map((block) => {
     const existingRoom = currentProject.rooms.find(
       (room) => room.kind === 'block' && room.blockId === block.id
@@ -167,7 +166,7 @@ export const ensureProjectRooms = (
 
   return {
     ...currentProject,
-    rooms: [...manualRooms, ...autoRooms],
+    rooms: autoRooms,
   }
 }
 

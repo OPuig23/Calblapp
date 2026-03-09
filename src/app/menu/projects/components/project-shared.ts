@@ -66,6 +66,7 @@ export const TASK_PRIORITY_OPTIONS = [
 
 export type ProjectTask = {
   id: string
+  createdAt?: number
   title: string
   description?: string
   department?: string
@@ -80,6 +81,7 @@ export type ProjectTask = {
 
 export type ProjectBlock = {
   id: string
+  createdAt?: number
   name: string
   summary: string
   department: string

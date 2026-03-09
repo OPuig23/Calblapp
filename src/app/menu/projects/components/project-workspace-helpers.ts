@@ -64,12 +64,24 @@ export const createTaskDraft = () => ({
   priority: 'normal',
 })
 
-export const normalizeDepartment = (value: string) =>
-  value
+export const normalizeDepartment = (value: string) => {
+  const normalized = value
     .normalize('NFD')
     .replace(/\p{Diacritic}/gu, '')
     .toLowerCase()
     .trim()
+
+  const aliasMap: Record<string, string> = {
+    marketing: 'marqueting',
+    direccion: 'direccio',
+    administracion: 'administracio',
+    produccion: 'produccio',
+    'cuina central': 'cuina central',
+    fdlc: 'fdlc',
+  }
+
+  return aliasMap[normalized] || normalized
+}
 
 export const priorityBadgeClass = (priority: string) => {
   if (priority === 'critical') return 'bg-rose-100 text-rose-700'

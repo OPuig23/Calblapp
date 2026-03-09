@@ -13,6 +13,7 @@ import ModuleHeader from '@/components/layout/ModuleHeader'
 import UserFilters, { UserFiltersState } from '@/components/users/UserFilters'
 import FloatingAddButton from '@/components/ui/floating-add-button'
 import { markAdminUserRequestsRead } from '@/hooks/useAdminNotifications'
+import { DEPARTMENTS } from '@/data/departments'
 
 
 // 🔥 Model unificat amb UserFormModal (id opcional)
@@ -32,6 +33,13 @@ export interface AppUser {
   workerRank?: string
 }
 
+const normalizeDepartmentLabel = (value?: string) =>
+  String(value || '')
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .trim()
+
 function UsersPage() {
   const { users, loading, saveUser, deleteUser, fetchUsers } = useUsers()
 
@@ -43,7 +51,12 @@ function UsersPage() {
   const roleOptions = ['Admin', 'Direcció', 'Cap Departament', 'Treballador', 'Observer']
 
   const deptOptions = Array.from(
-    new Set(users.map((u) => u.department).filter(Boolean)),
+    [...DEPARTMENTS, ...users.map((u) => u.department).filter(Boolean)].reduce((map, department) => {
+      const key = normalizeDepartmentLabel(department)
+      if (!key || map.has(key)) return map
+      map.set(key, department)
+      return map
+    }, new Map<string, string>()).values(),
   ).sort((a, b) => a.localeCompare(b, 'ca'))
 
   const loadPendingRequests = React.useCallback(async () => {

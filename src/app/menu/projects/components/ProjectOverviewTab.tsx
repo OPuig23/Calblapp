@@ -16,7 +16,6 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import {
   getBlockDepartments,
-  PROJECT_DEPARTMENTS,
   type ProjectData,
 } from './project-shared'
 import {
@@ -29,6 +28,7 @@ import { type ResponsibleOption } from './project-workspace-helpers'
 
 type Props = {
   project: ProjectData
+  availableDepartments: string[]
   ownerOptions: ResponsibleOption[]
   pendingFile: File | null
   blockDraft: {
@@ -52,6 +52,7 @@ type Props = {
 
 export default function ProjectOverviewTab({
   project,
+  availableDepartments,
   ownerOptions,
   pendingFile,
   blockDraft,
@@ -104,12 +105,7 @@ export default function ProjectOverviewTab({
           </div>
           <div className="min-w-0 space-y-2">
             <Label>Impulsor</Label>
-            <Input
-              value={project.sponsor}
-              onChange={(event) =>
-                onProjectChange((current) => ({ ...current, sponsor: event.target.value }))
-              }
-            />
+            <Input value={project.sponsor} readOnly />
           </div>
           <div className="min-w-0 space-y-2">
             <Label>Responsable projecte</Label>
@@ -178,7 +174,7 @@ export default function ProjectOverviewTab({
         <section className="space-y-4 rounded-[24px] bg-slate-50/80 p-5">
           <h2 className={projectSectionTitleClass}>Departaments implicats</h2>
           <div className="flex flex-wrap gap-2">
-            {PROJECT_DEPARTMENTS.map((department) => {
+            {availableDepartments.map((department) => {
               const selected = project.departments.includes(department)
               return (
                 <button

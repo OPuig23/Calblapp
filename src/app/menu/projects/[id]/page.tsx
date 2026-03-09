@@ -227,6 +227,18 @@ export default function ProjectDetailPage() {
     }
   }, [params])
 
+  useEffect(() => {
+    ;(async () => {
+      for (const type of ['project_assignment', 'project_block_assignment', 'project_task_assignment']) {
+        await fetch('/api/notifications', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'markAllRead', type }),
+        })
+      }
+    })()
+  }, [])
+
   return (
     <RoleGuard allowedRoles={['admin']}>
       <div className="flex w-full max-w-none flex-col gap-6 p-4">

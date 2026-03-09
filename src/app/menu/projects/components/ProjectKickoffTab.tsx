@@ -42,6 +42,11 @@ export default function ProjectKickoffTab({
   onSendKickoff,
   onRemoveKickoffAttendee,
 }: Props) {
+  const kickoffMinDate =
+    typeof project.createdAt === 'number' && project.createdAt > 0
+      ? new Date(project.createdAt).toISOString().slice(0, 10)
+      : undefined
+
   return (
     <div className="grid gap-6 2xl:grid-cols-[0.8fr_1.2fr]">
       <section className="space-y-5 rounded-[24px] bg-white/75 p-5">
@@ -75,6 +80,7 @@ export default function ProjectKickoffTab({
             <Input
               type="date"
               value={project.kickoff.date}
+              min={kickoffMinDate}
               onChange={(event) => onKickoffFieldChange('date', event.target.value)}
             />
           </div>

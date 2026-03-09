@@ -136,7 +136,7 @@ export function useProjectAssignmentCount() {
   const userId = (session?.user as any)?.id
 
   const url = isAuth
-    ? '/api/notifications?mode=count&type=project_assignment'
+    ? '/api/notifications?mode=list'
     : null
 
   const { data, error, mutate } = useSWR(url, fetcher, {
@@ -160,7 +160,17 @@ export function useProjectAssignmentCount() {
   }, [isAuth, userId, mutate])
 
   return {
-    count: data?.count ?? 0,
+    count: (() => {
+      const notifications = Array.isArray(data?.notifications) ? data.notifications : []
+      return notifications.filter((n: any) =>
+        !n.read &&
+        (
+          n.type === 'project_assignment' ||
+          n.type === 'project_block_assignment' ||
+          n.type === 'project_task_assignment'
+        )
+      ).length
+    })(),
     loading: status === 'loading' || (isAuth && !data && !error),
     error,
   }

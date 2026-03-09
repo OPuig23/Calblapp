@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import { FileText, Flag, Save, TriangleAlert, UserRound } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -47,10 +48,22 @@ const emptyData: CreateProjectData = {
 
 export default function ProjectEditor() {
   const router = useRouter()
+  const { data: session } = useSession()
   const [data, setData] = useState<CreateProjectData>(emptyData)
   const [responsibles, setResponsibles] = useState<ResponsibleOption[]>([])
   const [saving, setSaving] = useState(false)
   const [feedback, setFeedback] = useState<{ type: 'error' | 'success'; message: string } | null>(null)
+
+  useEffect(() => {
+    const sessionUserName = String(session?.user?.name || '').trim()
+    if (!sessionUserName) return
+
+    setData((current) =>
+      current.sponsor === sessionUserName || current.sponsor.trim()
+        ? current
+        : { ...current, sponsor: sessionUserName }
+    )
+  }, [session?.user?.name])
 
   useEffect(() => {
     let cancelled = false
@@ -93,7 +106,6 @@ export default function ProjectEditor() {
 
   const canContinue = Boolean(
     data.name.trim() &&
-      data.sponsor.trim() &&
       data.owner.trim() &&
       data.context.trim() &&
       data.strategy.trim() &&
@@ -214,7 +226,7 @@ export default function ProjectEditor() {
                       id="project-sponsor"
                       className="pl-10"
                       value={data.sponsor}
-                      onChange={(event) => setField('sponsor', event.target.value)}
+                      readOnly
                       placeholder="Nom i cognoms"
                     />
                   </div>

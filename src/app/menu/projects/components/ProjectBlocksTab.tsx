@@ -1,7 +1,18 @@
 ﻿'use client'
 
+import Link from 'next/link'
 import { useState } from 'react'
-import { Pencil, Plus, RotateCcw, Save, Trash2, Users2 } from 'lucide-react'
+import {
+  ChevronDown,
+  ChevronUp,
+  MessageSquare,
+  Pencil,
+  Plus,
+  RotateCcw,
+  Save,
+  Trash2,
+  Users2,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -17,11 +28,11 @@ import { Textarea } from '@/components/ui/textarea'
 import { colorByDepartment } from '@/lib/colors'
 import {
   BLOCK_STATUS_OPTIONS,
-  PROJECT_DEPARTMENTS,
   TASK_PRIORITY_OPTIONS,
   TASK_STATUS_OPTIONS,
   formatProjectDate,
   getBlockDepartments,
+  getPreLaunchDeadline,
   type ProjectBlock,
   type ProjectData,
 } from './project-shared'
@@ -57,7 +68,9 @@ type TaskDraft = {
 }
 
 type Props = {
+  projectId: string
   project: ProjectData
+  availableDepartments: string[]
   blockDraft: BlockDraft
   taskDraft: TaskDraft
   showBlockComposer: boolean
@@ -92,6 +105,11 @@ type Props = {
   kickoffAttendeeOptions: ResponsibleOption[]
   departmentResponsibleOptions: (department?: string) => ResponsibleOption[]
   maxDeadline?: string
+  canViewKickoffSection?: boolean
+  canCreateBlocks?: boolean
+  canEditBlock?: (block: ProjectBlock) => boolean
+  canAccessBlockRoom?: (block: ProjectBlock) => boolean
+  canEditBlockOwner?: boolean
 }
 
 const blockStatusTone = (status: string) => {
@@ -114,7 +132,9 @@ const deadlineTone = (deadline?: string) => {
 }
 
 export default function ProjectBlocksTab({
+  projectId,
   project,
+  availableDepartments,
   blockDraft,
   taskDraft,
   showBlockComposer,
@@ -144,11 +164,17 @@ export default function ProjectBlocksTab({
   kickoffAttendeeOptions,
   departmentResponsibleOptions,
   maxDeadline,
+  canViewKickoffSection = false,
+  canCreateBlocks = false,
+  canEditBlock = () => false,
+  canAccessBlockRoom = () => false,
+  canEditBlockOwner = false,
 }: Props) {
   const [showKickoffAttendeeEditor, setShowKickoffAttendeeEditor] = useState(false)
   const [kickoffAttendeeDraft, setKickoffAttendeeDraft] = useState('none')
   const [showKickoffAttendees, setShowKickoffAttendees] = useState(false)
   const [showDepartmentPickerByBlock, setShowDepartmentPickerByBlock] = useState<Record<string, boolean>>({})
+  const [viewingBlockId, setViewingBlockId] = useState<string | null>(null)
 
   const getDeadlineHint = (value?: string) => {
     const raw = String(value || '').trim()
@@ -167,7 +193,7 @@ export default function ProjectBlocksTab({
 
   const getAvailableDepartments = (block: ProjectBlock) => {
     const selected = getBlockDepartments(block)
-    const available = PROJECT_DEPARTMENTS.filter((department) => !selected.includes(department))
+    const available = availableDepartments.filter((department) => !selected.includes(department))
     const projectDepartments = available.filter((department) => project.departments.includes(department))
     const otherDepartments = available.filter((department) => !project.departments.includes(department))
     return [...projectDepartments, ...otherDepartments]
@@ -186,9 +212,9 @@ export default function ProjectBlocksTab({
               type="button"
               variant="outline"
               onClick={onSave}
-              disabled={savingBlocks || !dirtyBlocks}
+              disabled={savingBlocks || !dirtyBlocks || !project.blocks.some((block) => canEditBlock(block))}
               className={`border-violet-200 ${
-                dirtyBlocks
+                dirtyBlocks && project.blocks.some((block) => canEditBlock(block))
                   ? 'text-violet-700 hover:bg-violet-50'
                   : 'cursor-not-allowed text-slate-400 hover:bg-transparent'
               }`}
@@ -196,7 +222,7 @@ export default function ProjectBlocksTab({
               <Save className="mr-2 h-4 w-4" />
               Guardar
             </Button>
-            {showBlockComposer ? (
+            {showBlockComposer && canCreateBlocks ? (
               <Button
                 type="button"
                 variant="ghost"
@@ -210,7 +236,7 @@ export default function ProjectBlocksTab({
           </div>
         </div>
 
-        {showBlockComposer ? (
+        {showBlockComposer && canCreateBlocks ? (
           <div className="mt-4 grid gap-4 pt-2 md:grid-cols-2 xl:grid-cols-[minmax(0,1.5fr)_180px_minmax(0,1fr)_220px_180px_auto]">
             <div className="space-y-2">
               <Label>Nom del bloc</Label>
@@ -318,23 +344,31 @@ export default function ProjectBlocksTab({
               Encara no hi ha blocs. Crea el primer front de treball del projecte.
             </div>
           ) : (
-            project.blocks.map((block) => (
+            project.blocks.map((block) => {
+              const canEditCurrentBlock = canEditBlock(block)
+              const canAccessCurrentBlockRoom = canAccessBlockRoom(block)
+              const isViewingReadonly = viewingBlockId === block.id && !canEditCurrentBlock
+              const isExpanded = editingBlockId === block.id || isViewingReadonly
+              const blockRoomId =
+                project.rooms.find((room) => room.kind === 'block' && room.blockId === block.id)?.id ||
+                `room-block-${block.id}`
+              return (
               <div
                 key={block.id}
                 className={`space-y-4 rounded-[24px] p-5 ${
-                  editingBlockId === block.id ? 'bg-violet-50/70 ring-1 ring-violet-200' : 'bg-slate-50/75'
+                  isExpanded && canEditCurrentBlock
+                    ? 'bg-violet-50/70 ring-1 ring-violet-200'
+                    : 'bg-slate-50/75'
                 }`}
               >
                 <div
                   className={`flex items-center justify-between gap-3 rounded-[18px] ${
-                    editingBlockId === block.id ? 'bg-white/80 px-2 py-1' : ''
+                    isExpanded && canEditCurrentBlock ? 'bg-white/80 px-2 py-1' : ''
                   }`}
                 >
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <div className={projectCardTitleClass}>
-                        {block.name || 'Bloc sense nom'}
-                      </div>
+                      <div className={projectCardTitleClass}>{block.name || 'Bloc sense nom'}</div>
                     </div>
                     <div className={`mt-1 flex flex-wrap items-center gap-2 ${projectCardMetaClass}`}>
                       {getBlockDepartments(block).length > 0 ? (
@@ -383,30 +417,57 @@ export default function ProjectBlocksTab({
                     <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${blockStatusTone(block.status)}`}>
                       {BLOCK_STATUS_OPTIONS.find((option) => option.value === block.status)?.label || 'En curs'}
                     </span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-9 w-9 rounded-full"
-                      onClick={() =>
-                        onSetEditingBlockId((current) => (current === block.id ? null : block.id))
-                      }
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-9 w-9 rounded-full text-red-600 hover:bg-red-50 hover:text-red-700"
-                      onClick={() => onRemoveBlock(block.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    {canAccessCurrentBlockRoom ? (
+                      <Button asChild type="button" variant="ghost" size="icon" className="h-9 w-9 rounded-full">
+                        <Link href={`/menu/projects/${projectId}/rooms/${blockRoomId}`}>
+                          <MessageSquare className="h-4 w-4" />
+                        </Link>
+                      </Button>
+                    ) : null}
+                    {canEditCurrentBlock ? (
+                      <>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-9 w-9 rounded-full"
+                          onClick={() =>
+                            onSetEditingBlockId((current) => (current === block.id ? null : block.id))
+                          }
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-9 w-9 rounded-full text-red-600 hover:bg-red-50 hover:text-red-700"
+                          onClick={() => onRemoveBlock(block.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9 rounded-full"
+                        onClick={() =>
+                          setViewingBlockId((current) => (current === block.id ? null : block.id))
+                        }
+                      >
+                        {isViewingReadonly ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )}
+                      </Button>
+                    )}
                   </div>
                 </div>
 
-                {editingBlockId === block.id ? (
+                {editingBlockId === block.id && canEditCurrentBlock ? (
                   <>
                     <div className="space-y-4">
                       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,0.9fr)_160px_minmax(0,1.6fr)_180px]">
@@ -514,6 +575,7 @@ export default function ProjectBlocksTab({
                           <Label>Responsable</Label>
                           <Select
                             value={block.owner || 'none'}
+                            disabled={!canEditBlockOwner}
                             onValueChange={(value) =>
                               onSetBlockField(block.id, 'owner', value === 'none' ? '' : value)
                             }
@@ -530,6 +592,9 @@ export default function ProjectBlocksTab({
                               ))}
                             </SelectContent>
                           </Select>
+                          {!canEditBlockOwner ? (
+                            <p className="text-xs text-slate-500">Només el responsable del projecte pot canviar aquest camp.</p>
+                          ) : null}
                         </div>
                       </div>
 
@@ -630,7 +695,7 @@ export default function ProjectBlocksTab({
                                   <Input
                                     type="date"
                                     value={task.deadline}
-                                    max={block.deadline || maxDeadline || undefined}
+                                    max={getPreLaunchDeadline(block.deadline) || maxDeadline || undefined}
                                     onChange={(event) =>
                                       onSetTaskField(block.id, task.id, 'deadline', event.target.value)
                                     }
@@ -679,7 +744,7 @@ export default function ProjectBlocksTab({
                             deadline={taskDraft.deadline}
                             priority={taskDraft.priority || 'normal'}
                             departments={getBlockDepartments(block)}
-                            maxDeadline={block.deadline || maxDeadline || undefined}
+                            maxDeadline={getPreLaunchDeadline(block.deadline) || maxDeadline || undefined}
                             onDescriptionChange={(value) => onSetTaskDraftField('description', value)}
                             onDepartmentChange={(value) => onSetTaskDraftField('department', value)}
                             onDeadlineChange={(value) => onSetTaskDraftField('deadline', value)}
@@ -693,12 +758,77 @@ export default function ProjectBlocksTab({
                   </>
                 ) : null}
 
+                {isViewingReadonly ? (
+                  <div className="space-y-4">
+                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_160px_180px]">
+                      <div className="space-y-2">
+                        <Label>Descripcio</Label>
+                        <div className="rounded-md border border-input bg-white px-3 py-2 text-sm text-slate-700">
+                          {block.summary || 'Sense descripcio'}
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Comptador</Label>
+                        <div className="flex h-10 items-center rounded-md border border-input bg-white px-3 text-sm text-slate-600">
+                          {getDeadlineHint(block.deadline)}
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Cost del bloc</Label>
+                        <div className="flex h-10 items-center rounded-md border border-input bg-white px-3 text-sm text-slate-600">
+                          {block.budget || 'Sense cost'}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <Label>Tasques</Label>
+                      {block.tasks.length === 0 ? (
+                        <div className={`rounded-2xl bg-white/80 px-4 py-4 ${projectEmptyStateClass}`}>
+                          Encara no hi ha tasques en aquest bloc.
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {block.tasks.map((task) => (
+                            <div key={task.id} className="rounded-2xl bg-white px-4 py-3">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <div className="font-medium text-slate-900">{task.title || 'Tasca'}</div>
+                                <span className="text-sm text-slate-500">·</span>
+                                <span className="text-sm text-slate-600">{task.owner || 'Sense responsable'}</span>
+                                <span className="text-sm text-slate-500">·</span>
+                                <span className="text-sm text-slate-600">{formatProjectDate(task.deadline)}</span>
+                              </div>
+                              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                                {task.department ? (
+                                  <span className={`rounded-full px-2.5 py-1 ${colorByDepartment(task.department)}`}>
+                                    {task.department}
+                                  </span>
+                                ) : null}
+                                <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1">
+                                  {TASK_PRIORITY_OPTIONS.find((option) => option.value === task.priority)?.label || 'Normal'}
+                                </span>
+                                <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1">
+                                  {TASK_STATUS_OPTIONS.find((option) => option.value === task.status)?.label || 'Pendent'}
+                                </span>
+                              </div>
+                              {task.description ? (
+                                <div className="mt-2 text-sm text-slate-600">{task.description}</div>
+                              ) : null}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : null}
+
               </div>
-            ))
+            )})
           )}
         </div>
       </section>
 
+      {canViewKickoffSection ? (
       <section className="space-y-4 rounded-[24px] bg-slate-50/80 p-5">
         <div>
           <h2 className={projectSectionTitleClass}>Acta kickoff</h2>
@@ -844,6 +974,7 @@ export default function ProjectBlocksTab({
           ) : null}
         </div>
       </section>
+      ) : null}
     </div>
   )
 }

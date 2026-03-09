@@ -7,6 +7,11 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route'
 import { firestoreAdmin as db, storageAdmin } from '@/lib/firebaseAdmin'
 import { canAccessProjects } from '@/lib/projectAccess'
 import { syncProjectRoomOpsChannel } from '@/lib/projectRoomOps'
+import {
+  createTaskDeadlineCalendarEvent,
+  sendTaskAssignmentEmail,
+} from '@/services/graph/calendar'
+import Ably from 'ably'
 
 type SessionUser = {
   id: string
@@ -37,6 +42,138 @@ const normalizeText = (value: string) =>
     .replace(/\p{Diacritic}/gu, '')
     .toLowerCase()
     .trim()
+
+async function findUserByName(rawName: string) {
+  const name = rawName.trim()
+  if (!name) return null
+
+  let snap = await db.collection('users').where('name', '==', name).limit(1).get()
+  if (snap.empty) {
+    snap = await db.collection('users').where('nameFold', '==', normalizeText(name)).limit(1).get()
+  }
+
+  if (snap.empty) return null
+  const doc = snap.docs[0]
+  return { id: doc.id, ...(doc.data() as Record<string, unknown>) }
+}
+
+async function findUserById(userId: string) {
+  const id = String(userId || '').trim()
+  if (!id) return null
+  const doc = await db.collection('users').doc(id).get()
+  if (!doc.exists) return null
+  return { id: doc.id, ...(doc.data() as Record<string, unknown>) }
+}
+
+async function notifyTaskOwnerAssignment(params: {
+  userId: string
+  userName: string
+  userEmail?: string
+  projectId: string
+  projectName: string
+  blockId: string
+  blockName: string
+  taskId: string
+  taskName: string
+  deadline?: string
+  baseUrl: string
+  senderEmail?: string
+}) {
+  const {
+    userId,
+    userName,
+    userEmail,
+    projectId,
+    projectName,
+    blockId,
+    blockName,
+    taskId,
+    taskName,
+    deadline,
+    baseUrl,
+    senderEmail,
+  } = params
+  const title = "T'han assignat una tasca"
+  const body = `Ara ets responsable de la tasca ${taskName || 'Tasca'} del bloc ${blockName || 'Bloc'}`
+  const now = Date.now()
+
+  await db.collection('users').doc(userId).collection('notifications').add({
+    title,
+    body,
+    createdAt: now,
+    read: false,
+    type: 'project_task_assignment',
+    projectId,
+    blockId,
+    taskId,
+    projectName,
+    blockName,
+    taskName,
+  })
+
+  const apiKey = process.env.ABLY_API_KEY
+  if (apiKey) {
+    try {
+      const rest = new Ably.Rest({ key: apiKey })
+      await rest.channels.get(`user:${userId}:notifications`).publish('created', {
+        type: 'project_task_assignment',
+        projectId,
+        blockId,
+        taskId,
+        createdAt: now,
+      })
+    } catch (err) {
+      console.error('[project-room] task assignment Ably publish error', err)
+    }
+  }
+
+  try {
+    await fetch(`${baseUrl}/api/push/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId,
+        title,
+        body,
+        url: `/menu/projects/${projectId}?tab=tasks`,
+      }),
+    })
+  } catch (err) {
+    console.error('[project-room] task assignment push error', err)
+  }
+
+  if (!userEmail) return
+
+  try {
+    await sendTaskAssignmentEmail({
+      senderEmail: senderEmail || userEmail,
+      recipient: {
+        email: userEmail,
+        name: userName,
+      },
+      projectName,
+      blockName,
+      taskName,
+      deadline,
+    })
+  } catch (err) {
+    console.error('[project-room] task assignment email error', err)
+  }
+
+  if (!deadline) return
+
+  try {
+    await createTaskDeadlineCalendarEvent({
+      assigneeEmail: userEmail,
+      projectName,
+      blockName,
+      taskName,
+      deadline,
+    })
+  } catch (err) {
+    console.error('[project-room] task assignment calendar error', err)
+  }
+}
 
 const buildAutoRoomFromBlock = (data: Record<string, unknown>, roomId: string) => {
   if (!roomId.startsWith('room-block-')) return null
@@ -219,6 +356,7 @@ export async function PATCH(
 
   try {
     const { id, roomId } = await params
+    const baseUrl = new URL(req.url).origin
     const payload = (await req.json()) as {
       room?: Record<string, unknown>
       tasks?: Array<Record<string, unknown>>
@@ -256,12 +394,54 @@ export async function PATCH(
       updatedByName: auth.user.name || '',
     }
 
+    let taskAssignmentNotifications: Promise<unknown>[] = []
     if (Array.isArray(payload.tasks) && String(rooms[roomIndex].blockId || '')) {
       const blocks = Array.isArray(data.blocks) ? [...(data.blocks as Record<string, unknown>[])] : []
       const blockIndex = blocks.findIndex(
         (block) => String(block.id || '') === String(rooms[roomIndex].blockId || '')
       )
       if (blockIndex >= 0) {
+        const previousBlock = blocks[blockIndex]
+        const previousTasksById = new Map(
+          (Array.isArray(previousBlock?.tasks) ? previousBlock.tasks : [])
+            .map((task) => [String(task?.id || ''), task] as const)
+            .filter(([taskId]) => Boolean(taskId))
+        )
+        const actorUser = await findUserById(auth.user.id)
+        const senderEmail = String(actorUser?.email || '').trim()
+        const blockId = String(blocks[blockIndex].id || '').trim()
+        const blockName = String(blocks[blockIndex].name || '').trim() || 'Bloc'
+        const projectName = String(data.name || '').trim()
+
+        taskAssignmentNotifications = payload.tasks.map(async (task) => {
+          const taskId = String(task?.id || '').trim()
+          const taskName = String(task?.title || '').trim() || 'Tasca'
+          const taskOwner = String(task?.owner || '').trim()
+          const deadline = String(task?.deadline || '').trim()
+          const previousTask = previousTasksById.get(taskId)
+          const previousOwnerName = String(previousTask?.owner || '').trim()
+
+          if (!taskId || !taskOwner || taskOwner === previousOwnerName) return null
+
+          const assignedUser = await findUserByName(taskOwner)
+          if (!assignedUser?.id) return null
+
+          return notifyTaskOwnerAssignment({
+            userId: assignedUser.id,
+            userName: String(assignedUser.name || taskOwner).trim(),
+            userEmail: String(assignedUser.email || '').trim(),
+            projectId: id,
+            projectName,
+            blockId,
+            blockName,
+            taskId,
+            taskName,
+            deadline,
+            baseUrl,
+            senderEmail,
+          })
+        })
+
         blocks[blockIndex] = {
           ...blocks[blockIndex],
           tasks: payload.tasks,
@@ -288,6 +468,7 @@ export async function PATCH(
     nextPayload.rooms = syncResult.rooms
 
     await projectRef.set(nextPayload, { merge: true })
+    await Promise.allSettled(taskAssignmentNotifications)
 
     return NextResponse.json({ ok: true, room: syncResult.room, opsChannelId: syncResult.channelId })
   } catch (err: unknown) {

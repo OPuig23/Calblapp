@@ -38,7 +38,14 @@ export async function PATCH(_req: Request, ctx: { params: Promise<{ id: string }
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    await snap.docs[0].ref.set({ unreadCount: 0 }, { merge: true })
+    await snap.docs[0].ref.set(
+      {
+        unreadCount: 0,
+        projectMissedActivityPending: false,
+        projectMissedActivityLastReadAt: Date.now(),
+      },
+      { merge: true }
+    )
     return NextResponse.json({ success: true })
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Internal error'

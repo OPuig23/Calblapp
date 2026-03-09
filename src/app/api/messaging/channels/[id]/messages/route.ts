@@ -338,6 +338,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       return NextResponse.json({ error: 'Canal tancat' }, { status: 400 })
     }
     const channelName = channelSnap.exists ? (channelSnap.data() as any)?.name : ''
+    const channelSource = String(channelData?.source || '').toLowerCase()
     const data = {
       channelId: id,
       senderId: userId,
@@ -394,12 +395,23 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       if (memberUserId === userId) continue
       if (member?.hidden || member?.notify === false) continue
       if (visibility === 'direct' && memberUserId !== targetUserId) continue
+      const memberUpdate: Record<string, unknown> = {
+        unreadCount: Number(member?.unreadCount || 0) + 1,
+      }
 
-      batch.set(
-        ref,
-        { unreadCount: Number(member?.unreadCount || 0) + 1 },
-        { merge: true }
-      )
+      if (channelSource === 'projects' && visibility === 'channel') {
+        const hasPendingWindow = Boolean(member?.projectMissedActivityPending)
+        memberUpdate.projectMissedActivityPending = true
+        memberUpdate.projectMissedActivityWindowStartedAt = Number(
+          hasPendingWindow ? member?.projectMissedActivityWindowStartedAt || now : now
+        )
+        memberUpdate.projectMissedActivityDueAt = Number(
+          hasPendingWindow ? member?.projectMissedActivityDueAt || now + 60 * 60 * 1000 : now + 60 * 60 * 1000
+        )
+        memberUpdate.projectMissedActivityLastMessageAt = now
+      }
+
+      batch.set(ref, memberUpdate, { merge: true })
     }
 
     await batch.commit()
@@ -460,8 +472,12 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     const title = channelName ? `Missatge: ${channelName}` : 'Nou missatge'
     const pushBody = text ? text.slice(0, 180) : 'Imatge'
     const url = `/menu/missatgeria?channel=${id}`
+    const shouldSendPush =
+      channelSource !== 'projects' || visibility === 'direct'
 
-    await sendPushToUids(baseUrl, pushRecipients, title, pushBody, url)
+    if (shouldSendPush) {
+      await sendPushToUids(baseUrl, pushRecipients, title, pushBody, url)
+    }
 
     const shouldAutoTicket =
       visibility === 'channel' && text.toLowerCase().includes('#ticket')

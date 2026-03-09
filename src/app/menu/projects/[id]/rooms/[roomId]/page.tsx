@@ -1,12 +1,13 @@
 ﻿'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { FileText, MessageSquare, Paperclip, Plus, Save, Trash2, Users2 } from 'lucide-react'
 import ModuleHeader from '@/components/layout/ModuleHeader'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -16,6 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { toast } from '@/components/ui/use-toast'
+import { normalizeRole } from '@/lib/roles'
 import { RoleGuard } from '@/lib/withRoleGuard'
 import { colorByDepartment } from '@/lib/colors'
 import { initials } from '@/app/menu/missatgeria/utils'
@@ -25,6 +27,7 @@ import {
   clampProjectDeadline,
   formatProjectDate,
   getBlockDepartments,
+  getPreLaunchDeadline,
   getPrimaryBlockDepartment,
   TASK_PRIORITY_OPTIONS,
   TASK_STATUS_OPTIONS,
@@ -49,6 +52,9 @@ type RoomDetailResponse = {
 export default function ProjectRoomDetailPage() {
   const params = useParams<{ id: string; roomId: string }>()
   const { data: session } = useSession()
+  const sessionUserId = String((session?.user as any)?.id || '').trim()
+  const sessionUserName = String((session?.user as any)?.name || '').trim()
+  const sessionRole = normalizeRole(String((session?.user as any)?.role || '').trim())
   const [project, setProject] = useState<ProjectResponse | null>(null)
   const [users, setUsers] = useState<UserOption[]>([])
   const [error, setError] = useState('')
@@ -64,6 +70,15 @@ export default function ProjectRoomDetailPage() {
   const [participantsOpen, setParticipantsOpen] = useState(false)
   const [documentsView, setDocumentsView] = useState<'initial' | 'operational'>('initial')
   const [showTaskComposer, setShowTaskComposer] = useState(false)
+  const [hashTaskDraft, setHashTaskDraft] = useState<{
+    description: string
+    deadline: string
+    owner: string
+  } | null>(null)
+  const hashTaskPromiseRef = useRef<{
+    resolve: (value: { title: string }) => void
+    reject: (reason?: unknown) => void
+  } | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -144,6 +159,22 @@ export default function ProjectRoomDetailPage() {
     (fallbackRoom ? project?.blocks?.find((block) => block.id === fallbackRoom.blockId) || null : null)
   const linkedTasks = currentBlock?.tasks || []
   const roomResponsibleName = currentBlock?.owner || project?.owner || ''
+  const normalizeText = (value?: string | null) =>
+    String(value || '')
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '')
+      .toLowerCase()
+      .trim()
+  const canCreateTaskFromChat =
+    !!currentBlock &&
+    !!currentRoom &&
+    currentRoom.opsChannelSource === 'projects' &&
+    (
+      sessionRole === 'admin' ||
+      (sessionUserId && sessionUserId === String(project?.ownerUserId || '').trim()) ||
+      normalizeText(sessionUserName) === normalizeText(project?.owner || '') ||
+      normalizeText(sessionUserName) === normalizeText(currentBlock?.owner || '')
+    )
   const inheritedInitialDocuments = useMemo(
     () => (project?.documents || []).filter((item) => item && ['initial', 'kickoff'].includes(item.category || '')),
     [project?.documents]
@@ -200,6 +231,8 @@ export default function ProjectRoomDetailPage() {
     if (daysLeft === 1) return 'Falta 1 dia'
     return `Falten ${daysLeft} dies`
   }
+  const projectDaysLeft = dayDiffFromToday(project?.launchDate)
+  const blockDaysLeft = dayDiffFromToday(currentBlock?.deadline)
 
   const participantOptions = useMemo(() => {
     if (!currentRoom) return users
@@ -228,6 +261,34 @@ export default function ProjectRoomDetailPage() {
       return allowedDepartments.has(userDepartment)
     })
   }, [currentRoom, users])
+
+  const roomTaskResponsibleOptions = useMemo(() => {
+    if (!currentBlock) return []
+
+    const allowedDepartments = new Set(
+      getBlockDepartments(currentBlock).map((department) => normalizeText(department))
+    )
+
+    const filtered = users.filter((user) => {
+      if (!user.name) return false
+      if (
+        normalizeText(user.name) === normalizeText(currentBlock.owner) ||
+        normalizeText(user.name) === normalizeText(project?.owner || '')
+      ) {
+        return true
+      }
+      return allowedDepartments.has(normalizeText(user.department || ''))
+    })
+
+    const byName = new Map<string, { id: string; name: string }>()
+    filtered.forEach((user) => {
+      const key = normalizeText(user.name)
+      if (!key || byName.has(key)) return
+      byName.set(key, { id: user.id, name: user.name })
+    })
+
+    return Array.from(byName.values())
+  }, [currentBlock, project?.owner, users])
 
   useEffect(() => {
     if (!params?.id || !params?.roomId || !currentRoom || currentRoom.opsChannelId) return
@@ -466,6 +527,7 @@ export default function ProjectRoomDetailPage() {
       ...(currentBlock.tasks || []),
       {
         id: `task-${Date.now()}`,
+        createdAt: Date.now(),
         title: generatedTitle,
         description: taskDraft.description.trim(),
         department:
@@ -485,13 +547,84 @@ export default function ProjectRoomDetailPage() {
     toast({ title: 'Tasca afegida a la sala' })
   }
 
+  const closeHashTaskModal = () => {
+    setHashTaskDraft(null)
+    hashTaskPromiseRef.current = null
+  }
+
+  const createTaskFromChat = async (rawText: string) => {
+    if (!currentRoom || !currentBlock || !canCreateTaskFromChat) {
+      throw new Error('No tens permisos per crear tasques des del xat')
+    }
+
+    const description = rawText.trim()
+    if (!description) {
+      throw new Error('Escriu text despres del signe #')
+    }
+
+    return await new Promise<{ title: string }>((resolve, reject) => {
+      hashTaskPromiseRef.current = { resolve, reject }
+      setHashTaskDraft({
+        description,
+        deadline: '',
+        owner: '',
+      })
+    })
+  }
+
+  const submitHashTask = async () => {
+    if (!currentRoom || !currentBlock || !hashTaskDraft) return
+
+    const description = hashTaskDraft.description.trim()
+    const generatedTitle =
+      description
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 3)
+        .join(' ') || 'Nova tasca'
+
+    const nextTasks = [
+      ...(currentBlock.tasks || []),
+      {
+        id: `task-${Date.now()}`,
+        createdAt: Date.now(),
+        title: generatedTitle,
+        description,
+        department: getPrimaryBlockDepartment(currentBlock),
+        owner: hashTaskDraft.owner,
+        deadline: clampProjectDeadline(hashTaskDraft.deadline, currentBlock.deadline || project?.launchDate),
+        dependsOn: '',
+        priority: 'normal',
+        status: 'pending',
+        documents: [],
+      },
+    ]
+
+    try {
+      updateBlockTasksLocal(nextTasks)
+      await persistRoom(currentRoom, nextTasks)
+      toast({ title: 'Tasca creada des del xat' })
+      hashTaskPromiseRef.current?.resolve({ title: generatedTitle })
+      closeHashTaskModal()
+    } catch (err) {
+      hashTaskPromiseRef.current?.reject(err)
+      closeHashTaskModal()
+      throw err
+    }
+  }
+
+  const cancelHashTask = () => {
+    hashTaskPromiseRef.current?.reject(new Error('cancelled'))
+    closeHashTaskModal()
+  }
+
   return (
     <RoleGuard allowedRoles={['admin']}>
-      <div className="flex w-full max-w-none flex-col gap-6 p-4">
+      <div className="flex min-h-[calc(100vh-72px)] w-full max-w-none flex-col gap-3 overflow-hidden p-3">
         <ModuleHeader
           title="Sales"
           subtitle={currentRoom?.name || 'Sala'}
-          mainHref={`/menu/projects/${params?.id}?tab=rooms`}
+          mainHref={`/menu/projects/${params?.id}?tab=blocks`}
         />
 
         {error ? (
@@ -507,10 +640,104 @@ export default function ProjectRoomDetailPage() {
         ) : null}
 
         {currentRoom ? (
-          <div className="space-y-6">
-            <section className="rounded-[24px] border border-slate-200 bg-white p-6">
+          <div className="flex flex-1 min-h-0 flex-col space-y-4">
+            <Dialog
+              open={!!hashTaskDraft}
+              onOpenChange={(open) => {
+                if (!open && hashTaskDraft) cancelHashTask()
+              }}
+            >
+              <DialogContent className="w-[92vw] max-w-sm rounded-2xl p-4">
+                <DialogHeader>
+                  <DialogTitle className="text-base font-semibold">Nova tasca des del xat</DialogTitle>
+                </DialogHeader>
+
+                {hashTaskDraft ? (
+                  <div className="space-y-4">
+                    <div className="rounded-2xl bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                      {hashTaskDraft.description}
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-slate-700">Responsable</label>
+                      <Select
+                        value={hashTaskDraft.owner || 'none'}
+                        onValueChange={(value) =>
+                          setHashTaskDraft((current) =>
+                            current
+                              ? {
+                                  ...current,
+                                  owner: value === 'none' ? '' : value,
+                                }
+                              : current
+                          )
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Sense responsable" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Sense responsable</SelectItem>
+                          {roomTaskResponsibleOptions.map((option) => (
+                            <SelectItem key={option.id} value={option.name}>
+                              {option.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-slate-700">Deadline</label>
+                      <Input
+                        type="date"
+                        value={hashTaskDraft.deadline}
+                        min={project?.startDate || undefined}
+                        max={
+                          getPreLaunchDeadline(currentBlock?.deadline) ||
+                          getPreLaunchDeadline(project?.launchDate) ||
+                          undefined
+                        }
+                        onChange={(event) =>
+                          setHashTaskDraft((current) =>
+                            current
+                              ? {
+                                  ...current,
+                                  deadline: event.target.value,
+                                }
+                              : current
+                          )
+                        }
+                      />
+                    </div>
+
+                    <div className="grid gap-2 pt-1 sm:grid-cols-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full"
+                        onClick={cancelHashTask}
+                        disabled={saving}
+                      >
+                        Cancel.lar
+                      </Button>
+                      <Button
+                        type="button"
+                        className="w-full bg-violet-600 text-white hover:bg-violet-700"
+                        onClick={submitHashTask}
+                        disabled={saving}
+                      >
+                        Crear tasca
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+              </DialogContent>
+            </Dialog>
+
+            <section className="rounded-[24px] border border-slate-200 bg-white px-5 py-3">
               <div className="flex flex-wrap items-center gap-2">
-                <div className="text-xl font-semibold text-slate-900">{currentRoom.name}</div>
+                <div className="text-lg font-semibold text-slate-900">{currentRoom.name}</div>
                 <span
                   className={`rounded-full px-3 py-1 text-xs font-medium ${
                     currentRoom.kind === 'block'
@@ -522,42 +749,73 @@ export default function ProjectRoomDetailPage() {
                 </span>
               </div>
 
-              <div className="mt-4 grid gap-4 xl:grid-cols-4">
+              <div className="mt-3 grid gap-3 rounded-2xl bg-slate-50 px-4 py-3 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1.1fr)_minmax(0,0.9fr)_minmax(0,1.35fr)]">
                 <Link
                   href={`/menu/projects/${params?.id}?tab=overview`}
-                  className="rounded-2xl bg-slate-50 p-4 transition hover:bg-slate-100"
+                  className="min-w-0 rounded-xl px-1 py-1 transition hover:bg-white/70"
                 >
-                  <div className="text-xs uppercase tracking-wide text-slate-400">Projecte</div>
-                  <div className="mt-2 text-sm font-medium text-slate-900">{project?.name || '-'}</div>
+                  <div className="text-[11px] uppercase tracking-wide text-slate-400">Projecte</div>
+                  <div className="mt-1 truncate text-sm font-medium text-slate-900 hover:text-violet-700">
+                    {project?.name || '-'}
+                  </div>
                 </Link>
+
                 <Link
                   href={`/menu/projects/${params?.id}?tab=blocks`}
-                  className="rounded-2xl bg-slate-50 p-4 transition hover:bg-slate-100"
+                  className="min-w-0 rounded-xl px-1 py-1 transition hover:bg-white/70"
                 >
-                  <div className="text-xs uppercase tracking-wide text-slate-400">Bloc vinculat</div>
-                  <div className="mt-2 text-sm font-medium text-slate-900">
+                  <div className="text-[11px] uppercase tracking-wide text-slate-400">Bloc vinculat</div>
+                  <div className="mt-1 truncate text-sm font-medium text-slate-900 hover:text-violet-700">
                     {currentBlock?.name || 'Sense bloc'}
                   </div>
                 </Link>
-                <div className="rounded-2xl bg-slate-50 p-4">
-                  <div className="text-xs uppercase tracking-wide text-slate-400">Departaments</div>
-                  <div className="mt-2 text-sm font-medium text-slate-900">
-                    {currentRoom.departments.length > 0
-                      ? currentRoom.departments.join(', ')
-                      : 'Sense departament'}
+
+                <div className="min-w-0 rounded-xl px-1 py-1">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                    <div className="min-w-0">
+                      <div className="text-[11px] uppercase tracking-wide text-slate-400">Departaments</div>
+                      <div className="mt-1 truncate text-sm font-medium text-slate-900">
+                        {currentRoom.departments.length > 0
+                          ? currentRoom.departments.join(', ')
+                          : 'Sense departament'}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[11px] uppercase tracking-wide text-slate-400">Participants</div>
+                      <div className="mt-1 text-sm font-medium text-slate-900">
+                        {currentRoom.participants.length}
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <div className="rounded-2xl bg-slate-50 p-4">
-                  <div className="text-xs uppercase tracking-wide text-slate-400">Participants</div>
-                  <div className="mt-2 text-sm font-medium text-slate-900">
-                    {currentRoom.participants.length}
+
+                <div className="min-w-0 rounded-xl px-1 py-1">
+                  <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                      <span className="text-[11px] uppercase tracking-wide text-slate-400">Projecte</span>
+                      <span className="rounded-full bg-slate-200 px-2.5 py-1 text-xs text-slate-700">
+                        {formatProjectDate(project?.launchDate)}
+                      </span>
+                      <span className={`rounded-full px-2.5 py-1 text-xs ${deadlineBadgeClass(projectDaysLeft)}`}>
+                        {deadlineBadgeLabel(projectDaysLeft)}
+                      </span>
+                    </div>
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                      <span className="text-[11px] uppercase tracking-wide text-slate-400">Bloc</span>
+                      <span className="rounded-full bg-slate-200 px-2.5 py-1 text-xs text-slate-700">
+                        {formatProjectDate(currentBlock?.deadline)}
+                      </span>
+                      <span className={`rounded-full px-2.5 py-1 text-xs ${deadlineBadgeClass(blockDaysLeft)}`}>
+                        {deadlineBadgeLabel(blockDaysLeft)}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
             </section>
 
-            <div className="grid gap-6 xl:grid-cols-[1.15fr_0.62fr_0.78fr]">
-              <section className="flex min-h-[620px] flex-col rounded-[24px] border border-slate-200 bg-white">
+            <div className="grid gap-4 xl:flex-1 xl:min-h-0 xl:grid-cols-[1.15fr_0.62fr_0.78fr]">
+              <section className="flex min-h-[560px] flex-col rounded-[24px] border border-slate-200 bg-white xl:min-h-0">
                 <div className="border-b border-slate-200 px-5 py-4">
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
@@ -670,6 +928,8 @@ export default function ProjectRoomDetailPage() {
                   <ProjectRoomOpsChat
                     channelId={currentRoom.opsChannelId}
                     userId={String((session?.user as any)?.id || '')}
+                    canCreateTaskFromHash={canCreateTaskFromChat}
+                    onCreateTaskFromHash={createTaskFromChat}
                     onOperationalDocumentCreated={(document) => {
                       updateRoomLocal((room) => ({
                         ...room,
@@ -690,7 +950,7 @@ export default function ProjectRoomDetailPage() {
                 )}
               </section>
 
-              <div className="space-y-6">
+              <div className="space-y-4 xl:min-h-0 xl:overflow-auto">
                 <section className="space-y-4 rounded-[24px] border border-slate-200 bg-white p-6">
                   <Link
                     href={`/menu/projects/${params?.id}?tab=documents`}
@@ -799,7 +1059,7 @@ export default function ProjectRoomDetailPage() {
                   )}
                 </section>
               </div>
-              <section className="space-y-4 rounded-[24px] border border-slate-200 bg-white p-6">
+              <section className="space-y-4 rounded-[24px] border border-slate-200 bg-white p-6 xl:min-h-0 xl:overflow-auto">
                 <div className="flex items-center justify-between gap-3">
                   <Link
                     href={`/menu/projects/${params?.id}?tab=tasks`}
@@ -829,13 +1089,13 @@ export default function ProjectRoomDetailPage() {
                     priority={taskDraft.priority || 'normal'}
                     departments={getBlockDepartments(currentBlock)}
                     responsibleOptions={users
-                      .filter((user) =>
-                        getBlockDepartments(currentBlock).some(
-                          (department) => department.toLowerCase() === (user.department || '').toLowerCase()
-                        )
-                      )
+                      .filter((user) => roomTaskResponsibleOptions.some((option) => option.id === user.id))
                       .map((user) => ({ id: user.id, name: user.name }))}
-                    maxDeadline={currentBlock.deadline || project?.launchDate || undefined}
+                    maxDeadline={
+                      getPreLaunchDeadline(currentBlock.deadline) ||
+                      getPreLaunchDeadline(project?.launchDate) ||
+                      undefined
+                    }
                     compact
                     disabled={saving}
                     onDescriptionChange={(value) => setTaskDraft((current) => ({ ...current, description: value }))}

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import useSWR from 'swr'
 import { CalendarDays, FolderKanban, Search, UserRound } from 'lucide-react'
 import SmartFilters, { type SmartFiltersChange } from '@/components/filters/SmartFilters'
 import ModuleHeader from '@/components/layout/ModuleHeader'
@@ -23,6 +24,22 @@ type ProjectListItem = {
   blocks?: Array<{ id?: string }>
 }
 
+type ProjectNotification = {
+  id: string
+  title?: string
+  body?: string
+  type?: string
+  read?: boolean
+  projectId?: string
+  projectName?: string
+  blockId?: string
+  blockName?: string
+  taskId?: string
+  taskName?: string
+}
+
+const fetcher = (url: string) => fetch(url).then((r) => r.json())
+
 export default function ProjectsPage() {
   const router = useRouter()
   const [projects, setProjects] = useState<ProjectListItem[]>([])
@@ -30,6 +47,10 @@ export default function ProjectsPage() {
   const [error, setError] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [dateFilter, setDateFilter] = useState<SmartFiltersChange>({})
+  const { data: notificationsData, mutate: mutateNotifications } = useSWR(
+    '/api/notifications?mode=list',
+    fetcher
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -62,6 +83,30 @@ export default function ProjectsPage() {
       cancelled = true
     }
   }, [])
+  useEffect(() => {
+    const unreadProjectNotifications = (
+      Array.isArray(notificationsData?.notifications) ? notificationsData.notifications : []
+    ).filter(
+      (notification: ProjectNotification) =>
+        !notification.read &&
+        ['project_assignment', 'project_block_assignment', 'project_task_assignment'].includes(
+          String(notification.type || '')
+        )
+    )
+
+    if (unreadProjectNotifications.length === 0) return
+
+    ;(async () => {
+      for (const type of ['project_assignment', 'project_block_assignment', 'project_task_assignment']) {
+        await fetch('/api/notifications', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'markAllRead', type }),
+        })
+      }
+      await mutateNotifications()
+    })()
+  }, [mutateNotifications, notificationsData])
 
   const normalizeText = (value: string) =>
     String(value || '')
@@ -126,6 +171,67 @@ export default function ProjectsPage() {
       return matchesQuery && matchesMonth
     })
   }, [projects, searchQuery, dateFilter.start, dateFilter.end])
+  const projectNotifications = useMemo(
+    () =>
+      (Array.isArray(notificationsData?.notifications) ? notificationsData.notifications : []).filter(
+        (notification: ProjectNotification) =>
+          [
+            'project_assignment',
+            'project_block_assignment',
+            'project_task_assignment',
+          ].includes(String(notification.type || ''))
+      ),
+    [notificationsData]
+  )
+  const openProjectNotification = (notification: ProjectNotification) => {
+    const projectId = String(notification.projectId || '').trim()
+    if (!projectId) return
+
+    if (notification.type === 'project_task_assignment') {
+      router.push(`/menu/projects/${projectId}?tab=tasks`)
+      return
+    }
+
+    if (notification.type === 'project_block_assignment') {
+      router.push(`/menu/projects/${projectId}?tab=blocks`)
+      return
+    }
+
+    router.push(`/menu/projects/${projectId}`)
+  }
+  const extractNotificationLabel = (notification: ProjectNotification) => {
+    const body = String(notification.body || '')
+
+    if (notification.type === 'project_task_assignment') {
+      const taskName =
+        String(notification.taskName || '').trim() ||
+        body.match(/tasca\s+(.+?)\s+del bloc/i)?.[1]?.trim() ||
+        'Tasca'
+      const blockName =
+        String(notification.blockName || '').trim() ||
+        body.match(/bloc\s+(.+)$/i)?.[1]?.trim() ||
+        ''
+      return { primary: taskName, secondary: blockName, prefix: 'Tasca' }
+    }
+
+    if (notification.type === 'project_block_assignment') {
+      const blockName =
+        String(notification.blockName || '').trim() ||
+        body.match(/bloc\s+(.+?)\s+del projecte/i)?.[1]?.trim() ||
+        'Bloc'
+      const projectName =
+        String(notification.projectName || '').trim() ||
+        body.match(/projecte\s+(.+)$/i)?.[1]?.trim() ||
+        ''
+      return { primary: blockName, secondary: projectName, prefix: 'Bloc' }
+    }
+
+    const projectName =
+      String(notification.projectName || '').trim() ||
+      body.split('projecte:').pop()?.trim() ||
+      'Projecte'
+    return { primary: projectName, secondary: '', prefix: 'Projecte' }
+  }
 
   return (
     <RoleGuard allowedRoles={['admin']}>
@@ -150,6 +256,48 @@ export default function ProjectsPage() {
         {error ? (
           <section className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {error}
+          </section>
+        ) : null}
+
+        {projectNotifications.length > 0 ? (
+          <section className="rounded-[14px] border border-violet-200/80 bg-white px-2.5 py-2 shadow-sm">
+            <div className="mb-1.5 flex items-center gap-2">
+              <div className="rounded-full bg-violet-50 px-2.5 py-1 text-xs font-semibold text-violet-700 ring-1 ring-violet-200">
+                Avisos de Projects
+              </div>
+              <div className="text-xs text-slate-500">
+                {projectNotifications.length} recents
+              </div>
+            </div>
+            <div className="space-y-1">
+              {projectNotifications.slice(0, 6).map((notification: ProjectNotification) => {
+                const label = extractNotificationLabel(notification)
+                return (
+                <div
+                  key={notification.id}
+                  className="flex min-h-9 items-center gap-2 rounded-md border border-slate-200/80 bg-slate-50/70 px-2.5 py-1.5 text-sm"
+                >
+                  <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-500 ring-1 ring-slate-200">
+                    {label.prefix}
+                  </span>
+                  <div className="min-w-0 flex flex-1 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-slate-700">
+                    <button
+                      type="button"
+                      className="truncate font-medium text-slate-900 hover:text-violet-700 hover:underline"
+                      onClick={() => openProjectNotification(notification)}
+                    >
+                      {label.primary}
+                    </button>
+                    {label.secondary ? <span className="text-slate-400">·</span> : null}
+                    {label.secondary ? (
+                      <span className="truncate text-slate-500">{label.secondary}</span>
+                    ) : (
+                      <span className="text-slate-400">{notification.title || ''}</span>
+                    )}
+                  </div>
+                </div>
+              )})}
+            </div>
           </section>
         ) : null}
 

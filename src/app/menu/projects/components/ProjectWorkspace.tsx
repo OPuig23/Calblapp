@@ -6,27 +6,20 @@ import { useSession } from 'next-auth/react'
 import FloatingAddButton from '@/components/ui/floating-add-button'
 import { toast } from '@/components/ui/use-toast'
 import { normalizeRole } from '@/lib/roles'
-import {
-  deriveProjectPhase,
-  getBlockDepartments,
-  getPreLaunchDeadline,
-  type ProjectData,
-} from './project-shared'
+import { DEPARTMENTS } from '@/data/departments'
+import { deriveProjectPhase, getBlockDepartments, getPreLaunchDeadline, type ProjectData } from './project-shared'
 import ProjectOverviewTab from './ProjectOverviewTab'
 import ProjectWorkspaceShell from './ProjectWorkspaceShell'
 import {
   deriveKickoffAttendees,
   ensureProjectRooms,
   sameStringSet,
-  serializeBlocksState,
-  serializeOverviewState,
   serializeRoomsState,
   syncBlockBudgets,
 } from './project-workspace-state'
 import { useProjectBlocksTasksActions } from './useProjectBlocksTasksActions'
 import { useProjectKickoffActions } from './useProjectKickoffActions'
 import { useProjectPersistence } from './useProjectPersistence'
-import { useProjectRoomsActions } from './useProjectRoomsActions'
 import {
   createBlockDraft,
   createTaskDraft,
@@ -68,10 +61,6 @@ const ProjectDocumentsTab = dynamic(() => import('./ProjectDocumentsTab'), {
   loading: tabLoadingFallback,
 })
 
-const ProjectRoomsTab = dynamic(() => import('./ProjectRoomsTab'), {
-  loading: tabLoadingFallback,
-})
-
 const ProjectTrackingTab = dynamic(() => import('./ProjectTrackingTab'), {
   loading: tabLoadingFallback,
 })
@@ -81,6 +70,7 @@ export default function ProjectWorkspace({ projectId, initialProject, initialTab
   const sessionUserId = String(session?.user?.id || '').trim()
   const sessionUserName = String(session?.user?.name || '').trim()
   const sessionRole = normalizeRole(String(session?.user?.role || '').trim())
+  const sessionDepartment = normalizeDepartment(String(session?.user?.department || '').trim())
   const [activeTab, setActiveTab] = useState<WorkspaceTab>(initialTab)
   const [project, setProject] = useState<ProjectData>(initialProject)
   const [pendingFile, setPendingFile] = useState<File | null>(null)
@@ -96,29 +86,46 @@ export default function ProjectWorkspace({ projectId, initialProject, initialTab
   const [taskDraft, setTaskDraft] = useState(createTaskDraft())
   const [showBlockComposer, setShowBlockComposer] = useState(false)
   const [showTaskComposer, setShowTaskComposer] = useState(false)
-  const [showRoomComposer, setShowRoomComposer] = useState(false)
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null)
   const [editingTaskKey, setEditingTaskKey] = useState<string | null>(null)
   const [quickTaskBlockId, setQuickTaskBlockId] = useState<string | null>(null)
-  const [roomDraft, setRoomDraft] = useState({ name: '', departments: [] as string[] })
-  const [overviewSavedState, setOverviewSavedState] = useState('')
-  const [blocksSavedState, setBlocksSavedState] = useState('')
-  const canViewKickoff =
-    sessionRole === 'admin' ||
-    (sessionUserId && sessionUserId === String(project.createdById || '').trim()) ||
+  const [dirtyOverviewState, setDirtyOverviewState] = useState(false)
+  const [dirtyBlocksState, setDirtyBlocksState] = useState(false)
+  const isProjectOwner =
     (sessionUserId && sessionUserId === String(project.ownerUserId || '').trim()) ||
     (sessionUserName && sessionUserName === String(project.owner || '').trim())
+  const isProjectSponsor =
+    (sessionUserId && sessionUserId === String(project.createdById || '').trim()) ||
+    (sessionUserName && sessionUserName === String(project.sponsor || '').trim())
+  const hasFullProjectVisibility =
+    sessionRole === 'admin' || sessionRole === 'direccio' || isProjectSponsor || isProjectOwner
+  const canViewOverview = sessionRole === 'admin' || isProjectSponsor || isProjectOwner
+  const canViewKickoff = sessionRole === 'admin' || isProjectSponsor || isProjectOwner
+  const canCreateOrRemoveBlocks = sessionRole === 'admin' || isProjectOwner
 
   useEffect(() => {
-    setOverviewSavedState(serializeOverviewState(initialProject))
-    setBlocksSavedState(serializeBlocksState(initialProject))
+    setProject(initialProject)
+    setDirtyOverviewState(false)
+    setDirtyBlocksState(false)
   }, [initialProject])
 
   useEffect(() => {
-    if (sessionStatus !== 'loading' && activeTab === 'kickoff' && !canViewKickoff) {
-      setActiveTab('overview')
+    if (sessionStatus === 'loading') return
+
+    if (activeTab === 'overview' && !canViewOverview) {
+      setActiveTab('blocks')
+      return
     }
-  }, [activeTab, canViewKickoff, sessionStatus])
+
+    if (activeTab === 'kickoff' && !canViewKickoff) {
+      setActiveTab(canViewOverview ? 'overview' : 'blocks')
+      return
+    }
+
+    if (activeTab === 'rooms') {
+      setActiveTab('blocks')
+    }
+  }, [activeTab, canViewKickoff, canViewOverview, sessionStatus])
 
   useEffect(() => {
     let cancelled = false
@@ -177,12 +184,35 @@ export default function ProjectWorkspace({ projectId, initialProject, initialTab
     return responsibles
   }, [project.owner, responsibles])
   const maxDeadline = useMemo(() => getPreLaunchDeadline(project.launchDate), [project.launchDate])
-  const projectOverviewState = useMemo(() => serializeOverviewState(project), [project])
-  const projectBlocksState = useMemo(() => serializeBlocksState(project), [project])
   const userByName = useMemo(
     () => new Map(usersCatalog.map((user) => [user.name, user])),
     [usersCatalog]
   )
+  const availableDepartments = useMemo(
+    () =>
+      DEPARTMENTS.filter((department) => {
+        const normalized = normalizeDepartment(department)
+        return normalized !== 'delsys' && normalized !== 'total'
+      }),
+    []
+  )
+  const withProjectOwnerOption = (options: ResponsibleOption[]) => {
+    const ownerName = String(project.owner || '').trim()
+    if (!ownerName) return options
+    if (options.some((item) => item.name === ownerName)) return options
+
+    const ownerUser = userByName.get(ownerName)
+    return [
+      {
+        id: ownerUser?.id || 'project-owner',
+        name: ownerName,
+        role: ownerUser?.role || 'current',
+        email: ownerUser?.email || '',
+        department: ownerUser?.department || '',
+      },
+      ...options,
+    ]
+  }
   const kickoffAttendeeOptions = useMemo(
     () =>
       usersCatalog.filter(
@@ -192,50 +222,104 @@ export default function ProjectWorkspace({ projectId, initialProject, initialTab
       ),
     [usersCatalog, project.kickoff.attendees]
   )
-  const allTasks = useMemo(
-    () =>
-      project.blocks.flatMap((block) =>
-        block.tasks.map((task) => ({
-          block,
-          task,
-          taskKey: `${block.id}:${task.id}`,
-        }))
-      ),
-    [project.blocks]
-  )
   const visibleTabs = useMemo<WorkspaceTab[]>(
     () =>
       sessionStatus === 'loading'
         ? workspaceTabs.map((tab) => tab.id)
-        :
-      canViewKickoff
-        ? ['overview', 'kickoff', 'blocks', 'tasks', 'rooms', 'planning', 'tracking', 'documents']
-        : ['overview', 'blocks', 'tasks', 'rooms', 'planning', 'tracking', 'documents'],
-    [canViewKickoff, sessionStatus]
+        : workspaceTabs
+            .map((tab) => tab.id)
+            .filter((tabId) => {
+              if (tabId === 'rooms') return false
+              if (tabId === 'overview') return canViewOverview
+              if (tabId === 'kickoff') return canViewKickoff
+              return true
+            }),
+    [canViewKickoff, canViewOverview, sessionStatus]
   )
-  const dirtyOverview = overviewSavedState !== projectOverviewState || Boolean(pendingFile)
-  const dirtyBlocks = blocksSavedState !== projectBlocksState
+  const visibleProjectForBlocks = useMemo<ProjectData>(() => {
+    if (hasFullProjectVisibility) return project
+
+    const filteredBlocks = project.blocks.filter((block) => {
+      const blockDepartments = getBlockDepartments(block).map((department) =>
+        normalizeDepartment(department)
+      )
+      const isResponsible =
+        (sessionUserName && String(block.owner || '').trim() === sessionUserName) ||
+        block.tasks.some((task) => String(task.owner || '').trim() === sessionUserName)
+      const isDepartmentCap =
+        sessionRole === 'cap' &&
+        Boolean(sessionDepartment) &&
+        blockDepartments.includes(sessionDepartment)
+
+      return isResponsible || isDepartmentCap
+    })
+
+    return {
+      ...project,
+      blocks: filteredBlocks,
+    }
+  }, [hasFullProjectVisibility, project, sessionDepartment, sessionRole, sessionUserName])
+  const visibleProjectForTasks = useMemo<ProjectData>(() => {
+    if (hasFullProjectVisibility) return project
+
+    const filteredBlocks = project.blocks.filter((block) => {
+      const blockDepartments = getBlockDepartments(block).map((department) =>
+        normalizeDepartment(department)
+      )
+      const isBlockResponsible = sessionUserName && String(block.owner || '').trim() === sessionUserName
+      const isTaskResponsible = block.tasks.some(
+        (task) => String(task.owner || '').trim() === sessionUserName
+      )
+      const isDepartmentParticipant =
+        Boolean(sessionDepartment) && blockDepartments.includes(sessionDepartment)
+
+      return isBlockResponsible || isTaskResponsible || isDepartmentParticipant
+    })
+
+    return {
+      ...project,
+      blocks: filteredBlocks,
+    }
+  }, [hasFullProjectVisibility, project, sessionDepartment, sessionUserName])
+  const canEditSpecificBlock = (block: ProjectData['blocks'][number]) =>
+    sessionRole === 'admin' ||
+    isProjectOwner ||
+    ((sessionUserName && String(block.owner || '').trim() === sessionUserName) || false)
+  const canAccessSpecificBlockRoom = (block: ProjectData['blocks'][number]) =>
+    canEditSpecificBlock(block) ||
+    block.tasks.some((task) => Boolean(sessionUserName && String(task.owner || '').trim() === sessionUserName))
+  const canManageSpecificTask = (
+    block: ProjectData['blocks'][number],
+    _task: ProjectData['blocks'][number]['tasks'][number]
+  ) =>
+    sessionRole === 'admin' ||
+    isProjectOwner ||
+    ((sessionUserName && String(block.owner || '').trim() === sessionUserName) || false)
+  const canAccessSpecificTaskOps = (
+    block: ProjectData['blocks'][number],
+    task: ProjectData['blocks'][number]['tasks'][number]
+  ) => canManageSpecificTask(block, task) || Boolean(sessionUserName && String(task.owner || '').trim() === sessionUserName)
+  const canMoveSpecificTask = (
+    _block: ProjectData['blocks'][number],
+    task: ProjectData['blocks'][number]['tasks'][number]
+  ) => Boolean(sessionUserName && String(task.owner || '').trim() === sessionUserName)
+  const canSaveTasks =
+    canCreateOrRemoveBlocks ||
+    visibleProjectForTasks.blocks.some((block) =>
+      block.tasks.some(
+        (task) =>
+          canManageSpecificTask(block, task) ||
+          canAccessSpecificTaskOps(block, task) ||
+          canMoveSpecificTask(block, task)
+      )
+    )
+  const dirtyOverview = dirtyOverviewState || Boolean(pendingFile)
+  const dirtyBlocks = dirtyBlocksState
   const { saveProject, syncRoomsWithOps } = useProjectPersistence({
     projectId,
     pendingFile,
     setPendingFile,
     setProject,
-  })
-  const {
-    resetRoomDraft,
-    toggleRoomDraftDepartment,
-    createManualRoom,
-    removeRoom,
-  } = useProjectRoomsActions({
-    project,
-    roomDraft,
-    setRoomDraft,
-    setShowRoomComposer,
-    setProject,
-    setSavingBlocks,
-    saveProject,
-    syncRoomsWithOps,
-    userByName,
   })
   const {
     setKickoffField,
@@ -257,7 +341,11 @@ export default function ProjectWorkspace({ projectId, initialProject, initialTab
     saveProject,
     ensureProjectRooms: (currentProject) => ensureProjectRooms(currentProject, userByName),
     sessionUserName: String(session?.user?.name || ''),
-    onKickoffMinutesSaved: (nextProject) => setBlocksSavedState(serializeBlocksState(nextProject)),
+    onKickoffMinutesSaved: (nextProject) => {
+      setProject(nextProject)
+      setDirtyBlocksState(false)
+    },
+    onBlocksDirty: () => setDirtyBlocksState(true),
   })
   const {
     createBlock,
@@ -288,7 +376,11 @@ export default function ProjectWorkspace({ projectId, initialProject, initialTab
     setSavingBlocks,
     saveProject,
     ensureProjectRooms: (currentProject) => ensureProjectRooms(currentProject, userByName),
-    onBlocksStateSaved: (nextProject) => setBlocksSavedState(serializeBlocksState(nextProject)),
+    onBlocksStateSaved: (nextProject) => {
+      setProject(nextProject)
+      setDirtyBlocksState(false)
+    },
+    onBlocksDirty: () => setDirtyBlocksState(true),
   })
 
   const departmentResponsibleOptions = (department?: string | string[]) => {
@@ -297,7 +389,7 @@ export default function ProjectWorkspace({ projectId, initialProject, initialTab
       .map((item) => normalizeDepartment(item || ''))
       .filter(Boolean)
 
-    if (normalizedDepartments.length === 0) return ownerOptions
+    if (normalizedDepartments.length === 0) return withProjectOwnerOption(ownerOptions)
 
     const filtered = responsibles.filter(
       (user) =>
@@ -305,103 +397,131 @@ export default function ProjectWorkspace({ projectId, initialProject, initialTab
         normalizedDepartments.includes(normalizeDepartment(user.department || ''))
     )
 
-    return filtered.length > 0 ? filtered : ownerOptions
+    return withProjectOwnerOption(filtered.length > 0 ? filtered : ownerOptions)
   }
 
-  const taskResponsibleOptions = (department?: string) => {
+  const taskResponsibleOptions = (department?: string, blockId?: string) => {
     const normalized = normalizeDepartment(department || '')
-    if (!normalized) return ownerOptions
+    const blockOwnerName = String(
+      project.blocks.find((block) => block.id === blockId)?.owner || ''
+    ).trim()
 
-    const filtered = usersCatalog.filter(
-      (user) => normalizeDepartment(user.department || '') === normalized
-    )
+    const filtered = normalized
+      ? usersCatalog.filter(
+          (user) =>
+            normalizeDepartment(user.department || '') === normalized &&
+            (
+              user.role === 'usuari' ||
+              user.role === 'treballador' ||
+              user.role === 'cap' ||
+              user.role === 'comercial'
+            )
+        )
+      : []
 
-    return filtered.length > 0 ? filtered : departmentResponsibleOptions(department)
-  }
-
-  useEffect(() => {
-    setProject((current) => {
-      const next = ensureProjectRooms(current, userByName)
-      const currentRoomsState = serializeRoomsState(current.rooms)
-      const nextRoomsState = serializeRoomsState(next.rooms)
-      if (nextRoomsState === currentRoomsState) return current
-      return next
-    })
-  }, [project.owner, project.blocks, userByName])
-
-  useEffect(() => {
-    setProject((current) => {
-      const dedupedAttendees = deriveKickoffAttendees(current, usersCatalog, userByName)
-
-      const same =
-        dedupedAttendees.length === current.kickoff.attendees.length &&
-        dedupedAttendees.every((item, index) => {
-          const currentItem = current.kickoff.attendees[index]
-          return (
-            currentItem?.key === item.key &&
-            currentItem?.userId === item.userId &&
-            currentItem?.email === item.email &&
-            currentItem?.name === item.name
-          )
-        })
-
-      if (same) return current
-
-      return {
-        ...current,
-        kickoff: {
-          ...current.kickoff,
-          attendees: dedupedAttendees,
+    const withBlockOwner = (() => {
+      if (!blockOwnerName) return filtered
+      if (filtered.some((item) => item.name === blockOwnerName)) return filtered
+      const blockOwnerUser = userByName.get(blockOwnerName)
+      return [
+        {
+          id: blockOwnerUser?.id || `block-owner:${blockId || 'current'}`,
+          name: blockOwnerName,
+          role: blockOwnerUser?.role || 'current',
+          email: blockOwnerUser?.email || '',
+          department: blockOwnerUser?.department || '',
         },
-      }
-    })
-  }, [usersCatalog, project.departments, project.owner, project.sponsor, userByName])
+        ...filtered,
+      ]
+    })()
 
-  useEffect(() => {
-    setProject((current) => {
-      const next = syncBlockBudgets(current)
-      const same = next.blocks.every((block, index) => block.budget === current.blocks[index]?.budget)
-      return same ? current : next
-    })
-  }, [project.blocks])
-
-  useEffect(() => {
-    setProject((current) => {
-      const nextPhase = deriveProjectPhase(current)
-      if (current.phase === nextPhase && !current.status) return current
-      return {
-        ...current,
-        phase: nextPhase,
-        status: '',
-      }
-    })
-  }, [project.blocks, project.kickoff.attendees.length, project.kickoff.date, project.kickoff.startTime, project.kickoff.status])
+    return withProjectOwnerOption(withBlockOwner)
+  }
 
   useEffect(() => {
     setProject((current) => {
       const nextDepartments = [
-        ...new Set(
-          current.blocks.flatMap((block) => getBlockDepartments(block)).filter(Boolean)
-        ),
+        ...new Set(current.blocks.flatMap((block) => getBlockDepartments(block)).filter(Boolean)),
       ]
 
-      if (sameStringSet(current.departments, nextDepartments)) {
-        return current
+      let nextProject =
+        sameStringSet(current.departments, nextDepartments)
+          ? current
+          : {
+              ...current,
+              departments: nextDepartments,
+            }
+
+      const roomsCandidate = ensureProjectRooms(nextProject, userByName)
+      if (serializeRoomsState(roomsCandidate.rooms) !== serializeRoomsState(nextProject.rooms)) {
+        nextProject = roomsCandidate
       }
 
-      return {
-        ...current,
-        departments: nextDepartments,
+      const kickoffAttendees = deriveKickoffAttendees(nextProject, usersCatalog, userByName)
+      const sameKickoffAttendees =
+        kickoffAttendees.length === nextProject.kickoff.attendees.length &&
+        kickoffAttendees.every((item, index) => {
+          const currentItem = nextProject.kickoff.attendees[index]
+          return (
+            currentItem?.key === item.key &&
+            currentItem?.userId === item.userId &&
+            currentItem?.email === item.email &&
+            currentItem?.name === item.name &&
+            currentItem?.attended === item.attended &&
+            currentItem?.department === item.department
+          )
+        })
+
+      if (!sameKickoffAttendees) {
+        nextProject = {
+          ...nextProject,
+          kickoff: {
+            ...nextProject.kickoff,
+            attendees: kickoffAttendees,
+          },
+        }
       }
+
+      const budgetCandidate = syncBlockBudgets(nextProject)
+      const sameBudgets =
+        budgetCandidate.blocks.length === nextProject.blocks.length &&
+        budgetCandidate.blocks.every((block, index) => block.budget === nextProject.blocks[index]?.budget)
+
+      if (!sameBudgets) {
+        nextProject = budgetCandidate
+      }
+
+      const nextPhase = deriveProjectPhase(nextProject)
+      if (nextProject.phase !== nextPhase || nextProject.status) {
+        nextProject = {
+          ...nextProject,
+          phase: nextPhase,
+          status: '',
+        }
+      }
+
+      return nextProject === current ? current : nextProject
     })
-  }, [project.blocks])
+  }, [
+    project.blocks,
+    project.owner,
+    project.sponsor,
+    project.kickoff.date,
+    project.kickoff.startTime,
+    project.kickoff.status,
+    project.kickoff.attendees.length,
+    usersCatalog,
+    userByName,
+  ])
 
   const saveOverview = async () => {
     try {
       setSavingOverview(true)
       const nextProject = ensureProjectRooms(project, userByName)
       setProject(nextProject)
-      const storedDocument = await saveProject('Projecte guardat', nextProject)
+      const storedDocument = await saveProject('Projecte guardat', nextProject, {
+        sections: ['overview', 'departments', 'rooms', 'documents'],
+      })
       const finalProject =
         storedDocument && pendingFile
           ? {
@@ -411,8 +531,7 @@ export default function ProjectWorkspace({ projectId, initialProject, initialTab
             }
           : nextProject
       await syncRoomsWithOps(finalProject)
-      setOverviewSavedState(serializeOverviewState(finalProject))
-      setBlocksSavedState(serializeBlocksState(finalProject))
+      setDirtyOverviewState(false)
     } catch (err: unknown) {
       toast({
         title: 'Error guardant el projecte',
@@ -441,9 +560,11 @@ export default function ProjectWorkspace({ projectId, initialProject, initialTab
         },
       }, userByName)
       setProject(nextProject)
-      await saveProject('Blocs guardats', nextProject)
+      await saveProject('Blocs guardats', nextProject, {
+        sections: ['departments', 'blocks', 'rooms', 'kickoff'],
+      })
       await syncRoomsWithOps(nextProject)
-      setBlocksSavedState(serializeBlocksState(nextProject))
+      setDirtyBlocksState(false)
     } catch (err: unknown) {
       toast({
         title: 'Error guardant els blocs',
@@ -465,6 +586,7 @@ export default function ProjectWorkspace({ projectId, initialProject, initialTab
         file: pendingDocumentFile,
         fileCategory: documentDraft.category,
         fileLabel: documentDraft.label.trim() || pendingDocumentFile.name,
+        sections: ['documents'],
         onUploaded: (stored) => {
           setProject((current) => ({
             ...current,
@@ -541,8 +663,14 @@ export default function ProjectWorkspace({ projectId, initialProject, initialTab
 
     try {
       setSavingOverview(true)
-      await saveProject('Document eliminat', nextProject)
-      setOverviewSavedState(serializeOverviewState(nextProject))
+      await saveProject('Document eliminat', nextProject, {
+        sections:
+          !source || source.type === 'project'
+            ? ['documents']
+            : source.type === 'room'
+              ? ['rooms']
+              : ['blocks'],
+      })
     } catch (err: unknown) {
       toast({
         title: 'Error eliminant el document',
@@ -567,7 +695,9 @@ export default function ProjectWorkspace({ projectId, initialProject, initialTab
 
     try {
       setSavingOverview(true)
-      await saveProject('Acta eliminada', nextProject)
+      await saveProject('Acta eliminada', nextProject, {
+        sections: ['kickoff'],
+      })
     } catch (err: unknown) {
       toast({
         title: 'Error eliminant l acta',
@@ -590,9 +720,10 @@ export default function ProjectWorkspace({ projectId, initialProject, initialTab
 
       <section className="rounded-[28px] border border-violet-200 bg-white shadow-sm">
         <div className="p-6">
-          {activeTab === 'overview' ? (
+          {activeTab === 'overview' && canViewOverview ? (
             <ProjectOverviewTab
               project={project}
+              availableDepartments={availableDepartments}
               ownerOptions={ownerOptions}
               pendingFile={pendingFile}
               blockDraft={blockDraft}
@@ -600,7 +731,10 @@ export default function ProjectWorkspace({ projectId, initialProject, initialTab
               savingOverview={savingOverview}
               showBlockComposer={showBlockComposer}
               onSave={saveOverview}
-              onProjectChange={setProject}
+              onProjectChange={(updater) => {
+                setDirtyOverviewState(true)
+                setProject(updater)
+              }}
               onPendingFileChange={setPendingFile}
               onSetBlockDraftName={(value) =>
                 setBlockDraft((current) => ({ ...current, name: value }))
@@ -636,7 +770,9 @@ export default function ProjectWorkspace({ projectId, initialProject, initialTab
 
           {activeTab === 'blocks' ? (
             <ProjectBlocksTab
-              project={project}
+              projectId={projectId}
+              project={visibleProjectForBlocks}
+              availableDepartments={availableDepartments}
               blockDraft={blockDraft}
               taskDraft={taskDraft}
               showBlockComposer={showBlockComposer}
@@ -657,7 +793,8 @@ export default function ProjectWorkspace({ projectId, initialProject, initialTab
               onAddTaskToBlock={addTaskToBlock}
               onSetTaskField={setTaskField}
               onRemoveTask={removeTask}
-              onKickoffMinutesChange={(value) =>
+              onKickoffMinutesChange={(value) => {
+                setDirtyBlocksState(true)
                 setProject((current) => ({
                   ...current,
                   kickoff: {
@@ -665,13 +802,14 @@ export default function ProjectWorkspace({ projectId, initialProject, initialTab
                     minutes: value,
                   },
                 }))
-              }
+              }}
               onFinalizeKickoffMinutes={finalizeKickoffMinutes}
               onReopenKickoffMinutes={reopenKickoffMinutes}
               onKickoffAttendeeAttendanceChange={setKickoffAttendeeAttendance}
               onAddKickoffAttendee={(userId) => {
                 const user = usersCatalog.find((item) => item.id === userId && item.email)
                 if (!user) return
+                setDirtyBlocksState(true)
                 setProject((current) => {
                   if (current.kickoff.attendees.some((item) => item.key === `user:${user.id}`)) {
                     return current
@@ -702,19 +840,31 @@ export default function ProjectWorkspace({ projectId, initialProject, initialTab
               kickoffAttendeeOptions={kickoffAttendeeOptions}
               departmentResponsibleOptions={departmentResponsibleOptions}
               maxDeadline={maxDeadline}
+              canViewKickoffSection={canViewKickoff}
+              canCreateBlocks={canCreateOrRemoveBlocks}
+              canEditBlock={canEditSpecificBlock}
+              canAccessBlockRoom={canAccessSpecificBlockRoom}
+              canEditBlockOwner={isProjectOwner}
             />
           ) : null}
 
           {activeTab === 'tasks' ? (
             <ProjectTasksTab
               projectId={projectId}
-              projectBlocks={project.blocks}
-              projectRooms={project.rooms}
-              allTasks={allTasks}
+              projectBlocks={visibleProjectForTasks.blocks}
+              projectRooms={visibleProjectForTasks.rooms}
+              allTasks={visibleProjectForTasks.blocks.flatMap((block) =>
+                block.tasks.map((task) => ({
+                  block,
+                  task,
+                  taskKey: `${block.id}:${task.id}`,
+                }))
+              )}
               taskDraft={taskDraft}
               showTaskComposer={showTaskComposer}
               editingTaskKey={editingTaskKey}
               savingBlocks={savingBlocks}
+              dirtyBlocks={dirtyBlocks}
               onSave={saveBlocks}
               onResetTaskDraft={resetTaskDraft}
               onSetTaskDraftField={setTaskDraftField}
@@ -726,6 +876,11 @@ export default function ProjectWorkspace({ projectId, initialProject, initialTab
               onRemoveTaskDocument={removeTaskDocument}
               taskResponsibleOptions={taskResponsibleOptions}
               maxDeadline={maxDeadline}
+              canCreateTasks={canCreateOrRemoveBlocks}
+              canSaveTasks={canSaveTasks}
+              canManageTask={canManageSpecificTask}
+              canAccessTaskOps={canAccessSpecificTaskOps}
+              canMoveTask={canMoveSpecificTask}
             />
           ) : null}
 
@@ -747,27 +902,11 @@ export default function ProjectWorkspace({ projectId, initialProject, initialTab
             />
           ) : null}
 
-          {activeTab === 'rooms' ? (
-            <ProjectRoomsTab
-              projectId={projectId}
-              rooms={project.rooms}
-              roomDraft={roomDraft}
-              showRoomComposer={showRoomComposer}
-              saving={savingBlocks}
-              availableDepartments={project.departments}
-              onSetRoomDraft={setRoomDraft}
-              onToggleRoomDraftDepartment={toggleRoomDraftDepartment}
-              onCreateRoom={createManualRoom}
-              onResetRoomDraft={resetRoomDraft}
-              onRemoveRoom={removeRoom}
-            />
-          ) : null}
-
           {activeTab === 'tracking' ? <ProjectTrackingTab project={project} /> : null}
         </div>
       </section>
 
-      {activeTab === 'blocks' && !showBlockComposer ? (
+      {activeTab === 'blocks' && canCreateOrRemoveBlocks && !showBlockComposer ? (
         <FloatingAddButton onClick={() => setShowBlockComposer(true)} />
       ) : null}
 
@@ -783,10 +922,6 @@ export default function ProjectWorkspace({ projectId, initialProject, initialTab
             }
           }}
         />
-      ) : null}
-
-      {activeTab === 'rooms' && !showRoomComposer ? (
-        <FloatingAddButton onClick={() => setShowRoomComposer(true)} />
       ) : null}
     </div>
   )

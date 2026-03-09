@@ -1,13 +1,19 @@
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-import { NextResponse } from 'next/server'
+import { after, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
 import { firestoreAdmin as db, storageAdmin } from '@/lib/firebaseAdmin'
 import { canAccessProjects } from '@/lib/projectAccess'
 import { deriveProjectPhase } from '@/app/menu/projects/components/project-shared'
 import { archiveProjectRoomOpsChannel } from '@/lib/projectRoomOps'
+import {
+  createBlockDeadlineCalendarEvent,
+  createTaskDeadlineCalendarEvent,
+  sendBlockAssignmentEmail,
+  sendTaskAssignmentEmail,
+} from '@/services/graph/calendar'
 import Ably from 'ably'
 
 type SessionUser = {
@@ -101,6 +107,39 @@ async function findUserByName(rawName: string) {
   return { id: doc.id, ...(doc.data() as Record<string, unknown>) }
 }
 
+async function findUserById(userId: string) {
+  const id = String(userId || '').trim()
+  if (!id) return null
+  const doc = await db.collection('users').doc(id).get()
+  if (!doc.exists) return null
+  return { id: doc.id, ...(doc.data() as Record<string, unknown>) }
+}
+
+function createUserResolver() {
+  const byId = new Map<string, Promise<Record<string, unknown> | null>>()
+  const byName = new Map<string, Promise<Record<string, unknown> | null>>()
+
+  return {
+    findById(userId: string) {
+      const id = String(userId || '').trim()
+      if (!id) return Promise.resolve(null)
+      if (!byId.has(id)) {
+        byId.set(id, findUserById(id))
+      }
+      return byId.get(id)!
+    },
+    findByName(rawName: string) {
+      const name = String(rawName || '').trim()
+      if (!name) return Promise.resolve(null)
+      const key = normLower(name)
+      if (!byName.has(key)) {
+        byName.set(key, findUserByName(name))
+      }
+      return byName.get(key)!
+    },
+  }
+}
+
 async function notifyProjectOwner(params: {
   userId: string
   projectId: string
@@ -119,6 +158,7 @@ async function notifyProjectOwner(params: {
     read: false,
     type: 'project_assignment',
     projectId,
+    projectName,
   })
 
   const apiKey = process.env.ABLY_API_KEY
@@ -151,6 +191,217 @@ async function notifyProjectOwner(params: {
   }
 }
 
+async function notifyBlockOwnerAssignment(params: {
+  userId: string
+  userName: string
+  userEmail?: string
+  projectId: string
+  projectName: string
+  blockId: string
+  blockName: string
+  deadline?: string
+  baseUrl: string
+  senderEmail?: string
+}) {
+  const {
+    userId,
+    userName,
+    userEmail,
+    projectId,
+    projectName,
+    blockId,
+    blockName,
+    deadline,
+    baseUrl,
+    senderEmail,
+  } = params
+  const title = "T'han assignat un bloc"
+  const body = `Ara ets responsable del bloc ${blockName || 'Bloc'} del projecte ${projectName || 'Projecte'}`
+  const now = Date.now()
+
+  await db.collection('users').doc(userId).collection('notifications').add({
+    title,
+    body,
+    createdAt: now,
+    read: false,
+    type: 'project_block_assignment',
+    projectId,
+    blockId,
+    projectName,
+    blockName,
+  })
+
+  const apiKey = process.env.ABLY_API_KEY
+  if (apiKey) {
+    try {
+      const rest = new Ably.Rest({ key: apiKey })
+      await rest.channels.get(`user:${userId}:notifications`).publish('created', {
+        type: 'project_block_assignment',
+        projectId,
+        blockId,
+        createdAt: now,
+      })
+    } catch (err) {
+      console.error('[projects] block assignment Ably publish error', err)
+    }
+  }
+
+  try {
+    await fetch(`${baseUrl}/api/push/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId,
+        title,
+        body,
+        url: `/menu/projects/${projectId}?tab=blocks`,
+      }),
+    })
+  } catch (err) {
+    console.error('[projects] block assignment push error', err)
+  }
+
+  if (!userEmail) return
+
+  try {
+    await sendBlockAssignmentEmail({
+      senderEmail: senderEmail || userEmail,
+      recipient: {
+        email: userEmail,
+        name: userName,
+      },
+      projectName,
+      blockName,
+      deadline,
+    })
+  } catch (err) {
+    console.error('[projects] block assignment email error', err)
+  }
+
+  if (!deadline) return
+
+  try {
+    await createBlockDeadlineCalendarEvent({
+      assigneeEmail: userEmail,
+      projectName,
+      blockName,
+      deadline,
+    })
+  } catch (err) {
+    console.error('[projects] block assignment calendar error', err)
+  }
+}
+
+async function notifyTaskOwnerAssignment(params: {
+  userId: string
+  userName: string
+  userEmail?: string
+  projectId: string
+  projectName: string
+  blockId: string
+  blockName: string
+  taskId: string
+  taskName: string
+  deadline?: string
+  baseUrl: string
+  senderEmail?: string
+}) {
+  const {
+    userId,
+    userName,
+    userEmail,
+    projectId,
+    projectName,
+    blockId,
+    blockName,
+    taskId,
+    taskName,
+    deadline,
+    baseUrl,
+    senderEmail,
+  } = params
+  const title = "T'han assignat una tasca"
+  const body = `Ara ets responsable de la tasca ${taskName || 'Tasca'} del bloc ${blockName || 'Bloc'}`
+  const now = Date.now()
+
+  await db.collection('users').doc(userId).collection('notifications').add({
+    title,
+    body,
+    createdAt: now,
+    read: false,
+    type: 'project_task_assignment',
+    projectId,
+    blockId,
+    taskId,
+    projectName,
+    blockName,
+    taskName,
+  })
+
+  const apiKey = process.env.ABLY_API_KEY
+  if (apiKey) {
+    try {
+      const rest = new Ably.Rest({ key: apiKey })
+      await rest.channels.get(`user:${userId}:notifications`).publish('created', {
+        type: 'project_task_assignment',
+        projectId,
+        blockId,
+        taskId,
+        createdAt: now,
+      })
+    } catch (err) {
+      console.error('[projects] task assignment Ably publish error', err)
+    }
+  }
+
+  try {
+    await fetch(`${baseUrl}/api/push/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId,
+        title,
+        body,
+        url: `/menu/projects/${projectId}?tab=tasks`,
+      }),
+    })
+  } catch (err) {
+    console.error('[projects] task assignment push error', err)
+  }
+
+  if (!userEmail) return
+
+  try {
+    await sendTaskAssignmentEmail({
+      senderEmail: senderEmail || userEmail,
+      recipient: {
+        email: userEmail,
+        name: userName,
+      },
+      projectName,
+      blockName,
+      taskName,
+      deadline,
+    })
+  } catch (err) {
+    console.error('[projects] task assignment email error', err)
+  }
+
+  if (!deadline) return
+
+  try {
+    await createTaskDeadlineCalendarEvent({
+      assigneeEmail: userEmail,
+      projectName,
+      blockName,
+      taskName,
+      deadline,
+    })
+  } catch (err) {
+    console.error('[projects] task assignment calendar error', err)
+  }
+}
+
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireAdmin()
   if ('error' in auth) return auth.error
@@ -174,6 +425,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if ('error' in auth) return auth.error
 
   try {
+    const userResolver = createUserResolver()
     const { id } = await params
     const baseUrl = new URL(req.url).origin
     const form = await req.formData()
@@ -186,6 +438,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const currentRooms = Array.isArray(currentData.rooms)
       ? (currentData.rooms as Record<string, unknown>[])
       : []
+    const currentBlocks = Array.isArray(currentData.blocks)
+      ? (currentData.blocks as Record<string, unknown>[])
+      : []
     const fileCategory = clean(form.get('fileCategory')) || 'general'
     const fileLabel = clean(form.get('fileLabel'))
     const document =
@@ -197,33 +452,38 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
             label: fileLabel || (fileCategory === 'initial' ? 'Document inicial' : ''),
           })
         : undefined
-    const owner = clean(form.get('owner'))
+    const hasOwnerField = form.get('owner') !== null
+    const owner = hasOwnerField ? clean(form.get('owner')) : String(currentData.owner || '')
     const previousOwnerUserId = String(currentData.ownerUserId || '')
     const previousOwner = String(currentData.owner || '')
     const hasOwnerInputChanged = owner !== previousOwner
-    const ownerUser = hasOwnerInputChanged && owner ? await findUserByName(owner) : null
+    const ownerUser =
+      hasOwnerField && hasOwnerInputChanged && owner ? await userResolver.findByName(owner) : null
 
     const payload: Record<string, unknown> = {
-      name: clean(form.get('name')),
-      sponsor: clean(form.get('sponsor')),
-      owner,
-      ownerUserId: owner
-        ? hasOwnerInputChanged
-          ? ownerUser?.id || ''
-          : previousOwnerUserId
-        : previousOwnerUserId,
-      context: clean(form.get('context')),
-      strategy: clean(form.get('strategy')),
-      risks: clean(form.get('risks')),
-      startDate: clean(form.get('startDate')),
-      launchDate: clean(form.get('launchDate')),
-      budget: clean(form.get('budget')),
       phase: clean(form.get('phase')) || String(currentData.phase || 'definition'),
-      status: '',
+      status: form.get('status') !== null ? clean(form.get('status')) : String(currentData.status || ''),
       updatedAt: Date.now(),
       updatedById: auth.user.id,
       updatedByName: auth.user.name || '',
     }
+
+    if (form.get('name') !== null) payload.name = clean(form.get('name'))
+    if (form.get('sponsor') !== null) payload.sponsor = clean(form.get('sponsor'))
+    if (hasOwnerField) {
+      payload.owner = owner
+      payload.ownerUserId = owner
+        ? hasOwnerInputChanged
+          ? ownerUser?.id || ''
+          : previousOwnerUserId
+        : previousOwnerUserId
+    }
+    if (form.get('context') !== null) payload.context = clean(form.get('context'))
+    if (form.get('strategy') !== null) payload.strategy = clean(form.get('strategy'))
+    if (form.get('risks') !== null) payload.risks = clean(form.get('risks'))
+    if (form.get('startDate') !== null) payload.startDate = clean(form.get('startDate'))
+    if (form.get('launchDate') !== null) payload.launchDate = clean(form.get('launchDate'))
+    if (form.get('budget') !== null) payload.budget = clean(form.get('budget'))
 
     const departmentsRaw = form.get('departments')
     if (departmentsRaw !== null) {
@@ -272,6 +532,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       }
     } else if (!Array.isArray(payload.documents)) {
       payload.documents = baseDocuments
+    } else {
+      const nextInitialDocument =
+        baseDocuments.find((item) => String(item?.category || '') === 'initial') || null
+      payload.document = nextInitialDocument
     }
 
     const kickoffRaw = form.get('kickoff')
@@ -292,6 +556,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const nextRooms = Array.isArray(payload.rooms)
       ? (payload.rooms as Record<string, unknown>[])
       : currentRooms
+    const nextBlocks = Array.isArray(payload.blocks)
+      ? (payload.blocks as Record<string, unknown>[])
+      : currentBlocks
     const nextRoomIds = new Set(nextRooms.map((room) => String(room.id || '')).filter(Boolean))
     const currentRoomIds = new Set(currentRooms.map((room) => String(room.id || '')).filter(Boolean))
     const removedManualRooms = currentRooms.filter((room) => {
@@ -318,43 +585,121 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const hasOwnerChanged =
       Boolean(ownerUser?.id) &&
       (ownerUser.id !== previousOwnerUserId || owner !== previousOwner)
+    const currentBlocksById = new Map(
+      currentBlocks.map((block) => [String(block.id || ''), block] as const).filter(([id]) => Boolean(id))
+    )
+    const projectName = String(payload.name || currentData.name || '')
 
-    await Promise.allSettled([
-      ...(removedManualRooms.length > 0
-        ? removedManualRooms.map((room) =>
-            archiveProjectRoomOpsChannel({
-              projectId: id,
-              roomId: String(room.id || ''),
-              room: {
-                opsChannelId: String(room.opsChannelId || ''),
-                name: String(room.name || ''),
-              },
-            })
-          )
-        : []),
-      ...(archiveTargets.length > 0
-        ? archiveTargets.map((room) =>
-            archiveProjectRoomOpsChannel({
-              projectId: id,
-              roomId: String(room.id || ''),
-              room: {
-                opsChannelId: String(room.opsChannelId || ''),
-                name: String(room.name || ''),
-              },
-            })
-          )
-        : []),
-      ...(hasOwnerChanged
-        ? [
-            notifyProjectOwner({
-              userId: ownerUser!.id,
-              projectId: id,
-              projectName: String(payload.name || currentData.name || ''),
-              baseUrl,
-            }),
-          ]
-        : []),
-    ])
+    after(async () => {
+      const actorUser = await userResolver.findById(auth.user.id)
+      const senderEmail = String(actorUser?.email || '').trim()
+
+      const blockAssignmentNotifications = nextBlocks.map(async (block) => {
+        const blockId = String(block.id || '').trim()
+        const blockName = String(block.name || '').trim()
+        const blockOwner = String(block.owner || '').trim()
+        const deadline = String(block.deadline || '').trim()
+        const previousBlock = currentBlocksById.get(blockId)
+        const previousOwnerName = String(previousBlock?.owner || '').trim()
+
+        if (!blockId || !blockOwner || blockOwner === previousOwnerName) return null
+
+        const assignedUser = await userResolver.findByName(blockOwner)
+        if (!assignedUser?.id) return null
+
+        return notifyBlockOwnerAssignment({
+          userId: assignedUser.id,
+          userName: String(assignedUser.name || blockOwner).trim(),
+          userEmail: String(assignedUser.email || '').trim(),
+          projectId: id,
+          projectName,
+          blockId,
+          blockName: blockName || 'Bloc',
+          deadline,
+          baseUrl,
+          senderEmail,
+        })
+      })
+
+      const taskAssignmentNotifications = nextBlocks.flatMap((block) => {
+        const blockId = String(block.id || '').trim()
+        const blockName = String(block.name || '').trim() || 'Bloc'
+        const previousBlock = currentBlocksById.get(blockId)
+        const previousTasksById = new Map(
+          (Array.isArray(previousBlock?.tasks) ? previousBlock.tasks : [])
+            .map((task) => [String(task?.id || ''), task] as const)
+            .filter(([taskId]) => Boolean(taskId))
+        )
+
+        return (Array.isArray(block.tasks) ? block.tasks : []).map(async (task) => {
+          const taskId = String(task?.id || '').trim()
+          const taskName = String(task?.title || '').trim() || 'Tasca'
+          const taskOwner = String(task?.owner || '').trim()
+          const deadline = String(task?.deadline || '').trim()
+          const previousTask = previousTasksById.get(taskId)
+          const previousOwnerName = String(previousTask?.owner || '').trim()
+
+          if (!taskId || !taskOwner || taskOwner === previousOwnerName) return null
+
+          const assignedUser = await userResolver.findByName(taskOwner)
+          if (!assignedUser?.id) return null
+
+          return notifyTaskOwnerAssignment({
+            userId: assignedUser.id,
+            userName: String(assignedUser.name || taskOwner).trim(),
+            userEmail: String(assignedUser.email || '').trim(),
+            projectId: id,
+            projectName,
+            blockId,
+            blockName,
+            taskId,
+            taskName,
+            deadline,
+            baseUrl,
+            senderEmail,
+          })
+        })
+      })
+
+      await Promise.allSettled([
+        ...(removedManualRooms.length > 0
+          ? removedManualRooms.map((room) =>
+              archiveProjectRoomOpsChannel({
+                projectId: id,
+                roomId: String(room.id || ''),
+                room: {
+                  opsChannelId: String(room.opsChannelId || ''),
+                  name: String(room.name || ''),
+                },
+              })
+            )
+          : []),
+        ...(archiveTargets.length > 0
+          ? archiveTargets.map((room) =>
+              archiveProjectRoomOpsChannel({
+                projectId: id,
+                roomId: String(room.id || ''),
+                room: {
+                  opsChannelId: String(room.opsChannelId || ''),
+                  name: String(room.name || ''),
+                },
+              })
+            )
+          : []),
+        ...(hasOwnerChanged
+          ? [
+              notifyProjectOwner({
+                userId: ownerUser!.id,
+                projectId: id,
+                projectName,
+                baseUrl,
+              }),
+            ]
+          : []),
+        ...blockAssignmentNotifications,
+        ...taskAssignmentNotifications,
+      ])
+    })
 
     return NextResponse.json({ id, document })
   } catch (err: unknown) {

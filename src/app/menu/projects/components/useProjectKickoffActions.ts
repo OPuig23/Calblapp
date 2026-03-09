@@ -12,10 +12,17 @@ type Params = {
   setManualKickoffEmail: Dispatch<SetStateAction<string>>
   setSendingKickoff: Dispatch<SetStateAction<boolean>>
   setSavingBlocks: Dispatch<SetStateAction<boolean>>
-  saveProject: (title: string, sourceProject: ProjectData) => Promise<unknown>
+  saveProject: (
+    title: string,
+    sourceProject: ProjectData,
+    options?: {
+      sections?: Array<'overview' | 'departments' | 'blocks' | 'rooms' | 'documents' | 'kickoff'>
+    }
+  ) => Promise<unknown>
   ensureProjectRooms: (currentProject: ProjectData) => ProjectData
   sessionUserName?: string
   onKickoffMinutesSaved?: (project: ProjectData) => void
+  onBlocksDirty?: () => void
 }
 
 export function useProjectKickoffActions({
@@ -30,6 +37,7 @@ export function useProjectKickoffActions({
   ensureProjectRooms,
   sessionUserName,
   onKickoffMinutesSaved,
+  onBlocksDirty,
 }: Params) {
   const setKickoffField = useCallback(
     <K extends keyof ProjectData['kickoff']>(field: K, value: ProjectData['kickoff'][K]) => {
@@ -58,7 +66,8 @@ export function useProjectKickoffActions({
         },
       }
     })
-  }, [setProject])
+    onBlocksDirty?.()
+  }, [onBlocksDirty, setProject])
 
   const setKickoffAttendeeAttendance = useCallback((key: string, attended: boolean) => {
     setProject((current) => ({
@@ -70,7 +79,8 @@ export function useProjectKickoffActions({
         ),
       },
     }))
-  }, [setProject])
+    onBlocksDirty?.()
+  }, [onBlocksDirty, setProject])
 
   const addManualKickoffEmail = useCallback(() => {
     const email = manualKickoffEmail.trim().toLowerCase()
@@ -179,7 +189,9 @@ export function useProjectKickoffActions({
         },
       })
       setProject(nextProject)
-      await saveProject('Acta finalitzada', nextProject)
+      await saveProject('Acta finalitzada', nextProject, {
+        sections: ['kickoff'],
+      })
       onKickoffMinutesSaved?.(nextProject)
     } catch (err: unknown) {
       toast({
@@ -205,7 +217,9 @@ export function useProjectKickoffActions({
         },
       })
       setProject(nextProject)
-      await saveProject('Acta reoberta', nextProject)
+      await saveProject('Acta reoberta', nextProject, {
+        sections: ['kickoff'],
+      })
       onKickoffMinutesSaved?.(nextProject)
     } catch (err: unknown) {
       toast({

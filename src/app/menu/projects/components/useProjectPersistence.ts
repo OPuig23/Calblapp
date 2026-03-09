@@ -9,6 +9,7 @@ type SaveProjectOptions = {
   fileCategory?: string
   fileLabel?: string
   onUploaded?: (stored: ProjectDocument) => void
+  sections?: Array<'overview' | 'departments' | 'blocks' | 'rooms' | 'documents' | 'kickoff'>
 }
 
 type Params = {
@@ -25,25 +26,48 @@ export function useProjectPersistence({
   setProject,
 }: Params) {
   const buildProjectForm = useCallback(
-    (sourceProject: ProjectData) => {
+    (
+      sourceProject: ProjectData,
+      sections: Array<'overview' | 'departments' | 'blocks' | 'rooms' | 'documents' | 'kickoff'> = [
+        'overview',
+        'departments',
+        'blocks',
+        'rooms',
+        'documents',
+        'kickoff',
+      ]
+    ) => {
+      const include = (section: typeof sections[number]) => sections.includes(section)
       const form = new FormData()
-      form.set('name', sourceProject.name)
-      form.set('sponsor', sourceProject.sponsor)
-      form.set('owner', sourceProject.owner)
-      form.set('context', sourceProject.context)
-      form.set('strategy', sourceProject.strategy)
-      form.set('risks', sourceProject.risks)
-      form.set('startDate', sourceProject.startDate)
-      form.set('launchDate', sourceProject.launchDate)
-      form.set('budget', sourceProject.budget)
+      if (include('overview')) {
+        form.set('name', sourceProject.name)
+        form.set('sponsor', sourceProject.sponsor)
+        form.set('owner', sourceProject.owner)
+        form.set('context', sourceProject.context)
+        form.set('strategy', sourceProject.strategy)
+        form.set('risks', sourceProject.risks)
+        form.set('startDate', sourceProject.startDate)
+        form.set('launchDate', sourceProject.launchDate)
+        form.set('budget', sourceProject.budget)
+      }
       form.set('phase', deriveProjectPhase(sourceProject))
       form.set('status', '')
-      form.set('departments', JSON.stringify(sourceProject.departments))
-      form.set('blocks', JSON.stringify(sourceProject.blocks))
-      form.set('rooms', JSON.stringify(sourceProject.rooms))
-      form.set('documents', JSON.stringify(sourceProject.documents || []))
-      form.set('kickoff', JSON.stringify(sourceProject.kickoff))
-      if (pendingFile) {
+      if (include('departments')) {
+        form.set('departments', JSON.stringify(sourceProject.departments))
+      }
+      if (include('blocks')) {
+        form.set('blocks', JSON.stringify(sourceProject.blocks))
+      }
+      if (include('rooms')) {
+        form.set('rooms', JSON.stringify(sourceProject.rooms))
+      }
+      if (include('documents')) {
+        form.set('documents', JSON.stringify(sourceProject.documents || []))
+      }
+      if (include('kickoff')) {
+        form.set('kickoff', JSON.stringify(sourceProject.kickoff))
+      }
+      if (pendingFile && include('documents')) {
         form.set('file', pendingFile)
         form.set('fileCategory', 'initial')
         form.set('fileLabel', 'Document inicial')
@@ -59,10 +83,18 @@ export function useProjectPersistence({
       sourceProject: ProjectData,
       options?: SaveProjectOptions
     ) => {
+      const sections = options?.sections || [
+        'overview',
+        'departments',
+        'blocks',
+        'rooms',
+        'documents',
+        'kickoff',
+      ]
       const res = await fetch(`/api/projects/${projectId}`, {
         method: 'PATCH',
         body: (() => {
-          const form = buildProjectForm(sourceProject)
+          const form = buildProjectForm(sourceProject, sections)
           if (options?.file) {
             form.set('file', options.file)
             form.set('fileCategory', options.fileCategory || 'general')

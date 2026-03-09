@@ -1,7 +1,7 @@
 ﻿'use client'
 
 import Link from 'next/link'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { MessageSquare, Paperclip, Pencil, Save, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import FilterButton from '@/components/ui/filter-button'
@@ -22,6 +22,7 @@ import {
   TASK_PRIORITY_OPTIONS,
   TASK_STATUS_OPTIONS,
   formatProjectDate,
+  getPreLaunchDeadline,
   parseProjectCost,
   type ProjectDocument,
   type ProjectBlock,
@@ -60,6 +61,7 @@ type Props = {
   showTaskComposer: boolean
   editingTaskKey: string | null
   savingBlocks: boolean
+  dirtyBlocks: boolean
   onSave: () => void
   onResetTaskDraft: () => void
   onSetTaskDraftField: <K extends keyof TaskDraft>(field: K, value: TaskDraft[K]) => void
@@ -74,8 +76,13 @@ type Props = {
   ) => void
   onAttachTaskDocument: (blockId: string, taskId: string, file: File) => void
   onRemoveTaskDocument: (blockId: string, taskId: string, documentId: string) => void
-  taskResponsibleOptions: (department?: string) => ResponsibleOption[]
+  taskResponsibleOptions: (department?: string, blockId?: string) => ResponsibleOption[]
   maxDeadline?: string
+  canCreateTasks?: boolean
+  canSaveTasks?: boolean
+  canManageTask?: (block: ProjectBlock, task: ProjectTask) => boolean
+  canAccessTaskOps?: (block: ProjectBlock, task: ProjectTask) => boolean
+  canMoveTask?: (block: ProjectBlock, task: ProjectTask) => boolean
 }
 
 const documentName = (document?: ProjectDocument) =>
@@ -90,6 +97,7 @@ export default function ProjectTasksTab({
   showTaskComposer,
   editingTaskKey,
   savingBlocks,
+  dirtyBlocks,
   onSave,
   onResetTaskDraft,
   onSetTaskDraftField,
@@ -101,13 +109,24 @@ export default function ProjectTasksTab({
   onRemoveTaskDocument,
   taskResponsibleOptions,
   maxDeadline,
+  canCreateTasks = false,
+  canSaveTasks = false,
+  canManageTask = () => false,
+  canAccessTaskOps = () => false,
+  canMoveTask = () => false,
 }: Props) {
   const { setContent, setOpen } = useFilters()
   const [draggingTaskKey, setDraggingTaskKey] = useState<string | null>(null)
   const [dragOverStatus, setDragOverStatus] = useState<string | null>(null)
   const [blockFilter, setBlockFilter] = useState<string>('all')
   const [levelFilter, setLevelFilter] = useState<string>('all')
+  const [locallyDirtyTaskKeys, setLocallyDirtyTaskKeys] = useState<string[]>([])
   const fileInputsRef = useRef<Record<string, HTMLInputElement | null>>({})
+  const hasPendingTaskDraft =
+    showTaskComposer &&
+    Boolean(String(taskDraft.blockId || '').trim()) &&
+    String(taskDraft.blockId || '').trim() !== 'none' &&
+    Boolean(String(taskDraft.description || taskDraft.title || '').trim())
   const filteredTasks = allTasks.filter(({ block, task }) => {
     const matchesBlock = blockFilter === 'all' || block.id === blockFilter
     const matchesLevel = levelFilter === 'all' || (task.priority || 'normal') === levelFilter
@@ -119,12 +138,32 @@ export default function ProjectTasksTab({
       .filter((room) => room.kind === 'block' && room.blockId)
       .map((room) => [String(room.blockId), room.id])
   )
+  const dirtyTasks = dirtyBlocks || locallyDirtyTaskKeys.length > 0 || hasPendingTaskDraft
+
+  useEffect(() => {
+    if (!savingBlocks && !dirtyBlocks) {
+      setLocallyDirtyTaskKeys([])
+    }
+  }, [dirtyBlocks, savingBlocks])
+
+  const markTaskDirty = (taskKey: string) => {
+    setLocallyDirtyTaskKeys((current) =>
+      current.includes(taskKey) ? current : [...current, taskKey]
+    )
+  }
 
   const moveTaskToStatus = (blockId: string, taskId: string, status: string) => {
     const currentTask = allTasks.find((item) => item.block.id === blockId && item.task.id === taskId)?.task
     const canLeavePending =
       currentTask?.status !== 'pending' ||
       (String(currentTask?.owner || '').trim() && String(currentTask?.deadline || '').trim())
+
+    const currentEntry = allTasks.find((item) => item.block.id === blockId && item.task.id === taskId)
+    if (!currentEntry || !canMoveTask(currentEntry.block, currentEntry.task)) {
+      setDragOverStatus(null)
+      setDraggingTaskKey(null)
+      return
+    }
 
     if (!canLeavePending && status !== 'pending') {
       setDragOverStatus(null)
@@ -133,6 +172,7 @@ export default function ProjectTasksTab({
     }
 
     onSetTaskField(blockId, taskId, 'status', status)
+    markTaskDirty(`${blockId}:${taskId}`)
     setDragOverStatus(null)
     setDraggingTaskKey(null)
   }
@@ -198,9 +238,20 @@ export default function ProjectTasksTab({
             <Button
               type="button"
               variant="outline"
-              onClick={onSave}
-              disabled={savingBlocks}
-              className="border-violet-200 text-violet-700 hover:bg-violet-50"
+              onClick={() => {
+                if (hasPendingTaskDraft && taskDraft.blockId && taskDraft.blockId !== 'none') {
+                  onAddTaskToBlock(taskDraft.blockId)
+                }
+                onSave()
+              }}
+              disabled={savingBlocks || !canSaveTasks || !dirtyTasks}
+              className={`border-violet-200 ${
+                savingBlocks
+                  ? 'cursor-wait text-violet-400'
+                  : canSaveTasks && dirtyTasks
+                    ? 'text-violet-700 hover:bg-violet-50'
+                    : 'cursor-not-allowed text-slate-400 hover:bg-transparent'
+              }`}
             >
               <Save className="mr-2 h-4 w-4" />
               Guardar
@@ -208,7 +259,7 @@ export default function ProjectTasksTab({
           </div>
         </div>
 
-        {showTaskComposer ? (
+        {showTaskComposer && canCreateTasks ? (
           <div className="mt-4 pt-2">
             <ProjectTaskQuickComposer
               blockId={taskDraft.blockId}
@@ -224,12 +275,19 @@ export default function ProjectTasksTab({
               deadline={taskDraft.deadline}
               priority={taskDraft.priority || 'normal'}
               departments={projectBlocks.find((block) => block.id === taskDraft.blockId)?.departments || []}
-              responsibleOptions={taskResponsibleOptions(taskDraft.department).map((option) => ({
+              responsibleOptions={taskResponsibleOptions(
+                taskDraft.department ||
+                  projectBlocks.find((block) => block.id === taskDraft.blockId)?.departments?.[0] ||
+                  '',
+                taskDraft.blockId
+              ).map((option) => ({
                 id: option.id,
                 name: option.name,
               }))}
               maxDeadline={
-                projectBlocks.find((block) => block.id === taskDraft.blockId)?.deadline || maxDeadline || undefined
+                getPreLaunchDeadline(projectBlocks.find((block) => block.id === taskDraft.blockId)?.deadline) ||
+                maxDeadline ||
+                undefined
               }
               showBlockSelector
               disabled={savingBlocks || !taskDraft.blockId || taskDraft.blockId === 'none'}
@@ -289,11 +347,20 @@ export default function ProjectTasksTab({
                           Sense tasques.
                         </div>
                       ) : (
-                        columnTasks.map(({ block, task, taskKey }) => (
+                        columnTasks.map(({ block, task, taskKey }) => {
+                          const roomId = roomIdByBlockId.get(block.id) || `room-block-${block.id}`
+                          const canManageCurrentTask = canManageTask(block, task)
+                          const canAccessOpsCurrentTask = canAccessTaskOps(block, task)
+                          const canMoveCurrentTask = canMoveTask(block, task)
+
+                          return (
                           <div
                             key={taskKey}
-                            draggable
-                            onDragStart={() => setDraggingTaskKey(taskKey)}
+                            draggable={canMoveCurrentTask}
+                            onDragStart={() => {
+                              if (!canMoveCurrentTask) return
+                              setDraggingTaskKey(taskKey)
+                            }}
                             onDragEnd={() => {
                               setDraggingTaskKey(null)
                               setDragOverStatus(null)
@@ -302,10 +369,6 @@ export default function ProjectTasksTab({
                               draggingTaskKey === taskKey ? 'cursor-grabbing opacity-60' : 'cursor-grab'
                             }`}
                           >
-                            {(() => {
-                              const roomId = roomIdByBlockId.get(block.id) || `room-block-${block.id}`
-
-                              return (
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0">
                                 <div className="text-base font-semibold text-slate-900">{task.title}</div>
@@ -332,11 +395,13 @@ export default function ProjectTasksTab({
                               </div>
 
                               <div className="flex items-center gap-1">
-                                <Button asChild type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-full">
-                                  <Link href={`/menu/projects/${projectId}/rooms/${roomId}`}>
-                                    <MessageSquare className="h-4 w-4" />
-                                  </Link>
-                                </Button>
+                                {canAccessOpsCurrentTask ? (
+                                  <Button asChild type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-full">
+                                    <Link href={`/menu/projects/${projectId}/rooms/${roomId}`}>
+                                      <MessageSquare className="h-4 w-4" />
+                                    </Link>
+                                  </Button>
+                                ) : null}
                                 <input
                                   ref={(node) => {
                                     fileInputsRef.current[taskKey] = node
@@ -344,55 +409,61 @@ export default function ProjectTasksTab({
                                   type="file"
                                   className="hidden"
                                   onChange={(event) => {
+                                    if (!canAccessOpsCurrentTask) return
                                     const file = event.target.files?.[0]
                                     if (!file) return
                                     onAttachTaskDocument(block.id, task.id, file)
                                     event.currentTarget.value = ''
                                   }}
                                 />
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 rounded-full"
-                                  onClick={() => fileInputsRef.current[taskKey]?.click()}
-                                >
-                                  <Paperclip className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 rounded-full"
-                                  onClick={() =>
-                                    onSetEditingTaskKey((current) => (current === taskKey ? null : taskKey))
-                                  }
-                                >
-                                  <Pencil className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 rounded-full text-red-600 hover:bg-red-50 hover:text-red-700"
-                                  onClick={() => onRemoveTask(block.id, task.id)}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
+                                {canAccessOpsCurrentTask ? (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 rounded-full"
+                                    onClick={() => fileInputsRef.current[taskKey]?.click()}
+                                  >
+                                    <Paperclip className="h-4 w-4" />
+                                  </Button>
+                                ) : null}
+                                {canManageCurrentTask ? (
+                                  <>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8 rounded-full"
+                                      onClick={() =>
+                                        onSetEditingTaskKey((current) => (current === taskKey ? null : taskKey))
+                                      }
+                                    >
+                                      <Pencil className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8 rounded-full text-red-600 hover:bg-red-50 hover:text-red-700"
+                                      onClick={() => onRemoveTask(block.id, task.id)}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </>
+                                ) : null}
                               </div>
                             </div>
-                              )
-                            })()}
 
-                            {editingTaskKey === taskKey ? (
+                            {editingTaskKey === taskKey && canManageCurrentTask ? (
                               <div className="mt-4 space-y-3 pt-3">
                                 <div className="grid gap-3 sm:grid-cols-[130px_170px_minmax(0,1fr)]">
                                   <div className="min-w-0">
                                     <Select
                                       value={task.priority || 'normal'}
-                                      onValueChange={(value) =>
+                                      onValueChange={(value) => {
                                         onSetTaskField(block.id, task.id, 'priority', value)
-                                      }
+                                        markTaskDirty(taskKey)
+                                      }}
                                     >
                                       <SelectTrigger>
                                         <SelectValue placeholder="Nivell" />
@@ -411,17 +482,21 @@ export default function ProjectTasksTab({
                                       type="date"
                                       value={task.deadline}
                                       aria-label="Data limit"
-                                      max={block.deadline || maxDeadline || undefined}
-                                      onChange={(event) =>
+                                      max={getPreLaunchDeadline(block.deadline) || maxDeadline || undefined}
+                                      onChange={(event) => {
                                         onSetTaskField(block.id, task.id, 'deadline', event.target.value)
-                                      }
+                                        markTaskDirty(taskKey)
+                                      }}
                                     />
                                   </div>
                                   <div className="min-w-0">
                                     <Input
                                       value={task.cost || ''}
                                       placeholder="Cost"
-                                      onChange={(event) => onSetTaskField(block.id, task.id, 'cost', event.target.value)}
+                                      onChange={(event) => {
+                                        onSetTaskField(block.id, task.id, 'cost', event.target.value)
+                                        markTaskDirty(taskKey)
+                                      }}
                                     />
                                   </div>
                                 </div>
@@ -429,16 +504,20 @@ export default function ProjectTasksTab({
                                   <div className="min-w-0">
                                     <Select
                                       value={task.owner || 'none'}
-                                      onValueChange={(value) =>
+                                      onValueChange={(value) => {
                                         onSetTaskField(block.id, task.id, 'owner', value === 'none' ? '' : value)
-                                      }
+                                        markTaskDirty(taskKey)
+                                      }}
                                     >
                                       <SelectTrigger>
                                         <SelectValue placeholder="Responsable" />
                                       </SelectTrigger>
                                       <SelectContent>
                                         <SelectItem value="none">Sense responsable</SelectItem>
-                                        {taskResponsibleOptions(task.department).map((option) => (
+                                        {taskResponsibleOptions(
+                                          task.department || block.departments?.[0] || block.department || '',
+                                          block.id
+                                        ).map((option) => (
                                           <SelectItem key={`${option.id}-${option.name}`} value={option.name}>
                                             {option.name}
                                           </SelectItem>
@@ -484,7 +563,8 @@ export default function ProjectTasksTab({
                               </div>
                             ) : null}
                           </div>
-                        ))
+                          )
+                        })
                       )}
                     </div>
                   </div>
