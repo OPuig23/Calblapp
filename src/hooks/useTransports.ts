@@ -2,8 +2,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-
-export type TransportType = 'camioPetit' | 'camioGran' | 'furgoneta'
+import type { TransportType } from '@/lib/transportTypes'
 
 export interface Transport {
   id: string

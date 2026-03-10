@@ -51,6 +51,7 @@ export default function ModuleHeader({ title, subtitle, icon, actions, mainHref 
   }
 
   const mainLabel = title || moduleLabels[module] || module
+  const resolvedMainHref = mainHref || (module ? `/menu/${module}` : '')
 
   // Traducció Ã¢â‚¬Å“submòdul Ã¢â€ â€™ nom visibleÃ¢â‚¬Â
   const subLabels: Record<string, string> = {
@@ -98,8 +99,8 @@ export default function ModuleHeader({ title, subtitle, icon, actions, mainHref 
               
               {/* MÃƒâ€™DUL PRINCIPAL (clicable) */}
               {title ? (
-                mainHref ? (
-                  <a href={mainHref} className="text-gray-800 hover:underline">
+                resolvedMainHref ? (
+                  <a href={resolvedMainHref} className="text-gray-800 hover:underline">
                     {mainLabel}
                   </a>
                 ) : (

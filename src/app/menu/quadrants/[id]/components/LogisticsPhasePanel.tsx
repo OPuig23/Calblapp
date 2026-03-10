@@ -3,9 +3,19 @@
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-
+import {
+  TRANSPORT_TYPE_LABELS,
+  TRANSPORT_TYPE_OPTIONS,
+  normalizeTransportType,
+} from "@/lib/transportTypes"
 import {
   logisticPhaseOptions,
   LogisticPhaseKey,
@@ -28,16 +38,11 @@ type Props = {
   updatePhaseForm: (key: LogisticPhaseKey, patch: Partial<LogisticPhaseForm>) => void
   updatePhaseSetting: (key: LogisticPhaseKey, patch: Partial<LogisticPhaseSetting>) => void
   updatePhaseResponsible: (key: LogisticPhaseKey, value: string) => void
-  updatePhaseVehicleAssignment: (key: LogisticPhaseKey, index: number, patch: Partial<VehicleAssignment>) => void
-}
-
-const normalizeVehicleType = (value?: string) => {
-  const val = (value || '').toString().toLowerCase()
-  if (!val) return ''
-  if (val.includes('petit')) return 'camioPetit'
-  if (val.includes('gran')) return 'camioGran'
-  if (val.includes('furgo')) return 'furgoneta'
-  return val
+  updatePhaseVehicleAssignment: (
+    key: LogisticPhaseKey,
+    index: number,
+    patch: Partial<VehicleAssignment>
+  ) => void
 }
 
 export default function LogisticsPhasePanel({
@@ -65,15 +70,16 @@ export default function LogisticsPhasePanel({
 
   return (
     <div className="space-y-4 rounded-2xl border border-dashed border-slate-200 bg-white p-4">
-      <p className="text-sm font-semibold text-slate-700">Fase logística</p>
+      <p className="text-sm font-semibold text-slate-700">Fase logistica</p>
       <div className="grid gap-3">
         {logisticPhaseOptions.map((phase) => {
           const form = phaseForms[phase.key]
           const settings = phaseSettings[phase.key]
           const visible = phaseVisibility[phase.key]
-          const responsibleValue = phaseResponsibles[phase.key]
           const assignments = phaseVehicleAssignments[phase.key] ?? []
-          const needsResponsible = (settings?.needsResponsible ?? phase.key === "event") && phase.key === "event"
+          const needsResponsible =
+            (settings?.needsResponsible ?? phase.key === "event") &&
+            phase.key === "event"
 
           return (
             <PhaseCard
@@ -83,7 +89,9 @@ export default function LogisticsPhasePanel({
               selected={settings?.selected ?? true}
               visible={visible}
               onToggleSelection={() =>
-                updatePhaseSetting(phase.key, { selected: !(settings?.selected ?? true) })
+                updatePhaseSetting(phase.key, {
+                  selected: !(settings?.selected ?? true),
+                })
               }
               onToggleVisibility={() => togglePhaseVisibility(phase.key)}
             >
@@ -93,7 +101,9 @@ export default function LogisticsPhasePanel({
                   <Input
                     type="date"
                     value={form?.startDate || ""}
-                    onChange={(e) => updatePhaseForm(phase.key, { startDate: e.target.value })}
+                    onChange={(e) =>
+                      updatePhaseForm(phase.key, { startDate: e.target.value })
+                    }
                   />
                 </div>
                 <div>
@@ -101,7 +111,9 @@ export default function LogisticsPhasePanel({
                   <Input
                     type="date"
                     value={form?.endDate || ""}
-                    onChange={(e) => updatePhaseForm(phase.key, { endDate: e.target.value })}
+                    onChange={(e) =>
+                      updatePhaseForm(phase.key, { endDate: e.target.value })
+                    }
                   />
                 </div>
               </div>
@@ -112,7 +124,9 @@ export default function LogisticsPhasePanel({
                   <Input
                     type="time"
                     value={form?.startTime || ""}
-                    onChange={(e) => updatePhaseForm(phase.key, { startTime: e.target.value })}
+                    onChange={(e) =>
+                      updatePhaseForm(phase.key, { startTime: e.target.value })
+                    }
                   />
                 </div>
                 <div>
@@ -120,7 +134,9 @@ export default function LogisticsPhasePanel({
                   <Input
                     type="time"
                     value={form?.endTime || ""}
-                    onChange={(e) => updatePhaseForm(phase.key, { endTime: e.target.value })}
+                    onChange={(e) =>
+                      updatePhaseForm(phase.key, { endTime: e.target.value })
+                    }
                   />
                 </div>
               </div>
@@ -134,7 +150,9 @@ export default function LogisticsPhasePanel({
                     value={form?.workers ?? ""}
                     onChange={(e) =>
                       updatePhaseForm(phase.key, {
-                        workers: Number.isNaN(Number(e.target.value)) ? 0 : Number(e.target.value),
+                        workers: Number.isNaN(Number(e.target.value))
+                          ? 0
+                          : Number(e.target.value),
                       })
                     }
                   />
@@ -147,7 +165,9 @@ export default function LogisticsPhasePanel({
                     value={form?.drivers ?? ""}
                     onChange={(e) =>
                       updatePhaseForm(phase.key, {
-                        drivers: Number.isNaN(Number(e.target.value)) ? 0 : Number(e.target.value),
+                        drivers: Number.isNaN(Number(e.target.value))
+                          ? 0
+                          : Number(e.target.value),
                       })
                     }
                   />
@@ -155,11 +175,13 @@ export default function LogisticsPhasePanel({
               </div>
 
               <div>
-                <Label>Lloc de concentració</Label>
+                <Label>Lloc de concentracio</Label>
                 <Input
                   type="text"
                   value={form?.meetingPoint || ""}
-                  onChange={(e) => updatePhaseForm(phase.key, { meetingPoint: e.target.value })}
+                  onChange={(e) =>
+                    updatePhaseForm(phase.key, { meetingPoint: e.target.value })
+                  }
                 />
               </div>
 
@@ -170,7 +192,9 @@ export default function LogisticsPhasePanel({
                       id={`needs-resp-${phase.key}`}
                       checked={settings?.needsResponsible ?? true}
                       onCheckedChange={(checked) =>
-                        updatePhaseSetting(phase.key, { needsResponsible: Boolean(checked) })
+                        updatePhaseSetting(phase.key, {
+                          needsResponsible: Boolean(checked),
+                        })
                       }
                     />
                     <Label htmlFor={`needs-resp-${phase.key}`} className="mb-0 text-sm">
@@ -182,13 +206,15 @@ export default function LogisticsPhasePanel({
                       <Label>Responsable</Label>
                       <Select
                         value={phaseResponsibles[phase.key]}
-                        onValueChange={(value) => updatePhaseResponsible(phase.key, value)}
+                        onValueChange={(value) =>
+                          updatePhaseResponsible(phase.key, value)
+                        }
                       >
                         <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Selecciona un responsable…" />
+                          <SelectValue placeholder="Selecciona un responsable..." />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="__auto__">— Automàtic —</SelectItem>
+                          <SelectItem value="__auto__">- Automatic -</SelectItem>
                           {availableResponsables.map((resp) => (
                             <SelectItem key={resp.id} value={resp.id}>
                               {resp.name}
@@ -202,23 +228,29 @@ export default function LogisticsPhasePanel({
               )}
 
               {assignments.length > 0 && (
-                <div className="space-y-3 mt-2 rounded-xl border border-dashed border-slate-200 bg-slate-50 p-3">
+                <div className="mt-2 space-y-3 rounded-xl border border-dashed border-slate-200 bg-slate-50 p-3">
                   <div className="text-xs text-gray-500">
-                    Vehicles disponibles (total): {availableVehicleCount} / {availableVehicles.length}
+                    Vehicles disponibles (total): {availableVehicleCount} /{" "}
+                    {availableVehicles.length}
                   </div>
                   {assignments.map((assign, idx) => {
                     const filtered = availableVehicles.filter((vehicle) => {
                       if (!vehicle.available) return false
                       if (
-                        normalizeVehicleType(vehicle.type) !== normalizeVehicleType(assign.vehicleType)
-                      )
+                        normalizeTransportType(vehicle.type) !==
+                        normalizeTransportType(assign.vehicleType)
+                      ) {
                         return false
+                      }
                       if (assign.vehicleId && assign.vehicleId === vehicle.id) return true
                       return !assignedVehicleIds.has(vehicle.id)
                     })
 
                     return (
-                      <div key={idx} className="border border-slate-200 rounded-xl bg-white p-3 space-y-2">
+                      <div
+                        key={idx}
+                        className="space-y-2 rounded-xl border border-slate-200 bg-white p-3"
+                      >
                         <p className="text-sm font-semibold">Vehicle #{idx + 1}</p>
                         <Select
                           value={assign.vehicleType}
@@ -234,15 +266,17 @@ export default function LogisticsPhasePanel({
                             <SelectValue placeholder="Tipus de vehicle" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="camioPetit">Camió petit</SelectItem>
-                            <SelectItem value="furgoneta">Furgoneta</SelectItem>
-                            <SelectItem value="camioGran">Camió gran</SelectItem>
+                            {TRANSPORT_TYPE_OPTIONS.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                         {assign.vehicleType && (
                           <>
                             <div className="text-xs text-gray-500">
-                              Matrícules disponibles: {filtered.length}
+                              Matricules disponibles: {filtered.length}
                             </div>
                             <Select
                               value={assign.vehicleId}
@@ -254,28 +288,39 @@ export default function LogisticsPhasePanel({
                                   })
                                   return
                                 }
-                                const chosen = availableVehicles.find((vehicle) => vehicle.id === value)
+                                const chosen = availableVehicles.find(
+                                  (vehicle) => vehicle.id === value
+                                )
                                 updatePhaseVehicleAssignment(phase.key, idx, {
                                   vehicleId: value,
                                   plate: chosen?.plate || "",
-                                  vehicleType: normalizeVehicleType(chosen?.type),
+                                  vehicleType: normalizeTransportType(chosen?.type),
                                 })
                               }}
                             >
                               <SelectTrigger>
-                                <SelectValue placeholder="Tipus només o matrícula" />
+                                <SelectValue placeholder="Tipus nomes o matricula" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="__any__">(Només tipus, sense matrícula)</SelectItem>
+                                <SelectItem value="__any__">
+                                  (Nomes tipus, sense matricula)
+                                </SelectItem>
                                 {filtered.map((vehicle) => (
                                   <SelectItem key={vehicle.id} value={vehicle.id}>
-                                    {vehicle.plate || "(sense matrícula)"}
+                                    {vehicle.plate || "(sense matricula)"}
+                                    {vehicle.type
+                                      ? ` - ${
+                                          TRANSPORT_TYPE_LABELS[
+                                            normalizeTransportType(vehicle.type)
+                                          ] || vehicle.type
+                                        }`
+                                      : ""}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
                             <div className="space-y-1 pt-2">
-                              <Label>Hora d’arribada</Label>
+                              <Label>Hora d'arribada</Label>
                               <Input
                                 type="time"
                                 value={assign.arrivalTime || ""}

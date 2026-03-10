@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import useSWR from 'swr'
-import { CalendarDays, FolderKanban, Search, UserRound } from 'lucide-react'
+import { CalendarDays, CheckCircle2, FolderKanban, Search, UserRound } from 'lucide-react'
 import SmartFilters, { type SmartFiltersChange } from '@/components/filters/SmartFilters'
 import ModuleHeader from '@/components/layout/ModuleHeader'
 import FloatingAddButton from '@/components/ui/floating-add-button'
@@ -83,31 +83,6 @@ export default function ProjectsPage() {
       cancelled = true
     }
   }, [])
-  useEffect(() => {
-    const unreadProjectNotifications = (
-      Array.isArray(notificationsData?.notifications) ? notificationsData.notifications : []
-    ).filter(
-      (notification: ProjectNotification) =>
-        !notification.read &&
-        ['project_assignment', 'project_block_assignment', 'project_task_assignment'].includes(
-          String(notification.type || '')
-        )
-    )
-
-    if (unreadProjectNotifications.length === 0) return
-
-    ;(async () => {
-      for (const type of ['project_assignment', 'project_block_assignment', 'project_task_assignment']) {
-        await fetch('/api/notifications', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'markAllRead', type }),
-        })
-      }
-      await mutateNotifications()
-    })()
-  }, [mutateNotifications, notificationsData])
-
   const normalizeText = (value: string) =>
     String(value || '')
       .normalize('NFD')
@@ -184,9 +159,22 @@ export default function ProjectsPage() {
       ),
     [notificationsData]
   )
-  const openProjectNotification = (notification: ProjectNotification) => {
+  const markNotificationAsRead = async (notificationId: string) => {
+    const id = String(notificationId || '').trim()
+    if (!id) return
+
+    await fetch('/api/notifications', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'markRead', notificationId: id }),
+    })
+    await mutateNotifications()
+  }
+
+  const openProjectNotification = async (notification: ProjectNotification) => {
     const projectId = String(notification.projectId || '').trim()
     if (!projectId) return
+    await markNotificationAsRead(notification.id)
 
     if (notification.type === 'project_task_assignment') {
       router.push(`/menu/projects/${projectId}?tab=tasks`)
@@ -285,7 +273,7 @@ export default function ProjectsPage() {
                     <button
                       type="button"
                       className="truncate font-medium text-slate-900 hover:text-violet-700 hover:underline"
-                      onClick={() => openProjectNotification(notification)}
+                      onClick={() => void openProjectNotification(notification)}
                     >
                       {label.primary}
                     </button>
@@ -296,6 +284,14 @@ export default function ProjectsPage() {
                       <span className="text-slate-400">{notification.title || ''}</span>
                     )}
                   </div>
+                  <button
+                    type="button"
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-emerald-600 transition hover:bg-emerald-50 hover:text-emerald-700"
+                    aria-label="Marcar com a llegit"
+                    onClick={() => void markNotificationAsRead(notification.id)}
+                  >
+                    <CheckCircle2 className="h-4 w-4" />
+                  </button>
                 </div>
               )})}
             </div>

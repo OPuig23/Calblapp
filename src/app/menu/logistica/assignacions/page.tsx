@@ -11,6 +11,7 @@ import FiltersBar, { type FiltersState } from '@/components/layout/FiltersBar'
 import ExportMenu from '@/components/export/ExportMenu'
 import { useTransportAssignments } from './hooks/useTransportAssignments'
 import TransportAssignmentCard from './components/TransportAssignmentCard'
+import { TRANSPORT_TYPE_LABELS } from '@/lib/transportTypes'
 
 export default function TransportAssignacionsPage() {
   useSession()
@@ -82,7 +83,7 @@ export default function TransportAssignacionsPage() {
           Departament: v.department || '',
           Conductor: v.name || '',
           Matricula: v.plate || '',
-          Vehicle: v.vehicleType || '',
+          Vehicle: TRANSPORT_TYPE_LABELS[v.vehicleType] || v.vehicleType || '',
           Sortida: v.startTime || '',
           Arribada: v.arrivalTime || '',
           Fi: v.endTime || '',

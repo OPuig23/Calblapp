@@ -123,6 +123,25 @@ const priorityTintClass = (priority?: string) => {
   }
 }
 
+const taskDayDiffFromToday = (value?: string | null) => {
+  const raw = String(value || '').trim()
+  if (!raw) return null
+  const target = new Date(raw.length === 10 ? `${raw}T00:00:00` : raw)
+  if (Number.isNaN(target.getTime())) return null
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const end = new Date(target.getFullYear(), target.getMonth(), target.getDate())
+  return Math.round((end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+}
+
+const taskDeadlineAccentClass = (daysLeft: number | null, status?: string) => {
+  if (status === 'done' || daysLeft === null) return 'text-slate-700'
+  if (daysLeft < 0) return 'text-rose-700'
+  if (daysLeft <= 3) return 'text-rose-700'
+  if (daysLeft <= 7) return 'text-amber-800'
+  return 'text-slate-700'
+}
+
 export default function ProjectTasksTab({
   projectId,
   projectBlocks,
@@ -156,6 +175,7 @@ export default function ProjectTasksTab({
   const [dragOverStatus, setDragOverStatus] = useState<string | null>(null)
   const [blockFilter, setBlockFilter] = useState<string>('all')
   const [levelFilter, setLevelFilter] = useState<string>('all')
+  const [ownerFilter, setOwnerFilter] = useState<string>('all')
   const [locallyDirtyTaskKeys, setLocallyDirtyTaskKeys] = useState<string[]>([])
   const fileInputsRef = useRef<Record<string, HTMLInputElement | null>>({})
   const hasPendingTaskDraft =
@@ -163,10 +183,18 @@ export default function ProjectTasksTab({
     Boolean(String(taskDraft.blockId || '').trim()) &&
     String(taskDraft.blockId || '').trim() !== 'none' &&
     Boolean(String(taskDraft.description || taskDraft.title || '').trim())
+  const ownerOptions = Array.from(
+    new Set(
+      allTasks
+        .map(({ task }) => String(task.owner || '').trim())
+        .filter(Boolean)
+    )
+  ).sort((left, right) => left.localeCompare(right))
   const filteredTasks = allTasks.filter(({ block, task }) => {
     const matchesBlock = blockFilter === 'all' || block.id === blockFilter
     const matchesLevel = levelFilter === 'all' || (task.priority || 'normal') === levelFilter
-    return matchesBlock && matchesLevel
+    const matchesOwner = ownerFilter === 'all' || String(task.owner || '').trim() === ownerFilter
+    return matchesBlock && matchesLevel && matchesOwner
   })
   const draggingTask = filteredTasks.find(({ taskKey }) => taskKey === draggingTaskKey)
   const roomIdByBlockId = new Map(
@@ -249,11 +277,28 @@ export default function ProjectTasksTab({
             </SelectContent>
           </Select>
         </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-700">Responsable</label>
+          <Select value={ownerFilter} onValueChange={setOwnerFilter}>
+            <SelectTrigger>
+              <SelectValue placeholder="Tots els responsables" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tots els responsables</SelectItem>
+              {ownerOptions.map((owner) => (
+                <SelectItem key={`filter-owner-${owner}`} value={owner}>
+                  {owner}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <div className="flex justify-end pt-2">
           <ResetFilterButton
             onClick={() => {
               setBlockFilter('all')
               setLevelFilter('all')
+              setOwnerFilter('all')
             }}
           />
         </div>
@@ -409,6 +454,8 @@ export default function ProjectTasksTab({
                           const canManageCurrentTask = canManageTask(block, task)
                           const canAccessOpsCurrentTask = canAccessTaskOps(block, task)
                           const canMoveCurrentTask = canMoveTask(block, task)
+                          const isObserverTask = !canAccessOpsCurrentTask
+                          const taskDaysLeft = taskDayDiffFromToday(task.deadline)
                           const roomHref = `/menu/projects/${projectId}/rooms/${roomId}`
 
                           return (
@@ -427,12 +474,12 @@ export default function ProjectTasksTab({
                               if (draggingTaskKey || !canAccessOpsCurrentTask) return
                               router.push(roomHref)
                             }}
-                            className={`relative rounded-[18px] border border-slate-200 bg-white p-4 shadow-sm transition ${
+                            className={`relative rounded-[18px] border p-4 shadow-sm transition ${
                               draggingTaskKey === taskKey
                                 ? 'cursor-grabbing opacity-60'
                                 : canAccessOpsCurrentTask
-                                  ? 'cursor-pointer hover:border-violet-300 hover:shadow-md'
-                                  : 'cursor-grab'
+                                  ? 'border-slate-200 bg-white cursor-pointer hover:border-violet-300 hover:shadow-md'
+                                  : 'border-slate-200 bg-slate-50/90 cursor-default opacity-70 saturate-[0.85]'
                             }`}
                           >
                             <span
@@ -442,18 +489,24 @@ export default function ProjectTasksTab({
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0 pl-2">
                                 <div className="flex items-start justify-between gap-3">
-                                  <div className="min-w-0 flex-1 text-[15px] font-semibold leading-5 text-slate-900">
+                                  <div className={`min-w-0 flex-1 text-[15px] font-semibold leading-5 ${isObserverTask ? 'text-slate-700' : 'text-slate-900'}`}>
                                     {task.title}
                                   </div>
-                                  <span className="shrink-0 pt-0.5 text-sm font-semibold text-slate-700">
+                                  <span
+                                    className={`shrink-0 pt-0.5 text-sm font-semibold ${
+                                      isObserverTask
+                                        ? 'text-slate-500'
+                                        : taskDeadlineAccentClass(taskDaysLeft, task.status)
+                                    }`}
+                                  >
                                     {task.deadline ? formatProjectDate(task.deadline) : 'Sense deadline'}
                                   </span>
                                 </div>
-                                <div className="mt-1 text-[15px] text-slate-800">
+                                <div className={`mt-1 text-[15px] ${isObserverTask ? 'text-slate-500' : 'text-slate-800'}`}>
                                   {task.owner || 'Sense responsable'}
                                 </div>
                                 {task.description ? (
-                                  <div className="mt-1 line-clamp-1 text-[15px] text-slate-800">
+                                  <div className={`mt-1 line-clamp-1 text-[15px] ${isObserverTask ? 'text-slate-500' : 'text-slate-800'}`}>
                                     {task.description}
                                   </div>
                                 ) : null}
@@ -500,13 +553,18 @@ export default function ProjectTasksTab({
                               </div>
                             </div>
 
-                            <div className="mt-3 flex flex-wrap items-center gap-2.5 pl-2 text-xs text-slate-500">
-                              <span className="rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-700">
+                            <div className={`mt-3 flex flex-wrap items-center gap-2.5 pl-2 text-xs ${isObserverTask ? 'text-slate-400' : 'text-slate-500'}`}>
+                              <span className={`rounded-full px-2.5 py-1 font-medium ${isObserverTask ? 'bg-white text-slate-500 ring-1 ring-slate-200' : 'bg-slate-100 text-slate-700'}`}>
                                 {block.name}
                               </span>
                               {task.department ? (
-                                <span className={`rounded-full px-2.5 py-1 font-medium ${colorByDepartment(task.department)}`}>
+                                <span className={`rounded-full px-2.5 py-1 font-medium ${isObserverTask ? 'bg-white text-slate-500 ring-1 ring-slate-200' : colorByDepartment(task.department)}`}>
                                   {task.department}
+                                </span>
+                              ) : null}
+                              {isObserverTask ? (
+                                <span className="rounded-full bg-white px-2.5 py-1 font-medium text-slate-500 ring-1 ring-slate-200">
+                                  Observador
                                 </span>
                               ) : null}
                               {(task.documents || []).length > 0 ? (

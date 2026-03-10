@@ -1,11 +1,19 @@
-//file: src/app/menu/quadrants/[id]/components/QuadrantFieldsCuina.tsx
 'use client'
 
-import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
-  Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@/components/ui/select'
+import {
+  TRANSPORT_TYPE_LABELS,
+  TRANSPORT_TYPE_OPTIONS,
+  normalizeTransportType,
+} from '@/lib/transportTypes'
 
 type VehicleAssignment = {
   vehicleType: string
@@ -31,47 +39,47 @@ type Props = {
 }
 
 export default function QuadrantFieldsCuina({
-  totalWorkers, numDrivers,
-  setTotalWorkers, setNumDrivers,
-  vehicleAssignments, setVehicleAssignments,
+  totalWorkers,
+  numDrivers,
+  setTotalWorkers,
+  setNumDrivers,
+  vehicleAssignments,
+  setVehicleAssignments,
   available,
 }: Props) {
   return (
     <div className="grid grid-cols-2 gap-4">
-      {/* # Treballadors */}
       <div>
         <Label># Treballadors</Label>
         <Input
           type="number"
           min={0}
           value={totalWorkers}
-          onChange={e => setTotalWorkers(e.target.value)}
+          onChange={(e) => setTotalWorkers(e.target.value)}
         />
       </div>
 
-      {/* # Conductors */}
       <div>
         <Label># Conductors</Label>
         <Input
           type="number"
           min={0}
           value={numDrivers}
-          onChange={e => setNumDrivers(e.target.value)}
+          onChange={(e) => setNumDrivers(e.target.value)}
         />
 
         <div className="mt-2 text-sm text-gray-700">
-          Vehicles disponibles: {available.vehicles.filter(v => v.available).length} / {available.vehicles.length}
+          Vehicles disponibles: {available.vehicles.filter((v) => v.available).length} /{' '}
+          {available.vehicles.length}
         </div>
 
-        {/* Assignacions per conductor */}
         {vehicleAssignments.map((assign, idx) => (
-          <div key={idx} className="mt-3 border p-3 rounded-md space-y-2">
+          <div key={idx} className="mt-3 space-y-2 rounded-md border p-3">
             <p className="text-sm font-semibold">Vehicle #{idx + 1}</p>
 
-            {/* 1. Selecció TIPUS */}
             <Select
               value={assign.vehicleType}
-              onValueChange={val => {
+              onValueChange={(val) => {
                 const upd = [...vehicleAssignments]
                 upd[idx].vehicleType = val
                 upd[idx].vehicleId = ''
@@ -83,38 +91,46 @@ export default function QuadrantFieldsCuina({
                 <SelectValue placeholder="Tipus de vehicle" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="camioPetit">Camió petit</SelectItem>
-                <SelectItem value="furgoneta">Furgoneta</SelectItem>
+                {TRANSPORT_TYPE_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
 
-            {/* 2. Selecció MATRÍCULA */}
             {assign.vehicleType && (
               <Select
                 value={assign.vehicleId}
-                onValueChange={val => {
-                  const chosen = available.vehicles.find(v => v.id === val)
+                onValueChange={(val) => {
+                  const chosen = available.vehicles.find((v) => v.id === val)
                   const upd = [...vehicleAssignments]
                   upd[idx].vehicleId = val
                   upd[idx].plate = chosen?.plate || ''
-                  upd[idx].vehicleType = chosen?.type || upd[idx].vehicleType
+                  upd[idx].vehicleType = normalizeTransportType(
+                    chosen?.type || upd[idx].vehicleType
+                  )
                   setVehicleAssignments(upd)
                 }}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Matrícula" />
+                  <SelectValue placeholder="Matricula" />
                 </SelectTrigger>
                 <SelectContent>
                   {(available.vehicles || [])
-                    .filter(v =>
-                      v.available &&
-                      (v.type?.toLowerCase() === 'camiopetit' || v.type?.toLowerCase() === 'furgoneta') &&
-                      v.type?.toLowerCase() === assign.vehicleType.toLowerCase() &&
-                      !vehicleAssignments.some((a, i) => i !== idx && a.vehicleId === v.id)
+                    .filter(
+                      (v) =>
+                        v.available &&
+                        normalizeTransportType(v.type) ===
+                          normalizeTransportType(assign.vehicleType) &&
+                        !vehicleAssignments.some((a, i) => i !== idx && a.vehicleId === v.id)
                     )
-                    .map(v => (
+                    .map((v) => (
                       <SelectItem key={v.id} value={v.id}>
-                        {v.plate || '(sense matrícula)'}
+                        {v.plate || '(sense matricula)'}
+                        {v.type
+                          ? ` - ${TRANSPORT_TYPE_LABELS[normalizeTransportType(v.type)] || v.type}`
+                          : ''}
                       </SelectItem>
                     ))}
                 </SelectContent>

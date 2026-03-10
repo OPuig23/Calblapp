@@ -57,7 +57,7 @@ const DAY_MS = 24 * 60 * 60 * 1000
 const LABEL_COLUMN_WIDTH = 220
 const DAY_COLUMN_WIDTH = 74
 const WEEK_COLUMN_WIDTH = 132
-const ROW_HEIGHT = 104
+const ROW_HEIGHT = 52
 
 const parseDate = (value?: string | number | null) => {
   if (typeof value === 'number' && value > 0) {
@@ -499,12 +499,6 @@ export default function ProjectPlanningTab({ projectId, project }: Props) {
                             </span>
                           ) : null}
                         </div>
-                        <Link href={item.href} className="mt-3 block truncate text-sm font-semibold text-slate-900 hover:text-violet-700">
-                          {item.title}
-                        </Link>
-                        <div className="mt-2 line-clamp-2 text-xs leading-5 text-slate-500">
-                          {[item.subtitle, item.owner].filter(Boolean).join(' · ') || 'Sense detall'}
-                        </div>
                       </div>
                     </div>
 
@@ -545,6 +539,11 @@ export default function ProjectPlanningTab({ projectId, project }: Props) {
                             <div className={`w-full rounded-[18px] px-4 py-3 ring-1 ${statusTone(item.status)}`}>
                               <div className="flex min-w-0 flex-wrap items-center gap-2">
                                 <div className="truncate text-sm font-semibold">{item.title}</div>
+                                {item.owner ? (
+                                  <span className="truncate text-xs font-medium opacity-80">
+                                    {item.owner}
+                                  </span>
+                                ) : null}
                                 <span className="rounded-full bg-white/70 px-2 py-1 text-[11px] font-medium">
                                   {shortDate(item.end)}
                                 </span>

@@ -3,6 +3,7 @@
 import React, { useMemo, useState, useCallback } from 'react'
 import { ChevronDown, ChevronUp, Truck } from 'lucide-react'
 import VehiclesTable from './VehiclesTable'
+import { TRANSPORT_TYPE_LABELS } from '@/lib/transportTypes'
 
 type VehicleRow = {
   id: string
@@ -147,8 +148,8 @@ export default function TransportAssignmentCard({
                 className="rounded-md border bg-slate-50 px-2 py-1 font-medium"
               >
                 {(v.plate && v.vehicleType)
-                  ? `${v.plate} - ${v.vehicleType}`
-                  : v.plate || v.vehicleType || 'Vehicle sense dades'}
+                  ? `${v.plate} - ${TRANSPORT_TYPE_LABELS[v.vehicleType] || v.vehicleType}`
+                  : v.plate || TRANSPORT_TYPE_LABELS[v.vehicleType || ''] || v.vehicleType || 'Vehicle sense dades'}
               </span>
             ))
           ) : (

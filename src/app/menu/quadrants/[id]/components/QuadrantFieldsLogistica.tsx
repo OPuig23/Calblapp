@@ -1,11 +1,19 @@
-//file: src/app/menu/quadrants/[id]/components/QuadrantFieldsLogistica.tsx
 'use client'
 
-import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
-  Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@/components/ui/select'
+import {
+  TRANSPORT_TYPE_LABELS,
+  TRANSPORT_TYPE_OPTIONS,
+  normalizeTransportType,
+} from '@/lib/transportTypes'
 
 type VehicleAssignment = {
   vehicleType: string
@@ -32,20 +40,13 @@ type Props = {
   hideCounts?: boolean
 }
 
-// Normalitza tipus
-const normalizeType = (t: string) => {
-  const val = t?.toLowerCase()
-  if (!val) return ''
-  if (val.includes('petit')) return 'camioPetit'
-  if (val.includes('gran')) return 'camioGran'
-  if (val.includes('furgo')) return 'furgoneta'
-  return val
-}
-
 export default function QuadrantFieldsLogistica({
-  totalWorkers, numDrivers,
-  setTotalWorkers, setNumDrivers,
-  vehicleAssignments, setVehicleAssignments,
+  totalWorkers,
+  numDrivers,
+  setTotalWorkers,
+  setNumDrivers,
+  vehicleAssignments,
+  setVehicleAssignments,
   available,
   hideCounts = false,
 }: Props) {
@@ -53,53 +54,50 @@ export default function QuadrantFieldsLogistica({
     <div className="grid grid-cols-2 gap-4">
       {!hideCounts && (
         <>
-          {/* # Treballadors */}
           <div>
             <Label># Treballadors</Label>
             <Input
               type="number"
               min={0}
               value={totalWorkers}
-              onChange={e => setTotalWorkers(e.target.value)}
+              onChange={(e) => setTotalWorkers(e.target.value)}
             />
           </div>
 
-          {/* # Conductors */}
           <div>
             <Label># Conductors</Label>
             <Input
               type="number"
               min={0}
               value={numDrivers}
-              onChange={e => setNumDrivers(e.target.value)}
+              onChange={(e) => setNumDrivers(e.target.value)}
             />
           </div>
         </>
       )}
 
-      {/* Vehicle assignments */}
       <div className={hideCounts ? 'col-span-2' : ''}>
         <div className="mt-2 text-sm text-gray-700">
-          Vehicles disponibles (total): {available.vehicles.filter(v => v.available).length} / {available.vehicles.length}
+          Vehicles disponibles (total): {available.vehicles.filter((v) => v.available).length} /{' '}
+          {available.vehicles.length}
         </div>
 
-        {/* Assignacions per conductor */}
         {vehicleAssignments.map((assign, idx) => {
-          // vehicles disponibles per aquest tipus
-          const filtered = (available.vehicles || []).filter(v =>
-            v.available &&
-            normalizeType(v.type || '') === normalizeType(assign.vehicleType) &&
-            !vehicleAssignments.some((a, i) => i !== idx && a.vehicleId === v.id)
+          const filtered = (available.vehicles || []).filter(
+            (v) =>
+              v.available &&
+              normalizeTransportType(v.type || '') ===
+                normalizeTransportType(assign.vehicleType) &&
+              !vehicleAssignments.some((a, i) => i !== idx && a.vehicleId === v.id)
           )
 
           return (
-            <div key={idx} className="mt-3 border p-3 rounded-md space-y-2">
+            <div key={idx} className="mt-3 space-y-2 rounded-md border p-3">
               <p className="text-sm font-semibold">Vehicle #{idx + 1}</p>
 
-              {/* 1. Selecció TIPUS */}
               <Select
                 value={assign.vehicleType}
-                onValueChange={val => {
+                onValueChange={(val) => {
                   const upd = [...vehicleAssignments]
                   upd[idx].vehicleType = val
                   upd[idx].vehicleId = ''
@@ -111,21 +109,22 @@ export default function QuadrantFieldsLogistica({
                   <SelectValue placeholder="Tipus de vehicle" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="camioPetit">Camió petit</SelectItem>
-                  <SelectItem value="furgoneta">Furgoneta</SelectItem>
-                  <SelectItem value="camioGran">Camió gran</SelectItem>
+                  {TRANSPORT_TYPE_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
 
-              {/* 2. Selecció MATRÍCULA + Hora d'arribada */}
               {assign.vehicleType && (
                 <>
                   <div className="text-xs text-gray-500">
-                    Matrícules disponibles: {filtered.length}
+                    Matricules disponibles: {filtered.length}
                   </div>
                   <Select
                     value={assign.vehicleId}
-                    onValueChange={val => {
+                    onValueChange={(val) => {
                       if (val === '__any__') {
                         const upd = [...vehicleAssignments]
                         upd[idx].vehicleId = ''
@@ -134,24 +133,28 @@ export default function QuadrantFieldsLogistica({
                         return
                       }
 
-                      const chosen = available.vehicles.find(v => v.id === val)
+                      const chosen = available.vehicles.find((v) => v.id === val)
                       const upd = [...vehicleAssignments]
                       upd[idx].vehicleId = val
                       upd[idx].plate = chosen?.plate || ''
-                      upd[idx].vehicleType = normalizeType(chosen?.type || upd[idx].vehicleType)
+                      upd[idx].vehicleType = normalizeTransportType(
+                        chosen?.type || upd[idx].vehicleType
+                      )
                       setVehicleAssignments(upd)
                     }}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Tipus només o matrícula" />
+                      <SelectValue placeholder="Tipus nomes o matricula" />
                     </SelectTrigger>
                     <SelectContent>
-                      {/* Opció extra per no assignar matrícula */}
-                      <SelectItem value="__any__">(Només tipus, sense matrícula)</SelectItem>
+                      <SelectItem value="__any__">(Nomes tipus, sense matricula)</SelectItem>
 
-                      {filtered.map(v => (
+                      {filtered.map((v) => (
                         <SelectItem key={v.id} value={v.id}>
-                          {v.plate || '(sense matrícula)'}
+                          {v.plate || '(sense matricula)'}
+                          {v.type
+                            ? ` - ${TRANSPORT_TYPE_LABELS[normalizeTransportType(v.type)] || v.type}`
+                            : ''}
                         </SelectItem>
                       ))}
                     </SelectContent>

@@ -33,7 +33,11 @@ async function authorize(req: Request) {
 
   if (mode === 'cron') {
     if (cronSecret) {
+      const authorizationHeader = req.headers.get('authorization') || ''
       const incoming =
+        (authorizationHeader.startsWith('Bearer ')
+          ? authorizationHeader.slice('Bearer '.length).trim()
+          : '') ||
         req.headers.get('x-cron-secret') ||
         url.searchParams.get('secret') ||
         ''

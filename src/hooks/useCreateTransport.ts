@@ -2,6 +2,7 @@
 'use client'
 
 import { useState } from 'react'
+import type { TransportType } from '@/lib/transportTypes'
 
 export function useCreateTransport() {
   const [loading, setLoading] = useState(false)
@@ -9,7 +10,7 @@ export function useCreateTransport() {
 
   async function mutateAsync(payload: {
     plate: string
-    type: 'camioPetit' | 'camioGran' | 'furgoneta'
+    type: TransportType
     conductorId?: string | null   // ✅ coherent amb API i Firestore
   }) {
     setLoading(true)

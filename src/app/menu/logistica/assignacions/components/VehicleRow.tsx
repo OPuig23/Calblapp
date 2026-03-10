@@ -3,15 +3,20 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Save, Pencil, Trash2, Loader2 } from 'lucide-react'
+import {
+  TRANSPORT_TYPE_LABELS,
+  TRANSPORT_TYPE_OPTIONS,
+} from '@/lib/transportTypes'
+import {
+  invalidateAvailablePersonnelCache,
+  useAvailablePersonnel,
+} from '@/hooks/logistics/useAvailablePersonnel'
+import {
+  invalidateAvailableVehiclesCache,
+  useAvailableVehicles,
+} from '@/hooks/logistics/useAvailableVehicles'
 
 type Driver = { id: string; name: string }
-
-type AvailableVehicle = {
-  id: string
-  plate: string
-  type: string
-  available: boolean
-}
 
 interface Props {
   eventCode: string
@@ -26,13 +31,6 @@ interface Props {
   rowKey: string
   onEditingChange?: (rowKey: string, isEditing: boolean) => void
 }
-
-const VEHICLE_TYPES = [
-  { value: 'furgoneta', label: 'Furgoneta' },
-  { value: 'camioPetit', label: 'Camio petit' },
-  { value: 'camioGran', label: 'Camio gran' },
-  { value: 'altres', label: 'Altres' },
-] as const
 
 const DEPARTMENTS = [
   { value: 'logistica', label: 'Logistica' },
@@ -110,86 +108,26 @@ export default function VehicleRow({
     }
   }, [onEditingChange, rowKey])
 
-  const [drivers, setDrivers] = useState<Driver[]>([])
-  const [driversLoading, setDriversLoading] = useState(false)
-
-  useEffect(() => {
-    if (!isEditing || !date || !startTime) {
-      setDrivers([])
-      return
-    }
-
-    async function loadDrivers() {
-      try {
-        setDriversLoading(true)
-
-        const params = new URLSearchParams({
-          department,
-          startDate: date,
-          startTime,
-          endDate: date,
-          endTime: endTime || startTime,
-        })
-
-        const res = await fetch(`/api/personnel/available?${params.toString()}`)
-        if (!res.ok) {
-          setDrivers([])
-          return
-        }
-
-        const data = await res.json()
-        setDrivers(Array.isArray(data?.conductors) ? data.conductors : [])
-      } catch {
-        setDrivers([])
-      } finally {
-        setDriversLoading(false)
-      }
-    }
-
-    loadDrivers()
-  }, [isEditing, department, date, startTime, endTime])
-
-  const [availableVehicles, setAvailableVehicles] = useState<AvailableVehicle[]>([])
-  const [loadingVehicles, setLoadingVehicles] = useState(false)
-
   const canLoadVehicles = Boolean(date && startTime)
-
-  useEffect(() => {
-    async function loadVehicles() {
-      if (!canLoadVehicles) {
-        setAvailableVehicles([])
-        return
-      }
-
-      try {
-        setLoadingVehicles(true)
-        const res = await fetch('/api/transports/available', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            startDate: date,
-            startTime,
-            endDate: date,
-            endTime: endTime || startTime,
-          }),
-        })
-
-        if (!res.ok) {
-          setAvailableVehicles([])
-          return
-        }
-
-        const json = await res.json()
-        setAvailableVehicles(Array.isArray(json?.vehicles) ? json.vehicles : [])
-      } catch {
-        setAvailableVehicles([])
-      } finally {
-        setLoadingVehicles(false)
-      }
-    }
-
-    loadVehicles()
-  }, [canLoadVehicles, date, startTime, endTime])
+  const { conductors, loading: driversLoading } = useAvailablePersonnel({
+    departament: department,
+    startDate: date,
+    startTime,
+    endDate: date,
+    endTime: endTime || startTime,
+    enabled: isEditing && Boolean(date && startTime),
+  })
+  const drivers: Driver[] = useMemo(
+    () => conductors.map((driver) => ({ id: driver.id, name: driver.name })),
+    [conductors]
+  )
+  const { vehicles: availableVehicles, loading: loadingVehicles } = useAvailableVehicles({
+    startDate: date,
+    startTime,
+    endDate: date,
+    endTime: endTime || startTime,
+    enabled: canLoadVehicles,
+  })
 
   const plateOptions = useMemo(() => {
     if (!vehicleType) return []
@@ -246,6 +184,8 @@ export default function VehicleRow({
         return
       }
 
+      invalidateAvailableVehiclesCache()
+      invalidateAvailablePersonnelCache()
       setIsEditing(false)
       onChanged()
     } catch {
@@ -269,6 +209,8 @@ export default function VehicleRow({
       }),
     })
 
+    invalidateAvailableVehiclesCache()
+    invalidateAvailablePersonnelCache()
     onChanged()
   }
 
@@ -353,7 +295,7 @@ export default function VehicleRow({
             disabled={!isEditing || !canLoadVehicles}
           >
             <option value="">Selecciona vehicle</option>
-            {VEHICLE_TYPES.map((v) => (
+            {TRANSPORT_TYPE_OPTIONS.map((v) => (
               <option key={v.value} value={v.value}>
                 {v.label}
               </option>
@@ -373,7 +315,7 @@ export default function VehicleRow({
             <option value="">Selecciona matricula</option>
             {plateOptions.map((v) => (
               <option key={v.id} value={v.plate}>
-                {v.plate}
+                {v.plate} {v.type ? `- ${TRANSPORT_TYPE_LABELS[v.type] || v.type}` : ''}
               </option>
             ))}
           </select>

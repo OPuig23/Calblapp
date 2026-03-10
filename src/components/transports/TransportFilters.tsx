@@ -2,9 +2,10 @@
 
 import React from 'react'
 import ResetFilterButton from '@/components/ui/ResetFilterButton'
+import { TRANSPORT_TYPE_OPTIONS, type TransportType } from '@/lib/transportTypes'
 
 export type TransportFiltersState = {
-  type: 'all' | 'camioPetit' | 'camioGran' | 'furgoneta'
+  type: 'all' | TransportType
   availability: 'all' | 'available' | 'unavailable'
   driver: 'all' | 'assigned' | 'unassigned'
 }
@@ -24,7 +25,6 @@ export default function TransportFilters({ filters, setFilters }: Props) {
 
   return (
     <div className="p-4 space-y-4 text-sm">
-      {/* Tipus */}
       <div className="space-y-1">
         <div className="font-medium text-gray-700">Tipus de vehicle</div>
         <select
@@ -35,13 +35,14 @@ export default function TransportFilters({ filters, setFilters }: Props) {
           className="w-full border rounded-md px-2 py-1 bg-white"
         >
           <option value="all">Tots</option>
-          <option value="camioPetit">Camió petit</option>
-          <option value="camioGran">Camió gran</option>
-          <option value="furgoneta">Furgoneta</option>
+          {TRANSPORT_TYPE_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
         </select>
       </div>
 
-      {/* Disponibilitat */}
       <div className="space-y-1">
         <div className="font-medium text-gray-700">Disponibilitat</div>
         <select
@@ -55,12 +56,11 @@ export default function TransportFilters({ filters, setFilters }: Props) {
           className="w-full border rounded-md px-2 py-1 bg-white"
         >
           <option value="all">Tots</option>
-          <option value="available">Només disponibles</option>
-          <option value="unavailable">Només no disponibles</option>
+          <option value="available">Nomes disponibles</option>
+          <option value="unavailable">Nomes no disponibles</option>
         </select>
       </div>
 
-      {/* Conductor */}
       <div className="space-y-1">
         <div className="font-medium text-gray-700">Conductor</div>
         <select
@@ -79,7 +79,6 @@ export default function TransportFilters({ filters, setFilters }: Props) {
         </select>
       </div>
 
-      {/* Botó reset */}
       <div className="flex justify-end pt-2">
         <ResetFilterButton
           onClick={() =>

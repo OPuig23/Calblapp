@@ -1,7 +1,6 @@
 'use client'
 
 import React, { useEffect, useMemo, useState } from 'react'
-import useSWR from 'swr'
 import { format } from 'date-fns'
 import { Clock, Filter, MapPin, RefreshCw, Truck } from 'lucide-react'
 import * as XLSX from 'xlsx'
@@ -10,6 +9,18 @@ import ModuleHeader from '@/components/layout/ModuleHeader'
 import { Button } from '@/components/ui/button'
 import ExportMenu from '@/components/export/ExportMenu'
 import { cn } from '@/lib/utils'
+import {
+  TRANSPORT_TYPE_LABELS,
+  TRANSPORT_TYPE_OPTIONS,
+} from '@/lib/transportTypes'
+import {
+  invalidateAvailableVehiclesCache,
+  useAvailableVehicles,
+} from '@/hooks/logistics/useAvailableVehicles'
+import {
+  invalidateAvailablePersonnelCache,
+  useAvailablePersonnel,
+} from '@/hooks/logistics/useAvailablePersonnel'
 
 type VehicleAvailability = {
   id: string
@@ -21,32 +32,6 @@ type VehicleAvailability = {
 type Conductor = {
   id: string
   name: string
-}
-
-type AvailabilityResponse = {
-  vehicles: VehicleAvailability[]
-}
-
-const availabilityFetcher = async (
-  [_key, date, start, end]: [string, string, string, string],
-) => {
-  const res = await fetch('/api/transports/available', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      startDate: date,
-      endDate: date,
-      startTime: start,
-      endTime: end,
-    }),
-  })
-
-  if (!res.ok) {
-    const txt = await res.text()
-    throw new Error(txt || "No s'ha pogut carregar la disponibilitat")
-  }
-
-  return (await res.json()) as AvailabilityResponse
 }
 
 export default function DisponibilitatLogisticaPage() {
@@ -64,18 +49,31 @@ export default function DisponibilitatLogisticaPage() {
   const [assignError, setAssignError] = useState<string | null>(null)
   const [showMobileParams, setShowMobileParams] = useState(false)
 
-  const { data, error, isLoading, mutate } = useSWR(
-    ['availability', date, startTime, endTime],
-    availabilityFetcher,
-    { revalidateOnFocus: false },
-  )
-
-  const vehicles = data?.vehicles ?? []
+  const {
+    vehicles,
+    error,
+    loading: isLoading,
+    refetch: refetchVehicles,
+  } = useAvailableVehicles({
+    startDate: date,
+    endDate: date,
+    startTime,
+    endTime,
+  })
 
   const allTypes = useMemo(() => {
-    const set = new Set<string>()
-    vehicles.forEach(v => v.type && set.add(v.type))
-    return Array.from(set)
+    const present = new Set<string>()
+    vehicles.forEach(v => v.type && present.add(v.type))
+
+    const ordered = TRANSPORT_TYPE_OPTIONS
+      .filter((option) => present.has(option.value))
+      .map((option) => option.value)
+
+    const extras = Array.from(present).filter(
+      (type) => !TRANSPORT_TYPE_OPTIONS.some((option) => option.value === type)
+    )
+
+    return [...ordered, ...extras]
   }, [vehicles])
 
   const filteredVehicles = useMemo(() => {
@@ -88,40 +86,18 @@ export default function DisponibilitatLogisticaPage() {
 
   const availableCount = filteredVehicles.filter(v => v.available).length
 
-  // Carregar conductors disponibles quan hi ha vehicle seleccionat i franja
+  const { conductors: availableConductors } = useAvailablePersonnel({
+    departament: 'logistica',
+    startDate: date,
+    endDate: date,
+    startTime,
+    endTime,
+    enabled: Boolean(selectedVehicle && date && startTime && endTime),
+  })
+
   useEffect(() => {
-    if (!selectedVehicle || !date || !startTime || !endTime) {
-      setConductors([])
-      return
-    }
-
-    const controller = new AbortController()
-    const load = async () => {
-      try {
-        const params = new URLSearchParams({
-          department: 'logistica',
-          startDate: date,
-          startTime,
-          endDate: date,
-          endTime,
-        })
-        const res = await fetch(`/api/personnel/available?${params.toString()}`, {
-          signal: controller.signal,
-        })
-        if (!res.ok) {
-          setConductors([])
-          return
-        }
-        const data = await res.json()
-        setConductors(Array.isArray(data?.conductors) ? data.conductors : [])
-      } catch {
-        if (!controller.signal.aborted) setConductors([])
-      }
-    }
-
-    load()
-    return () => controller.abort()
-  }, [selectedVehicle, date, startTime, endTime])
+    setConductors(availableConductors.map((c) => ({ id: c.id, name: c.name })))
+  }, [availableConductors])
 
   const handleAssign = async () => {
     if (!selectedVehicle) return
@@ -163,7 +139,9 @@ export default function DisponibilitatLogisticaPage() {
       setDestination('')
       setNotes('')
       setConductorId('')
-      mutate()
+      invalidateAvailableVehiclesCache()
+      invalidateAvailablePersonnelCache()
+      await refetchVehicles(true)
     } catch (e: any) {
       setAssignError(e?.message || 'Error creant assignació')
     } finally {
@@ -187,7 +165,7 @@ export default function DisponibilitatLogisticaPage() {
         HoraInici: startTime,
         HoraFi: endTime,
         Matricula: v.plate || '',
-        Tipus: v.type || '',
+        Tipus: TRANSPORT_TYPE_LABELS[v.type] || v.type || '',
         Disponible: v.available ? 'Si' : 'No',
       })),
     [filteredVehicles, date, startTime, endTime]
@@ -319,7 +297,7 @@ export default function DisponibilitatLogisticaPage() {
       HoraInici: a?.startTime || '',
       HoraFi: a?.endTime || '',
       Matricula: a?.plate || '',
-      Vehicle: a?.vehicleType || '',
+      Vehicle: TRANSPORT_TYPE_LABELS[a?.vehicleType] || a?.vehicleType || '',
       Conductor: a?.conductorName || '',
       Destinacio: a?.destination || '',
       Notes: a?.notes || '',
@@ -503,7 +481,9 @@ export default function DisponibilitatLogisticaPage() {
             >
               <option value="tots">Tots els tipus</option>
               {allTypes.map(t => (
-                <option key={t} value={t}>{t}</option>
+                <option key={t} value={t}>
+                  {TRANSPORT_TYPE_LABELS[t] || t}
+                </option>
               ))}
             </select>
           </div>
@@ -557,12 +537,12 @@ export default function DisponibilitatLogisticaPage() {
                   <div className="flex items-center gap-2">
                     <span className="text-base font-semibold text-slate-900">{v.plate}</span>
                     <span className="rounded-full border bg-slate-100 px-2 py-0.5 text-[11px] uppercase tracking-wide">
-                      {v.type || 'Sense tipus'}
+                      {TRANSPORT_TYPE_LABELS[v.type] || v.type || 'Sense tipus'}
                     </span>
                   </div>
                   <span className="flex items-center gap-1 text-xs text-slate-500">
                     <MapPin className="h-3 w-3" />
-                    {v.type || 'Sense tipus'}
+                    {TRANSPORT_TYPE_LABELS[v.type] || v.type || 'Sense tipus'}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -598,7 +578,9 @@ export default function DisponibilitatLogisticaPage() {
                   <div>
                     <div className="text-xs text-slate-500">Vehicle seleccionat</div>
                     <div className="font-semibold text-slate-900">{selectedVehicle.plate}</div>
-                    <div className="text-xs text-slate-500">{selectedVehicle.type || 'Sense tipus'}</div>
+                    <div className="text-xs text-slate-500">
+                      {TRANSPORT_TYPE_LABELS[selectedVehicle.type] || selectedVehicle.type || 'Sense tipus'}
+                    </div>
                     <div className="mt-1 text-xs text-slate-500">
                       {format(new Date(date), "d 'de' LLLL yyyy")} · {startTime} - {endTime}
                     </div>

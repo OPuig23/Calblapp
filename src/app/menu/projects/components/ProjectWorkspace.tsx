@@ -709,13 +709,59 @@ export default function ProjectWorkspace({ projectId, initialProject, initialTab
     }
   }
 
+  const hasPendingBlockDraft =
+    showBlockComposer &&
+    Boolean(
+      String(blockDraft.name || '').trim() ||
+      String(blockDraft.summary || '').trim() ||
+      String(blockDraft.department || '').trim() ||
+      String(blockDraft.owner || '').trim() ||
+      String(blockDraft.deadline || '').trim() ||
+      String(blockDraft.budget || '').trim() ||
+      String(blockDraft.dependsOn || '').trim()
+    )
+
+  const hasPendingTaskDraft =
+    showTaskComposer &&
+    Boolean(
+      String(taskDraft.blockId || '').trim() && String(taskDraft.blockId || '').trim() !== 'none' &&
+      (
+        String(taskDraft.title || '').trim() ||
+        String(taskDraft.description || '').trim() ||
+        String(taskDraft.department || '').trim() ||
+        String(taskDraft.owner || '').trim() ||
+        String(taskDraft.deadline || '').trim()
+      )
+    )
+
+  const hasPendingDocumentDraft =
+    Boolean(pendingDocumentFile) || Boolean(String(documentDraft.label || '').trim())
+
+  const shouldWarnBeforeLeavingTab = (tab: WorkspaceTab) => {
+    if (tab === 'overview') return dirtyOverview
+    if (tab === 'kickoff') return dirtyBlocks
+    if (tab === 'blocks') return dirtyBlocks || hasPendingBlockDraft
+    if (tab === 'tasks') return dirtyBlocks || hasPendingTaskDraft
+    if (tab === 'documents') return hasPendingDocumentDraft
+    return false
+  }
+
+  const handleTabChange = (nextTab: WorkspaceTab) => {
+    if (nextTab === activeTab) return
+    if (shouldWarnBeforeLeavingTab(activeTab)) {
+      const confirmed = window.confirm('Tens canvis pendents de guardar. Vols tancar igualment?')
+      if (!confirmed) return
+    }
+    setActiveTab(nextTab)
+  }
+
   return (
     <div className="space-y-6">
       <ProjectWorkspaceShell
         project={project}
         activeTab={activeTab}
         visibleTabs={visibleTabs}
-        onTabChange={setActiveTab}
+        onTabChange={handleTabChange}
       />
 
       <section className="rounded-[28px] border border-violet-200 bg-white shadow-sm">

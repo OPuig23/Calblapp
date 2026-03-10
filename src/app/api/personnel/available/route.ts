@@ -1,16 +1,12 @@
-// src/app/api/personnel/available/route.ts
 import { NextResponse } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 import type { NextRequest } from 'next/server'
 import { firestoreAdmin as db } from '@/lib/firebaseAdmin'
-
 import {
   loadMinRestHours,
-  hasMinRestByName,
-  getBusyPersonnelIdsAnyDepartment,
   listQuadrantCollections,
   fetchQuadrantDocsByEndDate,
-  QuadrantDoc, // ✅ importem el tipus directament
+  QuadrantDoc,
 } from '@/utils/personnelRest'
 
 type AvailEntry = {
@@ -19,6 +15,20 @@ type AvailEntry = {
   role: string
   status: 'available' | 'conflict'
   reason: string
+}
+
+type PersonRef = {
+  id?: string
+  name?: string
+  startDate?: string
+  startTime?: string
+  endDate?: string
+  endTime?: string
+}
+
+type OccupiedRange = {
+  start: Date
+  end: Date
 }
 
 interface PersonnelDoc {
@@ -41,6 +51,7 @@ const RESPONSABLE_ROLES = new Set([
   'supervisor',
 ])
 const TREBALLADOR_ROLES = new Set(['equip', 'treballador', 'operari'])
+const REST_MS_PER_HOUR = 3600000
 
 const unaccent = (s: string) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '')
 const norm = (v?: string | null) => unaccent(String(v ?? '').trim().toLowerCase())
@@ -58,6 +69,44 @@ function uniqueById<T extends { id: string }>(arr: T[]): T[] {
   return out
 }
 
+const buildDate = (date?: string, time?: string) =>
+  new Date(`${date || ''}T${time || '00:00'}:00Z`)
+
+const normalizeRange = (start: Date, end: Date) =>
+  end <= start ? { start, end: new Date(end.getTime() + 24 * 60 * 60 * 1000) } : { start, end }
+
+const overlaps = (aStart: Date, aEnd: Date, bStart: Date, bEnd: Date) =>
+  aStart < bEnd && bStart < aEnd
+
+const pushIndexedRange = (
+  index: Map<string, OccupiedRange[]>,
+  key: string | undefined,
+  start: Date,
+  end: Date
+) => {
+  const normalizedKey = norm(key)
+  if (!normalizedKey) return
+  const list = index.get(normalizedKey) || []
+  list.push({ start, end })
+  index.set(normalizedKey, list)
+}
+
+const addRangesFromRef = (
+  index: Map<string, OccupiedRange[]>,
+  ref: PersonRef | null,
+  base: QuadrantDoc
+) => {
+  if (!ref) return
+
+  const rawStart = buildDate(ref.startDate || base.startDate, ref.startTime || base.startTime)
+  const rawEnd = buildDate(ref.endDate || base.endDate || base.startDate, ref.endTime || base.endTime || base.startTime)
+  if (isNaN(rawStart.getTime()) || isNaN(rawEnd.getTime())) return
+
+  const range = normalizeRange(rawStart, rawEnd)
+  pushIndexedRange(index, ref.id, range.start, range.end)
+  pushIndexedRange(index, ref.name, range.start, range.end)
+}
+
 export async function GET(request: NextRequest) {
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET })
   if (!token) {
@@ -73,7 +122,6 @@ export async function GET(request: NextRequest) {
   const excludeEventId = searchParams.get('excludeEventId')
 
   if (!deptParam || !sd || !ed) {
-    console.warn('[available] Missing params', { deptParam, sd, st, ed, et })
     return NextResponse.json(
       { responsables: [], conductors: [], treballadors: [], error: 'Missing parameters' },
       { status: 400 }
@@ -82,50 +130,55 @@ export async function GET(request: NextRequest) {
 
   try {
     const deptNorm = norm(deptParam)
-    const newStart = new Date(`${sd}T${st || '00:00'}:00Z`)
-    const newEnd = new Date(`${ed}T${et || '23:59'}:00Z`)
+    const reqStart = buildDate(sd, st || '00:00')
+    const reqEnd = buildDate(ed, et || '23:59')
+    const reqRange = normalizeRange(reqStart, reqEnd)
     const minRest = await loadMinRestHours(deptNorm)
 
-    const busyIdsOrNames = await getBusyPersonnelIdsAnyDepartment(
-      sd, ed, st || '00:00', et || '23:59', excludeEventId
-    )
-    const busySet = new Set(busyIdsOrNames.map(norm))
-
-    console.log('[available] INPUT', {
-      deptNorm, sd, st, ed, et,
-      newStart: newStart.toISOString(),
-      newEnd: newEnd.toISOString(),
-      busyCount: busySet.size,
-      minRest,
-    })
-
-    const allBusy: QuadrantDoc[] = []
+    const occupancyIndex = new Map<string, OccupiedRange[]>()
     const colIds = await listQuadrantCollections()
 
     for (const colId of colIds) {
       try {
         const docs = await fetchQuadrantDocsByEndDate(colId, ed)
-        if (docs.length) {
-          docs.forEach((d) => {
-            if (excludeEventId && d.id === excludeEventId) return
-            const q = d.data() as QuadrantDoc & { eventId?: string }
-            if (excludeEventId && q?.eventId === excludeEventId) return
-            allBusy.push(q)
-          })
-        }
+        docs.forEach((docSnap) => {
+          if (excludeEventId && docSnap.id === excludeEventId) return
+          const q = docSnap.data() as QuadrantDoc & { eventId?: string }
+          if (excludeEventId && q?.eventId === excludeEventId) return
+
+          addRangesFromRef(occupancyIndex, q.responsable || null, q)
+          if (q.responsableName) addRangesFromRef(occupancyIndex, { name: q.responsableName }, q)
+          if (Array.isArray(q.responsables)) q.responsables.forEach((line) => addRangesFromRef(occupancyIndex, line, q))
+          if (Array.isArray(q.conductors)) q.conductors.forEach((line) => addRangesFromRef(occupancyIndex, line, q))
+          if (Array.isArray(q.treballadors)) q.treballadors.forEach((line) => addRangesFromRef(occupancyIndex, line, q))
+          if (Array.isArray(q.brigades)) q.brigades.forEach((line) => addRangesFromRef(occupancyIndex, line, q))
+          if (Array.isArray(q.groups)) {
+            q.groups.forEach((group) => {
+              addRangesFromRef(
+                occupancyIndex,
+                {
+                  id: group.responsibleId || undefined,
+                  name: group.responsibleName || undefined,
+                  startDate: group.startDate,
+                  startTime: group.startTime,
+                  endDate: group.endDate,
+                  endTime: group.endTime,
+                },
+                q
+              )
+            })
+          }
+        })
       } catch (error) {
-        console.error(`[available] ❌ Error accedint a la col·lecció ${colId}:`, error)
+        console.error(`[available] Error reading ${colId}:`, error)
       }
     }
 
-
     const personnelSnap = await db.collection('personnel').get()
     const deptPersonnel = personnelSnap.docs.filter((doc) => {
-      const d = doc.data() as PersonnelDoc
-      return norm(d.department) === deptNorm
+      const data = doc.data() as PersonnelDoc
+      return norm(data.department) === deptNorm
     })
-
-    console.log('[available] Personnel found', deptPersonnel.length)
 
     const responsables: AvailEntry[] = []
     const workers: AvailEntry[] = []
@@ -134,32 +187,34 @@ export async function GET(request: NextRequest) {
     for (const doc of deptPersonnel) {
       const data = doc.data() as PersonnelDoc
       const roleNorm = norm(data.role)
-      const pid = norm(doc.id)
-      const pname = norm(data.name)
+      const personRanges = [
+        ...(occupancyIndex.get(norm(doc.id)) || []),
+        ...(occupancyIndex.get(norm(data.name)) || []),
+      ]
 
-      const isBusy = busySet.has(pid) || busySet.has(pname)
-      const availableByBusy = !isBusy
-      if (isBusy) {
-        console.log(`[available] SKIP busy: ${data.name} (id=${doc.id})`)
+      let hasOverlap = false
+      let hasRestViolation = false
+
+      for (const range of personRanges) {
+        if (overlaps(reqRange.start, reqRange.end, range.start, range.end)) {
+          hasOverlap = true
+          break
+        }
+
+        const gapBefore = reqRange.start.getTime() - range.end.getTime()
+        const gapAfter = range.start.getTime() - reqRange.end.getTime()
+        if (gapBefore < minRest * REST_MS_PER_HOUR && gapAfter < minRest * REST_MS_PER_HOUR) {
+          hasRestViolation = true
+          break
+        }
       }
 
-      const availableByRest = hasMinRestByName(
-        data.name || '',
-        allBusy, // ✅ ahora coincide perfectamente con la firma
-        newStart,
-        newEnd,
-        minRest
-      )
-      if (!availableByRest) {
-        console.log(`[available] SKIP rest: ${data.name}`)
-      }
-
-      const isAvailable = availableByBusy && availableByRest
-      const reason = isAvailable
-        ? ''
-        : !availableByBusy
+      const isAvailable = !hasOverlap && !hasRestViolation
+      const reason = hasOverlap
         ? 'Ja assignat en aquest rang'
-        : `No compleix descans mínim (${minRest}h)`
+        : hasRestViolation
+        ? `No compleix descans minim (${minRest}h)`
+        : ''
 
       const entry: AvailEntry = {
         id: doc.id,
@@ -170,11 +225,13 @@ export async function GET(request: NextRequest) {
       }
 
       if (RESPONSABLE_ROLES.has(roleNorm)) {
-        responsables.push(entry); workers.push(entry)
+        responsables.push(entry)
+        workers.push(entry)
       }
       if (TREBALLADOR_ROLES.has(roleNorm)) {
         workers.push(entry)
       }
+
       const isDriver =
         data.isDriver === true ||
         data.driver?.isDriver === true ||
@@ -186,38 +243,16 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const responsablesClean = uniqueById(responsables).sort((a, b) =>
-      a.status === b.status ? a.name.localeCompare(b.name) :
-      a.status === 'available' ? -1 : 1
-    )
-    const conductorsClean = uniqueById(conductors).sort((a, b) =>
-      a.status === b.status ? a.name.localeCompare(b.name) :
-      a.status === 'available' ? -1 : 1
-    )
-    const treballadors = uniqueById(workers).sort((a, b) =>
-      a.status === b.status ? a.name.localeCompare(b.name) :
-      a.status === 'available' ? -1 : 1
-    )
+    const sortEntries = (items: AvailEntry[]) =>
+      uniqueById(items).sort((a, b) =>
+        a.status === b.status ? a.name.localeCompare(b.name) : a.status === 'available' ? -1 : 1
+      )
 
-    console.log('[available] OUTPUT', {
-      responsables: responsablesClean.length,
-      conductors: conductorsClean.length,
-      treballadors: treballadors.length,
-    })
-
-    console.log('[available] FINAL', {
-      responsables: responsablesClean.map(p => `${p.name} (${p.status})`),
-      conductors: conductorsClean.map(p => `${p.name} (${p.status})`),
-      treballadors: treballadors.map(p => `${p.name} (${p.status})`),
-    })
-
-    // 🚫 Excloem els que estan en conflict
     return NextResponse.json({
-      responsables: responsablesClean.filter(p => p.status === 'available'),
-      conductors: conductorsClean.filter(p => p.status === 'available'),
-      treballadors: treballadors.filter(p => p.status === 'available'),
+      responsables: sortEntries(responsables).filter((p) => p.status === 'available'),
+      conductors: sortEntries(conductors).filter((p) => p.status === 'available'),
+      treballadors: sortEntries(workers).filter((p) => p.status === 'available'),
     })
-
   } catch (err: unknown) {
     console.error('Error GET /api/personnel/available:', err)
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })

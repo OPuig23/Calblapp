@@ -1,12 +1,12 @@
-// file: src/components/transports/TransportCard.tsx
 'use client'
 
-import React, { useState, useMemo } from 'react'
-import { Button } from '@/components/ui/button'
+import React, { useMemo, useState } from 'react'
 import { Trash2, Edit2, Truck, FileText, AlertTriangle } from 'lucide-react'
-import type { Transport } from '@/hooks/useTransports'
+import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
+import type { Transport } from '@/hooks/useTransports'
+import { TRANSPORT_TYPE_LABELS } from '@/lib/transportTypes'
 
 interface Props {
   transport: Transport
@@ -16,9 +16,9 @@ interface Props {
 }
 
 function formatDate(d?: string | null): string {
-  if (!d) return '—'
+  if (!d) return '-'
   const dt = new Date(d)
-  if (Number.isNaN(dt.getTime())) return '—'
+  if (Number.isNaN(dt.getTime())) return '-'
   return dt.toLocaleDateString('ca-ES')
 }
 
@@ -39,75 +39,88 @@ export function TransportCard({ transport, driverName, onEdit, onDelete }: Props
     }
   }
 
-  const typeLabels: Record<string, string> = {
-    camioPetit: 'Camió petit',
-    camioGran: 'Camió gran',
-    furgoneta: 'Furgoneta',
-  }
-
-  // 🧠 Càlcul estat ITV i revisió
   const today = new Date()
   const itvInfo = useMemo(() => {
     if (!transport.itvExpiry) {
-      return { label: 'Sense data ITV', color: 'text-slate-500', badge: 'bg-slate-100 text-slate-700' }
+      return {
+        label: 'Sense data ITV',
+        color: 'text-slate-500',
+        badge: 'bg-slate-100 text-slate-700',
+      }
     }
 
     const exp = new Date(transport.itvExpiry)
     if (Number.isNaN(exp.getTime())) {
-      return { label: 'ITV invàlida', color: 'text-red-600', badge: 'bg-red-100 text-red-700' }
+      return {
+        label: 'ITV invalida',
+        color: 'text-red-600',
+        badge: 'bg-red-100 text-red-700',
+      }
     }
 
     const diffMs = exp.getTime() - today.getTime()
     const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24))
 
     if (diffDays < 0) {
-      return { label: 'ITV caducada', color: 'text-red-600', badge: 'bg-red-100 text-red-700' }
+      return {
+        label: 'ITV caducada',
+        color: 'text-red-600',
+        badge: 'bg-red-100 text-red-700',
+      }
     }
 
     if (diffDays <= 30) {
-      return { label: `ITV caduca en ${diffDays} dies`, color: 'text-amber-600', badge: 'bg-amber-100 text-amber-700' }
+      return {
+        label: `ITV caduca en ${diffDays} dies`,
+        color: 'text-amber-600',
+        badge: 'bg-amber-100 text-amber-700',
+      }
     }
 
-    return { label: `ITV vigent fins ${formatDate(transport.itvExpiry)}`, color: 'text-green-600', badge: 'bg-green-100 text-green-700' }
+    return {
+      label: `ITV vigent fins ${formatDate(transport.itvExpiry)}`,
+      color: 'text-green-600',
+      badge: 'bg-green-100 text-green-700',
+    }
   }, [transport.itvExpiry, today])
 
   const serviceInfo = useMemo(() => {
     if (!transport.nextService) {
-      return { label: 'Sense propera revisió', color: 'text-slate-500' }
+      return { label: 'Sense propera revisio', color: 'text-slate-500' }
     }
     const next = new Date(transport.nextService)
     if (Number.isNaN(next.getTime())) {
-      return { label: 'Data revisió invàlida', color: 'text-red-600' }
+      return { label: 'Data revisio invalida', color: 'text-red-600' }
     }
 
     const diffMs = next.getTime() - today.getTime()
     const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24))
 
     if (diffDays < 0) {
-      return { label: 'Revisió vençuda', color: 'text-red-600' }
+      return { label: 'Revisio vencuda', color: 'text-red-600' }
     }
     if (diffDays <= 30) {
-      return { label: `Revisió en ${diffDays} dies`, color: 'text-amber-600' }
+      return { label: `Revisio en ${diffDays} dies`, color: 'text-amber-600' }
     }
-    return { label: `Properà revisió: ${formatDate(transport.nextService)}`, color: 'text-green-600' }
+    return {
+      label: `Propera revisio: ${formatDate(transport.nextService)}`,
+      color: 'text-green-600',
+    }
   }, [transport.nextService, today])
 
   const documentsCount = transport.documents?.length ?? 0
 
   return (
-    <div className="p-4 rounded-2xl border border-gray-200 shadow-sm bg-white flex flex-col gap-3 hover:shadow-md transition">
-      {/* Header */}
+    <div className="flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition hover:shadow-md">
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2">
-          <div className="h-8 w-8 rounded-xl bg-indigo-50 flex items-center justify-center">
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-50">
             <Truck className="h-5 w-5 text-indigo-600" />
           </div>
           <div className="flex flex-col">
-            <h3 className="font-bold text-base tracking-tight">
-              {transport.plate}
-            </h3>
+            <h3 className="text-base font-bold tracking-tight">{transport.plate}</h3>
             <span className="text-xs text-slate-500">
-              {typeLabels[transport.type] || transport.type}
+              {TRANSPORT_TYPE_LABELS[transport.type] || transport.type}
             </span>
           </div>
         </div>
@@ -132,26 +145,24 @@ export function TransportCard({ transport, driverName, onEdit, onDelete }: Props
         </div>
       </div>
 
-      {/* Badges conductor + estat ITV */}
       <div className="flex flex-wrap gap-2">
         {driverName ? (
-          <Badge variant="outline" className="text-green-700 border-green-700">
+          <Badge variant="outline" className="border-green-700 text-green-700">
             {driverName}
           </Badge>
         ) : (
-          <Badge variant="outline" className="text-gray-400 border-gray-300">
+          <Badge variant="outline" className="border-gray-300 text-gray-400">
             Sense conductor
           </Badge>
         )}
 
         <Badge className={itvInfo.badge}>
-          <AlertTriangle className="h-3 w-3 mr-1" />
+          <AlertTriangle className="mr-1 h-3 w-3" />
           {itvInfo.label}
         </Badge>
       </div>
 
-      {/* Bloc ITV + Revisió */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+      <div className="grid grid-cols-1 gap-3 text-xs sm:grid-cols-2">
         <div className="flex flex-col gap-1">
           <span className="text-[11px] uppercase tracking-wide text-slate-400">
             ITV
@@ -168,26 +179,23 @@ export function TransportCard({ transport, driverName, onEdit, onDelete }: Props
 
         <div className="flex flex-col gap-1">
           <span className="text-[11px] uppercase tracking-wide text-slate-400">
-            Revisió
+            Revisio
           </span>
           <div className="flex flex-col gap-0.5">
             <span className="text-slate-600">
-              Última: <span className="font-medium">{formatDate(transport.lastService)}</span>
+              Ultima: <span className="font-medium">{formatDate(transport.lastService)}</span>
             </span>
-            <span className={serviceInfo.color}>
-              {serviceInfo.label}
-            </span>
+            <span className={serviceInfo.color}>{serviceInfo.label}</span>
           </div>
         </div>
       </div>
 
-      {/* Documents + Disponibilitat */}
-      <div className="flex items-center justify-between pt-2 border-t border-slate-100 mt-1">
+      <div className="mt-1 flex items-center justify-between border-t border-slate-100 pt-2">
         <div className="flex items-center gap-2 text-xs text-slate-600">
           <FileText className="h-4 w-4 text-slate-500" />
           <span>
             {documentsCount === 0
-              ? 'Sense documentació'
+              ? 'Sense documentacio'
               : `${documentsCount} document${documentsCount > 1 ? 's' : ''} adjunt${documentsCount > 1 ? 's' : ''}`}
           </span>
         </div>

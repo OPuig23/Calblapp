@@ -49,6 +49,14 @@ type Occupation = {
 
 const ACTIVE_ASSIGNMENT_STATUSES = new Set(['pending', 'confirmed', 'addedToTorns'])
 
+const resolveRange = (startDate?: string, startTime?: string, endDate?: string, endTime?: string) => {
+  if (!startDate) return null
+  const start = toDateTime(startDate, startTime)
+  const end = toDateTime(endDate || startDate, endTime || startTime)
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) return null
+  return { start, end }
+}
+
 /* =========================
    POST
 ========================= */
@@ -88,10 +96,21 @@ export async function POST(req: Request) {
       'quadrantsEmpresa',
     ]
 
-    const occupations: Occupation[] = []
+    const occupationMap = new Map<string, Occupation[]>()
+
+    const pushOccupation = (occupation: Occupation) => {
+      const key = String(occupation.plate || '').trim()
+      if (!key) return
+      const current = occupationMap.get(key) || []
+      current.push(occupation)
+      occupationMap.set(key, current)
+    }
 
     for (const col of quadrantCols) {
-      const snap = await db.collection(col).get()
+      const snap = await db
+        .collection(col)
+        .where('startDate', '<=', endDate)
+        .get()
 
       snap.docs.forEach(doc => {
         const q = doc.data()
@@ -99,11 +118,14 @@ export async function POST(req: Request) {
 
         conductors.forEach((c: any) => {
           if (!c?.plate || !c?.startDate || !c?.startTime) return
+          const range = resolveRange(c.startDate, c.startTime, c.endDate, c.endTime)
+          if (!range) return
+          if (!overlaps(reqStart, reqEnd, range.start, range.end)) return
 
-          occupations.push({
+          pushOccupation({
             plate: c.plate,
-            start: toDateTime(c.startDate, c.startTime),
-            end: toDateTime(c.endDate || c.startDate, c.endTime || c.startTime),
+            start: range.start,
+            end: range.end,
           })
         })
       })
@@ -145,7 +167,9 @@ export async function POST(req: Request) {
       const end = toDateTime(a.endDate || a.startDate, a.endTime || a.startTime)
       if (!start || !end || isNaN(start.getTime()) || isNaN(end.getTime())) return
 
-      occupations.push({
+      if (!overlaps(reqStart, reqEnd, start, end)) return
+
+      pushOccupation({
         plate: a.plate,
         start,
         end,
@@ -156,8 +180,8 @@ export async function POST(req: Request) {
        3) DISPONIBILITAT
     ========================= */
     const result = vehicles.map(v => {
-      const busy = occupations.some(o =>
-        o.plate === v.plate && overlaps(reqStart, reqEnd, o.start, o.end)
+      const busy = (occupationMap.get(v.plate) || []).some(o =>
+        overlaps(reqStart, reqEnd, o.start, o.end)
       )
 
       return {

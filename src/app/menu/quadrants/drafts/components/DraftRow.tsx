@@ -5,6 +5,7 @@ import React from 'react'
 import RowActions from './RowActions'
 import { GraduationCap, Truck, User, Car, Users } from 'lucide-react'
 import type { Row } from './types'
+import { normalizeTransportType } from '@/lib/transportTypes'
 
 const roleIcon: Record<'responsable'|'conductor'|'treballador'|'brigada', React.ReactNode> = {
   responsable: <GraduationCap className="text-blue-700" size={20} />,
@@ -15,12 +16,19 @@ const roleIcon: Record<'responsable'|'conductor'|'treballador'|'brigada', React.
 
 function VehicleIcon({ type }: { type?: string }) {
   if (!type) return null
-  switch (type.toLowerCase()) {
-    case 'camiogran':
+  switch (normalizeTransportType(type)) {
+    case 'camioGran':
+    case 'camioGranFred':
       return <Truck className="w-5 h-5 text-blue-800" />
-    case 'camiopetit':
+    case 'camioPPlataforma':
+    case 'camioPPlataformaFred':
+    case 'transport':
       return <Truck className="w-4 h-4 text-green-700" />
-    case 'furgoneta':
+    case 'comercial':
+    case 'furgonetaPetita':
+    case 'furgonetaManteniment':
+    case 'furgonetaMitjana':
+    case 'furgonetaGran':
       return <Car className="w-5 h-5 text-orange-600" />
     default:
       return <Truck className="w-5 h-5 text-gray-500" />

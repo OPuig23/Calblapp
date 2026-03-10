@@ -10,6 +10,8 @@ import {
   VehicleAssignment,
   logisticPhaseOptions,
 } from '../phaseConfig'
+import { normalizeTransportType } from '@/lib/transportTypes'
+import { useAvailableVehicles } from '@/hooks/logistics/useAvailableVehicles'
 
 const extractDate = (iso = '') => iso.split('T')[0] || ''
 
@@ -64,14 +66,7 @@ const createPhaseVehicleAssignments = () =>
     return acc
   }, {} as Record<LogisticPhaseKey, VehicleAssignment[]>)
 
-const normalizeVehicleType = (value?: string) => {
-  const val = (value || '').toString().toLowerCase()
-  if (!val) return ''
-  if (val.includes('petit')) return 'camioPetit'
-  if (val.includes('gran')) return 'camioGran'
-  if (val.includes('furgo')) return 'furgoneta'
-  return val
-}
+const normalizeVehicleType = (value?: string) => normalizeTransportType(value)
 
 type VehiclePayload = {
   id: string
@@ -153,8 +148,20 @@ export function useLogisticsPhasesState({
   const [phaseVehicleAssignments, setPhaseVehicleAssignments] = useState<
     Record<LogisticPhaseKey, VehicleAssignment[]>
   >(() => createPhaseVehicleAssignments())
-  const [availableVehicles, setAvailableVehicles] = useState<AvailableVehicle[]>([])
-  const [loadingVehicles, setLoadingVehicles] = useState(false)
+  const {
+    vehicles: availableVehicles,
+    loading: loadingVehicles,
+  } = useAvailableVehicles({
+    startDate,
+    startTime,
+    endDate,
+    endTime,
+    department,
+    enabled:
+      (department.toLowerCase() === 'logistica' || department.toLowerCase() === 'cuina') &&
+      Boolean(startDate && startTime && endDate && endTime) &&
+      !Number.isNaN(totalWorkers),
+  })
 
   useEffect(() => {
     setPhaseForms((prev) => {
@@ -196,39 +203,6 @@ export function useLogisticsPhasesState({
     setPhaseResponsibles(createPhaseResponsibles())
     setPhaseVehicleAssignments(createPhaseVehicleAssignments())
   }, [event.id])
-
-  useEffect(() => {
-    const dept = department.toLowerCase()
-    if (
-      (dept === 'logistica' || dept === 'cuina') &&
-      startDate &&
-      startTime &&
-      endDate &&
-      endTime &&
-      !Number.isNaN(totalWorkers)
-    ) {
-      setLoadingVehicles(true)
-      fetch('/api/transports/available', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ startDate, startTime, endDate, endTime, department }),
-      })
-        .then(async (res) => {
-          const text = await res.text()
-          if (!text) return { vehicles: [] }
-          try {
-            return JSON.parse(text)
-          } catch {
-            return { vehicles: [] }
-          }
-        })
-        .then((data) => setAvailableVehicles(data.vehicles || []))
-        .catch(() => setAvailableVehicles([]))
-        .finally(() => setLoadingVehicles(false))
-      return
-    }
-    setAvailableVehicles([])
-  }, [department, startDate, startTime, endDate, endTime, totalWorkers])
 
   useEffect(() => {
     setPhaseVehicleAssignments((prev) =>

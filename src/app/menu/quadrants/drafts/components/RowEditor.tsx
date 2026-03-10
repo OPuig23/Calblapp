@@ -6,6 +6,11 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import type { Row, Role } from './types'
 import brigades from '@/data/brigades.json'
+import {
+  TRANSPORT_TYPE_LABELS,
+  TRANSPORT_TYPE_OPTIONS,
+  normalizeTransportType,
+} from '@/lib/transportTypes'
 
 type AvailablePerson = {
   id: string
@@ -58,18 +63,7 @@ function useIsDesktop() {
   return isDesktop
 }
 
-const normalizeType = (t?: string) => {
-  const val = (t || '')
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLowerCase()
-    .trim()
-  if (!val) return ''
-  if (val.includes('petit')) return 'camiopetit'
-  if (val.includes('gran')) return 'camiogran'
-  if (val.includes('furgo')) return 'furgoneta'
-  return val
-}
+const normalizeType = (t?: string) => normalizeTransportType(t)
 
 /* ------------------------------
    Subcomponents comuns
@@ -317,9 +311,11 @@ function EditorFields({
               disabled={isLocked}
             >
               <option value="">- Selecciona tipus -</option>
-              <option value="camioPetit">Camio petit</option>
-              <option value="furgoneta">Furgoneta</option>
-              <option value="camioGran">Camio gran</option>
+              {TRANSPORT_TYPE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -342,6 +338,9 @@ function EditorFields({
                 .map((v) => (
                   <option key={v.id} value={v.plate}>
                     {v.plate}
+                    {v.type
+                      ? ` - ${TRANSPORT_TYPE_LABELS[normalizeTransportType(v.type)] || v.type}`
+                      : ''}
                   </option>
                 ))}
             </select>

@@ -36,18 +36,23 @@ export async function GET(req: Request) {
       ? endOfWeek(parseISO(endParam), { weekStartsOn: 1 })
       : endOfWeek(addWeeks(start, 0), { weekStartsOn: 1 })
 
-    const snapshot = await db.collection('stage_verd').get()
-const events: {
-  id: string
-  NomEvent: string
-  Ubicacio: string
-  NumPax: number
-  DataInici: Date
-  DataVisual: Date
-  HoraInici: string
-  PreparacioData: string
-  PreparacioHora: string
-}[] = []
+    const snapshot = await db
+      .collection('stage_verd')
+      .where('DataInici', '>=', start)
+      .where('DataInici', '<=', end)
+      .get()
+
+    const events: {
+      id: string
+      NomEvent: string
+      Ubicacio: string
+      NumPax: number
+      DataInici: Date
+      DataVisual: Date
+      HoraInici: string
+      PreparacioData: string
+      PreparacioHora: string
+    }[] = []
 
 
     snapshot.forEach((doc) => {

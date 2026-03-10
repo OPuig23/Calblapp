@@ -16,6 +16,10 @@ import TransportFilters, {
 import ExportMenu from '@/components/export/ExportMenu'
 import * as XLSX from 'xlsx'
 import { Truck } from 'lucide-react'
+import {
+  TRANSPORT_TYPE_LABELS,
+  TRANSPORT_TYPE_OPTIONS,
+} from '@/lib/transportTypes'
 
 export default function LogisticsTransportsPage() {
   const { data: transports = [], refetch } = useTransports()
@@ -30,6 +34,14 @@ export default function LogisticsTransportsPage() {
   })
 
   const { setOpen, setContent } = useSlideFilters()
+  const typeOrder = useMemo(
+    () =>
+      TRANSPORT_TYPE_OPTIONS.reduce((acc, option, index) => {
+        acc[option.value] = index
+        return acc
+      }, {} as Record<string, number>),
+    []
+  )
 
   const handleSaved = () => {
     setModalOpen(false)
@@ -62,30 +74,39 @@ export default function LogisticsTransportsPage() {
   }
 
   const filteredTransports = useMemo(() => {
-    return transports.filter((t) => {
-      const txt = `${t.plate ?? ''} ${t.type ?? ''}`.toLowerCase()
-      const q = search.trim().toLowerCase()
+    return transports
+      .filter((t) => {
+        const typeLabel = TRANSPORT_TYPE_LABELS[t.type] || t.type || ''
+        const txt = `${t.plate ?? ''} ${t.type ?? ''} ${typeLabel}`.toLowerCase()
+        const q = search.trim().toLowerCase()
 
-      if (q && !txt.includes(q)) return false
-      if (filters.type !== 'all' && t.type !== filters.type) return false
+        if (q && !txt.includes(q)) return false
+        if (filters.type !== 'all' && t.type !== filters.type) return false
 
-      if (filters.availability !== 'all') {
-        const isAvail = !!t.available
-        if (filters.availability === 'available' && !isAvail) return false
-        if (filters.availability === 'unavailable' && isAvail) return false
-      }
+        if (filters.availability !== 'all') {
+          const isAvail = !!t.available
+          if (filters.availability === 'available' && !isAvail) return false
+          if (filters.availability === 'unavailable' && isAvail) return false
+        }
 
-      if (filters.driver === 'assigned' && !t.conductorId) return false
-      if (filters.driver === 'unassigned' && t.conductorId) return false
+        if (filters.driver === 'assigned' && !t.conductorId) return false
+        if (filters.driver === 'unassigned' && t.conductorId) return false
 
-      return true
-    })
-  }, [transports, search, filters])
+        return true
+      })
+      .sort((a, b) => {
+        const typeDiff =
+          (typeOrder[a.type] ?? Number.MAX_SAFE_INTEGER) -
+          (typeOrder[b.type] ?? Number.MAX_SAFE_INTEGER)
+        if (typeDiff !== 0) return typeDiff
+        return (a.plate || '').localeCompare(b.plate || '')
+      })
+  }, [transports, search, filters, typeOrder])
 
   const exportRows = useMemo(() => {
     return filteredTransports.map((t) => ({
       Matricula: t.plate || '',
-      Tipus: t.type || '',
+      Tipus: TRANSPORT_TYPE_LABELS[t.type] || t.type || '',
       Conductor: t.conductorName || t.conductor || '',
       Disponible: t.available ? 'Sí' : 'No',
       Estat: t.status || '',
@@ -114,7 +135,7 @@ export default function LogisticsTransportsPage() {
       .map((row) => {
         const cells = [
           row.plate || '',
-          row.type || '',
+          TRANSPORT_TYPE_LABELS[row.type] || row.type || '',
           row.conductorName || row.conductor || '',
           row.available ? 'Sí' : 'No',
           row.status || '',

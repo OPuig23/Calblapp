@@ -1,7 +1,6 @@
-// File: src/components/transports/NewTransportModal.tsx
 'use client'
 
-import React, { useState, useEffect, FormEvent, useMemo, useRef } from 'react'
+import React, { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -14,49 +13,15 @@ import { Label } from '@/components/ui/label'
 import { useCreateTransport } from '@/hooks/useCreateTransport'
 import { usePersonnel } from '@/hooks/usePersonnel'
 import type { Transport } from '@/hooks/useTransports'
-
-// ⚠️ Assumim que tens aquest helper per Firebase client
-// Si no el tens, després el fem: exporta almenys `storage`
 import { storage } from '@/lib/firebaseClient'
 import {
-  ref,
-  uploadBytes,
-  getDownloadURL,
-  deleteObject,
-} from 'firebase/storage'
+  TRANSPORT_TYPE_OPTIONS,
+  type TransportType,
+} from '@/lib/transportTypes'
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 
-type TransportType = 'camioPetit' | 'camioGran' | 'furgoneta'
-
-const isTransportType = (v: string): v is TransportType =>
-  v === 'camioPetit' || v === 'camioGran' || v === 'furgoneta'
-
-const TYPE_OPTIONS: Array<{ value: TransportType; label: string }> = [
-  { value: 'camioPetit', label: 'Camió petit' },
-  { value: 'camioGran', label: 'Camió gran' },
-  { value: 'furgoneta', label: 'Furgoneta' },
-]
-
-interface Personnel {
-  id: string
-  name: string
-  driver?: { camioGran?: boolean; camioPetit?: boolean }
-}
-// ✨ AFEGEIX AIXÒ A DALT (abans del component)
-type TransportPayload = {
-  plate: string
-  type: TransportType
-  conductorId: string | null
-
-  itvDate: string | null
-  itvExpiry: string | null
-  lastService: string | null
-  nextService: string | null
-
-  documents: string[]   // URLs de Firebase
-}
-
-
-
+const isTransportType = (value: string): value is TransportType =>
+  TRANSPORT_TYPE_OPTIONS.some((option) => option.value === value)
 
 interface NewTransportModalProps {
   isOpen: boolean
@@ -72,6 +37,17 @@ type TransportDocument = {
   uploadedAt: string
 }
 
+type TransportPayload = {
+  plate: string
+  type: TransportType
+  conductorId: string | null
+  itvDate?: string | null
+  itvExpiry?: string | null
+  lastService?: string | null
+  nextService?: string | null
+  documents: string[]
+}
+
 export default function NewTransportModal({
   isOpen,
   onOpenChange,
@@ -80,89 +56,74 @@ export default function NewTransportModal({
 }: NewTransportModalProps) {
   const { mutateAsync, loading, error } = useCreateTransport()
   const { data: personnel } = usePersonnel()
-
   const isEditMode = !!defaultValues
 
   const [plate, setPlate] = useState('')
-  const [type, setType] = useState<TransportType>('camioPetit')
-  const [conductorId, setConductorId] = useState<string>('')
-
-  // 🔹 Camps nous
-  const [itvDate, setItvDate] = useState<string>('')
-  const [itvExpiry, setItvExpiry] = useState<string>('')
-  const [lastService, setLastService] = useState<string>('')
-  const [nextService, setNextService] = useState<string>('')
-
+  const [type, setType] = useState<TransportType>('comercial')
+  const [conductorId, setConductorId] = useState('')
+  const [itvDate, setItvDate] = useState('')
+  const [itvExpiry, setItvExpiry] = useState('')
+  const [lastService, setLastService] = useState('')
+  const [nextService, setNextService] = useState('')
   const [documents, setDocuments] = useState<TransportDocument[]>([])
 
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
-  // 🔄 Quan s’obre el modal, carreguem valors (mode edició / creació)
   useEffect(() => {
     if (!isOpen) return
 
     if (isEditMode && defaultValues) {
       setPlate(defaultValues.plate || '')
-      setType(defaultValues.type || 'camioPetit')
+      setType(defaultValues.type || 'comercial')
       setConductorId(defaultValues.conductorId || '')
-
       setItvDate(defaultValues.itvDate || '')
       setItvExpiry(defaultValues.itvExpiry || '')
       setLastService(defaultValues.lastService || '')
       setNextService(defaultValues.nextService || '')
-
       setDocuments(defaultValues.documents || [])
-    } else {
-      // Mode creació
-      setPlate('')
-      setType('camioPetit')
-      setConductorId('')
-      setItvDate('')
-      setItvExpiry('')
-      setLastService('')
-      setNextService('')
-      setDocuments([])
+      return
     }
-  }, [isOpen, isEditMode, defaultValues])
 
-  // 🔎 Filtra conductors segons tipus de vehicle
-const availableDrivers = useMemo(() => {
-  if (!personnel) return []
+    setPlate('')
+    setType('comercial')
+    setConductorId('')
+    setItvDate('')
+    setItvExpiry('')
+    setLastService('')
+    setNextService('')
+    setDocuments([])
+  }, [defaultValues, isEditMode, isOpen])
 
-  return personnel.filter((p) => {
-    // Alguns treballadors no tenen objecte driver
-    if (!p.driver) return false
+  const availableDrivers = useMemo(() => {
+    if (!personnel) return []
 
-    if (type === 'camioGran') return p.driver.camioGran === true
-    if (type === 'camioPetit' || type === 'furgoneta') return p.driver.camioPetit === true
+    return personnel.filter((person) => {
+      if (!person.driver) return false
+      if (type === 'camioGran' || type === 'camioGranFred') {
+        return person.driver.camioGran === true
+      }
+      return person.driver.camioPetit === true
+    })
+  }, [personnel, type])
 
-    return false
-  })
-}, [type, personnel])
-
-
-  // 📁 Obrir selector d'arxius
   const handleOpenFileDialog = () => {
     fileInputRef.current?.click()
   }
 
-  // 📁 Validació i pujada d'un arxiu a Firebase Storage
   const handleFilesSelected = async (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
     const files = event.target.files
-    if (!files || !files.length) return
+    if (!files?.length) return
 
     const now = new Date().toISOString()
 
     for (const file of Array.from(files)) {
-      // 1) Validar mida
       if (file.size > 5 * 1024 * 1024) {
         alert(`El fitxer ${file.name} supera els 5MB.`)
         continue
       }
 
-      // 2) Validar tipus
       const validTypes = [
         'application/pdf',
         'image/jpeg',
@@ -170,7 +131,7 @@ const availableDrivers = useMemo(() => {
         'image/jpg',
       ]
       if (!validTypes.includes(file.type)) {
-        alert(`Tipus de fitxer no permès: ${file.name}`)
+        alert(`Tipus de fitxer no permes: ${file.name}`)
         continue
       }
 
@@ -178,77 +139,43 @@ const availableDrivers = useMemo(() => {
         const safePlate = plate || defaultValues?.plate || 'sense-matricula'
         const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
         const storagePath = `transports/${safePlate}/${id}-${file.name}`
-
         const fileRef = ref(storage, storagePath)
+
         await uploadBytes(fileRef, file)
         const url = await getDownloadURL(fileRef)
 
-        const doc: TransportDocument = {
-          id,
-          name: file.name,
-          url,
-          uploadedAt: now,
-        }
-
-        setDocuments(prev => [...prev, doc])
+        setDocuments((prev) => [
+          ...prev,
+          { id, name: file.name, url, uploadedAt: now },
+        ])
       } catch (err) {
-        console.error('❌ Error pujant document:', err)
-        alert(`No s’ha pogut pujar el fitxer ${file.name}.`)
+        console.error('Error pujant document:', err)
+        alert(`No s'ha pogut pujar el fitxer ${file.name}.`)
       }
     }
 
-    // Netejar input (per poder tornar a seleccionar el mateix fitxer si cal)
     event.target.value = ''
   }
 
-  // 🗑 Eliminar document (només del llistat i, si vols, de Storage)
   const handleRemoveDocument = async (doc: TransportDocument) => {
-    const confirmDelete = window.confirm(
-      `Vols eliminar el document "${doc.name}"?`
-    )
-    if (!confirmDelete) return
+    if (!window.confirm(`Vols eliminar el document "${doc.name}"?`)) return
+    setDocuments((prev) => prev.filter((item) => item.id !== doc.id))
+  }
 
-    try {
-      // Opcional: si vols eliminar també de Storage cal conèixer el path exacte.
-      // Aquí assumim que la URL conté el path encodat.
-      // Per no fer-ho massa complex, de moment només traiem del state.
-      // (Si vols, fem després un pas específic per esborrar també de Storage.)
-      setDocuments(prev => prev.filter(d => d.id !== doc.id))
-    } catch (err) {
-      console.error('❌ Error eliminant document:', err)
-      alert('No s’ha pogut eliminar el document.')
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault()
+
+    const payload: TransportPayload = {
+      plate: plate.trim(),
+      type,
+      conductorId: conductorId || null,
+      itvDate: itvDate || null,
+      itvExpiry: itvExpiry || null,
+      lastService: lastService || null,
+      nextService: nextService || null,
+      documents: documents.map((doc) => doc.url),
     }
-  }
 
-  // 💾 Guardar / Actualitzar transport
-// 💾 Guardar / Actualitzar transport
-const handleSubmit = async (e: FormEvent) => {
-  e.preventDefault()
-
-  // 👉 AFEGIT AQUÍ
-  interface TransportPayload {
-    plate: string
-    type: TransportType
-    conductorId: string | null
-    itvDate: string | null
-    serviceDate: string | null
-    nextServiceDate: string | null
-    documents: string[]
-  }
-
-  // 👉 MODIFICAT AQUÍ
-const payload: TransportPayload = {
-  plate: plate.trim(),
-  type,
-  conductorId: conductorId || null,
-
-  itvDate: itvDate || null,
-  itvExpiry: itvExpiry || null,
-  lastService: lastService || null,
-  nextService: nextService || null,
-
- documents: documents.map(d => d.url), 
-}
     try {
       if (isEditMode && defaultValues?.id) {
         const res = await fetch(`/api/transports/${defaultValues.id}`, {
@@ -264,8 +191,8 @@ const payload: TransportPayload = {
       onCreated()
       onOpenChange(false)
     } catch (err) {
-      console.error('❌ Error desant transport:', err)
-      alert('No s’ha pogut desar el vehicle.')
+      console.error('Error desant transport:', err)
+      alert("No s'ha pogut desar el vehicle.")
     }
   }
 
@@ -279,11 +206,9 @@ const payload: TransportPayload = {
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Bloc 1: Dades bàsiques */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Matrícula */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="plate">Matrícula</Label>
+              <Label htmlFor="plate">Matricula</Label>
               <Input
                 id="plate"
                 value={plate}
@@ -293,57 +218,54 @@ const payload: TransportPayload = {
               />
             </div>
 
-            {/* Tipus */}
             <div className="space-y-1.5">
               <Label htmlFor="type">Tipus de vehicle</Label>
               <select
                 id="type"
                 value={type}
                 onChange={(e) => {
-                  const v = e.target.value
-                  if (isTransportType(v)) setType(v)
+                  const value = e.target.value
+                  if (isTransportType(value)) setType(value)
                 }}
-                className="border rounded-md px-2 py-2 w-full text-sm"
+                className="w-full rounded-md border px-2 py-2 text-sm"
               >
-                {TYPE_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
+                {TRANSPORT_TYPE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
                   </option>
                 ))}
               </select>
             </div>
 
-            {/* Conductor */}
             <div className="space-y-1.5 sm:col-span-2">
               <Label htmlFor="conductorId">Conductor (opcional)</Label>
               <select
                 id="conductorId"
                 value={conductorId}
                 onChange={(e) => setConductorId(e.target.value)}
-                className="border rounded-md px-2 py-2 w-full text-sm"
+                className="w-full rounded-md border px-2 py-2 text-sm"
               >
-                <option value="">— Sense conductor assignat —</option>
-                {availableDrivers.map((p: any) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
+                <option value="">- Sense conductor assignat -</option>
+                {availableDrivers.map((person) => (
+                  <option key={person.id} value={person.id}>
+                    {person.name}
                   </option>
                 ))}
               </select>
             </div>
           </div>
 
-          {/* Bloc 2: ITV */}
-          <div className="border rounded-xl p-3 bg-slate-50 space-y-3">
-            <div className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
+          <div className="space-y-3 rounded-xl border bg-slate-50 p-3">
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-600">
               ITV
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label htmlFor="itvDate">Data ITV</Label>
                 <Input
                   id="itvDate"
                   type="date"
-                  value={itvDate || ''}
+                  value={itvDate}
                   onChange={(e) => setItvDate(e.target.value)}
                 />
               </div>
@@ -352,45 +274,43 @@ const payload: TransportPayload = {
                 <Input
                   id="itvExpiry"
                   type="date"
-                  value={itvExpiry || ''}
+                  value={itvExpiry}
                   onChange={(e) => setItvExpiry(e.target.value)}
                 />
               </div>
             </div>
           </div>
 
-          {/* Bloc 3: Revisió */}
-          <div className="border rounded-xl p-3 bg-slate-50 space-y-3">
-            <div className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
-              Revisió
+          <div className="space-y-3 rounded-xl border bg-slate-50 p-3">
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-600">
+              Revisio
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label htmlFor="lastService">Última revisió</Label>
+                <Label htmlFor="lastService">Ultima revisio</Label>
                 <Input
                   id="lastService"
                   type="date"
-                  value={lastService || ''}
+                  value={lastService}
                   onChange={(e) => setLastService(e.target.value)}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="nextService">Properà revisió</Label>
+                <Label htmlFor="nextService">Propera revisio</Label>
                 <Input
                   id="nextService"
                   type="date"
-                  value={nextService || ''}
+                  value={nextService}
                   onChange={(e) => setNextService(e.target.value)}
                 />
               </div>
             </div>
           </div>
 
-          {/* Bloc 4: Documentació */}
-          <div className="border rounded-xl p-3 bg-slate-50 space-y-3">
+          <div className="space-y-3 rounded-xl border bg-slate-50 p-3">
             <div className="flex items-center justify-between">
-              <div className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
-                Documentació del vehicle
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-600">
+                Documentacio del vehicle
               </div>
               <Button
                 type="button"
@@ -415,14 +335,14 @@ const payload: TransportPayload = {
                 Encara no hi ha cap document adjunt.
               </p>
             ) : (
-              <ul className="space-y-1.5 max-h-40 overflow-y-auto text-sm">
+              <ul className="max-h-40 space-y-1.5 overflow-y-auto text-sm">
                 {documents.map((doc) => (
                   <li
                     key={doc.id}
-                    className="flex items-center justify-between gap-3 rounded-lg bg-white border px-2 py-1.5"
+                    className="flex items-center justify-between gap-3 rounded-lg border bg-white px-2 py-1.5"
                   >
                     <div className="flex flex-col">
-                      <span className="font-medium truncate max-w-[180px]">
+                      <span className="max-w-[180px] truncate font-medium">
                         {doc.name}
                       </span>
                       <span className="text-[10px] text-slate-400">
@@ -452,29 +372,24 @@ const payload: TransportPayload = {
             )}
           </div>
 
-          {/* Botons finals */}
           <div className="flex justify-end gap-2 pt-2">
             <Button
               type="button"
               variant="ghost"
               onClick={() => onOpenChange(false)}
             >
-              Cancel·lar
+              Cancelar
             </Button>
             <Button type="submit" variant="primary" disabled={loading}>
               {loading
-                ? 'Desant…'
+                ? 'Desant...'
                 : isEditMode
                 ? 'Desar canvis'
                 : 'Afegir transport'}
             </Button>
           </div>
 
-          {error && (
-            <p className="text-red-600 text-sm">
-              {String(error)}
-            </p>
-          )}
+          {error && <p className="text-sm text-red-600">{String(error)}</p>}
         </form>
       </DialogContent>
     </Dialog>
