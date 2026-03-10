@@ -1,12 +1,9 @@
 ﻿'use client'
 
-import Link from 'next/link'
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   ChevronDown,
-  ChevronUp,
-  MessageSquare,
-  Pencil,
   Plus,
   RotateCcw,
   Save,
@@ -131,6 +128,14 @@ const deadlineTone = (deadline?: string) => {
   return 'bg-emerald-100 text-emerald-700'
 }
 
+const blockStatusAccentClass = (status?: string) => {
+  if (status === 'done') return 'bg-emerald-500/85'
+  if (status === 'in_progress') return 'bg-sky-500/85'
+  if (status === 'blocked') return 'bg-rose-500/85'
+  if (status === 'overdue') return 'bg-amber-500/85'
+  return 'bg-slate-400/80'
+}
+
 export default function ProjectBlocksTab({
   projectId,
   project,
@@ -170,6 +175,7 @@ export default function ProjectBlocksTab({
   canAccessBlockRoom = () => false,
   canEditBlockOwner = false,
 }: Props) {
+  const router = useRouter()
   const [showKickoffAttendeeEditor, setShowKickoffAttendeeEditor] = useState(false)
   const [kickoffAttendeeDraft, setKickoffAttendeeDraft] = useState('none')
   const [showKickoffAttendees, setShowKickoffAttendees] = useState(false)
@@ -338,6 +344,27 @@ export default function ProjectBlocksTab({
           </div>
         ) : null}
 
+        {project.context.trim() || project.strategy.trim() ? (
+          <div className="mt-4 grid gap-3 rounded-[20px] border border-slate-200 bg-slate-50/80 p-4 md:grid-cols-2">
+            <div className="min-w-0">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                Definicio
+              </div>
+              <div className="mt-1 line-clamp-3 text-sm leading-6 text-slate-700">
+                {project.context.trim() || 'Sense definicio del projecte.'}
+              </div>
+            </div>
+            <div className="min-w-0">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                Objectius
+              </div>
+              <div className="mt-1 line-clamp-3 text-sm leading-6 text-slate-700">
+                {project.strategy.trim() || 'Sense objectius estrategics.'}
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         <div className="mt-4 space-y-4 pt-2">
           {project.blocks.length === 0 ? (
             <div className={`rounded-[24px] bg-slate-50/80 px-5 py-10 ${projectEmptyStateClass}`}>
@@ -352,25 +379,49 @@ export default function ProjectBlocksTab({
               const blockRoomId =
                 project.rooms.find((room) => room.kind === 'block' && room.blockId === block.id)?.id ||
                 `room-block-${block.id}`
+              const blockRoomHref = `/menu/projects/${projectId}/rooms/${blockRoomId}`
               return (
               <div
                 key={block.id}
-                className={`space-y-4 rounded-[24px] p-5 ${
+                onClick={() => {
+                  if (!canAccessCurrentBlockRoom) return
+                  router.push(blockRoomHref)
+                }}
+                className={`relative space-y-4 rounded-[24px] border p-5 shadow-sm transition ${
                   isExpanded && canEditCurrentBlock
-                    ? 'bg-violet-50/70 ring-1 ring-violet-200'
-                    : 'bg-slate-50/75'
+                    ? 'border-violet-200 bg-violet-50/70 ring-1 ring-violet-200'
+                    : 'border-slate-200 bg-slate-50/75'
+                } ${
+                  canAccessCurrentBlockRoom ? 'cursor-pointer hover:border-violet-300 hover:shadow-md' : ''
                 }`}
               >
+                <span
+                  className={`absolute left-0 top-6 h-14 w-1 rounded-r-full ${blockStatusAccentClass(block.status)}`}
+                  aria-hidden="true"
+                />
                 <div
-                  className={`flex items-center justify-between gap-3 rounded-[18px] ${
+                  className={`flex items-start justify-between gap-3 rounded-[18px] ${
                     isExpanded && canEditCurrentBlock ? 'bg-white/80 px-2 py-1' : ''
                   }`}
                 >
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <div className={projectCardTitleClass}>{block.name || 'Bloc sense nom'}</div>
+                  <div className="min-w-0 pl-2">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className={`min-w-0 flex-1 ${projectCardTitleClass}`}>
+                        {block.name || 'Bloc sense nom'}
+                      </div>
+                      <span className="shrink-0 pt-0.5 text-sm font-semibold text-slate-700">
+                        {formatProjectDate(block.deadline) || 'Sense data'}
+                      </span>
                     </div>
-                    <div className={`mt-1 flex flex-wrap items-center gap-2 ${projectCardMetaClass}`}>
+                    <div className="mt-1 text-[15px] text-slate-800">
+                      {block.owner || 'Sense responsable'}
+                    </div>
+                    {block.summary ? (
+                      <div className="mt-1 line-clamp-1 text-[15px] text-slate-800">
+                        {block.summary}
+                      </div>
+                    ) : null}
+                    <div className={`mt-3 flex flex-wrap items-center gap-2 ${projectCardMetaClass}`}>
                       {getBlockDepartments(block).length > 0 ? (
                         <div className="flex flex-wrap items-center gap-1.5">
                           {getBlockDepartments(block).map((department) => (
@@ -385,10 +436,6 @@ export default function ProjectBlocksTab({
                       ) : (
                         <span>Sense departament</span>
                       )}
-                      <span>·</span>
-                      <span>{block.owner || 'Sense responsable'}</span>
-                      <span>·</span>
-                      <span>{formatProjectDate(block.deadline) || 'Sense data'}</span>
                       <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${deadlineTone(block.deadline)}`}>
                         {getDeadlineHint(block.deadline)}
                       </span>
@@ -417,13 +464,6 @@ export default function ProjectBlocksTab({
                     <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${blockStatusTone(block.status)}`}>
                       {BLOCK_STATUS_OPTIONS.find((option) => option.value === block.status)?.label || 'En curs'}
                     </span>
-                    {canAccessCurrentBlockRoom ? (
-                      <Button asChild type="button" variant="ghost" size="icon" className="h-9 w-9 rounded-full">
-                        <Link href={`/menu/projects/${projectId}/rooms/${blockRoomId}`}>
-                          <MessageSquare className="h-4 w-4" />
-                        </Link>
-                      </Button>
-                    ) : null}
                     {canEditCurrentBlock ? (
                       <>
                         <Button
@@ -431,18 +471,29 @@ export default function ProjectBlocksTab({
                           variant="ghost"
                           size="icon"
                           className="h-9 w-9 rounded-full"
-                          onClick={() =>
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            event.preventDefault()
                             onSetEditingBlockId((current) => (current === block.id ? null : block.id))
-                          }
+                          }}
+                          aria-label={editingBlockId === block.id ? 'Plegar edicio' : 'Desplegar edicio'}
                         >
-                          <Pencil className="h-4 w-4" />
+                          <ChevronDown
+                            className={`h-4 w-4 transition-transform ${
+                              editingBlockId === block.id ? 'rotate-180' : ''
+                            }`}
+                          />
                         </Button>
                         <Button
                           type="button"
                           variant="ghost"
                           size="icon"
                           className="h-9 w-9 rounded-full text-red-600 hover:bg-red-50 hover:text-red-700"
-                          onClick={() => onRemoveBlock(block.id)}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            event.preventDefault()
+                            onRemoveBlock(block.id)
+                          }}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -453,15 +504,18 @@ export default function ProjectBlocksTab({
                         variant="ghost"
                         size="icon"
                         className="h-9 w-9 rounded-full"
-                        onClick={() =>
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          event.preventDefault()
                           setViewingBlockId((current) => (current === block.id ? null : block.id))
-                        }
+                        }}
+                        aria-label={isViewingReadonly ? 'Plegar bloc' : 'Desplegar bloc'}
                       >
-                        {isViewingReadonly ? (
-                          <ChevronUp className="h-4 w-4" />
-                        ) : (
-                          <ChevronDown className="h-4 w-4" />
-                        )}
+                        <ChevronDown
+                          className={`h-4 w-4 transition-transform ${
+                            isViewingReadonly ? 'rotate-180' : ''
+                          }`}
+                        />
                       </Button>
                     )}
                   </div>

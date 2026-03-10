@@ -175,6 +175,7 @@ export default function ProjectsPage() {
     () =>
       (Array.isArray(notificationsData?.notifications) ? notificationsData.notifications : []).filter(
         (notification: ProjectNotification) =>
+          !notification.read &&
           [
             'project_assignment',
             'project_block_assignment',

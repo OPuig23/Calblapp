@@ -1,8 +1,8 @@
 ﻿'use client'
 
-import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
-import { MessageSquare, Paperclip, Pencil, Save, Trash2 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { ChevronDown, Paperclip, Save } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import FilterButton from '@/components/ui/filter-button'
 import ResetFilterButton from '@/components/ui/ResetFilterButton'
@@ -18,12 +18,10 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
-  formatProjectCost,
   TASK_PRIORITY_OPTIONS,
   TASK_STATUS_OPTIONS,
   formatProjectDate,
   getPreLaunchDeadline,
-  parseProjectCost,
   type ProjectDocument,
   type ProjectBlock,
   type ProjectTask,
@@ -88,6 +86,43 @@ type Props = {
 const documentName = (document?: ProjectDocument) =>
   String(document?.name || document?.label || 'Document').trim()
 
+const statusColumnTheme: Record<string, { header: string; column: string; badge: string }> = {
+  pending: {
+    header: 'border-sky-200 bg-[#cfe0ff]',
+    column: 'bg-[#eef4ff]',
+    badge: 'bg-white text-slate-700',
+  },
+  in_progress: {
+    header: 'border-amber-200 bg-[#ffe2b8]',
+    column: 'bg-[#fff4e2]',
+    badge: 'bg-white text-slate-700',
+  },
+  review: {
+    header: 'border-violet-200 bg-[#eadcff]',
+    column: 'bg-[#f7f0ff]',
+    badge: 'bg-white text-slate-700',
+  },
+  done: {
+    header: 'border-emerald-200 bg-[#cdeedb]',
+    column: 'bg-[#effaf3]',
+    badge: 'bg-white text-slate-700',
+  },
+}
+
+const priorityTintClass = (priority?: string) => {
+  switch (priority) {
+    case 'low':
+      return 'bg-slate-500/70'
+    case 'high':
+      return 'bg-amber-500/80'
+    case 'critical':
+      return 'bg-rose-600/85'
+    case 'normal':
+    default:
+      return 'bg-violet-500/75'
+  }
+}
+
 export default function ProjectTasksTab({
   projectId,
   projectBlocks,
@@ -115,6 +150,7 @@ export default function ProjectTasksTab({
   canAccessTaskOps = () => false,
   canMoveTask = () => false,
 }: Props) {
+  const router = useRouter()
   const { setContent, setOpen } = useFilters()
   const [draggingTaskKey, setDraggingTaskKey] = useState<string | null>(null)
   const [dragOverStatus, setDragOverStatus] = useState<string | null>(null)
@@ -139,6 +175,7 @@ export default function ProjectTasksTab({
       .map((room) => [String(room.blockId), room.id])
   )
   const dirtyTasks = dirtyBlocks || locallyDirtyTaskKeys.length > 0 || hasPendingTaskDraft
+  const totalFilteredTasks = filteredTasks.length
 
   useEffect(() => {
     if (!savingBlocks && !dirtyBlocks) {
@@ -313,14 +350,23 @@ export default function ProjectTasksTab({
           </div>
         ) : (
           <div className="mt-4 overflow-x-auto pt-2">
-            <div className="grid min-w-[1180px] grid-cols-4 gap-4">
+            <div className="grid min-w-[1260px] grid-cols-4 gap-5">
               {TASK_STATUS_OPTIONS.map((statusOption) => {
                 const columnTasks = filteredTasks.filter(({ task }) => task.status === statusOption.value)
+                const theme =
+                  statusColumnTheme[statusOption.value] || {
+                    header: 'border-slate-200 bg-slate-100',
+                    column: 'bg-slate-50/70',
+                    badge: 'bg-white text-slate-700',
+                  }
+                const percent = totalFilteredTasks > 0 ? Math.round((columnTasks.length / totalFilteredTasks) * 100) : 0
 
                 return (
                   <div
                     key={statusOption.value}
-                    className={`rounded-[24px] p-4 transition ${dragOverStatus === statusOption.value ? 'bg-violet-50' : 'bg-slate-50/70'}`}
+                    className={`rounded-[26px] border border-slate-200/70 p-3 transition ${
+                      dragOverStatus === statusOption.value ? 'ring-2 ring-violet-200' : ''
+                    } ${theme.column}`}
                     onDragOver={(event) => {
                       event.preventDefault()
                       if (draggingTaskKey) setDragOverStatus(statusOption.value)
@@ -334,16 +380,27 @@ export default function ProjectTasksTab({
                       moveTaskToStatus(draggingTask.block.id, draggingTask.task.id, statusOption.value)
                     }}
                   >
-                    <div className="flex items-center gap-2">
-                      <div className="text-sm font-semibold text-slate-900">{statusOption.label}</div>
-                      <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-slate-600">
-                        {columnTasks.length}
-                      </span>
+                    <div className={`rounded-[18px] border px-4 py-3 shadow-sm ${theme.header}`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-[15px] font-semibold text-slate-950">{statusOption.label}</div>
+                          <div className="mt-1 text-[11px] font-medium uppercase tracking-[0.18em] text-slate-600">
+                            Seguiment de tasques
+                          </div>
+                        </div>
+                        <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${theme.badge}`}>
+                          {columnTasks.length}
+                        </span>
+                      </div>
+                      <div className="mt-2 flex items-center gap-2 text-sm font-semibold text-slate-900">
+                        <span>{percent}%</span>
+                        <span className="text-slate-500">del total</span>
+                      </div>
                     </div>
 
                     <div className="mt-4 space-y-3">
                       {columnTasks.length === 0 ? (
-                        <div className={`rounded-2xl bg-white/70 px-4 py-5 ${projectEmptyStateClass}`}>
+                        <div className={`rounded-[18px] border border-dashed border-slate-300 bg-white/80 px-4 py-5 ${projectEmptyStateClass}`}>
                           Sense tasques.
                         </div>
                       ) : (
@@ -352,6 +409,7 @@ export default function ProjectTasksTab({
                           const canManageCurrentTask = canManageTask(block, task)
                           const canAccessOpsCurrentTask = canAccessTaskOps(block, task)
                           const canMoveCurrentTask = canMoveTask(block, task)
+                          const roomHref = `/menu/projects/${projectId}/rooms/${roomId}`
 
                           return (
                           <div
@@ -365,97 +423,127 @@ export default function ProjectTasksTab({
                               setDraggingTaskKey(null)
                               setDragOverStatus(null)
                             }}
-                            className={`rounded-[22px] bg-white p-4 shadow-sm transition ${
-                              draggingTaskKey === taskKey ? 'cursor-grabbing opacity-60' : 'cursor-grab'
+                            onClick={() => {
+                              if (draggingTaskKey || !canAccessOpsCurrentTask) return
+                              router.push(roomHref)
+                            }}
+                            className={`relative rounded-[18px] border border-slate-200 bg-white p-4 shadow-sm transition ${
+                              draggingTaskKey === taskKey
+                                ? 'cursor-grabbing opacity-60'
+                                : canAccessOpsCurrentTask
+                                  ? 'cursor-pointer hover:border-violet-300 hover:shadow-md'
+                                  : 'cursor-grab'
                             }`}
                           >
+                            <span
+                              className={`absolute left-0 top-5 h-12 w-1 rounded-r-full ${priorityTintClass(task.priority)}`}
+                              aria-hidden="true"
+                            />
                             <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <div className="text-base font-semibold text-slate-900">{task.title}</div>
-                                <div className="mt-3 flex items-center gap-2.5 whitespace-nowrap text-sm text-slate-500">
-                                  <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-700">
-                                    {block.name}
+                              <div className="min-w-0 pl-2">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0 flex-1 text-[15px] font-semibold leading-5 text-slate-900">
+                                    {task.title}
+                                  </div>
+                                  <span className="shrink-0 pt-0.5 text-sm font-semibold text-slate-700">
+                                    {task.deadline ? formatProjectDate(task.deadline) : 'Sense deadline'}
                                   </span>
-                                  {task.department ? (
-                                    <span className={`rounded-full px-3 py-1.5 text-xs font-medium ${colorByDepartment(task.department)}`}>
-                                      {task.department}
-                                    </span>
-                                  ) : null}
-                                  <span className="rounded-full bg-violet-100 px-3 py-1.5 text-xs font-medium text-violet-700">
-                                    {TASK_PRIORITY_OPTIONS.find((option) => option.value === task.priority)?.label || 'Normal'}
-                                  </span>
-                                  <span className="text-xs text-slate-500">{formatProjectDate(task.deadline)}</span>
-                                  {(task.documents || []).length > 0 ? (
-                                    <>
-                                      <span className="text-xs text-slate-400">·</span>
-                                      <span className="text-xs text-slate-500">{(task.documents || []).length} docs</span>
-                                    </>
-                                  ) : null}
                                 </div>
+                                <div className="mt-1 text-[15px] text-slate-800">
+                                  {task.owner || 'Sense responsable'}
+                                </div>
+                                {task.description ? (
+                                  <div className="mt-1 line-clamp-1 text-[15px] text-slate-800">
+                                    {task.description}
+                                  </div>
+                                ) : null}
                               </div>
 
-                              <div className="flex items-center gap-1">
-                                {canAccessOpsCurrentTask ? (
-                                  <Button asChild type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-full">
-                                    <Link href={`/menu/projects/${projectId}/rooms/${roomId}`}>
-                                      <MessageSquare className="h-4 w-4" />
-                                    </Link>
-                                  </Button>
-                                ) : null}
-                                <input
-                                  ref={(node) => {
-                                    fileInputsRef.current[taskKey] = node
-                                  }}
-                                  type="file"
-                                  className="hidden"
-                                  onChange={(event) => {
-                                    if (!canAccessOpsCurrentTask) return
-                                    const file = event.target.files?.[0]
-                                    if (!file) return
-                                    onAttachTaskDocument(block.id, task.id, file)
-                                    event.currentTarget.value = ''
-                                  }}
-                                />
-                                {canAccessOpsCurrentTask ? (
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 rounded-full"
-                                    onClick={() => fileInputsRef.current[taskKey]?.click()}
-                                  >
-                                    <Paperclip className="h-4 w-4" />
-                                  </Button>
-                                ) : null}
-                                {canManageCurrentTask ? (
-                                  <>
+                              <div className="flex items-start gap-1">
+                                <div className="flex items-center gap-1">
+                                  {canAccessOpsCurrentTask ? (
+                                    <input
+                                      ref={(node) => {
+                                        fileInputsRef.current[taskKey] = node
+                                      }}
+                                      type="file"
+                                      className="hidden"
+                                      onChange={(event) => {
+                                        if (!canAccessOpsCurrentTask) return
+                                        const file = event.target.files?.[0]
+                                        if (!file) return
+                                        onAttachTaskDocument(block.id, task.id, file)
+                                        event.currentTarget.value = ''
+                                      }}
+                                    />
+                                  ) : null}
+                                  {canManageCurrentTask ? (
                                     <Button
                                       type="button"
                                       variant="ghost"
                                       size="icon"
                                       className="h-8 w-8 rounded-full"
-                                      onClick={() =>
+                                      onClick={(event) => {
+                                        event.stopPropagation()
                                         onSetEditingTaskKey((current) => (current === taskKey ? null : taskKey))
-                                      }
+                                      }}
+                                      aria-label={editingTaskKey === taskKey ? 'Plegar edicio' : 'Desplegar edicio'}
                                     >
-                                      <Pencil className="h-4 w-4" />
+                                      <ChevronDown
+                                        className={`h-4 w-4 transition-transform ${
+                                          editingTaskKey === taskKey ? 'rotate-180' : ''
+                                        }`}
+                                      />
                                     </Button>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-8 w-8 rounded-full text-red-600 hover:bg-red-50 hover:text-red-700"
-                                      onClick={() => onRemoveTask(block.id, task.id)}
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  </>
-                                ) : null}
+                                  ) : null}
+                                </div>
                               </div>
                             </div>
 
+                            <div className="mt-3 flex flex-wrap items-center gap-2.5 pl-2 text-xs text-slate-500">
+                              <span className="rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-700">
+                                {block.name}
+                              </span>
+                              {task.department ? (
+                                <span className={`rounded-full px-2.5 py-1 font-medium ${colorByDepartment(task.department)}`}>
+                                  {task.department}
+                                </span>
+                              ) : null}
+                              {(task.documents || []).length > 0 ? (
+                                <span>{(task.documents || []).length} docs</span>
+                              ) : null}
+                              {canMoveCurrentTask ? (
+                                <span className="text-slate-400">Arrossega per moure</span>
+                              ) : null}
+                            </div>
+
+                            {editingTaskKey !== taskKey ? (
+                              <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                                <div
+                                  className="h-full rounded-full bg-slate-400"
+                                  style={{ width: `${Math.max(percent, 8)}%` }}
+                                />
+                              </div>
+                            ) : null}
+
                             {editingTaskKey === taskKey && canManageCurrentTask ? (
                               <div className="mt-4 space-y-3 pt-3">
+                                {canAccessOpsCurrentTask ? (
+                                  <div className="flex justify-end">
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      className="gap-2 border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                                      onClick={(event) => {
+                                        event.stopPropagation()
+                                        fileInputsRef.current[taskKey]?.click()
+                                      }}
+                                    >
+                                      <Paperclip className="h-4 w-4" />
+                                      Adjuntar document
+                                    </Button>
+                                  </div>
+                                ) : null}
                                 <div className="grid gap-3 sm:grid-cols-[130px_170px_minmax(0,1fr)]">
                                   <div className="min-w-0">
                                     <Select
